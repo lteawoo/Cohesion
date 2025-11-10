@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { closeDatabase } from './db/index.js'
 
 const app = new Hono()
 
@@ -19,11 +20,13 @@ const server = serve({
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('[SIGINT]Shutting down server...')
+  closeDatabase()
   server.close()
   process.exit(0)
 })
 process.on('SIGTERM', () => {
   console.log('[SIGTERM]Shutting down server...')
+  closeDatabase()
   server.close((err) => {
     if (err) {
       console.error(err)
