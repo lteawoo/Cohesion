@@ -2,16 +2,19 @@
   "name": "cohesion",
   "version": "0.0.0",
   "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "pnpm --parallel -r --filter ./apps/* dev",
-    "dev:web": "pnpm --filter web dev",
-    "dev:server": "pnpm --filter server dev",
-    "build": "pnpm -r --filter ./apps/* build",
-    "lint": "pnpm -r lint",
-    "test": "pnpm -r test"
+    "dev": "cd apps/server && bun --watch src/index.ts",
+    "dev:server": "cd apps/server && bun --watch src/index.ts",
+    "build": "cd apps/server && bun build src/index.ts --outdir dist",
+    "build:exe": "cd apps/server && bun build src/index.ts --compile --outfile ../../dist/cohesion",
+    "lint": "echo 'Lint not configured'",
+    "test": "echo 'Tests not configured'"
   },
   "devDependencies": {
-    "typescript": "^5.x.x",
-    "@types/node": "^20.x.x"
+    "@types/bun": "latest",
+    "bun-types": "^1.3.2"
   }
 }
