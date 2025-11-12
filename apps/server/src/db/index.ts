@@ -16,8 +16,8 @@ if (!fs.existsSync(DATA_DIR)) {
 export const db = new Database(DB_PATH)
 
 // WAL 모드 활성화 (동시성 향상)
-db.exec('PRAGMA journal_mode = WAL')
-db.exec('PRAGMA foreign_keys = ON') // 외래 키 제약 활성화
+db.run('PRAGMA journal_mode = WAL')
+db.run('PRAGMA foreign_keys = ON') // 외래 키 제약 활성화
 
 log.info(`Database connected at ${DB_PATH}`)
 
