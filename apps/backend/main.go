@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 )
 
 //go:embed web/dist
@@ -58,8 +59,11 @@ func main() {
 	// API 핸들러 설정
 	mux.HandleFunc("/api/", handleAPI)
 
-	// SPA 핸들러 설정
-	mux.HandleFunc("/", handleSPA(distFS))
+	// production에서는 SPA 핸들링
+	if os.Getenv("GO_ENV") == "production" {
+		// SPA 핸들러 설정
+		mux.HandleFunc("/", handleSPA(distFS))
+	}
 
 	port := ":3000"
 	log.Printf("Server is running on port %s", port)

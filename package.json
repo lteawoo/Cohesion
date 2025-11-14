@@ -1,0 +1,21 @@
+{
+  "name": "cohesion",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "task dev",
+    "build": "task build",
+    "test": "task test",
+    "lint": "task lint",
+    "clean": "task clean",
+    "install:all": "pnpm install"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@9.15.4"
+}
