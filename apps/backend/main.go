@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-//go:embed web/dist
+//go:embed dist/web
 var webDist embed.FS
 
 type spaResponseWriter struct {
@@ -47,10 +47,13 @@ func main() {
 	// 로거 설정
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	// web/dist 추출
-	distFS, err := fs.Sub(webDist, "web/dist")
+	log.Println("[Main] Starting Server...")
+	log.Println("[Main] GO_ENV:", os.Getenv("GO_ENV"))
+
+	// dist/web 추출
+	distFS, err := fs.Sub(webDist, "dist/web")
 	if err != nil {
-		log.Fatal("Failed to load web/dist:", err)
+		log.Fatal("Failed to load dist/web:", err)
 	}
 
 	// 라우터 생성

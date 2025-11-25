@@ -1,0 +1,24 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "outputs": ["dist/**", "build/**"], 
+      "dependsOn": ["^build"] 
+    },
+
+    "@cohesion/web#build": {
+      "outputs": ["dist/**", "../../apps/backend/dist/web/**"]
+    },
+
+    "@cohesion/backend#build": {
+      "dependsOn": ["^build", "@cohesion/web#build"],
+      "outputs": ["dist/**"]
+    },
+
+    "dev": {
+      "cache": false,     
+      "persistent": true 
+    },
+    "lint": {}
+  }
+}

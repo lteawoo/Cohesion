@@ -3,14 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "task dev",
-    "build": "task build",
-    "test": "task test",
-    "lint": "task lint",
-    "clean": "task clean",
-    "install:all": "pnpm install"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "clean": "rm -rf node_modules **/.turbo **/node_modules"
   },
   "devDependencies": {
+    "turbo": "^2.6.1",
     "typescript": "^5.9.3"
   },
   "engines": {
