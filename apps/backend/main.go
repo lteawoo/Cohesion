@@ -1,60 +1,20 @@
 package main
 
 import (
-	"embed"
-	"io"
-	"io/fs"
 	"log"
 	"net/http"
-	"os"
+
+	"taeu.kr/cohesion/internal/web"
 )
 
-//go:embed dist/web
-var webDist embed.FS
-
-type spaResponseWriter struct {
-	http.ResponseWriter
-	status      int
-	wroteHeader bool
-}
-
-// WriteHeader SPA 응답을 위한 WriteHeader 메서드
-func (w *spaResponseWriter) WriteHeader(status int) {
-	w.status = status
-	w.wroteHeader = true
-
-	// 404가 아닌 경우 바로 전달
-	if status != http.StatusNotFound {
-		w.ResponseWriter.WriteHeader(status)
-	}
-}
-
-// Write SPA 응답을 위한 Write 메서드
-func (w *spaResponseWriter) Write(b []byte) (int, error) {
-	if !w.wroteHeader {
-		w.WriteHeader(http.StatusOK)
-	}
-
-	// 404인 경우 버림
-	if w.status == http.StatusNotFound {
-		return len(b), nil
-	}
-
-	return w.ResponseWriter.Write(b)
-}
+var goEnv string = "development"
 
 func main() {
 	// 로거 설정
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	log.Println("[Main] Starting Server...")
-	log.Println("[Main] GO_ENV:", os.Getenv("GO_ENV"))
-
-	// dist/web 추출
-	distFS, err := fs.Sub(webDist, "dist/web")
-	if err != nil {
-		log.Fatal("Failed to load dist/web:", err)
-	}
+	log.Println("[Main] environment:", goEnv)
 
 	// 라우터 생성
 	mux := http.NewServeMux()
@@ -62,10 +22,14 @@ func main() {
 	// API 핸들러 설정
 	mux.HandleFunc("/api/", handleAPI)
 
-	// production에서는 SPA 핸들링
-	if os.Getenv("GO_ENV") == "production" {
+	if goEnv == "production" {
+		spaHandler, err := web.NewHandler(WebDist, "dist/web")
+		if err != nil {
+			log.Fatalf("Failed to create SPA Handler: %v", err)
+		}
+
 		// SPA 핸들러 설정
-		mux.HandleFunc("/", handleSPA(distFS))
+		mux.HandleFunc("/", spaHandler)
 	}
 
 	port := ":3000"
@@ -87,43 +51,6 @@ func handleAPI(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("{\"error\": \"Not Found\"}"))
-	}
-}
-
-// SPA 핸들러
-func handleSPA(distFS fs.FS) http.HandlerFunc {
-	// 정적 파일 핸들러 설정
-	fileServer := http.FileServer(http.FS(distFS))
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Wrapper 생성
-		wrapper := &spaResponseWriter{
-			ResponseWriter: w,
-			status:         http.StatusOK,
-		}
-
-		// FileServer 위임
-		fileServer.ServeHTTP(wrapper, r)
-
-		// 404인 경우 index.html 서빙
-		if wrapper.status == http.StatusNotFound {
-			file, err := distFS.Open("index.html")
-			if err != nil {
-				log.Printf("Failed to open index.html: %v", err)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
-			defer file.Close()
-
-			// index.html은 캐시하지 않음
-			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusOK)
-
-			if _, err := io.Copy(w, file); err != nil {
-				log.Printf("Error Serving index.html: %v", err)
-			}
-		}
 	}
 }
 

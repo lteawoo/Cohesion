@@ -6,9 +6,10 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
-    "clean": "rm -rf node_modules **/.turbo **/node_modules"
+    "clean": "rimraf --glob **/dist **/build **/.turbo **/tmp"
   },
   "devDependencies": {
+    "rimraf": "^6.1.2",
     "turbo": "^2.6.1",
     "typescript": "^5.9.3"
   },

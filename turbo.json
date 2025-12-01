@@ -7,7 +7,7 @@
     },
 
     "@cohesion/web#build": {
-      "outputs": ["dist/**", "../../apps/backend/dist/web/**"]
+      "outputs": ["dist/**"]
     },
 
     "@cohesion/backend#build": {

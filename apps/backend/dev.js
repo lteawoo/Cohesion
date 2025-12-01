@@ -13,13 +13,11 @@ const goCachePath = path.join(currentDir, 'tmp', 'gocache');
 const env = { 
   ...process.env, 
   GOCACHE: goCachePath,
-  GO_ENV: 'development'
 };
 
 console.log(`[Dev] Starting Air...`);
 console.log(`[Dev] OS: ${os.platform()}`);
 console.log(`[Dev] GOCACHE: ${goCachePath}`);
-console.log(`[Dev] GO_ENV: ${env.GO_ENV}`);
 
 // 4. Air 실행
 const air = spawn('air', { 

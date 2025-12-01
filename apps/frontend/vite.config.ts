@@ -11,7 +11,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../../apps/backend/dist/web',
+    outDir: 'dist',
     emptyOutDir: true,
   },
   server: {
