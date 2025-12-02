@@ -1,64 +1,53 @@
-import { Button, Layout, Menu } from "antd";
-import type { MenuProps } from 'antd';
+import { ConfigProvider, Layout, theme } from "antd";
 import { Outlet } from "react-router";
-import { MailOutlined, PlusOutlined } from "@ant-design/icons";
+import { MailOutlined } from "@ant-design/icons";
+import MainSider from "./MainSider";
+import type { ItemType } from "antd/es/menu/interface";
+import { useState } from "react";
 
-const { Header, Sider, Content } = Layout;
-type MenuItem = Required<MenuProps>['items'][number];
+const { Header, Content } = Layout;
 
-const items: MenuItem[] = [
-    {
-        key: 'space',
-        label: (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Space</span>
-                <Button
-                    type="link"
-                    icon={<PlusOutlined />}
-                    size="small"
-                ></Button>
-            </div>
-        ),
-        type: 'group',
-        children: [
-            { key: '1', icon: <MailOutlined />, label: 'My folder' },
-        ],
-    }
+const items: ItemType[] = [
+    { key: '1', icon: <MailOutlined />, label: 'My folder' },
 ]
 
 export default function MainLayout() {
-    return (
-        <Layout
-            style={{
-                display: 'flex',
-                minHeight: '100vh',
-                overflow: 'hidden'
-            }}
-        >
-            <Header
-                style={{
+    const [isDarkMode, setIsDarkMode] = useState(true);
 
+    const { token } = theme.useToken();
+
+    const currentAlgorithm = isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm;
+
+    console.log(currentAlgorithm)
+
+    return (
+        <ConfigProvider theme={{ algorithm: currentAlgorithm }}>
+            <Layout
+                style={{
+                    display: 'flex',
+                    minHeight: '100vh',
+                    overflow: 'hidden'
                 }}
             >
-                <div style={{ color: 'white', fontSize: '20px' }}>
-                    Cohesion
-                </div>
-            </Header>
-            <Layout>
-                <Sider
+                <Header
                     style={{
-
+                        background: token.colorBgContainer
                     }}
                 >
-                    <Menu theme="dark" mode="inline" defaultSelectedKeys={['4']} items={items} />
-                </Sider>
+                    <div style={{ color: token.colorText, fontSize: '20px' }}>
+                        Cohesion
+                    </div>
+                </Header>
+                <Layout>
+                    <MainSider spaceItems={items} />
 
-                <Content>
-                    <main style={{ flex: 1, overflowY: 'auto' }}>
-                        <Outlet />
-                    </main>
-                </Content>
+                    <Content>
+                        <main style={{ flex: 1, overflowY: 'auto' }}>
+                            <Outlet />
+                        </main>
+                    </Content>
+                </Layout>
             </Layout>
-        </Layout>
+        </ConfigProvider>
     )
 }
