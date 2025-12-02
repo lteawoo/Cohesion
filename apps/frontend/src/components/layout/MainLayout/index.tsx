@@ -1,7 +1,7 @@
-import { Layout, Menu } from "antd";
+import { Button, Layout, Menu } from "antd";
 import type { MenuProps } from 'antd';
 import { Outlet } from "react-router";
-import { MailOutlined } from "@ant-design/icons";
+import { MailOutlined, PlusOutlined } from "@ant-design/icons";
 
 const { Header, Sider, Content } = Layout;
 type MenuItem = Required<MenuProps>['items'][number];
@@ -9,7 +9,16 @@ type MenuItem = Required<MenuProps>['items'][number];
 const items: MenuItem[] = [
     {
         key: 'space',
-        label: 'Space',
+        label: (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Space</span>
+                <Button
+                    type="link"
+                    icon={<PlusOutlined />}
+                    size="small"
+                ></Button>
+            </div>
+        ),
         type: 'group',
         children: [
             { key: '1', icon: <MailOutlined />, label: 'My folder' },

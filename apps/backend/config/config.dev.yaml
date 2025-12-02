@@ -1,0 +1,7 @@
+server:
+  port: 3000
+database:
+  url: dist/data/cohesion_dev.db
+  user: test
+  password: test
+  dbname: cohesion

@@ -13,7 +13,7 @@ tmp_dir = "tmp"
   include_ext = ["go", "tpl", "tmpl", "html"]
 
   # 4. 감지에서 제외할 디렉토리 (node_modules 필수 제외)
-  exclude_dir = ["assets", "tmp", "vendor", "testdata", "node_modules"]
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "node_modules", ".turbo", "dist"]
   
   # 5. 감지에서 제외할 구체적 파일
   exclude_file = []

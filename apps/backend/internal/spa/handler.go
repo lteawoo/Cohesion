@@ -1,4 +1,4 @@
-package web
+package spa
 
 import (
 	"embed"
@@ -39,7 +39,8 @@ func (w *spaResponseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-func NewHandler(assets embed.FS, embedDir string) (http.HandlerFunc, error) {
+// NewSPAHandler SPA 핸들러 생성 함수
+func NewSPAHandler(assets embed.FS, embedDir string) (http.HandlerFunc, error) {
 	distFS, err := fs.Sub(assets, embedDir)
 	if err != nil {
 		return nil, err
@@ -68,7 +69,6 @@ func NewHandler(assets embed.FS, embedDir string) (http.HandlerFunc, error) {
 			}
 			defer file.Close()
 
-			// wrapper를 통해 헤더와 상태 코드를 설정합니다.
 			wrapper.Header().Set("Content-Type", "text/html; charset=utf-8")
 			wrapper.WriteHeader(http.StatusOK)
 
