@@ -5,16 +5,16 @@ tmp_dir = "tmp"
 [build]
   # 1. 빌드 명령어
   cmd = "go build -o ./tmp/main.exe"
-  
+
   # 2. 빌드된 바이너리 실행 위치
-  bin = "./tmp/main.exe"
+  entrypoint = "./tmp/main.exe"
 
   # 3. 변경을 감지할 파일 확장자
   include_ext = ["go", "tpl", "tmpl", "html"]
 
   # 4. 감지에서 제외할 디렉토리 (node_modules 필수 제외)
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "node_modules", ".turbo", "dist"]
-  
+
   # 5. 감지에서 제외할 구체적 파일
   exclude_file = []
 

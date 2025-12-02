@@ -6,7 +6,8 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
-    "clean": "rimraf --glob **/dist **/build **/.turbo **/tmp"
+    "clean": "rimraf --glob **/dist **/build **/.turbo **/tmp",
+    "clean-all": "rimraf --glob **/dist **/build **/.turbo **/tmp node_modules **/node_modules"
   },
   "devDependencies": {
     "rimraf": "^6.1.2",
@@ -14,8 +15,8 @@
     "typescript": "^5.9.3"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=24.0.0",
+    "pnpm": ">=9.0.0"
   },
   "packageManager": "pnpm@9.15.4"
 }
