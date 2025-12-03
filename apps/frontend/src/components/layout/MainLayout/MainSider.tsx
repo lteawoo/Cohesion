@@ -21,6 +21,11 @@ export default function MainSider({ spaceItems }: MainSiderProps) {
             type="link"
             icon={<PlusOutlined />}
             size="small"
+            onClick={async () => {
+              const res = await fetch('/api/spaces')
+                .then(response => response.json())
+              console.log(res)
+            }}
           ></Button>
         </div>
       ),

@@ -1,13 +1,12 @@
 package config
 
 import (
-	"log"
-
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
 func SetConfig(goEnv string) {
-	log.Printf("Loading configuration for environment: %s", goEnv)
+	log.Info().Msgf("Loading configuration for environment: %s", goEnv)
 
 	viper.AddConfigPath("config")
 	viper.SetConfigType("yaml")
@@ -20,11 +19,11 @@ func SetConfig(goEnv string) {
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Fatalf("Failed to read config file: %v", err)
+		log.Fatal().Err(err).Msg("Failed to read config file")
 	}
 
 	err = viper.Unmarshal(&Conf)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal config: %v", err)
+		log.Fatal().Err(err).Msg("Failed to unmarshal config")
 	}
 }

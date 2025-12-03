@@ -3,6 +3,7 @@ package space
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
 	"taeu.kr/cohesion/internal/space"
@@ -21,19 +22,58 @@ func NewStore(db *sql.DB) *Store {
 }
 
 func (s *Store) GetAll(ctx context.Context) ([]*space.Space, error) {
-	var spaces []*space.Space
-
 	sqlQuery, args, err := s.qb.
-		Select("*").
-		From("spaces").
+		Select(
+			"id",
+			"space_name",
+			"space_desc",
+			"space_path",
+			"icon",
+			"space_category",
+			"created_at",
+			"created_user_id",
+			"updated_at",
+			"updated_user_id",
+		).
+		From("space").
 		ToSql()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build SQL query for GetAll: %w", err)
 	}
 
-	err = s.db.QueryRowContext(ctx, sqlQuery, args...).Scan(&spaces)
+	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query space: %w", err)
+	}
+	defer rows.Close()
+
+	var spaces []*space.Space
+
+	for rows.Next() {
+		var sp space.Space
+		if err := rows.Scan(
+			&sp.ID,
+			&sp.SpaceName,
+			&sp.SpaceDesc,
+			&sp.SpacePath,
+			&sp.Icon,
+			&sp.SpaceCategory,
+			&sp.CreatedAt,
+			&sp.CreatedUserID,
+			&sp.UpdatedAt,
+			&sp.UpdatedUserID,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan space row: %w", err)
+		}
+		spaces = append(spaces, &sp)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error in GetAll: %w", err)
+	}
+
+	if spaces == nil {
+		spaces = []*space.Space{}
 	}
 
 	return spaces, nil

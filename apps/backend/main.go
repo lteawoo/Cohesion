@@ -1,80 +1,99 @@
 package main
 
 import (
-	"log"
 	"net/http"
+	"os"
+	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/hlog"
+	"github.com/rs/zerolog/log"
 	"taeu.kr/cohesion/internal/config"
 	"taeu.kr/cohesion/internal/platform/database"
+	"taeu.kr/cohesion/internal/platform/web"
 	"taeu.kr/cohesion/internal/spa"
+	"taeu.kr/cohesion/internal/space"
+	spaceHandler "taeu.kr/cohesion/internal/space/handler"
+	spaceStore "taeu.kr/cohesion/internal/space/store"
 )
 
 var goEnv string = "development"
 
 func init() {
-
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 }
 
 func main() {
-	// 로거 설정
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// Zerolog 전역 로거 설정
+	if goEnv == "production" {
+		zerolog.TimestampFunc = func() time.Time {
+			return time.Now().UTC()
+		}
+	} else {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+	}
 
-	log.Println("[Main] Starting Server...")
-	log.Println("[Main] environment:", goEnv)
+	log.Info().Msg("[Main] Starting Server...")
+	log.Info().Msgf("[Main] environment: %s", goEnv)
 
 	// 설정 로드
 	config.SetConfig(goEnv)
+
+	// 데이터베이스 연결 설정
+	db, err := database.NewDB()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to connect to database")
+	}
+	defer db.Close()
+	log.Info().Msg("Database connected successfully.")
+
+	// 의존성 주입
+	spaceStore := spaceStore.NewStore(db)
+	spaceService := space.NewService(spaceStore)
+	spaceHandler := spaceHandler.NewHandler(spaceService)
 
 	// 라우터 생성
 	mux := http.NewServeMux()
 
 	// API 핸들러 설정
-	mux.HandleFunc("/api/", handleAPI)
+	mux.Handle("/api/health", web.Handler(func(w http.ResponseWriter, r *http.Request) *web.Error {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("{\"status\": \"ok\"}"))
+		return nil
+	}))
+
+	// Space 핸들러 등록
+	spaceHandler.RegisterRoutes(mux)
 
 	if goEnv == "production" {
 		spaHandler, err := spa.NewSPAHandler(WebDist, "dist/web")
 		if err != nil {
-			log.Fatalf("Failed to create SPA Handler: %v", err)
+			log.Fatal().Err(err).Msg("Failed to create SPA Handler")
 		}
 
 		// SPA 핸들러 설정
 		mux.HandleFunc("/", spaHandler)
 	}
 
-	// 데이터베이스 연결 설정
-	db, err := database.NewDB()
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
-	log.Println("Database connected successfully.")
-
 	port := ":" + config.Conf.Server.Port
-	log.Printf("Server is running on port %s", port)
-	log.Println("\nPress Ctrl+C to stop")
+	log.Info().Msgf("Server is running on port %s", port)
+	log.Info().Msg("\nPress Ctrl+C to stop")
 
-	if err := http.ListenAndServe(port, Logger(mux)); err != nil {
-		log.Fatal("Server failed:", err)
+	// hlog.NewHanlder는 Zerolog 컨텍스트를 HTTP 핸들러에 주입
+	hlogHandler := hlog.NewHandler(log.Logger)
+
+	// hlog.AccessHandler는 요청 및 응답에 대한 로그를 기록
+	finalLogHandler := hlogHandler(hlog.AccessHandler(func(r *http.Request, status, size int, duration time.Duration) {
+		hlog.FromRequest(r).Info().
+			Str("method", r.Method).
+			Str("url", r.URL.String()).
+			Int("status", status).
+			Int("size", size).
+			Dur("duration", duration).
+			Msg("Access log")
+	})(mux))
+
+	if err := http.ListenAndServe(port, finalLogHandler); err != nil {
+		log.Fatal().Err(err).Msg("Server failed")
 	}
-}
-
-// API 핸들러
-func handleAPI(w http.ResponseWriter, r *http.Request) {
-	switch {
-	case r.URL.Path == "/api/health":
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("{\"status\": \"ok\"}"))
-	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("{\"error\": \"Not Found\"}"))
-	}
-}
-
-// Logger 미들웨어
-func Logger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
-		next.ServeHTTP(w, r)
-	})
 }

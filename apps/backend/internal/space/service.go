@@ -17,3 +17,8 @@ func NewService(store Storer) *Service {
 		store: store,
 	}
 }
+
+// 모든 Space 조회
+func (s *Service) GetAllSpaces(ctx context.Context) ([]*Space, error) {
+	return s.store.GetAll(ctx)
+}

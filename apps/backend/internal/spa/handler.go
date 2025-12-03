@@ -4,8 +4,9 @@ import (
 	"embed"
 	"io"
 	"io/fs"
-	"log"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
 type spaResponseWriter struct {
@@ -63,7 +64,7 @@ func NewSPAHandler(assets embed.FS, embedDir string) (http.HandlerFunc, error) {
 		if wrapper.status == http.StatusNotFound {
 			file, err := distFS.Open("index.html")
 			if err != nil {
-				log.Printf("Failed to open index.html: %v", err)
+				log.Error().Err(err).Msg("Failed to open index.html")
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
@@ -73,7 +74,7 @@ func NewSPAHandler(assets embed.FS, embedDir string) (http.HandlerFunc, error) {
 			wrapper.WriteHeader(http.StatusOK)
 
 			if _, err := io.Copy(wrapper, file); err != nil {
-				log.Printf("Error Serving index.html: %v", err)
+				log.Error().Err(err).Msg("Error Serving index.html")
 			}
 		}
 	}, nil
