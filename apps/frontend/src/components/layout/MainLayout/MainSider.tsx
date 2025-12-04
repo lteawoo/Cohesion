@@ -1,6 +1,8 @@
+import DirectorySetupModal from "@/features/space/components/DirectorySetupModal";
 import { PlusOutlined } from "@ant-design/icons";
 import { Button, Layout, Menu, theme, type MenuProps } from "antd";
 import type { ItemType } from "antd/es/menu/interface";
+import { useState } from "react";
 
 const { Sider } = Layout;
 
@@ -10,6 +12,7 @@ interface MainSiderProps {
 
 export default function MainSider({ spaceItems }: MainSiderProps) {
   const { token } = theme.useToken();
+  const [isOpen, setIsOpen] = useState(false);
 
   const spaceMenuItems: MenuProps['items'] = [
     {
@@ -21,11 +24,7 @@ export default function MainSider({ spaceItems }: MainSiderProps) {
             type="link"
             icon={<PlusOutlined />}
             size="small"
-            onClick={async () => {
-              const res = await fetch('/api/spaces')
-                .then(response => response.json())
-              console.log(res)
-            }}
+            onClick={() => setIsOpen(true)}
           ></Button>
         </div>
       ),
@@ -40,6 +39,7 @@ export default function MainSider({ spaceItems }: MainSiderProps) {
         background: token.colorBgContainer
       }}
     >
+      <DirectorySetupModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
       <Menu mode="inline" items={spaceMenuItems} />
     </Sider>
   );

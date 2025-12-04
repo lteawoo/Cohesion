@@ -8,6 +8,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/hlog"
 	"github.com/rs/zerolog/log"
+	"taeu.kr/cohesion/internal/browse"
+	browseHandler "taeu.kr/cohesion/internal/browse/handler"
 	"taeu.kr/cohesion/internal/config"
 	"taeu.kr/cohesion/internal/platform/database"
 	"taeu.kr/cohesion/internal/platform/web"
@@ -51,6 +53,8 @@ func main() {
 	spaceStore := spaceStore.NewStore(db)
 	spaceService := space.NewService(spaceStore)
 	spaceHandler := spaceHandler.NewHandler(spaceService)
+	browseService := browse.NewService()
+	browseHandler := browseHandler.NewHandler(browseService)
 
 	// 라우터 생성
 	mux := http.NewServeMux()
@@ -62,8 +66,9 @@ func main() {
 		return nil
 	}))
 
-	// Space 핸들러 등록
+	// Api 핸들러 등록
 	spaceHandler.RegisterRoutes(mux)
+	browseHandler.RegisterRoutes(mux)
 
 	if goEnv == "production" {
 		spaHandler, err := spa.NewSPAHandler(WebDist, "dist/web")
