@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
+	"github.com/shirou/gopsutil/disk"
 )
 
 type FileInfo struct {
@@ -17,7 +18,8 @@ type FileInfo struct {
 }
 
 type Service struct {
-	initialBrowseRoot string // 사용자의 홈 디렉토리 저장
+	initialBrowseRoot string     // 사용자의 홈 디렉토리 저장
+	baseDirectories   []FileInfo // User home, disks list
 }
 
 func NewService() *Service {
@@ -34,11 +36,36 @@ func NewService() *Service {
 		log.Info().Msgf("초기 디렉토리: %s", userHomeDir)
 	}
 
-	return &Service{initialBrowseRoot: userHomeDir}
+	// 디스크 파티션 정보 가져오기
+	partitions, err := disk.Partitions(false)
+	if err != nil {
+		log.Error().Err(err).Msg("Fail to get disk partitions.")
+	}
+
+	var baseDirectories []FileInfo
+	baseDirectories = append(baseDirectories, FileInfo{
+		Name:  "Home",
+		Path:  userHomeDir,
+		IsDir: true,
+	})
+
+	for _, p := range partitions {
+		baseDirectories = append(baseDirectories, FileInfo{
+			Name:  p.Mountpoint,
+			Path:  p.Mountpoint,
+			IsDir: true,
+		})
+	}
+
+	return &Service{initialBrowseRoot: userHomeDir, baseDirectories: baseDirectories}
 }
 
 func (s *Service) GetInitialBrowseRoot() string {
 	return s.initialBrowseRoot
+}
+
+func (s *Service) GetBaseDirectories() []FileInfo {
+	return s.baseDirectories
 }
 
 func (s *Service) ListDirectory(isOnlyDir bool, path string) ([]FileInfo, error) {
