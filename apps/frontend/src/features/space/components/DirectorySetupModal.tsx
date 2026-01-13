@@ -1,59 +1,41 @@
-import { Modal, } from "antd";
+import { Modal } from "antd";
+import FolderTree from "../../browse/components/FolderTree";
 import { useEffect, useState } from "react";
-import type { FileInfo } from "../types";
-import { HomeFilled } from "@ant-design/icons";
-import { RiHardDrive3Fill } from "react-icons/ri";
 
-export default function DirectorySetupModal({ isOpen, onClose } : { isOpen: boolean, onClose: () => void}) {
-  const [loading, setLoading] = useState<boolean>(true);
-  const [baseDirectories, setBaseDirectories] = useState<FileInfo[]>([]);
+export default function DirectorySetupModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+  const [selectedPath, setSelectedPath] = useState<string>('');
 
+  // 모달이 열릴 때마다 선택된 경로를 초기화합니다.
   useEffect(() => {
-    const fetchBaseDir = async () => {
-      try {
-        const response = await fetch('/api/browse/base-directories');
-        const data = await response.json();
-        console.log('Base Directories:', data);
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Failed to fetch base directories');
-        }
-
-        setBaseDirectories(data);
-      } catch (error) {
-        console.error('Error fetching base directories:', error);
-      } finally {
-        setLoading(false);
-      }
+    if (isOpen) {
+      setSelectedPath('');
     }
-    fetchBaseDir();
-  }, []);
+  }, [isOpen]);
+
+  const handleSelect = (path: string) => {
+    setSelectedPath(path);
+  };
+
+  const handleOk = () => {
+    console.log("Selected Path:", selectedPath);
+    onClose();
+  };
 
   return (
     <Modal
-        title="Space 등록"
-        open={isOpen}
-        onCancel={onClose}
-        width= {{
-          xs: '90%',
-          md: '70%',
-          lg: '60%',
-        }}>
-      <div style={{ display: 'flex', flexDirection: 'row', gap: '16px' }}>
-        {/* user folder and disk */}
-        <div style={{ flex: 0.7 }}>
-          {baseDirectories.map((dir: FileInfo) => {
-            if (dir.name === 'Home') {
-              return <div key={dir.path}><HomeFilled /> Home</div>
-            } else {
-              return <div key={dir.path}><RiHardDrive3Fill /> {dir.name}</div>
-            }
-          })}
-        </div>
-        {/* directory list */}
-        <div style={{ flex: 1 }}  >
-          directory list
-        </div>
+      title="Space로 사용할 폴더 선택"
+      open={isOpen}
+      onOk={handleOk}
+      onCancel={onClose}
+      width={600}
+      okButtonProps={{ disabled: !selectedPath }} // 선택된 경로가 없으면 확인 버튼 비활성화
+      destroyOnHidden={true}
+    >
+      <div style={{ marginBottom: '16px', fontStyle: 'italic' }}>
+        선택된 폴더: {selectedPath || '없음'}
+      </div>
+      <div style={{ height: '50vh', overflow: 'auto' }}>
+        <FolderTree onSelect={handleSelect} />
       </div>
     </Modal>
   );

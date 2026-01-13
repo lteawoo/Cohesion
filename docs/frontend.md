@@ -24,3 +24,39 @@ src/
 ├── App.tsx
 └── main.tsx
 ```
+
+---
+
+## 타입(Type) 정의 규칙
+
+TypeScript의 `type`과 `interface`를 일관성 있게 사용하기 위해 다음 규칙을 따른다.
+
+- **`interface`는 객체의 형태(Shape)를 정의하는 데 사용한다.**
+    - API 응답 데이터, DB 데이터 모델 등 명확한 구조를 가진 객체에 우선적으로 사용한다.
+    - 선언 병합(Declaration Merging)이 필요할 경우 사용한다.
+    - **예시:**
+        ```typescript
+        // features/browse/types.ts
+        export interface FileNode {
+          name: string;
+          path: string;
+          isDir: boolean;
+        }
+        ```
+
+- **`type`은 타입에 별칭(Alias)을 붙이는 데 사용한다.**
+    - `string | number` 와 같은 유니언(Union), `A & B` 와 같은 인터섹션(Intersection) 등 여러 타입을 조합하여 새로운 타입을 만들 때 사용한다.
+    - 객체 형태를 정의할 수도 있지만, 주로 특정 UI 컴포넌트에 맞춘 데이터 형식이거나 확장 가능성이 없는 경우에 제한적으로 사용한다.
+    - **예시:**
+        ```typescript
+        // features/browse/types.ts
+        export type TreeDataNode = {
+          title: string;
+          key: string;
+          isLeaf: boolean;
+          children?: TreeDataNode[];
+        };
+
+        // features/user/types.ts
+        export type UserRole = 'admin' | 'editor' | 'viewer';
+        ```

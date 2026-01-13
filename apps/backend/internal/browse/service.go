@@ -78,15 +78,15 @@ func (s *Service) ListDirectory(isOnlyDir bool, path string) ([]FileInfo, error)
 	}
 
 	var files []FileInfo
-	parentDir := filepath.Dir(cleanPath)
+	// parentDir := filepath.Dir(cleanPath)
 
-	if parentDir != cleanPath {
-		files = append(files, FileInfo{
-			Name:  "..",
-			Path:  parentDir,
-			IsDir: true,
-		})
-	}
+	// if parentDir != cleanPath {
+	// 	files = append(files, FileInfo{
+	// 		Name:  "..",
+	// 		Path:  parentDir,
+	// 		IsDir: true,
+	// 	})
+	// }
 
 	for _, entry := range entries {
 		// 숨김 파일/폴더는 제외
