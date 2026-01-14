@@ -78,3 +78,45 @@ func (s *Store) GetAll(ctx context.Context) ([]*space.Space, error) {
 
 	return spaces, nil
 }
+
+func (s *Store) GetByName(ctx context.Context, name string) (*space.Space, error) {
+	sqlQuery, args, err := s.qb.
+		Select(
+			"id",
+			"space_name",
+			"space_desc",
+			"space_path",
+			"icon",
+			"space_category",
+			"created_at",
+			"created_user_id",
+			"updated_at",
+			"updated_user_id",
+		).
+		From("space").
+		Where(sq.Eq{"space_name": name}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build SQL query for GetAll: %w", err)
+	}
+
+	row := s.db.QueryRowContext(ctx, sqlQuery, args...)
+
+	var sp space.Space
+	if err := row.Scan(
+		&sp.ID,
+		&sp.SpaceName,
+		&sp.SpaceDesc,
+		&sp.SpacePath,
+		&sp.Icon,
+		&sp.SpaceCategory,
+		&sp.CreatedAt,
+		&sp.CreatedUserID,
+		&sp.UpdatedAt,
+		&sp.UpdatedUserID,
+	); err != nil {
+		return nil, fmt.Errorf("failed to scan space row: %w", err)
+	}
+
+	return &sp, nil
+}
