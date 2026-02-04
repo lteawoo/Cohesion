@@ -19,7 +19,7 @@ Cohesion/
 ### 개발 모드 (전체)
 ```bash
 # 루트 디렉토리에서
-npm run dev
+pnpm dev
 ```
 - 프론트엔드: http://localhost:5173
 - 백엔드: http://localhost:3000

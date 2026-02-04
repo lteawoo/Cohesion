@@ -55,6 +55,15 @@
     - 성공/실패 메시지 표시 (message.success/error).
     - Playwright 브라우저 테스트 완료: Context Menu, 확인 모달, 삭제 후 트리 갱신 모두 정상 작동 확인.
 
+- **파일 표시 버그 수정 완료** (2026-02-04):
+    - 문제: FolderContent에서 폴더만 표시되고 파일이 표시되지 않음.
+    - 원인: `browse_handler.go`의 `ListDirectory` 호출 시 `isOnlyDir` 파라미터가 `true`로 설정되어 있어 파일 필터링.
+    - 해결: `apps/backend/internal/browse/handler/browse_handler.go:51` 라인 수정.
+        - 변경 전: `h.browseService.ListDirectory(true, targetPath)`
+        - 변경 후: `h.browseService.ListDirectory(false, targetPath)`
+    - 결과: 오른쪽 FolderContent에서 폴더와 파일이 모두 정상 표시.
+    - Playwright 브라우저 테스트 완료: 파일 아이콘, 크기, 수정일 모두 정상 표시 확인.
+
 ## 다음 작업 (Next Steps)
 - 파일 업로드 기능 (Drag & Drop) 구현.
 - 파일 우클릭 메뉴(Context Menu) 추가 (삭제, 이름 변경 등).

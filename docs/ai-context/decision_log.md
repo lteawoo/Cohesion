@@ -117,3 +117,17 @@
   - 삭제 후 `refetch()`로 트리 자동 갱신.
   - 성공/실패 시 message 컴포넌트로 사용자에게 피드백.
 - **백엔드**: DELETE `/api/spaces/:id` 엔드포인트는 이미 구현되어 있었음.
+
+### 파일 표시 버그 수정 (2026-02-04)
+- **문제**: FolderContent에서 폴더만 표시되고 파일이 표시되지 않는 버그 발견.
+- **원인 분석**:
+  - `browse_handler.go`의 `handleBrowse` 함수에서 `ListDirectory(true, targetPath)` 호출.
+  - `isOnlyDir=true` 파라미터로 인해 `browse/service.go`의 `ListDirectory` 함수가 파일을 필터링.
+  - 92-94라인: `if isOnlyDir && !entry.IsDir() { continue }` 로직으로 파일 제외.
+- **결정**: `isOnlyDir` 파라미터를 `false`로 변경하여 파일과 폴더 모두 반환.
+- **이유**:
+  - 파일 탐색기의 핵심 기능은 파일과 폴더를 모두 보여주는 것.
+  - FolderContent는 이미 파일과 폴더를 구분하여 표시하는 UI가 구현되어 있음.
+  - 왼쪽 FolderTree는 폴더만 표시하고, 오른쪽 FolderContent는 파일과 폴더 모두 표시하는 것이 직관적.
+- **수정 파일**: `apps/backend/internal/browse/handler/browse_handler.go:51`
+- **결과**: Space 선택 시 폴더와 파일이 모두 정상 표시됨.

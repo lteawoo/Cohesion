@@ -48,7 +48,7 @@ func (h *Handler) handleBrowse(w http.ResponseWriter, r *http.Request) *web.Erro
 		targetPath = h.browseService.GetInitialBrowseRoot()
 	}
 
-	files, err = h.browseService.ListDirectory(true, targetPath)
+	files, err = h.browseService.ListDirectory(false, targetPath)
 
 	if err != nil {
 		if os.IsNotExist(err) {
