@@ -67,3 +67,11 @@ temp/
 *.tmp
 
 package-lock.json
+
+# Testing & Debugging
+coverage
+test-results/
+playwright-report/
+blob-report/
+.playwright-mcp/
+.serena

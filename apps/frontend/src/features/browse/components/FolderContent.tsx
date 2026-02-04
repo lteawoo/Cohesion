@@ -5,9 +5,11 @@ import { FolderFilled, FileOutlined, LeftOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode } from '../types';
 import type { ColumnsType } from 'antd/es/table';
+import type { Space } from '@/features/space/types';
 
 interface FolderContentProps {
   selectedPath: string;
+  selectedSpace?: Space;
   onPathChange: (path: string) => void;
 }
 
@@ -25,7 +27,7 @@ const formatDate = (dateString: string) => {
   return date.toLocaleString();
 };
 
-const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, onPathChange }) => {
+const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpace, onPathChange }) => {
   const [content, setContent] = useState<FileNode[]>([]);
   const { isLoading, fetchDirectoryContents } = useBrowseApi();
 
@@ -39,21 +41,50 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, onPathChang
     }
   }, [selectedPath, fetchDirectoryContents]);
 
-  const breadcrumbItems = selectedPath.split('/').filter(Boolean).reduce((acc: Array<{title: React.ReactNode; key: string}>, curr, idx, array) => {
-    const path = '/' + array.slice(0, idx + 1).join('/');
-    acc.push({
-      title: <a onClick={() => onPathChange(path)}>{curr}</a>,
-      key: path
-    });
-    return acc;
-  }, [{ title: <a onClick={() => onPathChange('/')}>Root</a>, key: '/' }]);
+  // Space 상대 경로로 Breadcrumb 생성
+  const breadcrumbItems = (() => {
+    if (!selectedPath) return [];
+
+    // Space가 선택된 경우 상대 경로로 표시
+    if (selectedSpace && selectedPath.startsWith(selectedSpace.space_path)) {
+      const relativePath = selectedPath.slice(selectedSpace.space_path.length);
+      const segments = relativePath.split('/').filter(Boolean);
+
+      const items: Array<{title: React.ReactNode; key: string}> = [
+        {
+          title: <a onClick={() => onPathChange(selectedSpace.space_path)}>{selectedSpace.space_name}</a>,
+          key: selectedSpace.space_path
+        }
+      ];
+
+      segments.forEach((curr, idx) => {
+        const path = selectedSpace.space_path + '/' + segments.slice(0, idx + 1).join('/');
+        items.push({
+          title: <a onClick={() => onPathChange(path)}>{curr}</a>,
+          key: path
+        });
+      });
+
+      return items;
+    }
+
+    // Space가 없는 경우 절대 경로로 표시 (기존 로직)
+    return selectedPath.split('/').filter(Boolean).reduce((acc: Array<{title: React.ReactNode; key: string}>, curr, idx, array) => {
+      const path = '/' + array.slice(0, idx + 1).join('/');
+      acc.push({
+        title: <a onClick={() => onPathChange(path)}>{curr}</a>,
+        key: path
+      });
+      return acc;
+    }, [{ title: <a onClick={() => onPathChange('/')}>Root</a>, key: '/' }]);
+  })();
 
   const columns: ColumnsType<FileNode> = [
     {
       title: '이름',
       dataIndex: 'name',
       key: 'name',
-      render: (text, record) => (
+      render: (text: string, record: FileNode) => (
         <AntSpace>
           {record.isDir ? <FolderFilled style={{ color: '#ffca28' }} /> : <FileOutlined />}
           <a onClick={() => record.isDir && onPathChange(record.path)}>{text}</a>
@@ -66,7 +97,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, onPathChang
       dataIndex: 'modTime',
       key: 'modTime',
       width: 200,
-      render: (date) => formatDate(date),
+      render: (date: string) => formatDate(date),
       sorter: (a, b) => new Date(a.modTime).getTime() - new Date(b.modTime).getTime(),
     },
     {
@@ -74,7 +105,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, onPathChang
       dataIndex: 'size',
       key: 'size',
       width: 120,
-      render: (size, record) => record.isDir ? '-' : formatSize(size),
+      render: (size: number, record: FileNode) => record.isDir ? '-' : formatSize(size),
       sorter: (a, b) => a.size - b.size,
     },
   ];
@@ -111,7 +142,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, onPathChang
         loading={isLoading}
         rowKey="path"
         pagination={false}
-        onRow={(record) => ({
+        onRow={(record: FileNode) => ({
           onDoubleClick: () => record.isDir && onPathChange(record.path),
         })}
         locale={{ emptyText: '이 폴더는 비어 있습니다.' }}

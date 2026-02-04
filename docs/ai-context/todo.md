@@ -15,7 +15,10 @@
 - [x] Space와 FolderTree 통합 트리 구조 구현
 - [x] Serena MCP 사용 규칙 문서화 (CLAUDE.md)
 - [x] 코드 품질 개선 (린트 에러, 중복 코드 제거)
-- [ ] Space 상대 경로 Breadcrumb 표시 (UX 개선)
+- [x] 문서 구조 통합 (master_rule.md로 모든 규칙 통합)
+- [x] Playwright MCP 테스트 절차 추가
+- [x] 실행 환경 문서화 (AGENTS.md 생성)
+- [x] Space 상대 경로 Breadcrumb 표시 (UX 개선)
 - [ ] Space 삭제 기능 (Context Menu)
 - [ ] 파일 업로드 (Drag & Drop)
 - [ ] 파일 우클릭 메뉴 (삭제, 이름 변경)

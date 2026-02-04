@@ -22,8 +22,33 @@
     - React 권장 패턴 준수: useEffect에서 setState 제거, 올바른 폼 초기화.
     - 테마 대응: 텍스트 색상이 다크/라이트 모드에 맞춰 자동 변경.
 
+- **문서 구조 개편** (2026-02-04):
+    - `CLAUDE.md`를 `.claude/CLAUDE.md`로 이동 (Claude Code CLI 전용 설정).
+    - `GEMINI.md` 간소화: "docs/master_rule.md를 먼저 읽기"로 단순화.
+    - `docs/master_rule.md`에 모든 규칙 통합:
+        - Playwright MCP 브라우저 테스트 절차 추가.
+        - 디자인 규칙 (8px 그리드, 일관된 radius 등) 명시.
+        - 커밋 메시지 규칙 (한글, 간결체) 추가.
+        - Serena MCP 사용 상세 규칙을 GEMINI.md에서 이동.
+    - `.gitignore`에 테스트/디버깅 디렉토리 추가 (.playwright-mcp/, .serena 등).
+
+- **문서 구조 개선** (2026-02-04):
+    - `docs/AGENTS.md` 생성: 실행 환경 정보 통합 문서.
+        - 프로젝트 구조, 서버 실행, 빌드, 포트 정보.
+        - 테스트 방법, 트러블슈팅, 패키지 관리.
+    - `.claude/CLAUDE.md`, `GEMINI.md` 수정: AGENTS.md 읽기 추가.
+- **Space 상대 경로 Breadcrumb 구현 완료** (2026-02-04):
+    - FolderTree: Space 선택 시 Space 정보도 함께 전달하도록 수정.
+    - MainLayout: selectedSpace state 추가 및 Outlet context에 포함.
+    - FileExplorer: OutletContext에 selectedSpace 추가.
+    - FolderContent: Space 상대 경로로 Breadcrumb 표시.
+        - Space 선택 시: "SpaceName / folder1 / folder2" 형식.
+        - Space 미선택 시: 기존 절대 경로 유지.
+    - 타입 에러 수정 (FolderContent, DirectorySetupModal).
+    - Playwright 브라우저 테스트 완료: Breadcrumb 정상 작동 확인.
+
 ## 다음 작업 (Next Steps)
-- Space 상대 경로 표시 (Breadcrumb UX 개선).
 - 파일 업로드 기능 (Drag & Drop) 구현.
 - 파일 우클릭 메뉴(Context Menu) 추가 (삭제, 이름 변경 등).
+- Space 삭제 기능 (Context Menu).
 - 이미지/텍스트 파일 미리보기 기능 검토.

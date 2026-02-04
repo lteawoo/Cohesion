@@ -23,7 +23,7 @@ const convertToFileTreeData = (nodes: FileNode[]): TreeDataNode[] => {
 };
 
 interface FolderTreeProps {
-  onSelect: (path: string) => void;
+  onSelect: (path: string, space?: Space) => void;
   rootPath?: string;
   rootName?: string;
   showBaseDirectories?: boolean;
@@ -126,12 +126,12 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     if (keys.length > 0) {
       const key = keys[0] as string;
       
-      // Space 노드 선택 시 해당 Space의 경로를 반환
+      // Space 노드 선택 시 해당 Space의 경로와 Space 정보를 반환
       if (key.startsWith('space-')) {
         const spaceId = parseInt(key.replace('space-', ''));
         const space = spaces?.find(s => s.id === spaceId);
         if (space) {
-          onSelect(space.space_path);
+          onSelect(space.space_path, space);
         }
       } else {
         onSelect(key);

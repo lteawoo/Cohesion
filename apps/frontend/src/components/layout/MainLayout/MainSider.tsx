@@ -10,7 +10,7 @@ const { Sider } = Layout;
 interface MainSiderProps {
   spaces: Space[];
   onSpaceCreated?: () => void;
-  onPathSelect?: (path: string) => void;
+  onPathSelect?: (path: string, space?: Space) => void;
 }
 
 export default function MainSider({ spaces, onSpaceCreated, onPathSelect }: MainSiderProps) {

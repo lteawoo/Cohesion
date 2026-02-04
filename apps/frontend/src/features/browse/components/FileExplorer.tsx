@@ -3,15 +3,17 @@ import React from 'react';
 import { theme } from 'antd';
 import { useOutletContext } from 'react-router';
 import FolderContent from './FolderContent';
+import type { Space } from '@/features/space/types';
 
 interface OutletContext {
   selectedPath: string;
+  selectedSpace?: Space;
   onPathChange: (path: string) => void;
 }
 
 const FileExplorer: React.FC = () => {
   const { token } = theme.useToken();
-  const { selectedPath, onPathChange } = useOutletContext<OutletContext>();
+  const { selectedPath, selectedSpace, onPathChange } = useOutletContext<OutletContext>();
 
   return (
     <div style={{
@@ -22,6 +24,7 @@ const FileExplorer: React.FC = () => {
     }}>
       <FolderContent
         selectedPath={selectedPath}
+        selectedSpace={selectedSpace}
         onPathChange={onPathChange}
       />
     </div>

@@ -64,3 +64,43 @@
 - **금지**: `Read`/`Edit` 툴로 코드 파일 읽기/수정.
 - **필수**: `get_symbols_overview` → `find_symbol` → `replace_symbol_body` 워크플로우.
 - **문서화**: `CLAUDE.md`에 상세 가이드 추가.
+
+### Playwright MCP 브라우저 테스트 필수화 (2026-02-04)
+- **결정**: UI 수정 시 Playwright MCP로 브라우저 직접 테스트 필수.
+- **이유**: 스크린샷으로 UI 직접 확인하여 디자인 적합성 판단.
+- **절차**: 수정 → 테스트 → 스크린샷 → 브라우저 종료.
+- **로그 위치**: `.playwright-mcp/` (gitignore 처리됨).
+
+### 실행 환경 문서화 (2026-02-04)
+- **결정**: AI 에이전트를 위한 실행 환경 정보를 별도 문서로 분리.
+- **이유**:
+  - 서버 실행, 빌드, 포트 등 실행 관련 정보가 분산되어 있음.
+  - AI가 매번 프로젝트 구조를 탐색하는 비효율 방지.
+  - 환경 설정 변경 시 한 곳만 수정하면 됨.
+- **구현**:
+  - `docs/AGENTS.md` 생성: 프로젝트 구조, 서버 실행, 빌드, 포트, 테스트 등 통합.
+  - CLAUDE.md, GEMINI.md에 AGENTS.md 읽기 지시 추가.
+
+### Space 상대 경로 Breadcrumb (2026-02-04)
+- **결정**: Space 선택 시 Breadcrumb을 절대 경로 대신 Space 기준 상대 경로로 표시.
+- **이유**:
+  - 사용자가 Space 내에서의 위치를 직관적으로 파악 가능.
+  - 긴 절대 경로(/Users/...) 대신 간결한 경로 표시로 UX 개선.
+  - Space 중심 워크플로우 강화.
+- **구현**:
+  - FolderTree의 onSelect 콜백에 Space 정보 추가.
+  - MainLayout에서 selectedSpace state 관리.
+  - FolderContent에서 Space 경로를 기준으로 상대 경로 계산.
+  - 예: `/Users/twlee/Downloads/folder1` → `Downloads / folder1`
+- **수정 파일**: FolderTree.tsx, MainLayout/index.tsx, MainSider.tsx, FileExplorer.tsx, FolderContent.tsx
+
+### 문서 구조 통합 (2026-02-04)
+- **결정**: `docs/master_rule.md`를 모든 규칙의 단일 소스로 통합.
+- **이유**:
+  - 규칙 분산(CLAUDE.md, GEMINI.md, master_rule.md)으로 인한 혼란 방지.
+  - AI 모델 간 일관성 확보: 모든 모델이 동일한 규칙 참조.
+  - 유지보수 단순화: 한 곳만 수정하면 됨.
+- **변경 사항**:
+  - `GEMINI.md`: "master_rule.md를 먼저 읽기"만 남김.
+  - `CLAUDE.md`: `.claude/CLAUDE.md`로 이동 (Claude Code CLI 전용).
+  - `master_rule.md`: Serena MCP, Playwright, 디자인, 커밋 규칙 모두 포함.

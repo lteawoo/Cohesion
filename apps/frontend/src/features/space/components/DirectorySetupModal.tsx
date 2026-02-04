@@ -86,7 +86,7 @@ export default function DirectorySetupModal({
         <Input
           placeholder="Space 이름을 입력하세요"
           value={spaceName}
-          onChange={(e) => setSpaceName(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSpaceName(e.target.value)}
           maxLength={100}
           disabled={isLoading}
         />
@@ -99,7 +99,7 @@ export default function DirectorySetupModal({
         <TextArea
           placeholder="Space에 대한 설명을 입력하세요"
           value={spaceDesc}
-          onChange={(e) => setSpaceDesc(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSpaceDesc(e.target.value)}
           rows={3}
           disabled={isLoading}
         />
