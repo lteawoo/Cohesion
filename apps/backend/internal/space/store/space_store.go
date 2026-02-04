@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"taeu.kr/cohesion/internal/space"
@@ -119,4 +121,91 @@ func (s *Store) GetByName(ctx context.Context, name string) (*space.Space, error
 	}
 
 	return &sp, nil
+}
+
+// Create는 새로운 Space를 데이터베이스에 저장합니다
+func (s *Store) Create(ctx context.Context, req *space.CreateSpaceRequest) (*space.Space, error) {
+	now := time.Now()
+
+	// INSERT 쿼리 빌드
+	sqlQuery, args, err := s.qb.
+		Insert("space").
+		Columns(
+			"space_name",
+			"space_desc",
+			"space_path",
+			"icon",
+			"space_category",
+			"created_at",
+		).
+		Values(
+			req.SpaceName,
+			req.SpaceDesc,
+			req.SpacePath,
+			req.Icon,
+			req.SpaceCategory,
+			now,
+		).
+		ToSql()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to build SQL query for Create: %w", err)
+	}
+
+	// 실행 및 ID 가져오기
+	result, err := s.db.ExecContext(ctx, sqlQuery, args...)
+	if err != nil {
+		// UNIQUE 제약조건 위반 체크 (SQLite)
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return nil, fmt.Errorf("space with this name or path already exists: %w", err)
+		}
+		return nil, fmt.Errorf("failed to insert space: %w", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last insert id: %w", err)
+	}
+
+	// 생성된 Space 객체 반환
+	return &space.Space{
+		ID:            id,
+		SpaceName:     req.SpaceName,
+		SpaceDesc:     req.SpaceDesc,
+		SpacePath:     req.SpacePath,
+		Icon:          req.Icon,
+		SpaceCategory: req.SpaceCategory,
+		CreatedAt:     now,
+		CreatedUserID: nil,
+		UpdatedAt:     nil,
+		UpdatedUserID: nil,
+	}, nil
+}
+
+// Delete는 Space를 삭제합니다
+func (s *Store) Delete(ctx context.Context, id int64) error {
+	sqlQuery, args, err := s.qb.
+		Delete("space").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+
+	if err != nil {
+		return fmt.Errorf("failed to build SQL query for Delete: %w", err)
+	}
+
+	result, err := s.db.ExecContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return fmt.Errorf("failed to delete space: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("space with id %d not found", id)
+	}
+
+	return nil
 }

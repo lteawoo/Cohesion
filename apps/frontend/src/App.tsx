@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router"
 import MainLayout from "@/components/layout/MainLayout"
-import { Button } from "antd"
+import FileExplorer from "@/features/browse/components/FileExplorer"
 
 export default function App() {
   return (
@@ -9,16 +9,7 @@ export default function App() {
         <Route element={<MainLayout />}>
           <Route
             path="/"
-            element={
-              <div>
-                Hello Cohesion!
-                <Button type="primary" onClick={async () => {
-                  const res = await fetch('/api/health')
-                    .then(response => response.json())
-                  console.log(res)
-                }}>api test</Button>
-              </div>
-            }
+            element={<FileExplorer />}
           />
         </Route>
       </Routes>

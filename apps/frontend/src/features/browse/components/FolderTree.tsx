@@ -1,11 +1,11 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Tree, Spin } from 'antd';
 import type { GetProps } from 'antd';
-import type { EventDataNode } from 'antd/es/tree';
 import { FolderOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
+import type { Space } from '@/features/space/types';
 
 type DirectoryTreeProps = GetProps<typeof Tree.DirectoryTree>;
 
@@ -18,55 +18,141 @@ const convertToFileTreeData = (nodes: FileNode[]): TreeDataNode[] => {
     .map(node => ({
       title: node.name,
       key: node.path,
-      isLeaf: false, // 폴더는 자식이 있을 수 있으므로 isLeaf: false
+      isLeaf: false, 
     }));
 };
 
-const FolderTree: React.FC<{ onSelect: (path: string) => void }> = ({ onSelect }) => {
+interface FolderTreeProps {
+  onSelect: (path: string) => void;
+  rootPath?: string;
+  rootName?: string;
+  showBaseDirectories?: boolean;
+  spaces?: Space[];
+}
+
+const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, spaces }) => {
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
+  const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
+  const loadingKeysRef = useRef<Set<React.Key>>(new Set());
   const { isLoading, fetchBaseDirectories, fetchDirectoryContents } = useBrowseApi();
 
-  // 컴포넌트 마운트 시 최상위 기본 디렉토리를 불러옵니다.
+  // 초기 트리 데이터를 로드합니다.
   useEffect(() => {
-    const loadBaseDirs = async () => {
-      const baseDirs = await fetchBaseDirectories();
-      setTreeData(convertToFileTreeData(baseDirs));
+    let isMounted = true;
+    const loadInitialData = async () => {
+      if (spaces && spaces.length > 0) {
+        // Spaces를 루트 노드로 표시
+        if (isMounted) {
+          setTreeData(spaces.map(space => ({
+            title: space.space_name,
+            key: `space-${space.id}`,
+            isLeaf: false,
+          })));
+        }
+      } else if (rootPath && rootName) {
+        // 단일 Space를 루트 노드로 표시
+        if (isMounted) {
+          setTreeData([{
+            title: rootName,
+            key: rootPath,
+            isLeaf: false,
+          }]);
+        }
+      } else if (showBaseDirectories) {
+        // base directories 로드 (모달 등에서 사용)
+        const baseDirs = await fetchBaseDirectories();
+        if (isMounted) {
+          setTreeData(convertToFileTreeData(baseDirs));
+        }
+      } else {
+        // 트리를 비움
+        if (isMounted) {
+          setTreeData([]);
+        }
+      }
     };
-    loadBaseDirs();
-  }, [fetchBaseDirectories]);
+    loadInitialData();
+    return () => { isMounted = false; };
+  }, [rootPath, rootName, showBaseDirectories, spaces, fetchBaseDirectories]);
 
   // 트리 노드를 확장할 때 자식 노드를 비동기적으로 불러옵니다 (Lazy Loading).
-  const onLoadData = (node: EventDataNode): Promise<void> => {
+  const onLoadData = ({ key, children }: {key: React.Key; children?: TreeDataNode[]}): Promise<void> => {
     return new Promise((resolve) => {
-      (async () => {
-        const { key, children } = node;
-        // 이미 자식 노드가 로드된 경우, 다시 호출하지 않습니다.
-        if (children) {
-          resolve();
-          return;
-        }
-
-        const contents = await fetchDirectoryContents(key as string);
-        const newChildren = convertToFileTreeData(contents);
-
-        // 기존 트리 데이터에 새로 불러온 자식 노드를 추가합니다.
-        setTreeData(origin =>
-          updateTreeData(origin, key, newChildren)
-        );
-
+      if (children && children.length > 0) {
         resolve();
+        return;
+      }
+
+      if (loadingKeysRef.current.has(key)) {
+        resolve();
+        return;
+      }
+
+      loadingKeysRef.current.add(key);
+
+      (async () => {
+        try {
+          let path: string;
+          
+          // Space 노드인지 확인
+          if (typeof key === 'string' && key.startsWith('space-')) {
+            const spaceId = parseInt(key.replace('space-', ''));
+            const space = spaces?.find(s => s.id === spaceId);
+            if (!space) {
+              resolve();
+              return;
+            }
+            path = space.space_path;
+          } else {
+            path = key as string;
+          }
+
+          const contents = await fetchDirectoryContents(path);
+          const newChildren = convertToFileTreeData(contents);
+
+          setTreeData(origin => updateTreeData(origin, key, newChildren));
+          setLoadedKeys(prev => [...prev, key]);
+        } catch (error) {
+          console.error('Failed to load directory contents:', error);
+        } finally {
+          loadingKeysRef.current.delete(key);
+          resolve();
+        }
       })();
     });
   };
 
   const handleSelect: DirectoryTreeProps['onSelect'] = (keys: React.Key[]) => {
     if (keys.length > 0) {
-      onSelect(keys[0] as string);
+      const key = keys[0] as string;
+      
+      // Space 노드 선택 시 해당 Space의 경로를 반환
+      if (key.startsWith('space-')) {
+        const spaceId = parseInt(key.replace('space-', ''));
+        const space = spaces?.find(s => s.id === spaceId);
+        if (space) {
+          onSelect(space.space_path);
+        }
+      } else {
+        onSelect(key);
+      }
     }
   };
 
+  if (!rootPath && !showBaseDirectories && (!spaces || spaces.length === 0)) {
+    return (
+      <div style={{ padding: '20px', textAlign: 'center', color: '#888', fontSize: '12px' }}>
+        Space를 선택하세요
+      </div>
+    );
+  }
+
   if (isLoading && treeData.length === 0) {
-    return <Spin />;
+    return (
+      <div style={{ padding: '20px', textAlign: 'center' }}>
+        <Spin />
+      </div>
+    );
   }
 
   return (
@@ -74,13 +160,14 @@ const FolderTree: React.FC<{ onSelect: (path: string) => void }> = ({ onSelect }
       onSelect={handleSelect}
       loadData={onLoadData}
       treeData={treeData}
+      loadedKeys={loadedKeys}
       showIcon={true}
       icon={<FolderOutlined />}
+      expandAction="click"
     />
   );
 };
 
-// 기존 트리에 새로운 자식 노드들을 추가하기 위한 헬퍼 함수
 function updateTreeData(list: TreeDataNode[], key: React.Key, children: TreeDataNode[]): TreeDataNode[] {
   return list.map(node => {
     if (node.key === key) {

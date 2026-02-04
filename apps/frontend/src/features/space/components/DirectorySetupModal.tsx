@@ -1,41 +1,126 @@
-import { Modal } from "antd";
+import { Modal, Input, message } from "antd";
 import FolderTree from "../../browse/components/FolderTree";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useCreateSpace } from "../hooks/useCreateSpace";
 
-export default function DirectorySetupModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+const { TextArea } = Input;
+
+export default function DirectorySetupModal({
+  isOpen,
+  onClose,
+  onSuccess
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+}) {
   const [selectedPath, setSelectedPath] = useState<string>('');
+  const [spaceName, setSpaceName] = useState<string>('');
+  const [spaceDesc, setSpaceDesc] = useState<string>('');
+  const { createSpace, isLoading } = useCreateSpace();
 
-  // 모달이 열릴 때마다 선택된 경로를 초기화합니다.
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedPath('');
-    }
-  }, [isOpen]);
+  const handleClose = () => {
+    setSelectedPath('');
+    setSpaceName('');
+    setSpaceDesc('');
+    onClose();
+  };
 
   const handleSelect = (path: string) => {
     setSelectedPath(path);
+
+    // 선택된 폴더 이름을 기본 Space 이름으로 설정
+    if (!spaceName) {
+      const folderName = path.split('/').pop() || '';
+      setSpaceName(folderName);
+    }
   };
 
-  const handleOk = () => {
-    console.log("Selected Path:", selectedPath);
-    onClose();
+  const handleOk = async () => {
+    // 유효성 검사
+    if (!spaceName.trim()) {
+      message.error('Space 이름을 입력해주세요.');
+      return;
+    }
+
+    if (!selectedPath) {
+      message.error('폴더를 선택해주세요.');
+      return;
+    }
+
+    try {
+      const response = await createSpace({
+        space_name: spaceName.trim(),
+        space_desc: spaceDesc.trim() || undefined,
+        space_path: selectedPath,
+      });
+
+      if (response) {
+        message.success(response.message || 'Space가 성공적으로 생성되었습니다.');
+        handleClose();
+        onSuccess?.();
+      }
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Space 생성에 실패했습니다.');
+    }
   };
 
   return (
     <Modal
-      title="Space로 사용할 폴더 선택"
+      title="새 Space 생성"
       open={isOpen}
       onOk={handleOk}
-      onCancel={onClose}
+      onCancel={handleClose}
       width={600}
-      okButtonProps={{ disabled: !selectedPath }} // 선택된 경로가 없으면 확인 버튼 비활성화
+      okButtonProps={{
+        disabled: !selectedPath || !spaceName.trim(),
+        loading: isLoading
+      }}
+      cancelButtonProps={{ disabled: isLoading }}
       destroyOnHidden={true}
     >
-      <div style={{ marginBottom: '16px', fontStyle: 'italic' }}>
-        선택된 폴더: {selectedPath || '없음'}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '8px' }}>
+          Space 이름 <span style={{ color: 'red' }}>*</span>
+        </label>
+        <Input
+          placeholder="Space 이름을 입력하세요"
+          value={spaceName}
+          onChange={(e) => setSpaceName(e.target.value)}
+          maxLength={100}
+          disabled={isLoading}
+        />
       </div>
-      <div style={{ height: '50vh', overflow: 'auto' }}>
-        <FolderTree onSelect={handleSelect} />
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '8px' }}>
+          설명 (선택)
+        </label>
+        <TextArea
+          placeholder="Space에 대한 설명을 입력하세요"
+          value={spaceDesc}
+          onChange={(e) => setSpaceDesc(e.target.value)}
+          rows={3}
+          disabled={isLoading}
+        />
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', marginBottom: '8px' }}>
+          폴더 선택 <span style={{ color: 'red' }}>*</span>
+        </label>
+        <div style={{ fontStyle: 'italic', marginBottom: '8px', fontSize: '12px' }}>
+          선택된 폴더: {selectedPath || '없음'}
+        </div>
+        <div style={{
+          height: '40vh',
+          overflow: 'auto',
+          border: '1px solid #d9d9d9',
+          borderRadius: '4px',
+          padding: '8px'
+        }}>
+          <FolderTree onSelect={handleSelect} showBaseDirectories={true} />
+        </div>
       </div>
     </Modal>
   );

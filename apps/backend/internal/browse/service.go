@@ -6,15 +6,18 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/shirou/gopsutil/disk"
 )
 
 type FileInfo struct {
-	Name  string `json:"name"`
-	Path  string `json:"path"`
-	IsDir bool   `json:"isDir"`
+	Name    string    `json:"name"`
+	Path    string    `json:"path"`
+	IsDir   bool      `json:"isDir"`
+	Size    int64     `json:"size"`
+	ModTime time.Time `json:"modTime"`
 }
 
 type Service struct {
@@ -89,10 +92,21 @@ func (s *Service) ListDirectory(isOnlyDir bool, path string) ([]FileInfo, error)
 		if isOnlyDir && !entry.IsDir() { // Directory 전용 모드인 경우 파일 무시
 			continue
 		}
+
+		info, err := entry.Info()
+		var size int64
+		var modTime time.Time
+		if err == nil {
+			size = info.Size()
+			modTime = info.ModTime()
+		}
+
 		files = append(files, FileInfo{
-			Name:  entry.Name(),
-			Path:  fullPath,
-			IsDir: entry.IsDir(),
+			Name:    entry.Name(),
+			Path:    fullPath,
+			IsDir:   entry.IsDir(),
+			Size:    size,
+			ModTime: modTime,
 		})
 	}
 

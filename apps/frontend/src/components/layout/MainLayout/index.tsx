@@ -1,18 +1,15 @@
 import { ConfigProvider, Layout, Switch, theme } from "antd";
 import { Outlet } from "react-router";
-import { MailOutlined } from "@ant-design/icons";
 import MainSider from "./MainSider";
-import type { ItemType } from "antd/es/menu/interface";
 import { useState } from "react";
+import { useSpaces } from "@/features/space/hooks/useSpaces";
 
 const { Header, Content } = Layout;
 
-const items: ItemType[] = [
-    { key: '1', icon: <MailOutlined />, label: 'My folder' },
-];
-
 const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThemeChange: (checked: boolean) => void }) => {
   const { token } = theme.useToken();
+  const { spaces, refetch } = useSpaces();
+  const [selectedPath, setSelectedPath] = useState<string>('');
 
   return (
     <Layout
@@ -36,11 +33,15 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
         <Switch checked={isDarkMode} onChange={onThemeChange} checkedChildren="Dark" unCheckedChildren="Light" />
       </Header>
       <Layout>
-          <MainSider spaceItems={items} />
+          <MainSider
+            spaces={spaces}
+            onSpaceCreated={refetch}
+            onPathSelect={setSelectedPath}
+          />
 
-          <Content>
-              <main style={{ flex: 1, overflowY: 'auto' }}>
-                  <Outlet />
+          <Content style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+              <main style={{ flex: 1, overflow: 'hidden' }}>
+                  <Outlet context={{ selectedPath, onPathChange: setSelectedPath }} />
               </main>
           </Content>
       </Layout>
