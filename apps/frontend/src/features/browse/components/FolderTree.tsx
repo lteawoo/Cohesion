@@ -181,7 +181,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
       ];
 
       return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
           <span>{nodeData.title}</span>
           <Dropdown menu={{ items: menuItems }} trigger={['click']}>
             <MoreOutlined
