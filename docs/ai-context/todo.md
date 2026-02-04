@@ -19,6 +19,6 @@
 - [x] Playwright MCP 테스트 절차 추가
 - [x] 실행 환경 문서화 (AGENTS.md 생성)
 - [x] Space 상대 경로 Breadcrumb 표시 (UX 개선)
-- [ ] Space 삭제 기능 (Context Menu)
+- [x] Space 삭제 기능 (Context Menu)
 - [ ] 파일 업로드 (Drag & Drop)
 - [ ] 파일 우클릭 메뉴 (삭제, 이름 변경)

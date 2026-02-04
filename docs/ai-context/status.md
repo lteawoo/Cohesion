@@ -47,8 +47,15 @@
     - 타입 에러 수정 (FolderContent, DirectorySetupModal).
     - Playwright 브라우저 테스트 완료: Breadcrumb 정상 작동 확인.
 
+- **Space 삭제 기능 구현 완료** (2026-02-04):
+    - FolderTree: Space 노드에 Context Menu (Dropdown) 추가.
+    - MainSider: useDeleteSpace 훅 사용하여 삭제 로직 구현.
+    - 삭제 확인 Modal (Modal.confirm) 추가.
+    - 삭제 후 Space 목록 자동 갱신.
+    - 성공/실패 메시지 표시 (message.success/error).
+    - Playwright 브라우저 테스트 완료: Context Menu, 확인 모달, 삭제 후 트리 갱신 모두 정상 작동 확인.
+
 ## 다음 작업 (Next Steps)
 - 파일 업로드 기능 (Drag & Drop) 구현.
 - 파일 우클릭 메뉴(Context Menu) 추가 (삭제, 이름 변경 등).
-- Space 삭제 기능 (Context Menu).
 - 이미지/텍스트 파일 미리보기 기능 검토.

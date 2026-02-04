@@ -104,3 +104,16 @@
   - `GEMINI.md`: "master_rule.md를 먼저 읽기"만 남김.
   - `CLAUDE.md`: `.claude/CLAUDE.md`로 이동 (Claude Code CLI 전용).
   - `master_rule.md`: Serena MCP, Playwright, 디자인, 커밋 규칙 모두 포함.
+
+### Space 삭제 기능 Context Menu 구현 (2026-02-04)
+- **결정**: Space 노드에 Context Menu 방식의 삭제 기능 구현.
+- **이유**:
+  - 직관적인 UX: 우클릭 대신 "..." 버튼 클릭으로 메뉴 표시.
+  - 일관성: Ant Design Tree와 Dropdown 컴포넌트 활용.
+  - 안전성: Modal.confirm으로 삭제 확인 절차 추가.
+- **구현**:
+  - FolderTree: `titleRender`로 Space 노드에만 Dropdown 추가.
+  - MainSider: `useDeleteSpace` 훅으로 DELETE API 호출.
+  - 삭제 후 `refetch()`로 트리 자동 갱신.
+  - 성공/실패 시 message 컴포넌트로 사용자에게 피드백.
+- **백엔드**: DELETE `/api/spaces/:id` 엔드포인트는 이미 구현되어 있었음.

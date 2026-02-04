@@ -1,8 +1,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Tree, Spin } from 'antd';
-import type { GetProps } from 'antd';
-import { FolderOutlined } from '@ant-design/icons';
+import { Tree, Spin, Dropdown } from 'antd';
+import type { GetProps, MenuProps } from 'antd';
+import { FolderOutlined, DeleteOutlined, MoreOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
 import type { Space } from '@/features/space/types';
@@ -28,9 +28,10 @@ interface FolderTreeProps {
   rootName?: string;
   showBaseDirectories?: boolean;
   spaces?: Space[];
+  onSpaceDelete?: (space: Space) => void;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, spaces }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, spaces, onSpaceDelete }) => {
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
   const loadingKeysRef = useRef<Set<React.Key>>(new Set());
@@ -155,6 +156,48 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     );
   }
 
+  // Space 노드에만 Context Menu를 추가합니다
+  const titleRender = (nodeData: TreeDataNode) => {
+    const key = nodeData.key as string;
+
+    // Space 노드인지 확인
+    if (key.startsWith('space-') && onSpaceDelete) {
+      const spaceId = parseInt(key.replace('space-', ''));
+      const space = spaces?.find(s => s.id === spaceId);
+
+      if (!space) return <span>{nodeData.title}</span>;
+
+      const menuItems: MenuProps['items'] = [
+        {
+          key: 'delete',
+          icon: <DeleteOutlined />,
+          label: '삭제',
+          danger: true,
+          onClick: (e) => {
+            e.domEvent.stopPropagation();
+            onSpaceDelete(space);
+          },
+        },
+      ];
+
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <span>{nodeData.title}</span>
+          <Dropdown menu={{ items: menuItems }} trigger={['click']}>
+            <MoreOutlined
+              style={{ padding: '4px', fontSize: '14px' }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            />
+          </Dropdown>
+        </div>
+      );
+    }
+
+    return <span>{nodeData.title}</span>;
+  };
+
   return (
     <Tree.DirectoryTree
       onSelect={handleSelect}
@@ -164,6 +207,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
       showIcon={true}
       icon={<FolderOutlined />}
       expandAction="click"
+      titleRender={titleRender}
     />
   );
 };
