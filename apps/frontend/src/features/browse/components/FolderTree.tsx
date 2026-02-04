@@ -1,8 +1,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Tree, Spin, Dropdown } from 'antd';
+import { Tree, Spin, Menu } from 'antd';
 import type { GetProps, MenuProps } from 'antd';
-import { FolderOutlined, DeleteOutlined, MoreOutlined } from '@ant-design/icons';
+import { FolderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
 import type { Space } from '@/features/space/types';
@@ -36,6 +36,14 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
   const loadingKeysRef = useRef<Set<React.Key>>(new Set());
   const { isLoading, fetchBaseDirectories, fetchDirectoryContents } = useBrowseApi();
+  
+  // 컨텍스트 메뉴 상태 관리
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    space?: Space;
+  }>({ visible: false, x: 0, y: 0 });
 
   // 초기 트리 데이터를 로드합니다.
   useEffect(() => {
@@ -140,6 +148,41 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     }
   };
 
+  // 우클릭 핸들러
+  const handleRightClick: DirectoryTreeProps['onRightClick'] = ({ event, node }) => {
+    if (!onSpaceDelete) return;
+
+    const key = node.key as string;
+    
+    // Space 노드인지 확인
+    if (key.startsWith('space-')) {
+      const spaceId = parseInt(key.replace('space-', ''));
+      const space = spaces?.find(s => s.id === spaceId);
+      
+      if (space) {
+        event.preventDefault();
+        setContextMenu({
+          visible: true,
+          x: event.clientX,
+          y: event.clientY,
+          space,
+        });
+      }
+    }
+  };
+
+  // 컨텍스트 메뉴 닫기
+  useEffect(() => {
+    const handleClick = () => {
+      setContextMenu({ visible: false, x: 0, y: 0 });
+    };
+
+    if (contextMenu.visible) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [contextMenu.visible]);
+
   if (!rootPath && !showBaseDirectories && (!spaces || spaces.length === 0)) {
     return (
       <div style={{ padding: '20px', textAlign: 'center', color: '#888', fontSize: '12px' }}>
@@ -156,61 +199,46 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     );
   }
 
-  // Space 노드에만 Context Menu를 추가합니다
-  const titleRender = (nodeData: TreeDataNode) => {
-    const key = nodeData.key as string;
-
-    // Space 노드인지 확인
-    if (key.startsWith('space-') && onSpaceDelete) {
-      const spaceId = parseInt(key.replace('space-', ''));
-      const space = spaces?.find(s => s.id === spaceId);
-
-      if (!space) return <span>{nodeData.title}</span>;
-
-      const menuItems: MenuProps['items'] = [
-        {
-          key: 'delete',
-          icon: <DeleteOutlined />,
-          label: '삭제',
-          danger: true,
-          onClick: (e) => {
-            e.domEvent.stopPropagation();
-            onSpaceDelete(space);
-          },
-        },
-      ];
-
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-          <span style={{ flex: 1 }}>{nodeData.title}</span>
-          <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-            <MoreOutlined
-              style={{ padding: '4px', fontSize: '14px' }}
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            />
-          </Dropdown>
-        </div>
-      );
-    }
-
-    return <span>{nodeData.title}</span>;
-  };
+  const menuItems: MenuProps['items'] = contextMenu.space ? [
+    {
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: '삭제',
+      danger: true,
+      onClick: () => {
+        if (contextMenu.space) {
+          onSpaceDelete?.(contextMenu.space);
+        }
+      },
+    },
+  ] : [];
 
   return (
-    <Tree.DirectoryTree
-      onSelect={handleSelect}
-      loadData={onLoadData}
-      treeData={treeData}
-      loadedKeys={loadedKeys}
-      showIcon={true}
-      icon={<FolderOutlined />}
-      expandAction="click"
-      titleRender={titleRender}
-    />
+    <>
+      <Tree.DirectoryTree
+        onSelect={handleSelect}
+        onRightClick={handleRightClick}
+        loadData={onLoadData}
+        treeData={treeData}
+        loadedKeys={loadedKeys}
+        showIcon={true}
+        icon={<FolderOutlined />}
+        expandAction="click"
+      />
+      {contextMenu.visible && (
+        <Menu
+          items={menuItems}
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            zIndex: 1000,
+          }}
+        />
+      )}
+    </>
   );
-};
+}
 
 function updateTreeData(list: TreeDataNode[], key: React.Key, children: TreeDataNode[]): TreeDataNode[] {
   return list.map(node => {
