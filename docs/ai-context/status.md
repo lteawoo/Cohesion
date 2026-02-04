@@ -64,6 +64,19 @@
     - 결과: 오른쪽 FolderContent에서 폴더와 파일이 모두 정상 표시.
     - Playwright 브라우저 테스트 완료: 파일 아이콘, 크기, 수정일 모두 정상 표시 확인.
 
+- **파일 다운로드 기능 구현 완료** (2026-02-04):
+    - 백엔드: `/api/browse/download` 엔드포인트 추가.
+        - 파일 경로를 쿼리 파라미터로 받아 파일 다운로드 제공.
+        - Content-Disposition 헤더로 파일명 설정.
+        - 디렉토리 다운로드 방지, 권한 및 존재 여부 검증.
+    - 프론트엔드: FolderContent에서 파일 클릭 시 다운로드.
+        - 폴더: 클릭 시 해당 폴더로 이동 (기존 동작 유지).
+        - 파일: `<a href="/api/browse/download?path=..." download>` 링크로 다운로드.
+    - 수정 파일:
+        - `apps/backend/internal/browse/handler/browse_handler.go` (handleDownload 추가)
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx` (파일 링크 수정)
+    - Playwright 브라우저 테스트 완료: README.md 다운로드 정상 작동 확인.
+
 ## 다음 작업 (Next Steps)
 - 파일 업로드 기능 (Drag & Drop) 구현.
 - 파일 우클릭 메뉴(Context Menu) 추가 (삭제, 이름 변경 등).

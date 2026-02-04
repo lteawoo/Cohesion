@@ -87,7 +87,11 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       render: (text: string, record: FileNode) => (
         <AntSpace>
           {record.isDir ? <FolderFilled style={{ color: '#ffca28' }} /> : <FileOutlined />}
-          <a onClick={() => record.isDir && onPathChange(record.path)}>{text}</a>
+          {record.isDir ? (
+            <a onClick={() => onPathChange(record.path)}>{text}</a>
+          ) : (
+            <a href={`/api/browse/download?path=${encodeURIComponent(record.path)}`} download>{text}</a>
+          )}
         </AntSpace>
       ),
       sorter: (a, b) => a.name.localeCompare(b.name),

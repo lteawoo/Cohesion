@@ -131,3 +131,27 @@
   - 왼쪽 FolderTree는 폴더만 표시하고, 오른쪽 FolderContent는 파일과 폴더 모두 표시하는 것이 직관적.
 - **수정 파일**: `apps/backend/internal/browse/handler/browse_handler.go:51`
 - **결과**: Space 선택 시 폴더와 파일이 모두 정상 표시됨.
+
+### 파일 다운로드 기능 구현 (2026-02-04)
+- **결정**: 파일 클릭 시 브라우저의 기본 다운로드 기능을 사용하여 파일을 다운로드.
+- **이유**:
+  - 단순하고 직관적인 UX: 파일 이름을 클릭하면 바로 다운로드.
+  - 브라우저 내장 다운로드 관리 활용: 사용자가 익숙한 방식.
+  - 폴더와 파일 동작 구분: 폴더는 클릭 시 이동, 파일은 클릭 시 다운로드.
+- **구현**:
+  - **백엔드**: `handleDownload` 함수 추가.
+    - `/api/browse/download?path=<파일경로>` 엔드포인트.
+    - `Content-Disposition: attachment` 헤더로 다운로드 강제.
+    - 보안: 디렉토리 다운로드 방지, 파일 존재 여부 및 권한 검증.
+    - `io.Copy`로 파일 스트리밍.
+  - **프론트엔드**: FolderContent의 render 함수 수정.
+    - 폴더: `<a onClick={...}>` (기존 동작 유지)
+    - 파일: `<a href="/api/browse/download?path=..." download>`
+    - 조건부 렌더링으로 폴더와 파일 구분.
+- **대안 검토**:
+  - fetch API로 다운로드: 복잡하고 추가 코드 필요, 브라우저 기본 기능보다 장점 없음.
+  - 우클릭 메뉴로만 다운로드: 덜 직관적, 추가 클릭 필요.
+- **수정 파일**:
+  - `apps/backend/internal/browse/handler/browse_handler.go` (handleDownload, RegisterRoutes)
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx` (render 함수)
+- **결과**: 파일 클릭 시 다운로드 정상 작동, README.md 테스트 완료.

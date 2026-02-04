@@ -2,8 +2,10 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"taeu.kr/cohesion/internal/browse"
 	"taeu.kr/cohesion/internal/platform/web"
@@ -20,6 +22,7 @@ func NewHandler(browseService *browse.Service) *Handler {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/browse", web.Handler(h.handleBrowse))
 	mux.Handle("/api/browse/base-directories", web.Handler(h.handleBaseDirectories))
+	mux.Handle("/api/browse/download", web.Handler(h.handleDownload))
 }
 
 func (h *Handler) handleBaseDirectories(w http.ResponseWriter, r *http.Request) *web.Error {
@@ -81,5 +84,75 @@ func (h *Handler) handleBrowse(w http.ResponseWriter, r *http.Request) *web.Erro
 			Err:     err,
 		}
 	}
+	return nil
+}
+
+func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) *web.Error {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Path parameter is required",
+		}
+	}
+
+	// 파일 존재 및 디렉토리 체크
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{
+				Code:    http.StatusNotFound,
+				Message: "File not found",
+				Err:     err,
+			}
+		}
+		if os.IsPermission(err) {
+			return &web.Error{
+				Code:    http.StatusForbidden,
+				Message: "Permission denied",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to access file",
+			Err:     err,
+		}
+	}
+
+	// 디렉토리는 다운로드 불가
+	if fileInfo.IsDir() {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Cannot download directory",
+		}
+	}
+
+	// 파일 열기
+	file, err := os.Open(path)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to open file",
+			Err:     err,
+		}
+	}
+	defer file.Close()
+
+	// Content-Disposition 헤더 설정 (파일명)
+	fileName := filepath.Base(path)
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", string(fileInfo.Size()))
+
+	// 파일 내용 전송
+	if _, err := io.Copy(w, file); err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to send file",
+			Err:     err,
+		}
+	}
+
 	return nil
 }
