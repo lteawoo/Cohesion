@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Table, Empty, Breadcrumb, Space as AntSpace, Menu } from 'antd';
+import { Table, Empty, Breadcrumb, Space as AntSpace, Menu, Modal, Input, message } from 'antd';
 import type { MenuProps } from 'antd';
 import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
@@ -40,6 +40,13 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     record?: FileNode;
   }>({ visible: false, x: 0, y: 0 });
 
+  // 이름 변경 모달 상태
+  const [renameModal, setRenameModal] = useState<{
+    visible: boolean;
+    record?: FileNode;
+    newName: string;
+  }>({ visible: false, newName: '' });
+
   useEffect(() => {
     if (selectedPath) {
       const loadContent = async () => {
@@ -61,6 +68,72 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       return () => document.removeEventListener('click', handleClick);
     }
   }, [contextMenu.visible]);
+
+  // 이름 변경 처리
+  const handleRename = async () => {
+    if (!renameModal.record || !renameModal.newName.trim()) {
+      message.error('새 이름을 입력하세요');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/browse/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oldPath: renameModal.record.path,
+          newName: renameModal.newName.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to rename');
+      }
+
+      message.success('이름이 변경되었습니다');
+      setRenameModal({ visible: false, newName: '' });
+
+      // 목록 새로고침
+      const contents = await fetchDirectoryContents(selectedPath);
+      setContent(contents);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '이름 변경 실패');
+    }
+  };
+
+  // 삭제 처리
+  const handleDelete = async (record: FileNode) => {
+    Modal.confirm({
+      title: '삭제 확인',
+      content: `"${record.name}"을(를) 삭제하시겠습니까?${record.isDir ? ' (폴더 내 모든 파일도 삭제됩니다)' : ''}`,
+      okText: '삭제',
+      okType: 'danger',
+      cancelText: '취소',
+      onOk: async () => {
+        try {
+          const response = await fetch('/api/browse/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: record.path }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to delete');
+          }
+
+          message.success('삭제되었습니다');
+
+          // 목록 새로고침
+          const contents = await fetchDirectoryContents(selectedPath);
+          setContent(contents);
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '삭제 실패');
+        }
+      },
+    });
+  };
 
   // Space 상대 경로로 Breadcrumb 생성
   const breadcrumbItems = (() => {
@@ -111,7 +184,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           {record.isDir ? (
             <a onClick={() => onPathChange(record.path)}>{text}</a>
           ) : (
-            <a href={`/api/browse/download?path=${encodeURIComponent(record.path)}`} download>{text}</a>
+            <span>{text}</span>
           )}
         </AntSpace>
       ),
@@ -171,8 +244,13 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       icon: <EditOutlined />,
       label: '이름 변경',
       onClick: () => {
-        // TODO: 이름 변경 기능 구현
-        console.log('이름 변경:', contextMenu.record);
+        if (contextMenu.record) {
+          setRenameModal({
+            visible: true,
+            record: contextMenu.record,
+            newName: contextMenu.record.name,
+          });
+        }
       },
     },
     {
@@ -184,8 +262,9 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       label: '삭제',
       danger: true,
       onClick: () => {
-        // TODO: 삭제 기능 구현
-        console.log('삭제:', contextMenu.record);
+        if (contextMenu.record) {
+          handleDelete(contextMenu.record);
+        }
       },
     },
   ] : [];
@@ -218,6 +297,22 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           }}
         />
       )}
+
+      <Modal
+        title="이름 변경"
+        open={renameModal.visible}
+        onOk={handleRename}
+        onCancel={() => setRenameModal({ visible: false, newName: '' })}
+        okText="변경"
+        cancelText="취소"
+      >
+        <Input
+          placeholder="새 이름"
+          value={renameModal.newName}
+          onChange={(e) => setRenameModal({ ...renameModal, newName: e.target.value })}
+          onPressEnter={handleRename}
+        />
+      </Modal>
     </div>
   );
 };

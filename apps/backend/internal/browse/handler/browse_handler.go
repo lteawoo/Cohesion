@@ -30,6 +30,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/browse", web.Handler(h.handleBrowse))
 	mux.Handle("/api/browse/base-directories", web.Handler(h.handleBaseDirectories))
 	mux.Handle("/api/browse/download", web.Handler(h.handleDownload))
+	mux.Handle("/api/browse/rename", web.Handler(h.handleRename))
+	mux.Handle("/api/browse/delete", web.Handler(h.handleDelete))
 }
 
 // isPathAllowed checks if the given path is within any allowed Space
@@ -224,6 +226,185 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) *web.Er
 			Err:     err,
 		}
 	}
+
+	return nil
+}
+
+func (h *Handler) handleRename(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+		}
+	}
+
+	var req struct {
+		OldPath string `json:"oldPath"`
+		NewName string `json:"newName"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Err:     err,
+		}
+	}
+
+	if req.OldPath == "" || req.NewName == "" {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "oldPath and newName are required",
+		}
+	}
+
+	// Check if the path is allowed (within a Space)
+	allowed, err := h.isPathAllowed(r.Context(), req.OldPath)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate path",
+			Err:     err,
+		}
+	}
+	if !allowed {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: path is not within any allowed Space",
+		}
+	}
+
+	// 새 경로 생성
+	dir := filepath.Dir(req.OldPath)
+	newPath := filepath.Join(dir, req.NewName)
+
+	// 새 경로도 허용된 Space 내부인지 확인
+	allowed, err = h.isPathAllowed(r.Context(), newPath)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate new path",
+			Err:     err,
+		}
+	}
+	if !allowed {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: new path is not within any allowed Space",
+		}
+	}
+
+	// 파일/폴더 존재 확인
+	if _, err := os.Stat(req.OldPath); err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{
+				Code:    http.StatusNotFound,
+				Message: "File or directory not found",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to access file or directory",
+			Err:     err,
+		}
+	}
+
+	// 이름 변경
+	if err := os.Rename(req.OldPath, newPath); err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to rename file or directory",
+			Err:     err,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Successfully renamed"})
+
+	return nil
+}
+
+func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+		}
+	}
+
+	var req struct {
+		Path string `json:"path"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Err:     err,
+		}
+	}
+
+	if req.Path == "" {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "path is required",
+		}
+	}
+
+	// Check if the path is allowed (within a Space)
+	allowed, err := h.isPathAllowed(r.Context(), req.Path)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate path",
+			Err:     err,
+		}
+	}
+	if !allowed {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: path is not within any allowed Space",
+		}
+	}
+
+	// 파일/폴더 존재 확인
+	fileInfo, err := os.Stat(req.Path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{
+				Code:    http.StatusNotFound,
+				Message: "File or directory not found",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to access file or directory",
+			Err:     err,
+		}
+	}
+
+	// 삭제
+	var deleteErr error
+	if fileInfo.IsDir() {
+		deleteErr = os.RemoveAll(req.Path)
+	} else {
+		deleteErr = os.Remove(req.Path)
+	}
+
+	if deleteErr != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to delete file or directory",
+			Err:     deleteErr,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Successfully deleted"})
 
 	return nil
 }

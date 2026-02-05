@@ -112,8 +112,28 @@
     - TODO: 이름 변경, 삭제 기능 백엔드 API 및 실제 동작 구현.
     - Playwright 브라우저 테스트 완료: 상위 폴더 버튼 제거 확인, 파일/폴더별 컨텍스트 메뉴 정상 작동.
 
+- **파일/폴더 이름 변경 및 삭제 기능 구현 완료** (2026-02-05):
+    - 파일 이름 클릭 시 다운로드 제거: 우클릭 메뉴로만 다운로드 가능.
+    - 백엔드 API 추가:
+        - `/api/browse/rename`: 파일/폴더 이름 변경 (POST).
+        - `/api/browse/delete`: 파일/폴더 삭제 (POST).
+        - Space 경로 검증: 요청 경로와 새 경로 모두 허용된 Space 내부인지 확인.
+        - 폴더 삭제: `os.RemoveAll`로 하위 파일 포함 전체 삭제.
+    - 프론트엔드 구현:
+        - 이름 변경 모달: 현재 이름이 입력 필드에 표시, Enter 키로 확인.
+        - 삭제 확인 모달: `Modal.confirm`으로 확인 후 삭제.
+        - API 호출 후 성공/실패 메시지 표시 (`message.success/error`).
+        - 작업 완료 후 디렉토리 목록 자동 새로고침.
+    - 수정 파일:
+        - `apps/backend/internal/browse/handler/browse_handler.go`
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - Playwright 브라우저 테스트 완료:
+        - 파일 이름 클릭 시 다운로드 안 됨 확인.
+        - 이름 변경 모달 및 실제 변경 작동 확인.
+        - 삭제 확인 모달 및 실제 삭제 작동 확인.
+        - 목록 자동 새로고침 확인.
+
 ## 다음 작업 (Next Steps)
-- 파일/폴더 이름 변경 기능 구현 (백엔드 API + 프론트엔드 모달).
-- 파일/폴더 삭제 기능 구현 (백엔드 API + 확인 모달).
 - 파일 업로드 기능 (Drag & Drop) 구현.
 - 이미지/텍스트 파일 미리보기 기능 검토.
+- 파일 복사/이동 기능 검토.
