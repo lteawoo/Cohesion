@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
-import { Table, Empty, Breadcrumb, Space as AntSpace, Menu, Modal, Input, message, Upload } from 'antd';
+import { Table, Empty, Breadcrumb, Space as AntSpace, Menu, Modal, Input, message, Upload, Button, Card, Row, Col } from 'antd';
 import type { MenuProps, UploadProps } from 'antd';
-import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined } from '@ant-design/icons';
+import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode } from '../types';
 import type { ColumnsType } from 'antd/es/table';
@@ -31,6 +31,9 @@ const formatDate = (dateString: string) => {
 const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpace, onPathChange }) => {
   const [content, setContent] = useState<FileNode[]>([]);
   const { isLoading, fetchDirectoryContents } = useBrowseApi();
+
+  // 뷰 모드 상태 (테이블/그리드)
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   // 컨텍스트 메뉴 상태 관리
   const [contextMenu, setContextMenu] = useState<{
@@ -344,7 +347,21 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <Breadcrumb items={breadcrumbItems} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Breadcrumb items={breadcrumbItems} />
+        <Button.Group>
+          <Button
+            icon={<UnorderedListOutlined />}
+            onClick={() => setViewMode('table')}
+            type={viewMode === 'table' ? 'primary' : 'default'}
+          />
+          <Button
+            icon={<AppstoreOutlined />}
+            onClick={() => setViewMode('grid')}
+            type={viewMode === 'grid' ? 'primary' : 'default'}
+          />
+        </Button.Group>
+      </div>
 
       <Upload.Dragger {...uploadProps}>
         <p className="ant-upload-drag-icon">
@@ -354,18 +371,62 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         <p className="ant-upload-hint">현재 폴더에 파일이 업로드됩니다</p>
       </Upload.Dragger>
 
-      <Table
-        dataSource={content}
-        columns={columns}
-        loading={isLoading}
-        rowKey="path"
-        pagination={false}
-        onRow={(record: FileNode) => ({
-          onDoubleClick: () => record.isDir && onPathChange(record.path),
-          onContextMenu: (e) => handleContextMenu(e, record),
-        })}
-        locale={{ emptyText: '이 폴더는 비어 있습니다.' }}
-      />
+      {viewMode === 'table' ? (
+        <Table
+          dataSource={content}
+          columns={columns}
+          loading={isLoading}
+          rowKey="path"
+          pagination={false}
+          onRow={(record: FileNode) => ({
+            onDoubleClick: () => record.isDir && onPathChange(record.path),
+            onContextMenu: (e) => handleContextMenu(e, record),
+          })}
+          locale={{ emptyText: '이 폴더는 비어 있습니다.' }}
+        />
+      ) : (
+        <Row gutter={[16, 16]}>
+          {content.length === 0 && !isLoading ? (
+            <Col span={24}>
+              <Empty description="이 폴더는 비어 있습니다." />
+            </Col>
+          ) : (
+            content.map((item) => (
+              <Col key={item.path} xs={12} sm={8} md={6} lg={4} xl={3}>
+                <Card
+                  hoverable
+                  onDoubleClick={() => item.isDir && onPathChange(item.path)}
+                  onContextMenu={(e) => handleContextMenu(e, item)}
+                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  bodyStyle={{ padding: '16px 8px' }}
+                >
+                  <div style={{ fontSize: '48px', marginBottom: '8px' }}>
+                    {item.isDir ? (
+                      <FolderFilled style={{ color: '#ffca28' }} />
+                    ) : (
+                      <FileOutlined style={{ color: '#8c8c8c' }} />
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      wordBreak: 'break-word',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    {item.name}
+                  </div>
+                  {!item.isDir && (
+                    <div style={{ fontSize: '11px', color: '#8c8c8c' }}>
+                      {formatSize(item.size)}
+                    </div>
+                  )}
+                </Card>
+              </Col>
+            ))
+          )}
+        </Row>
+      )}
 
       {contextMenu.visible && (
         <Menu

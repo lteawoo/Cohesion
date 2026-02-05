@@ -314,3 +314,46 @@
   - `apps/backend/internal/browse/handler/browse_handler.go` (handleUpload, RegisterRoutes)
   - `apps/frontend/src/features/browse/components/FolderContent.tsx` (Upload.Dragger, 덮어쓰기 확인 모달 추가)
 - **결과**: Drag & Drop 파일 업로드 정상 작동, 중복 파일 덮어쓰기 확인 모달 정상 작동.
+
+### 뷰 전환 기능 구현 (2026-02-05)
+- **결정**: 테이블 뷰와 그리드(앨범) 뷰를 전환할 수 있는 기능 구현.
+- **이유**:
+  - 사용자 선호도: 일부 사용자는 상세 정보를 선호하고, 일부는 시각적 탐색을 선호.
+  - 파일 타입별 최적화: 이미지는 그리드가, 문서는 테이블이 더 적합.
+  - 현대적인 파일 관리자 표준: Finder, Google Drive, Dropbox 모두 뷰 전환 기능 제공.
+  - 유연성: 사용자가 상황에 따라 적합한 뷰 선택 가능.
+- **구현**:
+  - **뷰 전환 UI**:
+    - Button.Group으로 두 버튼 묶음.
+    - Breadcrumb 우측에 배치 (justify-space-between).
+    - 활성 버튼은 `type="primary"`로 강조.
+    - 아이콘: UnorderedListOutlined (테이블), AppstoreOutlined (그리드).
+  - **테이블 뷰** (기존):
+    - Ant Design Table 컴포넌트.
+    - 파일명, 수정일, 크기 정보 표시.
+    - 정렬, 더블 클릭 이동, 우클릭 메뉴 지원.
+  - **그리드 뷰** (신규):
+    - Ant Design Row/Col + Card 컴포넌트.
+    - 반응형 그리드: xs=12 (2열), sm=8 (3열), md=6 (4열), lg=4 (6열), xl=3 (8열).
+    - 카드 내용:
+      - 큰 아이콘 (48px): 폴더(노란색), 파일(회색).
+      - 파일 이름 (12px, word-break).
+      - 파일 크기 (11px, 파일만).
+    - 더블 클릭 이동, 우클릭 메뉴 기능 유지.
+    - 중앙 정렬, 카드 호버 효과.
+  - **상태 관리**:
+    - `viewMode` state ('table' | 'grid').
+    - 조건부 렌더링으로 뷰 전환.
+    - 기본값: 'table'.
+- **디자인 고려사항**:
+  - 8px 그리드 시스템 준수: gutter=[16, 16], padding=16px.
+  - 일관된 아이콘 색상: 폴더(#ffca28), 파일(#8c8c8c).
+  - Card bodyStyle로 padding 조정 (16px 8px).
+  - word-break로 긴 파일명 처리.
+- **대안 검토**:
+  - 리스트 뷰 추가: 테이블과 유사하여 불필요.
+  - 아이콘 크기 조정 슬라이더: 복잡도 증가, 우선순위 낮음.
+  - 뷰 모드 localStorage 저장: 현재는 세션별 초기화, 추후 고려.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx` (뷰 전환 버튼, 그리드 뷰 추가)
+- **결과**: 테이블 ↔ 그리드 양방향 전환 정상 작동, 그리드 뷰 반응형 정상 작동.
