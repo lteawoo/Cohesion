@@ -1,28 +1,63 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"taeu.kr/cohesion/internal/browse"
 	"taeu.kr/cohesion/internal/platform/web"
+	"taeu.kr/cohesion/internal/space"
 )
 
 type Handler struct {
 	browseService *browse.Service
+	spaceService  *space.Service
 }
 
-func NewHandler(browseService *browse.Service) *Handler {
-	return &Handler{browseService: browseService}
+func NewHandler(browseService *browse.Service, spaceService *space.Service) *Handler {
+	return &Handler{
+		browseService: browseService,
+		spaceService:  spaceService,
+	}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/browse", web.Handler(h.handleBrowse))
 	mux.Handle("/api/browse/base-directories", web.Handler(h.handleBaseDirectories))
 	mux.Handle("/api/browse/download", web.Handler(h.handleDownload))
+}
+
+// isPathAllowed checks if the given path is within any allowed Space
+func (h *Handler) isPathAllowed(ctx context.Context, requestPath string) (bool, error) {
+	// Clean the request path
+	cleanPath := filepath.Clean(requestPath)
+
+	// Get all spaces
+	spaces, err := h.spaceService.GetAllSpaces(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// If no spaces exist, allow access (for backward compatibility)
+	if len(spaces) == 0 {
+		return true, nil
+	}
+
+	// Check if the path is within any space
+	for _, s := range spaces {
+		spacePath := filepath.Clean(s.SpacePath)
+		// Check if requestPath is within or equal to spacePath
+		if cleanPath == spacePath || strings.HasPrefix(cleanPath, spacePath+string(filepath.Separator)) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (h *Handler) handleBaseDirectories(w http.ResponseWriter, r *http.Request) *web.Error {
@@ -41,6 +76,7 @@ func (h *Handler) handleBaseDirectories(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) handleBrowse(w http.ResponseWriter, r *http.Request) *web.Error {
 	path := r.URL.Query().Get("path")
+	systemMode := r.URL.Query().Get("system") == "true"
 
 	var files []browse.FileInfo
 	var err error
@@ -49,6 +85,25 @@ func (h *Handler) handleBrowse(w http.ResponseWriter, r *http.Request) *web.Erro
 	if targetPath == "" {
 		// path가 비어있으면 초기 디렉토리 사용
 		targetPath = h.browseService.GetInitialBrowseRoot()
+	}
+
+	// Check if the path is allowed (within a Space)
+	// Skip validation in system mode (for Space creation)
+	if !systemMode {
+		allowed, err := h.isPathAllowed(r.Context(), targetPath)
+		if err != nil {
+			return &web.Error{
+				Code:    http.StatusInternalServerError,
+				Message: "Failed to validate path",
+				Err:     err,
+			}
+		}
+		if !allowed {
+			return &web.Error{
+				Code:    http.StatusForbidden,
+				Message: "Access denied: path is not within any allowed Space",
+			}
+		}
 	}
 
 	files, err = h.browseService.ListDirectory(false, targetPath)
@@ -93,6 +148,22 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) *web.Er
 		return &web.Error{
 			Code:    http.StatusBadRequest,
 			Message: "Path parameter is required",
+		}
+	}
+
+	// Check if the path is allowed (within a Space)
+	allowed, err := h.isPathAllowed(r.Context(), path)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate path",
+			Err:     err,
+		}
+	}
+	if !allowed {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: path is not within any allowed Space",
 		}
 	}
 

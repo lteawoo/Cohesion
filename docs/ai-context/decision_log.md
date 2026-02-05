@@ -155,3 +155,41 @@
   - `apps/backend/internal/browse/handler/browse_handler.go` (handleDownload, RegisterRoutes)
   - `apps/frontend/src/features/browse/components/FolderContent.tsx` (render 함수)
 - **결과**: 파일 클릭 시 다운로드 정상 작동, README.md 테스트 완료.
+
+### Space 경로 보안 강화 (2026-02-04)
+- **문제**: Space로 할당되지 않은 시스템 경로에도 자유롭게 접근 가능한 보안 취약점.
+- **요구사항**: Space 경로만 접근 허용하되, Space 생성 시 시스템 탐색은 가능해야 함.
+- **결정**: 백엔드에서 경로 검증 수행, Space 생성 모드는 별도 플래그로 구분.
+- **이유**:
+  - 보안: 사용자가 의도적으로 할당한 Space 외부 경로는 접근 불가.
+  - 유연성: Space 생성 시에는 시스템 전체를 탐색할 수 있어야 폴더 선택 가능.
+  - 서버 측 검증: 클라이언트 우회 방지, 신뢰할 수 있는 검증.
+- **구현**:
+  - **백엔드**:
+    - Handler에 spaceService 주입 (Space 목록 조회).
+    - `isPathAllowed(path)`: 요청 경로가 Space의 하위 경로인지 확인.
+      - Space 목록을 가져와서 각 space_path와 비교.
+      - `strings.HasPrefix`로 하위 경로 판별.
+      - Space가 없으면 모든 경로 허용 (하위 호환성).
+    - `handleBrowse`, `handleDownload`에서 경로 검증 수행.
+    - `system=true` 쿼리 파라미터로 시스템 탐색 모드 지원.
+      - systemMode일 때는 경로 검증 스킵.
+  - **프론트엔드**:
+    - `useBrowseApi`: `fetchDirectoryContents(path, systemMode=false)` 파라미터 추가.
+    - `FolderTree`: `showBaseDirectories`일 때 `systemMode=true` 전달.
+- **대안 검토**:
+  - 별도 API 엔드포인트 (`/api/browse/system`): 중복 코드, 유지보수 복잡도 증가.
+  - 클라이언트 검증: 보안 취약, 우회 가능.
+  - Space가 없을 때만 전체 허용: 현재 채택, 단순하고 효과적.
+- **보안 고려사항**:
+  - Space가 없으면 모든 경로 허용: 초기 사용자 경험 향상, 첫 Space 생성 전까지는 제한 없음.
+  - 경로 정규화: `filepath.Clean`으로 `..` 등 우회 시도 방지.
+  - 403 에러: 명확한 에러 메시지로 권한 부족 알림.
+- **수정 파일**:
+  - `apps/backend/internal/browse/handler/browse_handler.go` (isPathAllowed, 검증 로직)
+  - `apps/backend/main.go` (spaceService 주입)
+  - `apps/frontend/src/features/browse/hooks/useBrowseApi.ts` (systemMode 파라미터)
+  - `apps/frontend/src/features/browse/components/FolderTree.tsx` (systemMode 전달)
+- **결과**:
+  - Space 경로만 접근 가능, 외부 경로는 403 에러.
+  - Space 생성 모달에서 시스템 전체 탐색 정상 작동.

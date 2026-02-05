@@ -77,6 +77,28 @@
         - `apps/frontend/src/features/browse/components/FolderContent.tsx` (파일 링크 수정)
     - Playwright 브라우저 테스트 완료: README.md 다운로드 정상 작동 확인.
 
+- **Space 경로 보안 강화 완료** (2026-02-04):
+    - 문제: Space로 할당되지 않은 시스템 경로에도 접근 가능한 보안 취약점.
+    - 해결: Space 경로 검증 기능 추가.
+    - 백엔드:
+        - `browse_handler.go`에 `isPathAllowed` 함수 추가.
+        - 요청 경로가 등록된 Space의 하위 경로인지 검증.
+        - Space가 없을 때는 모든 경로 허용 (하위 호환성).
+        - `system=true` 쿼리 파라미터로 시스템 탐색 모드 지원 (Space 생성용).
+        - browse/download API에서 경로 검증 수행.
+    - 프론트엔드:
+        - `useBrowseApi.ts`: `fetchDirectoryContents`에 `systemMode` 파라미터 추가.
+        - `FolderTree.tsx`: Space 생성 모달(`showBaseDirectories`)에서 `systemMode=true` 전달.
+    - 수정 파일:
+        - `apps/backend/internal/browse/handler/browse_handler.go`
+        - `apps/backend/main.go` (spaceService 주입)
+        - `apps/frontend/src/features/browse/hooks/useBrowseApi.ts`
+        - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+    - 결과:
+        - 일반 탐색: Space 경로만 접근 가능, 403 에러로 차단.
+        - Space 생성: 시스템 전체 탐색 가능 (충돌 없음).
+    - Playwright 브라우저 테스트 완료: Space 탐색 정상, 시스템 탐색 정상.
+
 ## 다음 작업 (Next Steps)
 - 파일 업로드 기능 (Drag & Drop) 구현.
 - 파일 우클릭 메뉴(Context Menu) 추가 (삭제, 이름 변경 등).

@@ -116,7 +116,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
             path = key as string;
           }
 
-          const contents = await fetchDirectoryContents(path);
+          const contents = await fetchDirectoryContents(path, showBaseDirectories);
           const newChildren = convertToFileTreeData(contents);
 
           setTreeData(origin => updateTreeData(origin, key, newChildren));

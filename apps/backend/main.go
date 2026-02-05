@@ -56,7 +56,7 @@ func main() {
 	spaceService := space.NewService(spaceStore)
 	spaceHandler := spaceHandler.NewHandler(spaceService)
 	browseService := browse.NewService()
-	browseHandler := browseHandler.NewHandler(browseService)
+	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	webDavService := webdav.NewService(spaceService)
 	webDavHandler := webdavHandler.NewHandler(webDavService)
 

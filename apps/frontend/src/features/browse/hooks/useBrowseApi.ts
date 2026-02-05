@@ -28,8 +28,8 @@ export function useBrowseApi() {
     return await fetchData('/api/browse/base-directories');
   }, [fetchData]);
 
-  const fetchDirectoryContents = useCallback(async (path: string) => {
-    const url = `/api/browse?path=${encodeURIComponent(path)}`;
+  const fetchDirectoryContents = useCallback(async (path: string, systemMode = false) => {
+    const url = `/api/browse?path=${encodeURIComponent(path)}${systemMode ? '&system=true' : ''}`;
     return await fetchData(url);
   }, [fetchData]);
 
