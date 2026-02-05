@@ -15,8 +15,14 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
 
   const handlePathSelect = (path: string, space?: Space) => {
     setSelectedPath(path);
+
+    // space가 명시적으로 전달된 경우 해당 Space 사용
     if (space) {
       setSelectedSpace(space);
+    } else {
+      // space가 전달되지 않은 경우, path에서 해당하는 Space를 찾기
+      const matchedSpace = spaces?.find(s => path.startsWith(s.space_path));
+      setSelectedSpace(matchedSpace);
     }
   };
 
