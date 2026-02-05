@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
-import { Table, Empty, Breadcrumb, Space as AntSpace, Button } from 'antd';
-import { FolderFilled, FileOutlined, LeftOutlined } from '@ant-design/icons';
+import { Table, Empty, Breadcrumb, Space as AntSpace, Menu } from 'antd';
+import type { MenuProps } from 'antd';
+import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode } from '../types';
 import type { ColumnsType } from 'antd/es/table';
@@ -31,6 +32,14 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
   const [content, setContent] = useState<FileNode[]>([]);
   const { isLoading, fetchDirectoryContents } = useBrowseApi();
 
+  // 컨텍스트 메뉴 상태 관리
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    record?: FileNode;
+  }>({ visible: false, x: 0, y: 0 });
+
   useEffect(() => {
     if (selectedPath) {
       const loadContent = async () => {
@@ -40,6 +49,18 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       loadContent();
     }
   }, [selectedPath, fetchDirectoryContents]);
+
+  // 컨텍스트 메뉴 닫기
+  useEffect(() => {
+    const handleClick = () => {
+      setContextMenu({ visible: false, x: 0, y: 0 });
+    };
+
+    if (contextMenu.visible) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [contextMenu.visible]);
 
   // Space 상대 경로로 Breadcrumb 생성
   const breadcrumbItems = (() => {
@@ -122,24 +143,57 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     );
   }
 
+  // 우클릭 핸들러
+  const handleContextMenu = (e: React.MouseEvent, record: FileNode) => {
+    e.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      record,
+    });
+  };
+
+  // 메뉴 항목 생성
+  const menuItems: MenuProps['items'] = contextMenu.record ? [
+    ...(!contextMenu.record.isDir ? [{
+      key: 'download',
+      icon: <DownloadOutlined />,
+      label: '다운로드',
+      onClick: () => {
+        if (contextMenu.record) {
+          window.location.href = `/api/browse/download?path=${encodeURIComponent(contextMenu.record.path)}`;
+        }
+      },
+    }] : []),
+    {
+      key: 'rename',
+      icon: <EditOutlined />,
+      label: '이름 변경',
+      onClick: () => {
+        // TODO: 이름 변경 기능 구현
+        console.log('이름 변경:', contextMenu.record);
+      },
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: '삭제',
+      danger: true,
+      onClick: () => {
+        // TODO: 삭제 기능 구현
+        console.log('삭제:', contextMenu.record);
+      },
+    },
+  ] : [];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Breadcrumb items={breadcrumbItems} />
-        {selectedPath !== '/' && (
-          <Button 
-            icon={<LeftOutlined />} 
-            size="small" 
-            onClick={() => {
-              const parent = selectedPath.split('/').slice(0, -1).join('/') || '/';
-              onPathChange(parent);
-            }}
-          >
-            상위로
-          </Button>
-        )}
-      </div>
-      
+      <Breadcrumb items={breadcrumbItems} />
+
       <Table
         dataSource={content}
         columns={columns}
@@ -148,9 +202,22 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         pagination={false}
         onRow={(record: FileNode) => ({
           onDoubleClick: () => record.isDir && onPathChange(record.path),
+          onContextMenu: (e) => handleContextMenu(e, record),
         })}
         locale={{ emptyText: '이 폴더는 비어 있습니다.' }}
       />
+
+      {contextMenu.visible && (
+        <Menu
+          items={menuItems}
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            zIndex: 1000,
+          }}
+        />
+      )}
     </div>
   );
 };
