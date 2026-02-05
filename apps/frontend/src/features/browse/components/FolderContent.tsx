@@ -1,8 +1,8 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Table, Empty, Breadcrumb, Space as AntSpace, Menu, Modal, Input, message, Upload, Button, Card, Row, Col } from 'antd';
 import type { MenuProps, UploadProps } from 'antd';
-import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined, UploadOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode } from '../types';
 import type { ColumnsType } from 'antd/es/table';
@@ -31,9 +31,13 @@ const formatDate = (dateString: string) => {
 const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpace, onPathChange }) => {
   const [content, setContent] = useState<FileNode[]>([]);
   const { isLoading, fetchDirectoryContents } = useBrowseApi();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 뷰 모드 상태 (테이블/그리드)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+
+  // 드래그 상태 관리
+  const [isDragging, setIsDragging] = useState(false);
 
   // 컨텍스트 메뉴 상태 관리
   const [contextMenu, setContextMenu] = useState<{
@@ -165,50 +169,79 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     setContent(contents);
   };
 
-  // 파일 업로드 설정
-  const uploadProps: UploadProps = {
-    name: 'file',
-    multiple: false,
-    showUploadList: false,
-    customRequest: async (options) => {
-      const { file, onSuccess, onError } = options;
-
-      try {
-        await performUpload(file as File, false);
-        if (onSuccess) {
-          onSuccess({});
-        }
-      } catch (error: any) {
-        // 파일 중복 에러 (409)
-        if (error.status === 409) {
-          Modal.confirm({
-            title: '파일 덮어쓰기',
-            content: `"${(file as File).name}" 파일이 이미 존재합니다. 덮어쓰시겠습니까?`,
-            okText: '덮어쓰기',
-            okType: 'danger',
-            cancelText: '취소',
-            onOk: async () => {
-              try {
-                await performUpload(file as File, true);
-                if (onSuccess) {
-                  onSuccess({});
-                }
-              } catch (retryError: any) {
-                message.error(retryError.message || '업로드 실패');
-                if (onError) {
-                  onError(retryError);
-                }
-              }
-            },
-          });
-        } else {
-          message.error(error.message || '업로드 실패');
-          if (onError) {
-            onError(error);
-          }
-        }
+  // 파일 업로드 처리 (중복 확인 포함)
+  const handleFileUpload = async (file: File) => {
+    try {
+      await performUpload(file, false);
+    } catch (error: any) {
+      // 파일 중복 에러 (409)
+      if (error.status === 409) {
+        Modal.confirm({
+          title: '파일 덮어쓰기',
+          content: `"${file.name}" 파일이 이미 존재합니다. 덮어쓰시겠습니까?`,
+          okText: '덮어쓰기',
+          okType: 'danger',
+          cancelText: '취소',
+          onOk: async () => {
+            try {
+              await performUpload(file, true);
+            } catch (retryError: any) {
+              message.error(retryError.message || '업로드 실패');
+            }
+          },
+        });
+      } else {
+        message.error(error.message || '업로드 실패');
       }
-    },
+    }
+  };
+
+  // 드래그 이벤트 핸들러
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // 자식 요소로 이동할 때는 무시
+    if (e.currentTarget === e.target) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      // 첫 번째 파일만 업로드
+      await handleFileUpload(files[0]);
+    }
+  };
+
+  // 파일 선택 핸들러
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files[0]);
+      // input 초기화
+      e.target.value = '';
+    }
+  };
+
+  // 업로드 버튼 클릭 핸들러
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
   };
 
   // Space 상대 경로로 Breadcrumb 생성
@@ -346,30 +379,43 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
   ] : [];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', height: '100%' }}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        onChange={handleFileSelect}
+      />
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Breadcrumb items={breadcrumbItems} />
-        <Button.Group>
+        <AntSpace>
           <Button
-            icon={<UnorderedListOutlined />}
-            onClick={() => setViewMode('table')}
-            type={viewMode === 'table' ? 'primary' : 'default'}
-          />
-          <Button
-            icon={<AppstoreOutlined />}
-            onClick={() => setViewMode('grid')}
-            type={viewMode === 'grid' ? 'primary' : 'default'}
-          />
-        </Button.Group>
+            icon={<UploadOutlined />}
+            onClick={handleUploadClick}
+          >
+            업로드
+          </Button>
+          <Button.Group>
+            <Button
+              icon={<UnorderedListOutlined />}
+              onClick={() => setViewMode('table')}
+              type={viewMode === 'table' ? 'primary' : 'default'}
+            />
+            <Button
+              icon={<AppstoreOutlined />}
+              onClick={() => setViewMode('grid')}
+              type={viewMode === 'grid' ? 'primary' : 'default'}
+            />
+          </Button.Group>
+        </AntSpace>
       </div>
-
-      <Upload.Dragger {...uploadProps}>
-        <p className="ant-upload-drag-icon">
-          <InboxOutlined />
-        </p>
-        <p className="ant-upload-text">파일을 드래그하거나 클릭하여 업로드</p>
-        <p className="ant-upload-hint">현재 폴더에 파일이 업로드됩니다</p>
-      </Upload.Dragger>
 
       {viewMode === 'table' ? (
         <Table
@@ -455,6 +501,33 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           onPressEnter={handleRename}
         />
       </Modal>
+
+      {isDragging && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(24, 144, 255, 0.1)',
+            border: '2px dashed #1890ff',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <InboxOutlined style={{ fontSize: '64px', color: '#1890ff', marginBottom: '16px' }} />
+            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1890ff' }}>
+              파일을 놓아 업로드
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -357,3 +357,45 @@
 - **수정 파일**:
   - `apps/frontend/src/features/browse/components/FolderContent.tsx` (뷰 전환 버튼, 그리드 뷰 추가)
 - **결과**: 테이블 ↔ 그리드 양방향 전환 정상 작동, 그리드 뷰 반응형 정상 작동.
+
+### 업로드 UI 개선 (2026-02-05)
+- **결정**: Upload.Dragger 섹션 제거, 전체 영역 드래그 앤 드롭 지원, 업로드 버튼 추가.
+- **이유**:
+  - 화면 공간 효율성: 별도 업로드 섹션이 화면 공간을 많이 차지.
+  - 현대적인 UX: Google Drive, Dropbox 등은 전체 영역 드래그 지원.
+  - 직관성: 파일 탐색기 어디에나 드롭 가능.
+  - 일관성: 뷰 전환 버튼과 업로드 버튼을 같은 영역에 배치.
+- **구현**:
+  - **Upload.Dragger 제거**:
+    - 기존 Upload.Dragger 섹션 완전 제거.
+    - 파일 목록이 화면을 더 넓게 사용.
+  - **전체 영역 드래그 앤 드롭**:
+    - 최상위 div에 드래그 이벤트 리스너 추가.
+    - `onDragEnter`, `onDragLeave`, `onDragOver`, `onDrop`.
+    - `isDragging` state로 드래그 상태 관리.
+    - 드래그 중 오버레이 표시:
+      - 반투명 파란색 배경 (rgba(24, 144, 255, 0.1)).
+      - 파란색 점선 테두리 (2px dashed #1890ff).
+      - 중앙 정렬된 아이콘 + 메시지 ("파일을 놓아 업로드").
+      - z-index: 999, position: absolute.
+  - **업로드 버튼**:
+    - 위치: Breadcrumb 우측, 뷰 전환 버튼 옆.
+    - Space 컴포넌트로 버튼들 그룹화.
+    - UploadOutlined 아이콘 + "업로드" 텍스트.
+    - 숨겨진 file input (display: none).
+    - 버튼 클릭 시 fileInputRef.current?.click().
+  - **업로드 로직 통합**:
+    - `handleFileUpload` 함수로 드래그/버튼 업로드 통합.
+    - 중복 확인 및 덮어쓰기 모달 기능 유지.
+    - performUpload 함수 재사용.
+- **디자인 고려사항**:
+  - 드래그 오버레이: 파란색(#1890ff) 테마 일관성.
+  - 아이콘 크기: 64px (눈에 잘 띄도록).
+  - pointerEvents: none (오버레이가 드롭 이벤트 방해 방지).
+- **대안 검토**:
+  - Upload.Dragger 유지: 화면 공간 낭비, 중복 기능.
+  - 작은 드롭 영역 추가: 현대적인 UX와 맞지 않음.
+  - 오버레이 없이 드래그만 지원: 시각적 피드백 부족.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx` (드래그 이벤트, 업로드 버튼 추가)
+- **결과**: 전체 영역 드래그 앤 드롭 정상 작동, 업로드 버튼 정상 작동, 화면 공간 효율화.
