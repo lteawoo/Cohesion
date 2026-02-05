@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
-import { Table, Empty, Breadcrumb, Space as AntSpace, Menu, Modal, Input, message } from 'antd';
-import type { MenuProps } from 'antd';
-import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { Table, Empty, Breadcrumb, Space as AntSpace, Menu, Modal, Input, message, Upload } from 'antd';
+import type { MenuProps, UploadProps } from 'antd';
+import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode } from '../types';
 import type { ColumnsType } from 'antd/es/table';
@@ -133,6 +133,48 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         }
       },
     });
+  };
+
+  // 파일 업로드 설정
+  const uploadProps: UploadProps = {
+    name: 'file',
+    multiple: false,
+    showUploadList: false,
+    customRequest: async (options) => {
+      const { file, onSuccess, onError } = options;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file as File);
+        formData.append('targetPath', selectedPath);
+
+        const response = await fetch('/api/browse/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to upload');
+        }
+
+        const result = await response.json();
+        message.success(`"${result.filename}" 업로드 완료`);
+
+        // 목록 새로고침
+        const contents = await fetchDirectoryContents(selectedPath);
+        setContent(contents);
+
+        if (onSuccess) {
+          onSuccess(result);
+        }
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '업로드 실패');
+        if (onError) {
+          onError(error as Error);
+        }
+      }
+    },
   };
 
   // Space 상대 경로로 Breadcrumb 생성
@@ -272,6 +314,14 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <Breadcrumb items={breadcrumbItems} />
+
+      <Upload.Dragger {...uploadProps}>
+        <p className="ant-upload-drag-icon">
+          <InboxOutlined />
+        </p>
+        <p className="ant-upload-text">파일을 드래그하거나 클릭하여 업로드</p>
+        <p className="ant-upload-hint">현재 폴더에 파일이 업로드됩니다</p>
+      </Upload.Dragger>
 
       <Table
         dataSource={content}

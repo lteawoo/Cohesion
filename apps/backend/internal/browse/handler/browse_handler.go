@@ -32,6 +32,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/browse/download", web.Handler(h.handleDownload))
 	mux.Handle("/api/browse/rename", web.Handler(h.handleRename))
 	mux.Handle("/api/browse/delete", web.Handler(h.handleDelete))
+	mux.Handle("/api/browse/upload", web.Handler(h.handleUpload))
 }
 
 // isPathAllowed checks if the given path is within any allowed Space
@@ -405,6 +406,127 @@ func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) *web.Erro
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Successfully deleted"})
+
+	return nil
+}
+
+func (h *Handler) handleUpload(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+		}
+	}
+
+	// Parse multipart form (최대 32MB)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Failed to parse multipart form",
+			Err:     err,
+		}
+	}
+
+	// Get target directory path
+	targetPath := r.FormValue("targetPath")
+	if targetPath == "" {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "targetPath is required",
+		}
+	}
+
+	// Check if the target path is allowed (within a Space)
+	allowed, err := h.isPathAllowed(r.Context(), targetPath)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate path",
+			Err:     err,
+		}
+	}
+	if !allowed {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: path is not within any allowed Space",
+		}
+	}
+
+	// Check if target directory exists
+	fileInfo, err := os.Stat(targetPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{
+				Code:    http.StatusNotFound,
+				Message: "Target directory not found",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to access target directory",
+			Err:     err,
+		}
+	}
+
+	// Ensure target is a directory
+	if !fileInfo.IsDir() {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Target path must be a directory",
+		}
+	}
+
+	// Get uploaded file
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Failed to get uploaded file",
+			Err:     err,
+		}
+	}
+	defer file.Close()
+
+	// Create destination file path
+	destPath := filepath.Join(targetPath, header.Filename)
+
+	// Check if destination file already exists
+	if _, err := os.Stat(destPath); err == nil {
+		return &web.Error{
+			Code:    http.StatusConflict,
+			Message: "File already exists",
+		}
+	}
+
+	// Create destination file
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to create destination file",
+			Err:     err,
+		}
+	}
+	defer destFile.Close()
+
+	// Copy uploaded file to destination
+	if _, err := io.Copy(destFile, file); err != nil {
+		// Clean up on failure
+		os.Remove(destPath)
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to save uploaded file",
+			Err:     err,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message":  "Successfully uploaded",
+		"filename": header.Filename,
+	})
 
 	return nil
 }

@@ -133,7 +133,27 @@
         - 삭제 확인 모달 및 실제 삭제 작동 확인.
         - 목록 자동 새로고침 확인.
 
+- **파일 업로드 기능 구현 완료** (2026-02-05):
+    - 백엔드 API 추가:
+        - `POST /api/browse/upload`: multipart/form-data로 파일 업로드.
+        - 요청: `file` (파일), `targetPath` (업로드 대상 디렉토리).
+        - Space 경로 검증: 업로드 대상 경로가 Space 내부인지 확인.
+        - 파일 중복 확인: 동일 이름 파일 존재 시 409 Conflict 에러.
+        - 최대 업로드 크기: 32MB.
+    - 프론트엔드 구현:
+        - Ant Design `Upload.Dragger` 컴포넌트 사용.
+        - Drag & Drop 또는 클릭으로 파일 선택.
+        - `customRequest`로 커스텀 업로드 로직 구현.
+        - 업로드 성공 시 메시지 표시 및 목록 자동 새로고침.
+        - FolderContent 상단에 업로드 영역 배치.
+    - 수정 파일:
+        - `apps/backend/internal/browse/handler/browse_handler.go` (handleUpload 추가)
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx` (Upload.Dragger 추가)
+    - Chrome Extension 브라우저 테스트 완료:
+        - Drag & Drop 영역 정상 표시.
+        - 파일 업로드 API 정상 작동 (test-upload.txt 업로드 성공).
+        - 업로드된 파일이 목록에 즉시 표시됨.
+
 ## 다음 작업 (Next Steps)
-- 파일 업로드 기능 (Drag & Drop) 구현.
 - 이미지/텍스트 파일 미리보기 기능 검토.
 - 파일 복사/이동 기능 검토.
