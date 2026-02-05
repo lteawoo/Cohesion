@@ -399,3 +399,37 @@
 - **수정 파일**:
   - `apps/frontend/src/features/browse/components/FolderContent.tsx` (드래그 이벤트, 업로드 버튼 추가)
 - **결과**: 전체 영역 드래그 앤 드롭 정상 작동, 업로드 버튼 정상 작동, 화면 공간 효율화.
+
+### Breadcrumb 절대 경로 버그 수정 (2026-02-06)
+- **문제**: 하위 폴더(2+ depth) 이동 시 breadcrumb이 절대 경로로 표시되는 버그.
+- **원인**:
+  - FolderTree에서 Space 노드가 아닌 하위 폴더 선택 시 Space 정보 없이 경로만 전달.
+  - FolderContent에서 폴더 더블 클릭 시 `onPathChange(path)` 호출로 경로만 업데이트.
+  - `selectedSpace` state가 현재 경로와 동기화되지 않아 breadcrumb 로직이 실패.
+  - Breadcrumb 로직: `if (selectedSpace && selectedPath.startsWith(selectedSpace.space_path))`
+  - 경로가 다른 Space에 속하거나 selectedSpace가 없으면 절대 경로로 fallback.
+- **결정**: `handlePathSelect` 함수에서 Space가 명시되지 않으면 자동으로 찾도록 개선.
+- **이유**:
+  - 사용자가 어떤 방식으로 탐색하든 (사이드바 클릭, 더블 클릭, breadcrumb 클릭) 일관된 UX 제공.
+  - Space 중심 워크플로우 유지: 항상 Space 기준 상대 경로 표시.
+  - 코드 중복 방지: FolderTree, FolderContent 모두 수정 불필요.
+- **구현**:
+  - `MainLayout/index.tsx`의 `handlePathSelect(path, space?)` 수정:
+    ```typescript
+    if (space) {
+      setSelectedSpace(space);
+    } else {
+      const matchedSpace = spaces?.find(s => path.startsWith(s.space_path));
+      setSelectedSpace(matchedSpace);
+    }
+    ```
+  - `path`가 어떤 Space의 하위 경로인지 자동 탐색.
+  - 매칭되는 Space를 `selectedSpace`에 설정.
+  - 매칭되는 Space가 없으면 `undefined` 설정 (절대 경로 표시).
+- **대안 검토**:
+  - FolderTree에서 항상 Space 정보 전달: 복잡한 로직, 여러 파일 수정 필요.
+  - FolderContent에서 Space 찾기: 중복 로직, MainLayout에서 처리하는 것이 더 효율적.
+  - Breadcrumb에서 Space 찾기: 로직이 여러 곳에 분산, 유지보수 어려움.
+- **수정 파일**:
+  - `apps/frontend/src/components/layout/MainLayout/index.tsx` (handlePathSelect 로직 개선)
+- **결과**: 하위 폴더(2+ depth) 탐색 시 breadcrumb이 항상 상대 경로로 정상 표시.

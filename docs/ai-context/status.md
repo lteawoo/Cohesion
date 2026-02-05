@@ -195,6 +195,23 @@
     - 수정 파일:
         - `apps/frontend/src/features/browse/components/FolderContent.tsx` (드래그 이벤트, 업로드 버튼 추가)
 
+- **Breadcrumb 절대 경로 버그 수정 완료** (2026-02-06):
+    - 문제: 하위 폴더(2+ depth) 이동 시 breadcrumb이 절대 경로로 표시됨.
+    - 원인:
+        - FolderTree에서 Space 노드가 아닌 하위 폴더 선택 시 Space 정보 없이 경로만 전달.
+        - FolderContent에서 폴더 더블 클릭 시 `onPathChange(path)` 호출로 `selectedSpace` 미업데이트.
+        - `selectedSpace`가 현재 경로와 동기화되지 않아 breadcrumb 로직 실패.
+    - 해결:
+        - `MainLayout/index.tsx`의 `handlePathSelect` 함수 수정.
+        - Space가 명시적으로 전달되지 않으면 현재 경로에서 해당하는 Space 자동 탐색.
+        - `spaces.find(s => path.startsWith(s.space_path))`로 매칭되는 Space 찾기.
+        - 찾은 Space를 `selectedSpace`에 설정하여 breadcrumb이 항상 올바른 상대 경로 표시.
+    - 수정 파일:
+        - `apps/frontend/src/components/layout/MainLayout/index.tsx` (handlePathSelect 로직 개선)
+    - Chrome Extension 브라우저 테스트 완료:
+        - Space 선택 후 하위 폴더로 이동 시 상대 경로 정상 표시 ("헬로 / Test Folder").
+        - 2+ depth 폴더 이동 시에도 상대 경로 정상 표시 ("헬로 / Test Folder / Contents / Frameworks").
+
 ## 다음 작업 (Next Steps)
 - 이미지/텍스트 파일 미리보기 기능 검토.
 - 파일 복사/이동 기능 검토.
