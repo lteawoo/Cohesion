@@ -271,36 +271,46 @@
 - **결과**: 파일 클릭 시 다운로드 안 됨, 우클릭 메뉴로만 다운로드 가능.
 
 ### 파일 업로드 기능 구현 (2026-02-05)
-- **결정**: Drag & Drop 방식의 파일 업로드 기능 구현.
+- **결정**: Drag & Drop 방식의 파일 업로드 기능 구현, 중복 파일 덮어쓰기 확인 포함.
 - **이유**:
   - 직관적인 UX: 파일을 드래그하거나 클릭하여 쉽게 업로드.
   - 현대적인 파일 관리자 표준: Google Drive, Dropbox 등 주요 서비스에서 사용.
   - Space 기반 워크플로우와 자연스럽게 통합.
+  - 안전한 덮어쓰기: 사용자 확인 후 기존 파일 덮어쓰기 가능.
 - **구현**:
   - **백엔드**:
     - `POST /api/browse/upload` 엔드포인트 추가.
     - multipart/form-data로 파일 수신 (최대 32MB).
     - `targetPath` 파라미터로 업로드 대상 디렉토리 지정.
+    - `overwrite` 파라미터 (선택): `true`일 때 기존 파일 덮어쓰기.
     - Space 경로 검증: `isPathAllowed`로 대상 경로가 Space 내부인지 확인.
-    - 파일 중복 방지: 동일 이름 파일 존재 시 409 Conflict 에러.
+    - 파일 중복 처리:
+      - `overwrite=false` (기본값): 동일 이름 파일 존재 시 409 Conflict 에러.
+      - `overwrite=true`: 기존 파일 덮어쓰기 (`os.Create`가 자동으로 덮어씀).
     - `os.Create` + `io.Copy`로 파일 저장.
     - 실패 시 부분 저장된 파일 정리 (`os.Remove`).
   - **프론트엔드**:
     - Ant Design `Upload.Dragger` 컴포넌트 사용.
     - `customRequest`로 커스텀 업로드 로직 구현.
-    - FormData로 파일과 targetPath 전송.
+    - `performUpload` 함수로 업로드 로직 분리 (재사용 가능).
+    - 409 에러 처리:
+      - `Modal.confirm`으로 덮어쓰기 확인 모달 표시.
+      - 확인 시 `overwrite=true`로 재업로드.
+      - 취소 시 업로드 중단.
+    - FormData로 파일, targetPath, overwrite 전송.
     - 업로드 성공 시 `message.success` 표시 및 목록 자동 새로고침.
     - `showUploadList: false`로 기본 업로드 목록 숨김 (즉시 새로고침으로 대체).
     - FolderContent 상단 Breadcrumb 아래 배치.
 - **보안 고려사항**:
   - Space 경로 검증: Space 외부 경로 업로드 차단 (403 에러).
   - 파일 크기 제한: 32MB (서버 메모리 보호).
-  - 중복 파일 덮어쓰기 방지: 명시적 에러로 사용자에게 알림.
+  - 덮어쓰기 확인: 사용자 명시적 확인 없이는 덮어쓰기 불가.
 - **대안 검토**:
   - 별도 업로드 버튼: Drag & Drop보다 덜 직관적.
   - 무제한 파일 크기: 서버 메모리 고갈 위험.
-  - 중복 파일 자동 덮어쓰기: 데이터 손실 위험.
+  - 중복 파일 자동 덮어쓰기: 데이터 손실 위험, 사용자 확인 필수.
+  - 중복 파일 자동 이름 변경: 사용자가 예상하지 못한 파일명, 혼란 야기.
 - **수정 파일**:
   - `apps/backend/internal/browse/handler/browse_handler.go` (handleUpload, RegisterRoutes)
-  - `apps/frontend/src/features/browse/components/FolderContent.tsx` (Upload.Dragger 추가)
-- **결과**: Drag & Drop 파일 업로드 정상 작동, 업로드된 파일 즉시 목록에 표시.
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx` (Upload.Dragger, 덮어쓰기 확인 모달 추가)
+- **결과**: Drag & Drop 파일 업로드 정상 작동, 중복 파일 덮어쓰기 확인 모달 정상 작동.

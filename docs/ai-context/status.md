@@ -136,14 +136,17 @@
 - **파일 업로드 기능 구현 완료** (2026-02-05):
     - 백엔드 API 추가:
         - `POST /api/browse/upload`: multipart/form-data로 파일 업로드.
-        - 요청: `file` (파일), `targetPath` (업로드 대상 디렉토리).
+        - 요청: `file` (파일), `targetPath` (업로드 대상 디렉토리), `overwrite` (선택, 덮어쓰기 여부).
         - Space 경로 검증: 업로드 대상 경로가 Space 내부인지 확인.
-        - 파일 중복 확인: 동일 이름 파일 존재 시 409 Conflict 에러.
+        - 파일 중복 확인: 동일 이름 파일 존재 시 409 Conflict 에러 (overwrite=false).
+        - 덮어쓰기 지원: `overwrite=true`일 때 기존 파일 덮어쓰기.
         - 최대 업로드 크기: 32MB.
     - 프론트엔드 구현:
         - Ant Design `Upload.Dragger` 컴포넌트 사용.
         - Drag & Drop 또는 클릭으로 파일 선택.
         - `customRequest`로 커스텀 업로드 로직 구현.
+        - 409 에러 발생 시 `Modal.confirm`으로 덮어쓰기 확인.
+        - 덮어쓰기 확인 시 `overwrite=true`로 재업로드.
         - 업로드 성공 시 메시지 표시 및 목록 자동 새로고침.
         - FolderContent 상단에 업로드 영역 배치.
     - 수정 파일:
@@ -153,6 +156,8 @@
         - Drag & Drop 영역 정상 표시.
         - 파일 업로드 API 정상 작동 (test-upload.txt 업로드 성공).
         - 업로드된 파일이 목록에 즉시 표시됨.
+        - 중복 파일 업로드 시 덮어쓰기 확인 모달 정상 작동.
+        - 덮어쓰기 기능 정상 작동 (duplicate-test.txt 테스트 완료).
 
 ## 다음 작업 (Next Steps)
 - 이미지/텍스트 파일 미리보기 기능 검토.

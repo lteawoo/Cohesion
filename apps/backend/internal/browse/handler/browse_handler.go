@@ -491,15 +491,21 @@ func (h *Handler) handleUpload(w http.ResponseWriter, r *http.Request) *web.Erro
 	// Create destination file path
 	destPath := filepath.Join(targetPath, header.Filename)
 
+	// Check overwrite parameter
+	overwrite := r.FormValue("overwrite") == "true"
+
 	// Check if destination file already exists
 	if _, err := os.Stat(destPath); err == nil {
-		return &web.Error{
-			Code:    http.StatusConflict,
-			Message: "File already exists",
+		if !overwrite {
+			return &web.Error{
+				Code:    http.StatusConflict,
+				Message: "File already exists",
+			}
 		}
+		// If overwrite is true, we'll continue and os.Create will overwrite the file
 	}
 
-	// Create destination file
+	// Create destination file (overwrites if exists)
 	destFile, err := os.Create(destPath)
 	if err != nil {
 		return &web.Error{

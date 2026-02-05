@@ -135,6 +135,33 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     });
   };
 
+  // 파일 업로드 실행 함수
+  const performUpload = async (file: File, overwrite: boolean = false): Promise<void> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('targetPath', selectedPath);
+    if (overwrite) {
+      formData.append('overwrite', 'true');
+    }
+
+    const response = await fetch('/api/browse/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw { status: response.status, message: error.message || 'Failed to upload' };
+    }
+
+    const result = await response.json();
+    message.success(`"${result.filename}" 업로드 완료`);
+
+    // 목록 새로고침
+    const contents = await fetchDirectoryContents(selectedPath);
+    setContent(contents);
+  };
+
   // 파일 업로드 설정
   const uploadProps: UploadProps = {
     name: 'file',
@@ -144,34 +171,38 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       const { file, onSuccess, onError } = options;
 
       try {
-        const formData = new FormData();
-        formData.append('file', file as File);
-        formData.append('targetPath', selectedPath);
-
-        const response = await fetch('/api/browse/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to upload');
-        }
-
-        const result = await response.json();
-        message.success(`"${result.filename}" 업로드 완료`);
-
-        // 목록 새로고침
-        const contents = await fetchDirectoryContents(selectedPath);
-        setContent(contents);
-
+        await performUpload(file as File, false);
         if (onSuccess) {
-          onSuccess(result);
+          onSuccess({});
         }
-      } catch (error) {
-        message.error(error instanceof Error ? error.message : '업로드 실패');
-        if (onError) {
-          onError(error as Error);
+      } catch (error: any) {
+        // 파일 중복 에러 (409)
+        if (error.status === 409) {
+          Modal.confirm({
+            title: '파일 덮어쓰기',
+            content: `"${(file as File).name}" 파일이 이미 존재합니다. 덮어쓰시겠습니까?`,
+            okText: '덮어쓰기',
+            okType: 'danger',
+            cancelText: '취소',
+            onOk: async () => {
+              try {
+                await performUpload(file as File, true);
+                if (onSuccess) {
+                  onSuccess({});
+                }
+              } catch (retryError: any) {
+                message.error(retryError.message || '업로드 실패');
+                if (onError) {
+                  onError(retryError);
+                }
+              }
+            },
+          });
+        } else {
+          message.error(error.message || '업로드 실패');
+          if (onError) {
+            onError(error);
+          }
         }
       }
     },
