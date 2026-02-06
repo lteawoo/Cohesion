@@ -1,0 +1,102 @@
+package status
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"time"
+
+	"taeu.kr/cohesion/internal/platform/web"
+	"taeu.kr/cohesion/internal/space"
+)
+
+type ProtocolStatus struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type StatusResponse struct {
+	Protocols map[string]ProtocolStatus `json:"protocols"`
+}
+
+type Handler struct {
+	db           *sql.DB
+	spaceService *space.Service
+}
+
+func NewHandler(db *sql.DB, spaceService *space.Service) *Handler {
+	return &Handler{
+		db:           db,
+		spaceService: spaceService,
+	}
+}
+
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.Handle("/api/status", web.Handler(h.handleStatus))
+}
+
+func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodGet {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+		}
+	}
+
+	protocols := make(map[string]ProtocolStatus)
+
+	// HTTP (DB 연결 기반)
+	protocols["http"] = h.checkHTTP()
+
+	// WebDAV (Space 조회 가능 여부)
+	protocols["webdav"] = h.checkWebDAV()
+
+	// FTP (미구현)
+	protocols["ftp"] = ProtocolStatus{
+		Status:  "unavailable",
+		Message: "미구현",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(StatusResponse{
+		Protocols: protocols,
+	})
+
+	return nil
+}
+
+func (h *Handler) checkHTTP() ProtocolStatus {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := h.db.PingContext(ctx); err != nil {
+		return ProtocolStatus{
+			Status:  "unhealthy",
+			Message: "DB 연결 실패",
+		}
+	}
+
+	return ProtocolStatus{
+		Status:  "healthy",
+		Message: "정상",
+	}
+}
+
+func (h *Handler) checkWebDAV() ProtocolStatus {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	_, err := h.spaceService.GetAllSpaces(ctx)
+	if err != nil {
+		return ProtocolStatus{
+			Status:  "unhealthy",
+			Message: "Space 서비스 오류",
+		}
+	}
+
+	return ProtocolStatus{
+		Status:  "healthy",
+		Message: "정상",
+	}
+}

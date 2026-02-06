@@ -1,0 +1,120 @@
+import { Popover, theme } from 'antd';
+import { useServerStatus } from '@/features/status/hooks/useServerStatus';
+import type { ProtocolStatus } from '@/features/status/types';
+
+const PROTOCOL_LABELS: Record<string, string> = {
+  http: 'HTTP',
+  webdav: 'WebDAV',
+  ftp: 'FTP',
+};
+
+function StatusDot({ color, size = 8 }: { color: string; size?: number }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        backgroundColor: color,
+      }}
+    />
+  );
+}
+
+function getStatusColor(status: ProtocolStatus['status']) {
+  switch (status) {
+    case 'healthy':
+      return '#52c41a';
+    case 'unhealthy':
+      return '#ff4d4f';
+    case 'unavailable':
+      return '#8c8c8c';
+  }
+}
+
+function getStatusLabel(status: ProtocolStatus['status']) {
+  switch (status) {
+    case 'healthy':
+      return '정상';
+    case 'unhealthy':
+      return '오류';
+    case 'unavailable':
+      return '중지';
+  }
+}
+
+function PopoverContent({ protocols }: { protocols: Record<string, ProtocolStatus> }) {
+  const { token } = theme.useToken();
+
+  return (
+    <div style={{ minWidth: 160 }}>
+      <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8 }}>
+        Protocols
+      </div>
+      {Object.entries(protocols).map(([key, proto]) => (
+        <div
+          key={key}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '4px 0',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <StatusDot color={getStatusColor(proto.status)} />
+            <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
+          </div>
+          <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
+            {getStatusLabel(proto.status)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function ServerStatus() {
+  const { token } = theme.useToken();
+  const { status, isServerUp } = useServerStatus();
+
+  const dotColor = isServerUp ? '#52c41a' : '#ff4d4f';
+
+  return (
+    <Popover
+      content={
+        status?.protocols ? (
+          <PopoverContent protocols={status.protocols} />
+        ) : (
+          <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
+            서버에 연결할 수 없습니다
+          </div>
+        )
+      }
+      trigger="click"
+      placement="bottomLeft"
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          cursor: 'pointer',
+          padding: '4px 8px',
+          borderRadius: 4,
+          transition: 'background 0.2s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = token.colorBgTextHover;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+        }}
+      >
+        <StatusDot color={dotColor} />
+        <span style={{ fontSize: 13, color: token.colorTextSecondary }}>Status</span>
+      </div>
+    </Popover>
+  );
+}

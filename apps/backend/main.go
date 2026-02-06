@@ -17,6 +17,7 @@ import (
 	"taeu.kr/cohesion/internal/space"
 	spaceHandler "taeu.kr/cohesion/internal/space/handler"
 	spaceStore "taeu.kr/cohesion/internal/space/store"
+	"taeu.kr/cohesion/internal/status"
 	"taeu.kr/cohesion/internal/webdav"
 	webdavHandler "taeu.kr/cohesion/internal/webdav/handler"
 )
@@ -59,6 +60,7 @@ func main() {
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	webDavService := webdav.NewService(spaceService)
 	webDavHandler := webdavHandler.NewHandler(webDavService)
+	statusHandler := status.NewHandler(db, spaceService)
 
 	// 라우터 생성
 	mux := http.NewServeMux()
@@ -73,6 +75,7 @@ func main() {
 	// Api 핸들러 등록
 	spaceHandler.RegisterRoutes(mux)
 	browseHandler.RegisterRoutes(mux)
+	statusHandler.RegisterRoutes(mux)
 
 	// WebDAV 핸들러 등록
 	mux.Handle("/dav/", web.Handler(func(w http.ResponseWriter, r *http.Request) *web.Error {
