@@ -1,6 +1,7 @@
 import { ConfigProvider, Layout, Switch, theme } from "antd";
 import { Outlet } from "react-router";
 import MainSider from "./MainSider";
+import ServerStatus from "./ServerStatus";
 import { useState } from "react";
 import { useSpaces } from "@/features/space/hooks/useSpaces";
 import type { Space } from "@/features/space/types";
@@ -42,8 +43,9 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
           background: token.colorBgContainer
         }}
       >
-        <div style={{ color: token.colorText, fontSize: '20px' }}>
-            Cohesion
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ color: token.colorText, fontSize: '20px' }}>Cohesion</div>
+            <ServerStatus />
         </div>
         <Switch checked={isDarkMode} onChange={onThemeChange} checkedChildren="Dark" unCheckedChildren="Light" />
       </Header>
