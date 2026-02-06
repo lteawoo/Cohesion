@@ -92,26 +92,10 @@ export default function ServerStatus() {
           </div>
         )
       }
-      trigger="click"
+      trigger="hover"
       placement="bottomLeft"
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          cursor: 'pointer',
-          padding: '4px 8px',
-          borderRadius: 4,
-          transition: 'background 0.2s',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = token.colorBgTextHover;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <StatusDot color={dotColor} />
         <span style={{ fontSize: 13, color: token.colorTextSecondary }}>Status</span>
       </div>
