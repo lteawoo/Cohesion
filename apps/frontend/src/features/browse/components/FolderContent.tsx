@@ -34,7 +34,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 뷰 모드 상태 (테이블/그리드)
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
 
   // 드래그 상태 관리
   const [isDragging, setIsDragging] = useState(false);

@@ -433,3 +433,23 @@
 - **수정 파일**:
   - `apps/frontend/src/components/layout/MainLayout/index.tsx` (handlePathSelect 로직 개선)
 - **결과**: 하위 폴더(2+ depth) 탐색 시 breadcrumb이 항상 상대 경로로 정상 표시.
+
+### 그리드 뷰 기본값 변경 (2026-02-06)
+- **결정**: 파일 탐색기의 기본 뷰를 테이블에서 그리드(앨범)로 변경.
+- **이유**:
+  - 사용자 요청: 기본적으로 앨범 형식을 선호.
+  - 시각적 탐색 용이성: 그리드 뷰가 파일/폴더 구조를 한눈에 파악하기 쉬움.
+  - 현대적인 파일 관리자 트렌드: Finder, Google Drive 등 대부분 그리드 뷰 기본 제공.
+  - 이미지/미디어 중심 작업: 그리드 뷰가 파일 미리보기에 더 적합.
+- **구현**:
+  - `FolderContent.tsx`의 `viewMode` state 초기값 변경.
+  - 기존: `useState<'table' | 'grid'>('table')`
+  - 변경: `useState<'table' | 'grid'>('grid')`
+  - 뷰 전환 기능은 유지: 사용자가 원하면 테이블 뷰로 전환 가능.
+- **대안 검토**:
+  - localStorage에 사용자 선호 뷰 저장: 추후 고려, 현재는 세션별 초기화.
+  - 파일 타입별 자동 뷰 전환: 복잡도 증가, 우선순위 낮음.
+  - 그리드 뷰만 제공: 유연성 부족, 사용자 선택권 제거.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx` (viewMode 기본값 변경)
+- **결과**: Space 선택 시 그리드 뷰가 기본으로 표시, 뷰 전환 기능 정상 작동.

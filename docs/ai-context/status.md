@@ -232,6 +232,16 @@
         - Test Folder.zip 다운로드 성공.
         - zip 파일 내부에 모든 하위 폴더/파일 구조 정상 포함.
 
+- **그리드 뷰 기본값 변경 완료** (2026-02-06):
+    - 파일 탐색기의 기본 뷰를 테이블에서 그리드로 변경.
+    - `FolderContent.tsx`의 `viewMode` 초기값을 'table'에서 'grid'로 수정.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx` (viewMode 기본값 변경)
+    - Chrome Extension 브라우저 테스트 완료:
+        - Space 선택 시 그리드 뷰가 기본으로 표시.
+        - 파일/폴더가 카드 형태로 정상 표시.
+        - 뷰 전환 버튼에서 그리드 버튼이 활성화 상태.
+
 ## 다음 작업 (Next Steps)
 - 이미지/텍스트 파일 미리보기 기능 검토.
 - 파일 복사/이동 기능 검토.
