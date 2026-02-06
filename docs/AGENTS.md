@@ -102,40 +102,6 @@ PORT=3000
 - 환경 변수 불필요 (개발 시)
 - API 프록시: Vite가 자동으로 `/api` → `http://localhost:3000` 프록시
 
-## 테스트
-
-### Playwright 브라우저 테스트
-```bash
-# Playwright MCP 툴 사용 (규칙에 따라)
-# 1. 서버 시작
-# 2. Playwright MCP 브라우저 테스트
-# 3. 스크린샷 확인
-# 4. 브라우저 종료
-```
-
-### 유닛 테스트
-```bash
-# 프론트엔드
-cd apps/frontend
-pnpm test
-
-# 백엔드
-cd apps/backend
-go test ./...
-```
-
-## 주의사항
-
-### 규칙 준수
-1. **항상 docs/master_rule.md를 먼저 읽기**
-2. **Serena MCP 필수 사용** (코드 탐색/수정)
-3. **Playwright MCP로 UI 테스트 필수**
-4. **ai-context 파일 업데이트 필수** (작업 후)
-
-### 디렉토리 이동 시
-- 절대 경로 사용 권장: `/Users/twlee/projects/Cohesion/apps/backend`
-- 상대 경로 사용 시 주의: 현재 위치 확인 후 이동
-
 ### 백그라운드 실행
 일반적으로 개발 서버는 터미널에서 직접 실행하는 것을 권장합니다.
 Hot Reload 로그를 실시간으로 확인할 수 있어 디버깅에 유리합니다.
