@@ -338,16 +338,16 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
 
   // 메뉴 항목 생성
   const menuItems: MenuProps['items'] = contextMenu.record ? [
-    ...(!contextMenu.record.isDir ? [{
+    {
       key: 'download',
       icon: <DownloadOutlined />,
-      label: '다운로드',
+      label: contextMenu.record.isDir ? '폴더 다운로드 (ZIP)' : '다운로드',
       onClick: () => {
         if (contextMenu.record) {
           window.location.href = `/api/browse/download?path=${encodeURIComponent(contextMenu.record.path)}`;
         }
       },
-    }] : []),
+    },
     {
       key: 'rename',
       icon: <EditOutlined />,

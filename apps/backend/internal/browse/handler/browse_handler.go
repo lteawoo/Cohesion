@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -194,12 +197,9 @@ func (h *Handler) handleDownload(w http.ResponseWriter, r *http.Request) *web.Er
 		}
 	}
 
-	// 디렉토리는 다운로드 불가
+	// 폴더인 경우: zip으로 압축하여 다운로드
 	if fileInfo.IsDir() {
-		return &web.Error{
-			Code:    http.StatusBadRequest,
-			Message: "Cannot download directory",
-		}
+		return h.downloadFolderAsZip(w, path, fileInfo.Name())
 	}
 
 	// 파일 열기
@@ -533,6 +533,91 @@ func (h *Handler) handleUpload(w http.ResponseWriter, r *http.Request) *web.Erro
 		"message":  "Successfully uploaded",
 		"filename": header.Filename,
 	})
+
+	return nil
+}
+
+// downloadFolderAsZip creates a zip archive of the folder and streams it to the response
+func (h *Handler) downloadFolderAsZip(w http.ResponseWriter, folderPath string, folderName string) *web.Error {
+	// Set response headers
+	zipFileName := folderName + ".zip"
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipFileName))
+
+	// Create zip writer that streams directly to HTTP response
+	zipWriter := zip.NewWriter(w)
+	defer zipWriter.Close()
+
+	// Walk through the folder recursively
+	err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
+		// Skip files with errors (permission denied, etc.)
+		if err != nil {
+			log.Printf("Skipping file due to error: %s - %v", path, err)
+			return nil
+		}
+
+		// Skip symlinks for security
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+
+		// Calculate relative path for zip entry
+		relPath, err := filepath.Rel(folderPath, path)
+		if err != nil {
+			return nil
+		}
+
+		// Skip the root folder itself
+		if relPath == "." {
+			return nil
+		}
+
+		// Create zip header from file info
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			log.Printf("Failed to create header for %s: %v", path, err)
+			return nil
+		}
+
+		// Use forward slashes for zip paths (cross-platform compatibility)
+		header.Name = filepath.ToSlash(relPath)
+		header.Method = zip.Deflate
+
+		// For directories, add trailing slash
+		if info.IsDir() {
+			header.Name += "/"
+			_, err = zipWriter.CreateHeader(header)
+			if err != nil {
+				log.Printf("Failed to create directory entry %s: %v", header.Name, err)
+			}
+			return nil
+		}
+
+		// For files, create entry and copy content
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			log.Printf("Failed to create file entry %s: %v", header.Name, err)
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			log.Printf("Failed to open file %s: %v", path, err)
+			return nil
+		}
+		defer file.Close()
+
+		_, err = io.Copy(writer, file)
+		if err != nil {
+			log.Printf("Failed to copy file %s: %v", path, err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("Error walking folder %s: %v", folderPath, err)
+	}
 
 	return nil
 }

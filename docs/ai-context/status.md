@@ -212,6 +212,26 @@
         - Space 선택 후 하위 폴더로 이동 시 상대 경로 정상 표시 ("헬로 / Test Folder").
         - 2+ depth 폴더 이동 시에도 상대 경로 정상 표시 ("헬로 / Test Folder / Contents / Frameworks").
 
+- **폴더 ZIP 다운로드 기능 구현 완료** (2026-02-06):
+    - 백엔드: `handleDownload()` 함수 수정하여 폴더/파일 자동 구분 처리.
+    - 백엔드: `downloadFolderAsZip()` 함수 추가로 폴더 압축 다운로드 지원.
+        - Go 표준 라이브러리 `archive/zip` 사용 (외부 의존성 없음).
+        - HTTP response에 직접 스트리밍 (메모리 효율적).
+        - `filepath.Walk()`로 재귀적 폴더 탐색.
+        - 심볼릭 링크 자동 스킵 (보안).
+        - 압축 파일명: `{folderName}.zip`.
+    - 프론트엔드: 컨텍스트 메뉴에 폴더 다운로드 옵션 추가.
+        - 파일: "다운로드" 메뉴 표시.
+        - 폴더: "폴더 다운로드 (ZIP)" 메뉴 표시.
+    - 수정 파일:
+        - `apps/backend/internal/browse/handler/browse_handler.go` (import 추가, handleDownload 수정, downloadFolderAsZip 추가)
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx` (컨텍스트 메뉴 조건 수정)
+    - Chrome Extension 브라우저 테스트 완료:
+        - 폴더 우클릭 시 "폴더 다운로드 (ZIP)" 메뉴 정상 표시.
+        - 파일 우클릭 시 "다운로드" 메뉴 정상 표시.
+        - Test Folder.zip 다운로드 성공.
+        - zip 파일 내부에 모든 하위 폴더/파일 구조 정상 포함.
+
 ## 다음 작업 (Next Steps)
 - 이미지/텍스트 파일 미리보기 기능 검토.
 - 파일 복사/이동 기능 검토.
