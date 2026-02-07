@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -14,21 +16,26 @@ import (
 type ProtocolStatus struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
+	Port    string `json:"port,omitempty"`
+	Path    string `json:"path,omitempty"`
 }
 
 type StatusResponse struct {
 	Protocols map[string]ProtocolStatus `json:"protocols"`
+	Hosts     []string                  `json:"hosts"`
 }
 
 type Handler struct {
 	db           *sql.DB
 	spaceService *space.Service
+	port         string
 }
 
-func NewHandler(db *sql.DB, spaceService *space.Service) *Handler {
+func NewHandler(db *sql.DB, spaceService *space.Service, port string) *Handler {
 	return &Handler{
 		db:           db,
 		spaceService: spaceService,
+		port:         port,
 	}
 }
 
@@ -56,11 +63,13 @@ func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) *web.Erro
 	protocols["ftp"] = ProtocolStatus{
 		Status:  "unavailable",
 		Message: "미구현",
+		Port:    "21",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(StatusResponse{
 		Protocols: protocols,
+		Hosts:     h.getAccessibleHosts(),
 	})
 
 	return nil
@@ -74,12 +83,16 @@ func (h *Handler) checkHTTP() ProtocolStatus {
 		return ProtocolStatus{
 			Status:  "unhealthy",
 			Message: "DB 연결 실패",
+			Port:    h.port,
+			Path:    "/api/",
 		}
 	}
 
 	return ProtocolStatus{
 		Status:  "healthy",
 		Message: "정상",
+		Port:    h.port,
+		Path:    "/api/",
 	}
 }
 
@@ -92,11 +105,34 @@ func (h *Handler) checkWebDAV() ProtocolStatus {
 		return ProtocolStatus{
 			Status:  "unhealthy",
 			Message: "Space 서비스 오류",
+			Port:    h.port,
+			Path:    "/dav/",
 		}
 	}
 
 	return ProtocolStatus{
 		Status:  "healthy",
 		Message: "정상",
+		Port:    h.port,
+		Path:    "/dav/",
 	}
+}
+
+func (h *Handler) getAccessibleHosts() []string {
+	hosts := []string{fmt.Sprintf("localhost:%s", h.port)}
+
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return hosts
+	}
+
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok || ipNet.IP.IsLoopback() || ipNet.IP.To4() == nil {
+			continue
+		}
+		hosts = append(hosts, fmt.Sprintf("%s:%s", ipNet.IP.String(), h.port))
+	}
+
+	return hosts
 }

@@ -60,7 +60,7 @@ func main() {
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	webDavService := webdav.NewService(spaceService)
 	webDavHandler := webdavHandler.NewHandler(webDavService)
-	statusHandler := status.NewHandler(db, spaceService)
+	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 
 	// 라우터 생성
 	mux := http.NewServeMux()

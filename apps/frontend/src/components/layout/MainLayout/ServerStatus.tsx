@@ -44,11 +44,11 @@ function getStatusLabel(status: ProtocolStatus['status']) {
   }
 }
 
-function PopoverContent({ protocols }: { protocols: Record<string, ProtocolStatus> }) {
+function PopoverContent({ protocols, hosts }: { protocols: Record<string, ProtocolStatus>; hosts?: string[] }) {
   const { token } = theme.useToken();
 
   return (
-    <div style={{ minWidth: 160 }}>
+    <div style={{ minWidth: 180 }}>
       <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8 }}>
         Protocols
       </div>
@@ -65,12 +65,29 @@ function PopoverContent({ protocols }: { protocols: Record<string, ProtocolStatu
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <StatusDot color={getStatusColor(proto.status)} />
             <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
+            {proto.port && (
+              <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{proto.port}{proto.path}</span>
+            )}
           </div>
           <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
             {getStatusLabel(proto.status)}
           </span>
         </div>
       ))}
+      {hosts && hosts.length > 0 && (
+        <>
+          <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 12, marginBottom: 8 }}>
+            접근 주소
+          </div>
+          {hosts.map((host) => (
+            <div key={host} style={{ padding: '2px 0' }}>
+              <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
+                {host}
+              </span>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -85,7 +102,7 @@ export default function ServerStatus() {
     <Popover
       content={
         status?.protocols ? (
-          <PopoverContent protocols={status.protocols} />
+          <PopoverContent protocols={status.protocols} hosts={status.hosts} />
         ) : (
           <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
             서버에 연결할 수 없습니다
@@ -95,7 +112,7 @@ export default function ServerStatus() {
       trigger="hover"
       placement="bottomLeft"
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
         <StatusDot color={dotColor} />
         <span style={{ fontSize: 13, color: token.colorTextSecondary }}>Status</span>
       </div>
