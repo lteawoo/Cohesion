@@ -17,6 +17,7 @@ type ProtocolStatus struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
 	Port    string `json:"port,omitempty"`
+	Path    string `json:"path,omitempty"`
 }
 
 type StatusResponse struct {
@@ -83,6 +84,7 @@ func (h *Handler) checkHTTP() ProtocolStatus {
 			Status:  "unhealthy",
 			Message: "DB 연결 실패",
 			Port:    h.port,
+			Path:    "/api/",
 		}
 	}
 
@@ -90,6 +92,7 @@ func (h *Handler) checkHTTP() ProtocolStatus {
 		Status:  "healthy",
 		Message: "정상",
 		Port:    h.port,
+		Path:    "/api/",
 	}
 }
 
@@ -103,6 +106,7 @@ func (h *Handler) checkWebDAV() ProtocolStatus {
 			Status:  "unhealthy",
 			Message: "Space 서비스 오류",
 			Port:    h.port,
+			Path:    "/dav/",
 		}
 	}
 
@@ -110,6 +114,7 @@ func (h *Handler) checkWebDAV() ProtocolStatus {
 		Status:  "healthy",
 		Message: "정상",
 		Port:    h.port,
+		Path:    "/dav/",
 	}
 }
 

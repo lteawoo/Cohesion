@@ -66,7 +66,7 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
             <StatusDot color={getStatusColor(proto.status)} />
             <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
             {proto.port && (
-              <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{proto.port}</span>
+              <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{proto.port}{proto.path}</span>
             )}
           </div>
           <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
