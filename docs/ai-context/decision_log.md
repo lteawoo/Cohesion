@@ -454,6 +454,17 @@
   - `apps/frontend/src/features/browse/components/FolderContent.tsx` (viewMode 기본값 변경)
 - **결과**: Space 선택 시 그리드 뷰가 기본으로 표시, 뷰 전환 기능 정상 작동.
 
+### 사이드바 트리 노드 증식 버그 수정 (2026-02-07)
+- **문제**: 여러 Space를 열고 닫을 때 하위 폴더 노드가 중복 생성.
+- **원인**: 같은 디렉토리를 가리키는 Space들의 하위 노드가 파일 경로를 key로 사용하여 Ant Design Tree key 충돌.
+- **결정**: 자식 노드 key에 부모 Space prefix를 붙여 유일성 보장 + `expandedKeys` 명시적 상태 관리.
+- **구현**:
+  - key 형식: `space-{id}::{filePath}` (Space 하위), 기존 경로 (비-Space).
+  - `handleSelect`에서 `::` 구분자로 실제 경로 추출.
+  - `expandedKeys` state + `onExpand` 핸들러로 확장 상태 제어.
+  - treeData 초기화 시 `loadedKeys`, `expandedKeys` 동시 초기화.
+- **수정 파일**: `FolderTree.tsx`
+
 ### 서버 상태 표시 개선 (2026-02-07)
 - **결정**: Status popover를 텍스트 바로 아래로 이동하고, 호스트/포트/경로 정보 추가.
 - **이유**:

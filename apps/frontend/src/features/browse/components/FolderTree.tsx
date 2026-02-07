@@ -34,6 +34,7 @@ interface FolderTreeProps {
 const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, spaces, onSpaceDelete }) => {
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const loadingKeysRef = useRef<Set<React.Key>>(new Set());
   const { isLoading, fetchBaseDirectories, fetchDirectoryContents } = useBrowseApi();
   
@@ -57,6 +58,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
             key: `space-${space.id}`,
             isLeaf: false,
           })));
+          setLoadedKeys([]);
+          setExpandedKeys([]);
         }
       } else if (rootPath && rootName) {
         // 단일 Space를 루트 노드로 표시
@@ -66,17 +69,23 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
             key: rootPath,
             isLeaf: false,
           }]);
+          setLoadedKeys([]);
+          setExpandedKeys([]);
         }
       } else if (showBaseDirectories) {
         // base directories 로드 (모달 등에서 사용)
         const baseDirs = await fetchBaseDirectories();
         if (isMounted) {
           setTreeData(convertToFileTreeData(baseDirs));
+          setLoadedKeys([]);
+          setExpandedKeys([]);
         }
       } else {
         // 트리를 비움
         if (isMounted) {
           setTreeData([]);
+          setLoadedKeys([]);
+          setExpandedKeys([]);
         }
       }
     };
@@ -102,22 +111,40 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
       (async () => {
         try {
           let path: string;
-          
-          // Space 노드인지 확인
-          if (typeof key === 'string' && key.startsWith('space-')) {
-            const spaceId = parseInt(key.replace('space-', ''));
-            const space = spaces?.find(s => s.id === spaceId);
-            if (!space) {
-              resolve();
-              return;
+          let spacePrefix = '';
+          const keyStr = key as string;
+
+          // Space 노드 또는 Space 하위 노드 판별
+          if (keyStr.startsWith('space-')) {
+            const sepIndex = keyStr.indexOf('::');
+            if (sepIndex >= 0) {
+              // Space 하위 노드 (space-{id}::{path} 형식)
+              spacePrefix = keyStr.substring(0, sepIndex);
+              path = keyStr.substring(sepIndex + 2);
+            } else {
+              // Space 루트 노드
+              spacePrefix = keyStr;
+              const spaceId = parseInt(keyStr.replace('space-', ''));
+              const space = spaces?.find(s => s.id === spaceId);
+              if (!space) {
+                resolve();
+                return;
+              }
+              path = space.space_path;
             }
-            path = space.space_path;
           } else {
-            path = key as string;
+            path = keyStr;
           }
 
           const contents = await fetchDirectoryContents(path, showBaseDirectories);
-          const newChildren = convertToFileTreeData(contents);
+          // Space 하위 노드는 key에 prefix를 붙여 유일성 보장
+          const newChildren = contents
+            .filter(node => node.isDir)
+            .map(node => ({
+              title: node.name,
+              key: spacePrefix ? `${spacePrefix}::${node.path}` : node.path,
+              isLeaf: false,
+            }));
 
           setTreeData(origin => updateTreeData(origin, key, newChildren));
           setLoadedKeys(prev => [...prev, key]);
@@ -131,16 +158,26 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     });
   };
 
+  const handleExpand: DirectoryTreeProps['onExpand'] = (keys) => {
+    setExpandedKeys(keys);
+  };
+
   const handleSelect: DirectoryTreeProps['onSelect'] = (keys: React.Key[]) => {
     if (keys.length > 0) {
       const key = keys[0] as string;
-      
-      // Space 노드 선택 시 해당 Space의 경로와 Space 정보를 반환
+
       if (key.startsWith('space-')) {
-        const spaceId = parseInt(key.replace('space-', ''));
-        const space = spaces?.find(s => s.id === spaceId);
-        if (space) {
-          onSelect(space.space_path, space);
+        const sepIndex = key.indexOf('::');
+        if (sepIndex >= 0) {
+          // Space 하위 노드 선택 — 실제 경로 추출
+          onSelect(key.substring(sepIndex + 2));
+        } else {
+          // Space 루트 노드 선택
+          const spaceId = parseInt(key.replace('space-', ''));
+          const space = spaces?.find(s => s.id === spaceId);
+          if (space) {
+            onSelect(space.space_path, space);
+          }
         }
       } else {
         onSelect(key);
@@ -217,10 +254,12 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     <>
       <Tree.DirectoryTree
         onSelect={handleSelect}
+        onExpand={handleExpand}
         onRightClick={handleRightClick}
         loadData={onLoadData}
         treeData={treeData}
         loadedKeys={loadedKeys}
+        expandedKeys={expandedKeys}
         showIcon={true}
         icon={<FolderOutlined />}
         expandAction="click"

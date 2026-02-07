@@ -266,6 +266,12 @@
     - `service.go`에 `GetRootHandler()` 추가, `webdav_handler.go`에서 루트 요청 위임.
     - curl PROPFIND 테스트 완료: 모든 Space가 폴더로 정상 표시.
 
+- **사이드바 트리 노드 증식 버그 수정** (2026-02-07):
+    - 문제: 여러 Space를 열고 닫을 때 하위 폴더 노드가 중복 생성.
+    - 원인: 같은 디렉토리를 가리키는 Space들의 하위 노드 key가 파일 경로로 동일하여 Ant Design Tree key 충돌.
+    - 해결: 자식 노드 key에 부모 Space prefix 추가 (`space-{id}::{path}`), `expandedKeys` 명시적 관리.
+    - Chrome Extension 테스트 완료: Space 열고 닫기 반복 시 증식 없음 확인.
+
 ## 다음 작업 (Next Steps)
 - 이미지/텍스트 파일 미리보기 기능 검토.
 - 파일 복사/이동 기능 검토.
