@@ -66,7 +66,7 @@ export default function MainSider({ spaces, onSpaceCreated, onPathSelect }: Main
           onClick={() => setIsOpen(true)}
         />
       </div>
-      <div style={{ padding: '8px 16px' }}>
+      <div style={{ padding: '8px' }}>
         <FolderTree
           onSelect={onPathSelect || (() => {})}
           spaces={spaces}
