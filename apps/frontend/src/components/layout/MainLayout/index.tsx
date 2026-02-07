@@ -40,6 +40,7 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          padding: '0 16px',
           background: token.colorBgContainer
         }}
       >

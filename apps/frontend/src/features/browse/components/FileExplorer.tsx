@@ -19,7 +19,7 @@ const FileExplorer: React.FC = () => {
     <div style={{
       height: 'calc(100vh - 64px)',
       overflow: 'auto',
-      padding: '24px',
+      padding: '16px',
       background: token.colorBgLayout
     }}>
       <FolderContent

@@ -52,7 +52,7 @@ export default function MainSider({ spaces, onSpaceCreated, onPathSelect }: Main
         onSuccess={onSpaceCreated}
       />
       <div style={{
-        padding: '12px 16px',
+        padding: '16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
