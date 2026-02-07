@@ -16,6 +16,7 @@ import (
 type ProtocolStatus struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
+	Port    string `json:"port,omitempty"`
 }
 
 type StatusResponse struct {
@@ -61,6 +62,7 @@ func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) *web.Erro
 	protocols["ftp"] = ProtocolStatus{
 		Status:  "unavailable",
 		Message: "미구현",
+		Port:    "21",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -80,12 +82,14 @@ func (h *Handler) checkHTTP() ProtocolStatus {
 		return ProtocolStatus{
 			Status:  "unhealthy",
 			Message: "DB 연결 실패",
+			Port:    h.port,
 		}
 	}
 
 	return ProtocolStatus{
 		Status:  "healthy",
 		Message: "정상",
+		Port:    h.port,
 	}
 }
 
@@ -98,12 +102,14 @@ func (h *Handler) checkWebDAV() ProtocolStatus {
 		return ProtocolStatus{
 			Status:  "unhealthy",
 			Message: "Space 서비스 오류",
+			Port:    h.port,
 		}
 	}
 
 	return ProtocolStatus{
 		Status:  "healthy",
 		Message: "정상",
+		Port:    h.port,
 	}
 }
 

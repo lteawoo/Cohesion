@@ -65,6 +65,9 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <StatusDot color={getStatusColor(proto.status)} />
             <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
+            {proto.port && (
+              <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{proto.port}</span>
+            )}
           </div>
           <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
             {getStatusLabel(proto.status)}
@@ -107,8 +110,7 @@ export default function ServerStatus() {
         )
       }
       trigger="hover"
-      placement="bottom"
-      arrow={{ pointAtCenter: true }}
+      placement="bottomLeft"
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
         <StatusDot color={dotColor} />
