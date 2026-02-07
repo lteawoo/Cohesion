@@ -18,13 +18,28 @@ type Service struct {
 	spaceService *space.Service
 	lockSystems  map[string]webdav.LockSystem
 	mu           sync.Mutex
+	rootHandler  http.Handler
 }
 
 func NewService(spaceService *space.Service) *Service {
 	return &Service{
 		spaceService: spaceService,
 		lockSystems:  make(map[string]webdav.LockSystem),
+		rootHandler: &webdav.Handler{
+			Prefix:     "/dav",
+			FileSystem: NewSpaceFS(spaceService),
+			LockSystem: webdav.NewMemLS(),
+			Logger: func(r *http.Request, err error) {
+				if err != nil {
+					log.Error().Err(err).Msgf("WebDAV root error: %s %s", r.Method, r.URL.Path)
+				}
+			},
+		},
 	}
+}
+
+func (s *Service) GetRootHandler() http.Handler {
+	return s.rootHandler
 }
 
 func (s *Service) GetWebDAVHandler(ctx context.Context, spaceName string) (http.Handler, error) {

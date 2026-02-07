@@ -25,12 +25,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) *web.Error {
 	// elqjrm
 	log.Debug().Msgf("WebDAV request for space: %s, path: %s", spaceName, r.URL.Path)
 
+	// spaceName이 없으면 루트 핸들러로 위임 (Space 목록 표시)
 	if spaceName == "" {
-		return &web.Error{
-			Code:    http.StatusBadRequest,
-			Message: "Invalid WebDAV path",
-			Err:     nil,
-		}
+		h.webDavService.GetRootHandler().ServeHTTP(w, r)
+		return nil
 	}
 
 	// 해당 space에 대한 WebDAV 핸들러 가져오기
