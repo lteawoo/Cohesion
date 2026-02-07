@@ -454,24 +454,31 @@
   - `apps/frontend/src/features/browse/components/FolderContent.tsx` (viewMode 기본값 변경)
 - **결과**: Space 선택 시 그리드 뷰가 기본으로 표시, 뷰 전환 기능 정상 작동.
 
-### 파일/폴더 선택 액션 툴바 구현 (2026-02-07)
-- **결정**: 파일/폴더 클릭(선택) 시 상단에 액션 툴바를 표시하여 다운로드, 삭제 제공.
+### 서버 상태 표시 개선 (2026-02-07)
+- **결정**: Status popover를 텍스트 바로 아래로 이동하고, 호스트/포트/경로 정보 추가.
 - **이유**:
-  - 발견 용이성: 우클릭 컨텍스트 메뉴만으로는 기능 발견이 어려움.
-  - 터치 환경 지원: 우클릭이 불편한 환경에서도 파일 작업 가능.
-  - 현대적인 UX: Google Drive 등 주요 파일 관리 서비스의 선택 툴바 패턴 채택.
+  - 기존 popover가 텍스트에서 떨어져 표시되어 연결성이 약함.
+  - 사용자가 각 프로토콜의 접근 정보를 한눈에 확인할 수 있어야 함.
 - **구현**:
-  - `selectedItem` state 추가 (단일 선택).
-  - 테이블: `onRow.onClick`으로 행 선택, 선택 시 `colorPrimaryBg` 배경.
-  - 그리드: `Card.onClick`으로 카드 선택, 선택 시 `colorPrimary` 테두리 + `colorPrimaryBg` 배경.
-  - 툴바: Breadcrumb과 콘텐츠 사이에 조건부 렌더링, Ant Design 토큰 활용.
-  - 선택 해제: Escape 키, X 버튼, 같은 항목 재클릭, 경로 변경 시 자동 초기화.
-  - 기존 우클릭 컨텍스트 메뉴 병행 유지.
-- **부가 개선**:
-  - 테이블 뷰 폴더명 `<a>` → `<span>`: 폴더 아이콘으로 충분히 구분, 파란 링크 색상 불필요.
-  - 폴더 우선 정렬: `isDir` 기준 정렬 후 이름순, 파일 관리자 표준 패턴.
-- **수정 파일**:
-  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+  - 백엔드: `net.InterfaceAddrs()`로 IPv4 주소 수집, `ProtocolStatus`에 `Port`/`Path` 추가.
+  - 프론트엔드: `placement="bottomLeft"`, 포트/경로 inline 표시, 호스트 목록 섹션 추가.
+- **수정 파일**: `handler.go`, `main.go`, `types.ts`, `ServerStatus.tsx`
+
+### WebDAV 루트 디렉토리 가상 Space 목록 (2026-02-07)
+- **결정**: `/dav/` 접근 시 커스텀 `webdav.FileSystem`으로 모든 Space를 가상 폴더로 노출.
+- **이유**:
+  - WebDAV 클라이언트(Finder 등)가 `/dav/`에 마운트하면 모든 Space를 볼 수 있어야 함.
+  - 기존 구현은 `/dav/{spaceName}` 형태만 지원하여 루트 접근 시 400 에러.
+- **구현**:
+  - `SpaceFS`: `webdav.FileSystem` 인터페이스 구현.
+  - 루트(`/`): `Readdir`에서 Space 목록을 가상 디렉토리 FileInfo로 반환.
+  - `/{spaceName}/...`: Space의 `SpacePath`로 실제 OS 파일시스템 위임.
+  - 루트 Mkdir/RemoveAll/Rename 거부 (Space 관리는 API로만).
+  - 경로 탈출 방지: `strings.HasPrefix(realPath, sp.SpacePath)`.
+- **대안 검토**:
+  - per-space 핸들러 유지 + 루트용 별도 핸들러: 중복 코드, 복잡도 증가.
+  - 하나의 SpaceFS로 통합: 단일 핸들러로 루트와 하위 모두 처리, 더 깔끔.
+- **수정 파일**: `spacefs.go`(신규), `service.go`, `webdav_handler.go`
 
 ### 레이아웃 여백 16px 통일 (2026-02-07)
 - **결정**: 모든 레이아웃 영역의 수평 패딩을 `16px` (8-grid 2×8)로 일괄 통일.
@@ -493,19 +500,3 @@
   - `apps/frontend/src/components/layout/MainLayout/MainSider.tsx` (사이드바 헤더, 트리 padding)
   - `apps/frontend/src/features/browse/components/FileExplorer.tsx` (메인 콘텐츠 padding)
 - **결과**: 모든 영역 수평 패딩 16px 통일, 다크/라이트 모드 및 그리드/테이블 뷰 모두 정상.
-
-### Status Popover 개선 (2026-02-07)
-- **문제**: Popover가 Status 텍스트에서 시각적으로 떨어져 나타남, 접근 가능한 Host 정보 부재.
-- **결정**: Popover 위치 조정 + 백엔드에서 접근 가능 Host 목록 및 프로토콜별 포트 제공.
-- **이유**:
-  - 다른 기기에서 서버 접근 시 IP를 별도 확인해야 하는 불편함.
-  - 프로토콜별 포트 정보가 없어 어떤 포트로 접근해야 하는지 알기 어려움.
-- **구현**:
-  - Popover: `placement="bottomLeft"` → 텍스트 바로 아래 위치.
-  - 백엔드: `ProtocolStatus.Port` 필드 추가, `StatusResponse.Hosts`에 접근 가능 IP 목록 반환.
-  - 프론트엔드: "접근 주소" 섹션 + 프로토콜명 옆에 포트 표시.
-- **수정 파일**:
-  - `apps/backend/internal/status/handler.go` (Hosts, Port 필드, getAccessibleHosts)
-  - `apps/backend/main.go` (NewHandler에 port 전달)
-  - `apps/frontend/src/features/status/types.ts` (hosts, port 필드)
-  - `apps/frontend/src/components/layout/MainLayout/ServerStatus.tsx` (Popover 위치, 접근 주소, 포트)
