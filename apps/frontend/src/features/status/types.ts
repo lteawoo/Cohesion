@@ -5,4 +5,5 @@ export interface ProtocolStatus {
 
 export interface StatusResponse {
   protocols: Record<string, ProtocolStatus>;
+  hosts: string[];
 }
