@@ -251,6 +251,28 @@
     - 수정 파일: `MainLayout/index.tsx`, `MainSider.tsx`, `FileExplorer.tsx`.
     - Chrome Extension 브라우저 테스트 완료: 다크/라이트 모드, 그리드/테이블 뷰 모두 확인.
 
+- **파일/폴더 선택 액션 툴바 구현 완료** (2026-02-07):
+    - 파일/폴더 클릭 시 상단에 액션 툴바 표시 (다운로드, 삭제, 닫기).
+    - 선택된 항목 시각적 하이라이트 (테이블: 행 배경색, 그리드: 카드 테두리).
+    - 폴더 선택 시 "다운로드 (ZIP)" 텍스트로 자동 변경.
+    - 선택 해제: Escape 키, X 버튼, 같은 항목 재클릭, 폴더 이동 시 자동 초기화.
+    - 기존 우클릭 컨텍스트 메뉴 병행 유지.
+    - 테이블 뷰 폴더명 텍스트 색상 통일 (파란 링크 → 일반 텍스트, 아이콘으로 구분).
+    - 폴더 우선 정렬 적용 (폴더 → 파일, 각 그룹 내 이름순).
+    - 수정 파일: `apps/frontend/src/features/browse/components/FolderContent.tsx`.
+    - Chrome Extension 브라우저 테스트 완료: 그리드/테이블 모드 모두 선택, 툴바, 해제 정상 작동.
+
+- **Status Popover 개선 완료** (2026-02-07):
+    - Popover 위치 수정: `placement="bottomLeft"` + 프로토콜별 포트 표시.
+    - 백엔드: `/api/status` 응답에 `hosts`, `port` 필드 추가.
+    - 프론트엔드: Popover에 "접근 주소" 섹션 및 프로토콜 포트 표시.
+    - 수정 파일:
+        - `apps/backend/internal/status/handler.go`
+        - `apps/backend/main.go`
+        - `apps/frontend/src/features/status/types.ts`
+        - `apps/frontend/src/components/layout/MainLayout/ServerStatus.tsx`
+    - Chrome Extension 브라우저 테스트 완료.
+
 ## 다음 작업 (Next Steps)
 - 이미지/텍스트 파일 미리보기 기능 검토.
 - 파일 복사/이동 기능 검토.
