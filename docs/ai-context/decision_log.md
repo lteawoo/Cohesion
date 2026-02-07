@@ -453,3 +453,24 @@
 - **수정 파일**:
   - `apps/frontend/src/features/browse/components/FolderContent.tsx` (viewMode 기본값 변경)
 - **결과**: Space 선택 시 그리드 뷰가 기본으로 표시, 뷰 전환 기능 정상 작동.
+
+### 레이아웃 여백 16px 통일 (2026-02-07)
+- **결정**: 모든 레이아웃 영역의 수평 패딩을 `16px` (8-grid 2×8)로 일괄 통일.
+- **이유**:
+  - Header의 antd 기본 패딩(`0 50px`)이 50px로 8-grid 위반.
+  - 사이드바 헤더의 세로 패딩 `12px`가 8-grid 위반.
+  - 사이드바(16px), 메인 콘텐츠(24px) 간 수평 패딩 불일치.
+  - 시각적으로 "Cohesion" 텍스트와 "Spaces" 라벨이 정렬되지 않음.
+- **구현**:
+  - Header: `padding: '0 16px'` 명시적 설정 (antd 기본값 오버라이드).
+  - 사이드바 헤더: `'12px 16px'` → `'16px'` (상하좌우 균일).
+  - 사이드바 트리: `'8px'` → `'8px 16px'` (수평만 통일, 수직은 컴팩트 유지).
+  - 메인 콘텐츠: `'24px'` → `'16px'` (수평 패딩 통일).
+- **대안 검토**:
+  - `24px` 기준 통일: 사이드바에 과도한 여백, 300px 폭에서 비효율적.
+  - `8px` 기준 통일: 너무 좁아 답답한 느낌.
+- **수정 파일**:
+  - `apps/frontend/src/components/layout/MainLayout/index.tsx` (Header padding)
+  - `apps/frontend/src/components/layout/MainLayout/MainSider.tsx` (사이드바 헤더, 트리 padding)
+  - `apps/frontend/src/features/browse/components/FileExplorer.tsx` (메인 콘텐츠 padding)
+- **결과**: 모든 영역 수평 패딩 16px 통일, 다크/라이트 모드 및 그리드/테이블 뷰 모두 정상.
