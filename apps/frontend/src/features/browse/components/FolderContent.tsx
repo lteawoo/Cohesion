@@ -467,7 +467,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           >
             업로드
           </Button>
-          <Button.Group>
+          <AntSpace.Compact>
             <Button
               icon={<UnorderedListOutlined />}
               onClick={() => setViewMode('table')}
@@ -478,7 +478,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
               onClick={() => setViewMode('grid')}
               type={viewMode === 'grid' ? 'primary' : 'default'}
             />
-          </Button.Group>
+          </AntSpace.Compact>
         </AntSpace>
       </div>
 
@@ -497,19 +497,19 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         />
       ) : (
         <Row gutter={[16, 16]}>
-          {content.length === 0 && !isLoading ? (
+          {(content?.length ?? 0) === 0 && !isLoading ? (
             <Col span={24}>
               <Empty description="이 폴더는 비어 있습니다." />
             </Col>
           ) : (
-            content.map((item) => (
+            content?.map((item) => (
               <Col key={item.path} xs={12} sm={8} md={6} lg={4} xl={3}>
                 <Card
                   hoverable
                   onDoubleClick={() => item.isDir && onPathChange(item.path)}
                   onContextMenu={(e) => handleContextMenu(e, item)}
                   style={{ textAlign: 'center', cursor: 'pointer' }}
-                  bodyStyle={{ padding: '16px 8px' }}
+                  styles={{ body: { padding: '16px 8px' } }}
                 >
                   <div style={{ fontSize: '48px', marginBottom: '8px' }}>
                     {item.isDir ? (
