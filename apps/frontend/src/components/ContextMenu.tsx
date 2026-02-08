@@ -33,6 +33,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ open, x, y, items, onClose })
 
   return (
     <Dropdown
+      key={`${x}-${y}`}
       menu={{ items }}
       open={open}
       trigger={[]}
