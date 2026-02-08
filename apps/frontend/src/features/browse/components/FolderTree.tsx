@@ -139,7 +139,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
           const contents = await fetchDirectoryContents(path, showBaseDirectories);
           // Space 하위 노드는 key에 prefix를 붙여 유일성 보장
-          const newChildren = contents
+          const newChildren = (contents ?? [])
             .filter(node => node.isDir)
             .map(node => ({
               title: node.name,
