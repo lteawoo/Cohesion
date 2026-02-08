@@ -76,7 +76,8 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       };
       loadContent();
     }
-  }, [selectedPath, fetchDirectoryContents]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPath]);
 
 
 
