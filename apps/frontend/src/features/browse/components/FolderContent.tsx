@@ -376,6 +376,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
+      onContextMenu={(e) => e.preventDefault()}
     >
       <input
         ref={fileInputRef}
