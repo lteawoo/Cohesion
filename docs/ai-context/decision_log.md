@@ -606,3 +606,27 @@
   - `apps/frontend/src/features/browse/components/FolderContent.tsx`
   - `apps/frontend/src/features/browse/components/FolderTree.tsx`
 - **결과**: 빌드 성공, 브라우저 새로고침 후 정상 동작 (null 참조 에러 해결).
+
+### 파일 브라우저 정렬 기능 구현 (2026-02-09)
+- **결정**: 클라이언트 정렬 방식으로 폴더 우선 정렬 구현.
+- **이유**:
+  - 현재 폴더 내 파일만 정렬하므로 클라이언트 정렬로 충분 (수백 개 파일도 빠름).
+  - 백엔드 수정 불필요, 프론트엔드만 수정하여 빠르게 구현.
+  - useMemo로 최적화하여 불필요한 재정렬 방지.
+- **구현**:
+  - **정렬 상태**: `sortBy` (name/modTime/size), `sortOrder` (ascend/descend).
+  - **정렬 로직**:
+    1. 폴더 우선: `a.isDir !== b.isDir ? (a.isDir ? -1 : 1)`
+    2. sortBy 기준 정렬: localeCompare (이름), getTime (수정일), 숫자 비교 (크기)
+    3. sortOrder 적용: ascend는 그대로, descend는 결과 반전
+  - **그리드 뷰**: Select 드롭다운으로 6가지 정렬 옵션 제공.
+  - **테이블 뷰**: Ant Design Table의 onChange 핸들러로 정렬 상태 업데이트.
+  - **뷰 전환**: sortConfig state를 공유하여 뷰 전환 시 정렬 유지.
+- **대안 검토**:
+  - 서버 정렬: 불필요한 복잡도, 클라이언트 정렬로 충분.
+  - 정렬 없이 백엔드 순서대로 표시: 사용자 경험 저하, 파일 관리 어려움.
+  - 폴더와 파일 섞어서 정렬: 직관성 떨어짐, 대부분의 파일 관리자가 폴더 우선 채택.
+- **기본 정렬**: 폴더 우선 + 이름 오름차순 (가장 직관적).
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+- **결과**: 모든 정렬 옵션 정상 작동, 뷰 전환 시 정렬 유지 확인.
