@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Table, Empty, Breadcrumb, Space as AntSpace, Modal, Input, message, Upload, Button, Card, Row, Col } from 'antd';
-import type { MenuProps, UploadProps } from 'antd';
+import { Table, Empty, Breadcrumb, Space as AntSpace, Modal, Input, message, Button, Card, Row, Col } from 'antd';
+import type { MenuProps } from 'antd';
 import ContextMenu from '@/components/ContextMenu';
 import { FolderFilled, FolderOutlined, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined, UploadOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
@@ -492,7 +492,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           pagination={false}
           onRow={(record: FileNode) => ({
             onDoubleClick: () => record.isDir && onPathChange(record.path),
-            onContextMenu: (e) => handleContextMenu(e, record),
+            onContextMenu: (e: React.MouseEvent<HTMLElement>) => handleContextMenu(e, record),
           })}
           locale={{ emptyText: '이 폴더는 비어 있습니다.' }}
         />
@@ -559,7 +559,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         <Input
           placeholder="새 이름"
           value={renameModal.newName}
-          onChange={(e) => setRenameModal({ ...renameModal, newName: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRenameModal({ ...renameModal, newName: e.target.value })}
           onPressEnter={handleRename}
         />
       </Modal>
@@ -583,7 +583,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         <Input
           placeholder="폴더 이름"
           value={createFolderModal.folderName}
-          onChange={(e) => setCreateFolderModal({ ...createFolderModal, folderName: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCreateFolderModal({ ...createFolderModal, folderName: e.target.value })}
           onPressEnter={handleCreateFolder}
           autoFocus
         />
