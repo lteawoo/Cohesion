@@ -511,3 +511,24 @@
   - `apps/frontend/src/components/layout/MainLayout/MainSider.tsx` (사이드바 헤더, 트리 padding)
   - `apps/frontend/src/features/browse/components/FileExplorer.tsx` (메인 콘텐츠 padding)
 - **결과**: 모든 영역 수평 패딩 16px 통일, 다크/라이트 모드 및 그리드/테이블 뷰 모두 정상.
+
+### 컨텍스트 메뉴 UI 개선 — Ant Design Dropdown 전환 (2026-02-08)
+- **결정**: 기존 `Menu` + `position: fixed` 인라인 스타일 → Ant Design `Dropdown` 컴포넌트 래핑 공통 `ContextMenu` 생성.
+- **이유**:
+  - FolderContent, FolderTree에서 동일한 컨텍스트 메뉴 패턴 (상태관리 + document click 리스너) 중복.
+  - 화면 경계 처리 없음 (메뉴가 화면 밖으로 잘릴 수 있음).
+  - 애니메이션 없이 즉시 출현/사라짐.
+  - ESC 키 닫기 미지원.
+- **구현**:
+  - `src/components/ContextMenu.tsx`: Ant Design `Dropdown` + `trigger={[]}` 제어 모드.
+  - 투명 trigger span을 클릭 좌표에 `position: fixed`로 배치, Dropdown이 자동 위치 보정.
+  - `useEffect`로 외부 클릭(document click) + ESC 키(keydown) 리스너 등록.
+  - FolderContent, FolderTree: `Menu` import 제거, `ContextMenu` 사용, 중복 useEffect 제거.
+- **대안 검토**:
+  - 커스텀 컴포넌트 (framer-motion): 과도한 개발 비용, Ant Design 일관성 저하.
+  - `Dropdown trigger={['contextMenu']}`: Table onRow / Tree onRightClick과 호환 어려움.
+- **수정 파일**:
+  - `apps/frontend/src/components/ContextMenu.tsx` (신규)
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+  - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+- **결과**: 화면 경계 자동 보정, 페이드 애니메이션, ESC/외부 클릭 닫기, 중복 코드 제거.

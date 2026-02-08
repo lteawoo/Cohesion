@@ -272,6 +272,14 @@
     - 해결: 자식 노드 key에 부모 Space prefix 추가 (`space-{id}::{path}`), `expandedKeys` 명시적 관리.
     - Chrome Extension 테스트 완료: Space 열고 닫기 반복 시 증식 없음 확인.
 
+- **컨텍스트 메뉴 UI 개선** (2026-02-08):
+    - Ant Design `Menu` + `position: fixed` → `Dropdown` 컴포넌트 전환.
+    - 공통 `ContextMenu` 컴포넌트 생성 (`src/components/ContextMenu.tsx`).
+    - FolderContent, FolderTree의 중복 닫기 로직(document click 리스너) 제거.
+    - Dropdown의 자동 화면 경계 보정, 페이드 애니메이션 적용.
+    - ESC 키 + 외부 클릭 닫기 지원.
+    - Chrome Extension 테스트 완료: 파일/폴더/Space 우클릭 메뉴 정상 동작.
+
 ## 다음 작업 (Next Steps)
 - 이미지/텍스트 파일 미리보기 기능 검토.
 - 파일 복사/이동 기능 검토.
