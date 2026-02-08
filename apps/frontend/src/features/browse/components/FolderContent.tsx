@@ -1,6 +1,6 @@
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Table, Empty, Breadcrumb, Space as AntSpace, Modal, Input, message, Button, Card, Row, Col } from 'antd';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { Table, Empty, Breadcrumb, Space as AntSpace, Modal, Input, message, Button, Card, Row, Col, Select } from 'antd';
 import type { MenuProps } from 'antd';
 import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { FolderFilled, FolderOutlined, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined, UploadOutlined, CopyOutlined, ScissorOutlined } from '@ant-design/icons';
@@ -38,6 +38,15 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
 
   // 뷰 모드 상태 (테이블/그리드)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
+
+  // 정렬 상태 관리
+  const [sortConfig, setSortConfig] = useState<{
+    sortBy: 'name' | 'modTime' | 'size';
+    sortOrder: 'ascend' | 'descend';
+  }>({
+    sortBy: 'name',
+    sortOrder: 'ascend',
+  });
 
   // 다중 선택 상태 관리
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -79,7 +88,30 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPath]);
 
+  // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
+  const sortedContent = useMemo(() => {
+    const sorted = [...content].sort((a, b) => {
+      // 1. 폴더 우선 정렬
+      if (a.isDir !== b.isDir) {
+        return a.isDir ? -1 : 1;
+      }
 
+      // 2. sortBy에 따른 정렬
+      let result = 0;
+      if (sortConfig.sortBy === 'name') {
+        result = a.name.localeCompare(b.name);
+      } else if (sortConfig.sortBy === 'modTime') {
+        result = new Date(a.modTime).getTime() - new Date(b.modTime).getTime();
+      } else if (sortConfig.sortBy === 'size') {
+        result = a.size - b.size;
+      }
+
+      // 3. sortOrder 적용
+      return sortConfig.sortOrder === 'ascend' ? result : -result;
+    });
+
+    return sorted;
+  }, [content, sortConfig]);
 
   // 이름 변경 처리
   const handleRename = async () => {
@@ -667,7 +699,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     } else {
       // 선택되지 않은 항목 우클릭 - 해당 항목만 선택하고 단일 메뉴 표시
       setSelectedItems(new Set([record.path]));
-      setLastSelectedIndex(content.findIndex(item => item.path === record.path));
+      setLastSelectedIndex(sortedContent.findIndex(item => item.path === record.path));
 
       const menuItems: MenuProps['items'] = [
         {
@@ -771,6 +803,24 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           >
             업로드
           </Button>
+          {viewMode === 'grid' && (
+            <Select
+              style={{ width: 160 }}
+              value={`${sortConfig.sortBy}-${sortConfig.sortOrder}`}
+              onChange={(value: string) => {
+                const [sortBy, sortOrder] = value.split('-') as ['name' | 'modTime' | 'size', 'ascend' | 'descend'];
+                setSortConfig({ sortBy, sortOrder });
+              }}
+              options={[
+                { value: 'name-ascend', label: '이름 ↑' },
+                { value: 'name-descend', label: '이름 ↓' },
+                { value: 'modTime-ascend', label: '수정일 ↑' },
+                { value: 'modTime-descend', label: '수정일 ↓' },
+                { value: 'size-ascend', label: '크기 ↑' },
+                { value: 'size-descend', label: '크기 ↓' },
+              ]}
+            />
+          )}
           <AntSpace.Compact>
             <Button
               icon={<UnorderedListOutlined />}
@@ -829,7 +879,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
                 icon={<EditOutlined />}
                 onClick={() => {
                   const path = Array.from(selectedItems)[0];
-                  const record = content.find(item => item.path === path);
+                  const record = sortedContent.find(item => item.path === path);
                   if (record) {
                     setRenameModal({
                       visible: true,
@@ -865,7 +915,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
 
       {viewMode === 'table' ? (
         <Table
-          dataSource={content}
+          dataSource={sortedContent}
           columns={columns}
           loading={isLoading}
           rowKey="path"
@@ -874,6 +924,15 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
             type: 'checkbox',
             selectedRowKeys: Array.from(selectedItems),
             onChange: (keys) => setSelectedItems(new Set(keys as string[])),
+          }}
+          onChange={(_, __, sorter: any) => {
+            if (sorter && !Array.isArray(sorter)) {
+              const field = sorter.field as 'name' | 'modTime' | 'size';
+              const order = sorter.order as 'ascend' | 'descend' | undefined;
+              if (field && order) {
+                setSortConfig({ sortBy: field, sortOrder: order });
+              }
+            }
           }}
           onRow={(record: FileNode, index?: number) => ({
             onClick: (e: React.MouseEvent<HTMLElement>) => handleItemClick(e, record, index ?? 0),
@@ -884,12 +943,12 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         />
       ) : (
         <Row gutter={[16, 16]}>
-          {(content?.length ?? 0) === 0 && !isLoading ? (
+          {(sortedContent?.length ?? 0) === 0 && !isLoading ? (
             <Col span={24}>
               <Empty description="이 폴더는 비어 있습니다." />
             </Col>
           ) : (
-            content?.map((item, index) => {
+            sortedContent?.map((item, index) => {
               const isSelected = selectedItems.has(item.path);
               return (
               <Col key={item.path} xs={12} sm={8} md={6} lg={4} xl={3}>
