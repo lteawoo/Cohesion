@@ -90,6 +90,10 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useMemo(() => {
+    if (!Array.isArray(content)) {
+      return [];
+    }
+
     const sorted = [...content].sort((a, b) => {
       // 1. 폴더 우선 정렬
       if (a.isDir !== b.isDir) {
