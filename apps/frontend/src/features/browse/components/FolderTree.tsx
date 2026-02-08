@@ -191,12 +191,12 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     if (!onSpaceDelete) return;
 
     const key = node.key as string;
-    
-    // Space 노드인지 확인
-    if (key.startsWith('space-')) {
+
+    // Space 루트 노드인지 확인 (space-{id} 형식, :: 없음)
+    if (key.startsWith('space-') && !key.includes('::')) {
       const spaceId = parseInt(key.replace('space-', ''));
       const space = spaces?.find(s => s.id === spaceId);
-      
+
       if (space) {
         event.preventDefault();
         setContextMenu({
