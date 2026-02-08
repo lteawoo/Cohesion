@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Tree, Spin } from 'antd';
 import type { GetProps, MenuProps } from 'antd';
-import ContextMenu from '@/components/ContextMenu';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
 import { FolderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
@@ -38,14 +38,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const loadingKeysRef = useRef<Set<React.Key>>(new Set());
   const { isLoading, fetchBaseDirectories, fetchDirectoryContents } = useBrowseApi();
-  
-  // 컨텍스트 메뉴 상태 관리
-  const [contextMenu, setContextMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    space?: Space;
-  }>({ visible: false, x: 0, y: 0 });
+  const { openContextMenu } = useContextMenu();
 
   // 초기 트리 데이터를 로드합니다.
   useEffect(() => {
@@ -199,12 +192,20 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
       if (space) {
         event.preventDefault();
-        setContextMenu({
-          visible: true,
-          x: event.clientX,
-          y: event.clientY,
-          space,
-        });
+
+        const menuItems: MenuProps['items'] = [
+          {
+            key: 'delete',
+            icon: <DeleteOutlined />,
+            label: '삭제',
+            danger: true,
+            onClick: () => {
+              onSpaceDelete?.(space);
+            },
+          },
+        ];
+
+        openContextMenu(event.clientX, event.clientY, menuItems);
       }
     }
   };
@@ -226,42 +227,19 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     );
   }
 
-  const menuItems: MenuProps['items'] = contextMenu.space ? [
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      label: '삭제',
-      danger: true,
-      onClick: () => {
-        if (contextMenu.space) {
-          onSpaceDelete?.(contextMenu.space);
-        }
-      },
-    },
-  ] : [];
-
   return (
-    <>
-      <Tree.DirectoryTree
-        onSelect={handleSelect}
-        onExpand={handleExpand}
-        onRightClick={handleRightClick}
-        loadData={onLoadData}
-        treeData={treeData}
-        loadedKeys={loadedKeys}
-        expandedKeys={expandedKeys}
-        showIcon={true}
-        icon={<FolderOutlined />}
-        expandAction="click"
-      />
-      <ContextMenu
-        open={contextMenu.visible}
-        x={contextMenu.x}
-        y={contextMenu.y}
-        items={menuItems}
-        onClose={() => setContextMenu({ visible: false, x: 0, y: 0 })}
-      />
-    </>
+    <Tree.DirectoryTree
+      onSelect={handleSelect}
+      onExpand={handleExpand}
+      onRightClick={handleRightClick}
+      loadData={onLoadData}
+      treeData={treeData}
+      loadedKeys={loadedKeys}
+      expandedKeys={expandedKeys}
+      showIcon={true}
+      icon={<FolderOutlined />}
+      expandAction="click"
+    />
   );
 }
 

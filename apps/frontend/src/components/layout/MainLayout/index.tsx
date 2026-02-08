@@ -5,6 +5,7 @@ import ServerStatus from "./ServerStatus";
 import { useState } from "react";
 import { useSpaces } from "@/features/space/hooks/useSpaces";
 import type { Space } from "@/features/space/types";
+import { ContextMenuProvider } from "@/contexts/ContextMenuContext";
 
 const { Header, Content } = Layout;
 
@@ -78,7 +79,9 @@ export default function MainLayout() {
 
     return (
         <ConfigProvider theme={{ algorithm: currentAlgorithm }}>
-          <PageLayout isDarkMode={isDarkMode} onThemeChange={handleThemeChange} />
+          <ContextMenuProvider>
+            <PageLayout isDarkMode={isDarkMode} onThemeChange={handleThemeChange} />
+          </ContextMenuProvider>
         </ConfigProvider>
     )
 }

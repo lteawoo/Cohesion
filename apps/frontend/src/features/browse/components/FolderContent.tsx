@@ -2,12 +2,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Table, Empty, Breadcrumb, Space as AntSpace, Modal, Input, message, Button, Card, Row, Col } from 'antd';
 import type { MenuProps } from 'antd';
-import ContextMenu from '@/components/ContextMenu';
-import { FolderFilled, FolderOutlined, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined, UploadOutlined } from '@ant-design/icons';
+import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { FolderFilled, FolderOutlined, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined, UploadOutlined, CopyOutlined, ScissorOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode } from '../types';
 import type { ColumnsType } from 'antd/es/table';
 import type { Space } from '@/features/space/types';
+import DestinationPickerModal from './DestinationPickerModal';
 
 interface FolderContentProps {
   selectedPath: string;
@@ -33,20 +34,17 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
   const [content, setContent] = useState<FileNode[]>([]);
   const { isLoading, fetchDirectoryContents } = useBrowseApi();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { openContextMenu } = useContextMenu();
 
   // 뷰 모드 상태 (테이블/그리드)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
 
+  // 다중 선택 상태 관리
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1);
+
   // 드래그 상태 관리
   const [isDragging, setIsDragging] = useState(false);
-
-  // 컨텍스트 메뉴 상태 관리
-  const [contextMenu, setContextMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    record?: FileNode;
-  }>({ visible: false, x: 0, y: 0 });
 
   // 이름 변경 모달 상태
   const [renameModal, setRenameModal] = useState<{
@@ -55,18 +53,17 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     newName: string;
   }>({ visible: false, newName: '' });
 
-  // 빈 영역 컨텍스트 메뉴 상태
-  const [emptyAreaMenu, setEmptyAreaMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-  }>({ visible: false, x: 0, y: 0 });
-
   // 새 폴더 만들기 모달 상태
   const [createFolderModal, setCreateFolderModal] = useState<{
     visible: boolean;
     folderName: string;
   }>({ visible: false, folderName: '' });
+
+  // 이동/복사 모달 상태
+  const [destinationModal, setDestinationModal] = useState<{
+    visible: boolean;
+    mode: 'move' | 'copy';
+  }>({ visible: false, mode: 'move' });
 
   useEffect(() => {
     if (selectedPath) {
@@ -76,6 +73,9 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       };
       loadContent();
     }
+    // 경로 변경 시 선택 해제
+    setSelectedItems(new Set());
+    setLastSelectedIndex(-1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPath]);
 
@@ -144,6 +144,169 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       setContent(contents);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '폴더 생성 실패');
+    }
+  };
+
+  // 다중 다운로드 처리
+  const handleBulkDownload = async () => {
+    if (selectedItems.size === 0) return;
+
+    try {
+      const response = await fetch('/api/browse/download-multiple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: Array.from(selectedItems) }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to download');
+      }
+
+      // Blob 다운로드 처리
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `download-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      message.success('다운로드가 시작되었습니다');
+      setSelectedItems(new Set());
+      setLastSelectedIndex(-1);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '다운로드 실패');
+    }
+  };
+
+  // 다중 삭제 처리
+  const handleBulkDelete = async () => {
+    if (selectedItems.size === 0) return;
+
+    Modal.confirm({
+      title: '삭제 확인',
+      content: `선택한 ${selectedItems.size}개 항목을 삭제하시겠습니까?`,
+      okText: '삭제',
+      okType: 'danger',
+      cancelText: '취소',
+      onOk: async () => {
+        try {
+          const response = await fetch('/api/browse/delete-multiple', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paths: Array.from(selectedItems) }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to delete');
+          }
+
+          const result = await response.json();
+          const succeededCount = result.succeeded?.length || 0;
+          const failedCount = result.failed?.length || 0;
+
+          if (failedCount > 0) {
+            message.warning(`${succeededCount}개 삭제 완료, ${failedCount}개 실패`);
+          } else {
+            message.success(`${succeededCount}개 항목이 삭제되었습니다`);
+          }
+
+          setSelectedItems(new Set());
+          setLastSelectedIndex(-1);
+
+          // 목록 새로고침
+          const contents = await fetchDirectoryContents(selectedPath);
+          setContent(contents);
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '삭제 실패');
+        }
+      },
+    });
+  };
+
+  // 이동 처리
+  const handleMove = async (destination: string) => {
+    if (selectedItems.size === 0) return;
+
+    try {
+      const response = await fetch('/api/browse/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sources: Array.from(selectedItems),
+          destination,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to move');
+      }
+
+      const result = await response.json();
+      const succeededCount = result.succeeded?.length || 0;
+      const failedCount = result.failed?.length || 0;
+
+      if (failedCount > 0) {
+        message.warning(`${succeededCount}개 이동 완료, ${failedCount}개 실패`);
+      } else {
+        message.success(`${succeededCount}개 항목이 이동되었습니다`);
+      }
+
+      setSelectedItems(new Set());
+      setLastSelectedIndex(-1);
+      setDestinationModal({ visible: false, mode: 'move' });
+
+      // 목록 새로고침
+      const contents = await fetchDirectoryContents(selectedPath);
+      setContent(contents);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '이동 실패');
+    }
+  };
+
+  // 복사 처리
+  const handleCopy = async (destination: string) => {
+    if (selectedItems.size === 0) return;
+
+    try {
+      const response = await fetch('/api/browse/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sources: Array.from(selectedItems),
+          destination,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to copy');
+      }
+
+      const result = await response.json();
+      const succeededCount = result.succeeded?.length || 0;
+      const failedCount = result.failed?.length || 0;
+
+      if (failedCount > 0) {
+        message.warning(`${succeededCount}개 복사 완료, ${failedCount}개 실패`);
+      } else {
+        message.success(`${succeededCount}개 항목이 복사되었습니다`);
+      }
+
+      setSelectedItems(new Set());
+      setLastSelectedIndex(-1);
+      setDestinationModal({ visible: false, mode: 'copy' });
+
+      // 목록 새로고침
+      const contents = await fetchDirectoryContents(selectedPath);
+      setContent(contents);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '복사 실패');
     }
   };
 
@@ -282,6 +445,52 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     fileInputRef.current?.click();
   };
 
+  // 아이템 선택 핸들러 (Table/Grid 모두 사용)
+  const handleItemClick = (e: React.MouseEvent, record: FileNode, index: number) => {
+    // Ctrl/Cmd + 클릭: 토글
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const newSelected = new Set(selectedItems);
+      if (newSelected.has(record.path)) {
+        newSelected.delete(record.path);
+      } else {
+        newSelected.add(record.path);
+      }
+      setSelectedItems(newSelected);
+      setLastSelectedIndex(index);
+    }
+    // Shift + 클릭: 범위 선택
+    else if (e.shiftKey && lastSelectedIndex >= 0) {
+      e.preventDefault();
+      const start = Math.min(lastSelectedIndex, index);
+      const end = Math.max(lastSelectedIndex, index);
+      const newSelected = new Set(selectedItems);
+      for (let i = start; i <= end; i++) {
+        if (content[i]) {
+          newSelected.add(content[i].path);
+        }
+      }
+      setSelectedItems(newSelected);
+    }
+    // 일반 클릭: 단일 선택
+    else {
+      setSelectedItems(new Set([record.path]));
+      setLastSelectedIndex(index);
+    }
+  };
+
+  // 빈 영역 클릭 시 선택 해제
+  const handleContainerClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    // 카드나 테이블 행을 클릭하지 않은 경우
+    const isCard = target.closest('.ant-card');
+    const isTableRow = target.closest('tr');
+    if (!isCard && !isTableRow) {
+      setSelectedItems(new Set());
+      setLastSelectedIndex(-1);
+    }
+  };
+
   // Space 상대 경로로 Breadcrumb 생성
   const breadcrumbItems = (() => {
     if (!selectedPath) return [];
@@ -366,67 +575,175 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
   // 우클릭 핸들러
   const handleContextMenu = (e: React.MouseEvent, record: FileNode) => {
     e.preventDefault();
-    setContextMenu({
-      visible: true,
-      x: e.clientX,
-      y: e.clientY,
-      record,
-    });
+
+    // 우클릭한 항목이 선택된 항목에 포함되어 있고, 다중 선택 상태인 경우
+    const isSelectedItem = selectedItems.has(record.path);
+    const isMultiSelect = selectedItems.size > 1;
+
+    if (isSelectedItem && isMultiSelect) {
+      // 다중 선택 메뉴
+      const menuItems: MenuProps['items'] = [
+        {
+          key: 'download',
+          icon: <DownloadOutlined />,
+          label: `다운로드 (${selectedItems.size}개)`,
+          onClick: handleBulkDownload,
+        },
+        {
+          key: 'copy',
+          icon: <CopyOutlined />,
+          label: `복사 (${selectedItems.size}개)`,
+          onClick: () => setDestinationModal({ visible: true, mode: 'copy' }),
+        },
+        {
+          key: 'move',
+          icon: <ScissorOutlined />,
+          label: `이동 (${selectedItems.size}개)`,
+          onClick: () => setDestinationModal({ visible: true, mode: 'move' }),
+        },
+        {
+          type: 'divider',
+        },
+        {
+          key: 'delete',
+          icon: <DeleteOutlined />,
+          label: `삭제 (${selectedItems.size}개)`,
+          danger: true,
+          onClick: handleBulkDelete,
+        },
+      ];
+
+      openContextMenu(e.clientX, e.clientY, menuItems);
+    } else if (isSelectedItem && selectedItems.size === 1) {
+      // 단일 선택 메뉴 (선택된 항목 우클릭)
+      const menuItems: MenuProps['items'] = [
+        {
+          key: 'download',
+          icon: <DownloadOutlined />,
+          label: record.isDir ? '폴더 다운로드 (ZIP)' : '다운로드',
+          onClick: () => {
+            window.location.href = `/api/browse/download?path=${encodeURIComponent(record.path)}`;
+          },
+        },
+        {
+          key: 'copy',
+          icon: <CopyOutlined />,
+          label: '복사',
+          onClick: () => setDestinationModal({ visible: true, mode: 'copy' }),
+        },
+        {
+          key: 'move',
+          icon: <ScissorOutlined />,
+          label: '이동',
+          onClick: () => setDestinationModal({ visible: true, mode: 'move' }),
+        },
+        {
+          key: 'rename',
+          icon: <EditOutlined />,
+          label: '이름 변경',
+          onClick: () => {
+            setRenameModal({
+              visible: true,
+              record,
+              newName: record.name,
+            });
+          },
+        },
+        {
+          type: 'divider',
+        },
+        {
+          key: 'delete',
+          icon: <DeleteOutlined />,
+          label: '삭제',
+          danger: true,
+          onClick: () => {
+            handleDelete(record);
+          },
+        },
+      ];
+
+      openContextMenu(e.clientX, e.clientY, menuItems);
+    } else {
+      // 선택되지 않은 항목 우클릭 - 해당 항목만 선택하고 단일 메뉴 표시
+      setSelectedItems(new Set([record.path]));
+      setLastSelectedIndex(content.findIndex(item => item.path === record.path));
+
+      const menuItems: MenuProps['items'] = [
+        {
+          key: 'download',
+          icon: <DownloadOutlined />,
+          label: record.isDir ? '폴더 다운로드 (ZIP)' : '다운로드',
+          onClick: () => {
+            window.location.href = `/api/browse/download?path=${encodeURIComponent(record.path)}`;
+          },
+        },
+        {
+          key: 'copy',
+          icon: <CopyOutlined />,
+          label: '복사',
+          onClick: () => setDestinationModal({ visible: true, mode: 'copy' }),
+        },
+        {
+          key: 'move',
+          icon: <ScissorOutlined />,
+          label: '이동',
+          onClick: () => setDestinationModal({ visible: true, mode: 'move' }),
+        },
+        {
+          key: 'rename',
+          icon: <EditOutlined />,
+          label: '이름 변경',
+          onClick: () => {
+            setRenameModal({
+              visible: true,
+              record,
+              newName: record.name,
+            });
+          },
+        },
+        {
+          type: 'divider',
+        },
+        {
+          key: 'delete',
+          icon: <DeleteOutlined />,
+          label: '삭제',
+          danger: true,
+          onClick: () => {
+            handleDelete(record);
+          },
+        },
+      ];
+
+      openContextMenu(e.clientX, e.clientY, menuItems);
+    }
   };
 
-  // 메뉴 항목 생성
-  const menuItems: MenuProps['items'] = contextMenu.record ? [
-    {
-      key: 'download',
-      icon: <DownloadOutlined />,
-      label: contextMenu.record.isDir ? '폴더 다운로드 (ZIP)' : '다운로드',
-      onClick: () => {
-        if (contextMenu.record) {
-          window.location.href = `/api/browse/download?path=${encodeURIComponent(contextMenu.record.path)}`;
-        }
-      },
-    },
-    {
-      key: 'rename',
-      icon: <EditOutlined />,
-      label: '이름 변경',
-      onClick: () => {
-        if (contextMenu.record) {
-          setRenameModal({
-            visible: true,
-            record: contextMenu.record,
-            newName: contextMenu.record.name,
-          });
-        }
-      },
-    },
-    {
-      type: 'divider',
-    },
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      label: '삭제',
-      danger: true,
-      onClick: () => {
-        if (contextMenu.record) {
-          handleDelete(contextMenu.record);
-        }
-      },
-    },
-  ] : [];
+  // 빈 영역 우클릭 핸들러
+  const handleEmptyAreaContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // 빈 영역 클릭 감지: 카드나 테이블 행이 아닌 경우
+    const target = e.target as HTMLElement;
+    const isCard = target.closest('.ant-card');
+    const isTableRow = target.closest('tr');
 
-  const emptyAreaMenuItems: MenuProps['items'] = [
-    {
-      key: 'create-folder',
-      icon: <FolderOutlined />,
-      label: '새 폴더 만들기',
-      onClick: () => {
-        setCreateFolderModal({ visible: true, folderName: '' });
-        setEmptyAreaMenu({ visible: false, x: 0, y: 0 });
-      },
-    },
-  ];
+    // 카드나 테이블 행을 클릭하지 않은 경우 빈 영역 메뉴 표시
+    if (!isCard && !isTableRow) {
+      const emptyAreaMenuItems: MenuProps['items'] = [
+        {
+          key: 'create-folder',
+          icon: <FolderOutlined />,
+          label: '새 폴더 만들기',
+          onClick: () => {
+            setCreateFolderModal({ visible: true, folderName: '' });
+          },
+        },
+      ];
+
+      openContextMenu(e.clientX, e.clientY, emptyAreaMenuItems);
+    }
+  };
 
   return (
     <div
@@ -435,22 +752,8 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        // 빈 영역 클릭 감지: 카드나 테이블 행이 아닌 경우
-        const target = e.target as HTMLElement;
-        const isCard = target.closest('.ant-card');
-        const isTableRow = target.closest('tr');
-
-        // 카드나 테이블 행을 클릭하지 않은 경우 빈 영역 메뉴 표시
-        if (!isCard && !isTableRow) {
-          setEmptyAreaMenu({
-            visible: true,
-            x: e.clientX,
-            y: e.clientY,
-          });
-        }
-      }}
+      onContextMenu={handleEmptyAreaContextMenu}
+      onClick={handleContainerClick}
     >
       <input
         ref={fileInputRef}
@@ -483,6 +786,83 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         </AntSpace>
       </div>
 
+      {/* 선택 시 나타나는 툴바 */}
+      {selectedItems.size > 0 && (
+        <div
+          style={{
+            padding: '8px 16px',
+            backgroundColor: 'rgba(24, 144, 255, 0.1)',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+          }}
+        >
+          <span style={{ fontWeight: 'bold', color: '#1890ff' }}>
+            ✓ {selectedItems.size}개 선택됨
+          </span>
+          <AntSpace size="small">
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={handleBulkDownload}
+            >
+              다운로드
+            </Button>
+            <Button
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={() => setDestinationModal({ visible: true, mode: 'copy' })}
+            >
+              복사
+            </Button>
+            <Button
+              size="small"
+              icon={<ScissorOutlined />}
+              onClick={() => setDestinationModal({ visible: true, mode: 'move' })}
+            >
+              이동
+            </Button>
+            {selectedItems.size === 1 && (
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  const path = Array.from(selectedItems)[0];
+                  const record = content.find(item => item.path === path);
+                  if (record) {
+                    setRenameModal({
+                      visible: true,
+                      record,
+                      newName: record.name,
+                    });
+                  }
+                }}
+              >
+                이름 변경
+              </Button>
+            )}
+            <Button
+              size="small"
+              icon={<DeleteOutlined />}
+              danger
+              onClick={handleBulkDelete}
+            >
+              삭제
+            </Button>
+            <Button
+              size="small"
+              onClick={() => {
+                setSelectedItems(new Set());
+                setLastSelectedIndex(-1);
+              }}
+            >
+              선택 해제
+            </Button>
+          </AntSpace>
+        </div>
+      )}
+
       {viewMode === 'table' ? (
         <Table
           dataSource={content}
@@ -490,7 +870,13 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           loading={isLoading}
           rowKey="path"
           pagination={false}
-          onRow={(record: FileNode) => ({
+          rowSelection={{
+            type: 'checkbox',
+            selectedRowKeys: Array.from(selectedItems),
+            onChange: (keys) => setSelectedItems(new Set(keys as string[])),
+          }}
+          onRow={(record: FileNode, index?: number) => ({
+            onClick: (e: React.MouseEvent<HTMLElement>) => handleItemClick(e, record, index ?? 0),
             onDoubleClick: () => record.isDir && onPathChange(record.path),
             onContextMenu: (e: React.MouseEvent<HTMLElement>) => handleContextMenu(e, record),
           })}
@@ -503,13 +889,21 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
               <Empty description="이 폴더는 비어 있습니다." />
             </Col>
           ) : (
-            content?.map((item) => (
+            content?.map((item, index) => {
+              const isSelected = selectedItems.has(item.path);
+              return (
               <Col key={item.path} xs={12} sm={8} md={6} lg={4} xl={3}>
                 <Card
                   hoverable
+                  onClick={(e) => handleItemClick(e, item, index)}
                   onDoubleClick={() => item.isDir && onPathChange(item.path)}
                   onContextMenu={(e) => handleContextMenu(e, item)}
-                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  style={{
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    border: isSelected ? '2px solid #1890ff' : undefined,
+                    backgroundColor: isSelected ? 'rgba(24, 144, 255, 0.1)' : undefined,
+                  }}
                   styles={{ body: { padding: '16px 8px' } }}
                 >
                   <div style={{ fontSize: '48px', marginBottom: '8px' }}>
@@ -535,18 +929,11 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
                   )}
                 </Card>
               </Col>
-            ))
+              );
+            })
           )}
         </Row>
       )}
-
-      <ContextMenu
-        open={contextMenu.visible}
-        x={contextMenu.x}
-        y={contextMenu.y}
-        items={menuItems}
-        onClose={() => setContextMenu({ visible: false, x: 0, y: 0 })}
-      />
 
       <Modal
         title="이름 변경"
@@ -564,14 +951,6 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         />
       </Modal>
 
-      <ContextMenu
-        open={emptyAreaMenu.visible}
-        x={emptyAreaMenu.x}
-        y={emptyAreaMenu.y}
-        items={emptyAreaMenuItems}
-        onClose={() => setEmptyAreaMenu({ visible: false, x: 0, y: 0 })}
-      />
-
       <Modal
         title="새 폴더 만들기"
         open={createFolderModal.visible}
@@ -588,6 +967,17 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           autoFocus
         />
       </Modal>
+
+      <DestinationPickerModal
+        visible={destinationModal.visible}
+        mode={destinationModal.mode}
+        sourceCount={selectedItems.size}
+        sources={Array.from(selectedItems)}
+        currentPath={selectedPath}
+        selectedSpace={selectedSpace}
+        onConfirm={destinationModal.mode === 'move' ? handleMove : handleCopy}
+        onCancel={() => setDestinationModal({ visible: false, mode: 'move' })}
+      />
 
       {isDragging && (
         <div

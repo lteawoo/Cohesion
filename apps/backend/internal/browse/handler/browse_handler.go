@@ -37,6 +37,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/browse/delete", web.Handler(h.handleDelete))
 	mux.Handle("/api/browse/create-folder", web.Handler(h.handleCreateFolder))
 	mux.Handle("/api/browse/upload", web.Handler(h.handleUpload))
+	mux.Handle("/api/browse/download-multiple", web.Handler(h.handleDownloadMultiple))
+	mux.Handle("/api/browse/delete-multiple", web.Handler(h.handleDeleteMultiple))
+	mux.Handle("/api/browse/move", web.Handler(h.handleMove))
+	mux.Handle("/api/browse/copy", web.Handler(h.handleCopy))
 }
 
 // isPathAllowed checks if the given path is within any allowed Space
@@ -725,6 +729,685 @@ func (h *Handler) downloadFolderAsZip(w http.ResponseWriter, folderPath string, 
 
 	if err != nil {
 		log.Printf("Error walking folder %s: %v", folderPath, err)
+	}
+
+	return nil
+}
+
+// handleDownloadMultiple downloads multiple files/folders as a single ZIP
+func (h *Handler) handleDownloadMultiple(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+		}
+	}
+
+	var req struct {
+		Paths []string `json:"paths"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Err:     err,
+		}
+	}
+
+	if len(req.Paths) == 0 {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "paths array is required and cannot be empty",
+		}
+	}
+
+	// Validate all paths are allowed
+	for _, path := range req.Paths {
+		allowed, err := h.isPathAllowed(r.Context(), path)
+		if err != nil {
+			return &web.Error{
+				Code:    http.StatusInternalServerError,
+				Message: fmt.Sprintf("Failed to validate path: %s", path),
+				Err:     err,
+			}
+		}
+		if !allowed {
+			return &web.Error{
+				Code:    http.StatusForbidden,
+				Message: fmt.Sprintf("Access denied: path %s is not within any allowed Space", path),
+			}
+		}
+
+		// Check if path exists
+		if _, err := os.Stat(path); err != nil {
+			if os.IsNotExist(err) {
+				return &web.Error{
+					Code:    http.StatusNotFound,
+					Message: fmt.Sprintf("Path not found: %s", path),
+					Err:     err,
+				}
+			}
+			return &web.Error{
+				Code:    http.StatusInternalServerError,
+				Message: fmt.Sprintf("Failed to access path: %s", path),
+				Err:     err,
+			}
+		}
+	}
+
+	// Set response headers
+	zipFileName := fmt.Sprintf("download-%d.zip", os.Getpid())
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipFileName))
+
+	// Create zip writer that streams directly to HTTP response
+	zipWriter := zip.NewWriter(w)
+	defer zipWriter.Close()
+
+	// Add each path to the ZIP
+	for _, path := range req.Paths {
+		if err := h.addToZip(zipWriter, path, filepath.Base(path)); err != nil {
+			log.Printf("Failed to add %s to ZIP: %v", path, err)
+			// Continue adding other files even if one fails
+		}
+	}
+
+	return nil
+}
+
+// addToZip adds a file or directory to a ZIP archive
+func (h *Handler) addToZip(zipWriter *zip.Writer, sourcePath string, baseName string) error {
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		// Add directory recursively
+		return filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				log.Printf("Skipping file due to error: %s - %v", path, err)
+				return nil
+			}
+
+			// Skip symlinks
+			if info.Mode()&os.ModeSymlink != 0 {
+				return nil
+			}
+
+			// Calculate relative path
+			relPath, err := filepath.Rel(sourcePath, path)
+			if err != nil {
+				return nil
+			}
+
+			// Use baseName as root in zip
+			zipPath := filepath.Join(baseName, relPath)
+			if relPath == "." {
+				zipPath = baseName
+			}
+
+			// Create zip header
+			header, err := zip.FileInfoHeader(info)
+			if err != nil {
+				log.Printf("Failed to create header for %s: %v", path, err)
+				return nil
+			}
+
+			header.Name = filepath.ToSlash(zipPath)
+			header.Method = zip.Deflate
+
+			// For directories, add trailing slash
+			if info.IsDir() {
+				if relPath != "." {
+					header.Name += "/"
+					_, err = zipWriter.CreateHeader(header)
+					if err != nil {
+						log.Printf("Failed to create directory entry %s: %v", header.Name, err)
+					}
+				}
+				return nil
+			}
+
+			// For files, create entry and copy content
+			writer, err := zipWriter.CreateHeader(header)
+			if err != nil {
+				log.Printf("Failed to create file entry %s: %v", header.Name, err)
+				return nil
+			}
+
+			file, err := os.Open(path)
+			if err != nil {
+				log.Printf("Failed to open file %s: %v", path, err)
+				return nil
+			}
+			defer file.Close()
+
+			_, err = io.Copy(writer, file)
+			if err != nil {
+				log.Printf("Failed to copy file %s: %v", path, err)
+			}
+
+			return nil
+		})
+	}
+
+	// Add single file
+	header, err := zip.FileInfoHeader(info)
+	if err != nil {
+		return err
+	}
+
+	header.Name = filepath.ToSlash(baseName)
+	header.Method = zip.Deflate
+
+	writer, err := zipWriter.CreateHeader(header)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(writer, file)
+	return err
+}
+
+// handleDeleteMultiple deletes multiple files/folders
+func (h *Handler) handleDeleteMultiple(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+		}
+	}
+
+	var req struct {
+		Paths []string `json:"paths"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Err:     err,
+		}
+	}
+
+	if len(req.Paths) == 0 {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "paths array is required and cannot be empty",
+		}
+	}
+
+	type deleteResult struct {
+		Path   string `json:"path"`
+		Reason string `json:"reason,omitempty"`
+	}
+
+	succeeded := []string{}
+	failed := []deleteResult{}
+
+	for _, path := range req.Paths {
+		// Validate path is allowed
+		allowed, err := h.isPathAllowed(r.Context(), path)
+		if err != nil {
+			failed = append(failed, deleteResult{
+				Path:   path,
+				Reason: fmt.Sprintf("Failed to validate path: %v", err),
+			})
+			continue
+		}
+		if !allowed {
+			failed = append(failed, deleteResult{
+				Path:   path,
+				Reason: "Access denied: path is not within any allowed Space",
+			})
+			continue
+		}
+
+		// Check if path exists
+		fileInfo, err := os.Stat(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				failed = append(failed, deleteResult{
+					Path:   path,
+					Reason: "File or directory not found",
+				})
+			} else {
+				failed = append(failed, deleteResult{
+					Path:   path,
+					Reason: fmt.Sprintf("Failed to access: %v", err),
+				})
+			}
+			continue
+		}
+
+		// Delete
+		var deleteErr error
+		if fileInfo.IsDir() {
+			deleteErr = os.RemoveAll(path)
+		} else {
+			deleteErr = os.Remove(path)
+		}
+
+		if deleteErr != nil {
+			failed = append(failed, deleteResult{
+				Path:   path,
+				Reason: fmt.Sprintf("Failed to delete: %v", deleteErr),
+			})
+		} else {
+			succeeded = append(succeeded, path)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"succeeded": succeeded,
+		"failed":    failed,
+	})
+
+	return nil
+}
+
+// handleMove moves multiple files/folders to a destination
+func (h *Handler) handleMove(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+		}
+	}
+
+	var req struct {
+		Sources     []string `json:"sources"`
+		Destination string   `json:"destination"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Err:     err,
+		}
+	}
+
+	if len(req.Sources) == 0 {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "sources array is required and cannot be empty",
+		}
+	}
+
+	if req.Destination == "" {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "destination is required",
+		}
+	}
+
+	// Validate destination is allowed
+	allowed, err := h.isPathAllowed(r.Context(), req.Destination)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate destination path",
+			Err:     err,
+		}
+	}
+	if !allowed {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: destination is not within any allowed Space",
+		}
+	}
+
+	// Check destination exists and is a directory
+	destInfo, err := os.Stat(req.Destination)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{
+				Code:    http.StatusNotFound,
+				Message: "Destination directory not found",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to access destination directory",
+			Err:     err,
+		}
+	}
+	if !destInfo.IsDir() {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Destination must be a directory",
+		}
+	}
+
+	type moveResult struct {
+		Path   string `json:"path"`
+		Reason string `json:"reason,omitempty"`
+	}
+
+	succeeded := []string{}
+	failed := []moveResult{}
+
+	for _, source := range req.Sources {
+		// Validate source is allowed
+		allowed, err := h.isPathAllowed(r.Context(), source)
+		if err != nil {
+			failed = append(failed, moveResult{
+				Path:   source,
+				Reason: fmt.Sprintf("Failed to validate path: %v", err),
+			})
+			continue
+		}
+		if !allowed {
+			failed = append(failed, moveResult{
+				Path:   source,
+				Reason: "Access denied: source path is not within any allowed Space",
+			})
+			continue
+		}
+
+		// Check source exists
+		_, err = os.Stat(source)
+		if err != nil {
+			if os.IsNotExist(err) {
+				failed = append(failed, moveResult{
+					Path:   source,
+					Reason: "Source file or directory not found",
+				})
+			} else {
+				failed = append(failed, moveResult{
+					Path:   source,
+					Reason: fmt.Sprintf("Failed to access source: %v", err),
+				})
+			}
+			continue
+		}
+
+		// Prevent moving to subdirectory of itself
+		cleanSource := filepath.Clean(source)
+		cleanDest := filepath.Clean(req.Destination)
+		if strings.HasPrefix(cleanDest, cleanSource+string(filepath.Separator)) {
+			failed = append(failed, moveResult{
+				Path:   source,
+				Reason: "Cannot move to a subdirectory of itself",
+			})
+			continue
+		}
+
+		// Build destination path
+		destPath := filepath.Join(req.Destination, filepath.Base(source))
+
+		// Check if destination already exists
+		if _, err := os.Stat(destPath); err == nil {
+			failed = append(failed, moveResult{
+				Path:   source,
+				Reason: "Destination path already exists",
+			})
+			continue
+		}
+
+		// Move (rename)
+		if err := os.Rename(source, destPath); err != nil {
+			failed = append(failed, moveResult{
+				Path:   source,
+				Reason: fmt.Sprintf("Failed to move: %v", err),
+			})
+		} else {
+			succeeded = append(succeeded, source)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"succeeded": succeeded,
+		"failed":    failed,
+	})
+
+	return nil
+}
+
+// handleCopy copies multiple files/folders to a destination
+func (h *Handler) handleCopy(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+		}
+	}
+
+	var req struct {
+		Sources     []string `json:"sources"`
+		Destination string   `json:"destination"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Err:     err,
+		}
+	}
+
+	if len(req.Sources) == 0 {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "sources array is required and cannot be empty",
+		}
+	}
+
+	if req.Destination == "" {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "destination is required",
+		}
+	}
+
+	// Validate destination is allowed
+	allowed, err := h.isPathAllowed(r.Context(), req.Destination)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate destination path",
+			Err:     err,
+		}
+	}
+	if !allowed {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: destination is not within any allowed Space",
+		}
+	}
+
+	// Check destination exists and is a directory
+	destInfo, err := os.Stat(req.Destination)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{
+				Code:    http.StatusNotFound,
+				Message: "Destination directory not found",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to access destination directory",
+			Err:     err,
+		}
+	}
+	if !destInfo.IsDir() {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Destination must be a directory",
+		}
+	}
+
+	type copyResult struct {
+		Path   string `json:"path"`
+		Reason string `json:"reason,omitempty"`
+	}
+
+	succeeded := []string{}
+	failed := []copyResult{}
+
+	for _, source := range req.Sources {
+		// Validate source is allowed
+		allowed, err := h.isPathAllowed(r.Context(), source)
+		if err != nil {
+			failed = append(failed, copyResult{
+				Path:   source,
+				Reason: fmt.Sprintf("Failed to validate path: %v", err),
+			})
+			continue
+		}
+		if !allowed {
+			failed = append(failed, copyResult{
+				Path:   source,
+				Reason: "Access denied: source path is not within any allowed Space",
+			})
+			continue
+		}
+
+		// Check source exists
+		sourceInfo, err := os.Stat(source)
+		if err != nil {
+			if os.IsNotExist(err) {
+				failed = append(failed, copyResult{
+					Path:   source,
+					Reason: "Source file or directory not found",
+				})
+			} else {
+				failed = append(failed, copyResult{
+					Path:   source,
+					Reason: fmt.Sprintf("Failed to access source: %v", err),
+				})
+			}
+			continue
+		}
+
+		// Prevent copying to subdirectory of itself
+		cleanSource := filepath.Clean(source)
+		cleanDest := filepath.Clean(req.Destination)
+		if strings.HasPrefix(cleanDest, cleanSource+string(filepath.Separator)) {
+			failed = append(failed, copyResult{
+				Path:   source,
+				Reason: "Cannot copy to a subdirectory of itself",
+			})
+			continue
+		}
+
+		// Build destination path
+		destPath := filepath.Join(req.Destination, filepath.Base(source))
+
+		// Check if destination already exists
+		if _, err := os.Stat(destPath); err == nil {
+			failed = append(failed, copyResult{
+				Path:   source,
+				Reason: "Destination path already exists",
+			})
+			continue
+		}
+
+		// Copy
+		var copyErr error
+		if sourceInfo.IsDir() {
+			copyErr = h.copyDir(source, destPath)
+		} else {
+			copyErr = h.copyFile(source, destPath)
+		}
+
+		if copyErr != nil {
+			failed = append(failed, copyResult{
+				Path:   source,
+				Reason: fmt.Sprintf("Failed to copy: %v", copyErr),
+			})
+		} else {
+			succeeded = append(succeeded, source)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"succeeded": succeeded,
+		"failed":    failed,
+	})
+
+	return nil
+}
+
+// copyFile copies a single file
+func (h *Handler) copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	// Copy permissions
+	sourceInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	return os.Chmod(dst, sourceInfo.Mode())
+}
+
+// copyDir recursively copies a directory
+func (h *Handler) copyDir(src, dst string) error {
+	// Get source directory info
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	// Create destination directory
+	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+		return err
+	}
+
+	// Read source directory entries
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			// Recursively copy subdirectory
+			if err := h.copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			// Copy file
+			if err := h.copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
