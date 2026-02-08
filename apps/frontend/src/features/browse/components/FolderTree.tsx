@@ -139,7 +139,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
           const contents = await fetchDirectoryContents(path, showBaseDirectories);
           // Space 하위 노드는 key에 prefix를 붙여 유일성 보장
-          const newChildren = contents
+          const newChildren = (contents ?? [])
             .filter(node => node.isDir)
             .map(node => ({
               title: node.name,
@@ -159,7 +159,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     });
   };
 
-  const handleExpand: DirectoryTreeProps['onExpand'] = (keys) => {
+  const handleExpand: DirectoryTreeProps['onExpand'] = (keys: React.Key[]) => {
     setExpandedKeys(keys);
   };
 
@@ -187,7 +187,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   };
 
   // 우클릭 핸들러
-  const handleRightClick: DirectoryTreeProps['onRightClick'] = ({ event, node }) => {
+  const handleRightClick: DirectoryTreeProps['onRightClick'] = ({ event, node }: { event: React.MouseEvent; node: any }) => {
     if (!onSpaceDelete) return;
 
     const key = node.key as string;

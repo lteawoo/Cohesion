@@ -280,6 +280,38 @@
     - ESC 키 + 외부 클릭 닫기 지원.
     - Chrome Extension 테스트 완료: 파일/폴더/Space 우클릭 메뉴 정상 동작.
 
+- **새 폴더 만들기 기능 구현 완료** (2026-02-08):
+    - 백엔드 API 추가:
+        - `POST /api/browse/create-folder`: 폴더 생성 엔드포인트.
+        - 요청: `{ parentPath, folderName }`.
+        - Space 경로 검증: `isPathAllowed`로 부모 경로 확인.
+        - 폴더명 유효성 검증: 특수문자(`/`, `\`, `:` 등) 차단.
+        - 중복 폴더 확인: 동일 이름 폴더 존재 시 409 Conflict.
+        - `os.Mkdir(folderPath, 0755)`로 폴더 생성.
+    - 프론트엔드 구현:
+        - 빈 영역 우클릭 컨텍스트 메뉴 추가.
+        - 빈 영역 감지 로직: `!target.closest('.ant-card') && !target.closest('tr')`.
+        - "새 폴더 만들기" 메뉴 아이템 추가 (FolderOutlined 아이콘).
+        - 모달: Input autoFocus, Enter 키 생성, 취소/생성 버튼.
+        - 생성 성공 시 메시지 표시 및 목록 자동 새로고침.
+    - 수정 파일:
+        - `apps/backend/internal/browse/handler/browse_handler.go` (handleCreateFolder, RegisterRoutes)
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx` (빈 영역 메뉴, 모달)
+    - Chrome Extension 테스트 완료:
+        - 빈 영역 우클릭 시 "새 폴더 만들기" 메뉴 정상 표시.
+        - 모달 열림, Input autoFocus 정상 작동.
+        - 폴더 생성 후 목록 자동 새로고침 확인 (MyNewFolder 생성 성공).
+    - 버그 수정 (TypeScript 빌드 에러):
+        - 미사용 import 제거: `Upload`, `UploadProps`.
+        - 이벤트 핸들러 파라미터 타입 명시:
+            - `onContextMenu`: `React.MouseEvent<HTMLElement>`
+            - `onChange`: `React.ChangeEvent<HTMLInputElement>`
+            - `handleExpand`: `React.Key[]`
+            - `handleRightClick`: `{ event: React.MouseEvent; node: any }`
+        - 프론트엔드 재빌드 후 정상 동작 확인.
+
 ## 다음 작업 (Next Steps)
-- 이미지/텍스트 파일 미리보기 기능 검토.
+- 정렬 옵션 추가 (파일/폴더 정렬).
 - 파일 복사/이동 기능 검토.
+- 검색 기능 검토.
+- 이미지/텍스트 파일 미리보기 기능 검토.

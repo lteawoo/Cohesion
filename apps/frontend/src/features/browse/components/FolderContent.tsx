@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Table, Empty, Breadcrumb, Space as AntSpace, Modal, Input, message, Upload, Button, Card, Row, Col } from 'antd';
-import type { MenuProps, UploadProps } from 'antd';
+import { Table, Empty, Breadcrumb, Space as AntSpace, Modal, Input, message, Button, Card, Row, Col } from 'antd';
+import type { MenuProps } from 'antd';
 import ContextMenu from '@/components/ContextMenu';
-import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined, UploadOutlined } from '@ant-design/icons';
+import { FolderFilled, FolderOutlined, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined, UploadOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode } from '../types';
 import type { ColumnsType } from 'antd/es/table';
@@ -55,6 +55,19 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     newName: string;
   }>({ visible: false, newName: '' });
 
+  // 빈 영역 컨텍스트 메뉴 상태
+  const [emptyAreaMenu, setEmptyAreaMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+  }>({ visible: false, x: 0, y: 0 });
+
+  // 새 폴더 만들기 모달 상태
+  const [createFolderModal, setCreateFolderModal] = useState<{
+    visible: boolean;
+    folderName: string;
+  }>({ visible: false, folderName: '' });
+
   useEffect(() => {
     if (selectedPath) {
       const loadContent = async () => {
@@ -63,7 +76,8 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       };
       loadContent();
     }
-  }, [selectedPath, fetchDirectoryContents]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPath]);
 
 
 
@@ -97,6 +111,39 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       setContent(contents);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '이름 변경 실패');
+    }
+  };
+
+  // 새 폴더 만들기 처리
+  const handleCreateFolder = async () => {
+    if (!createFolderModal.folderName.trim()) {
+      message.error('폴더 이름을 입력하세요');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/browse/create-folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parentPath: selectedPath,
+          folderName: createFolderModal.folderName.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create folder');
+      }
+
+      message.success('폴더가 생성되었습니다');
+      setCreateFolderModal({ visible: false, folderName: '' });
+
+      // 디렉토리 목록 새로고침
+      const contents = await fetchDirectoryContents(selectedPath);
+      setContent(contents);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '폴더 생성 실패');
     }
   };
 
@@ -369,6 +416,18 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     },
   ] : [];
 
+  const emptyAreaMenuItems: MenuProps['items'] = [
+    {
+      key: 'create-folder',
+      icon: <FolderOutlined />,
+      label: '새 폴더 만들기',
+      onClick: () => {
+        setCreateFolderModal({ visible: true, folderName: '' });
+        setEmptyAreaMenu({ visible: false, x: 0, y: 0 });
+      },
+    },
+  ];
+
   return (
     <div
       style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', height: '100%' }}
@@ -376,7 +435,22 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        // 빈 영역 클릭 감지: 카드나 테이블 행이 아닌 경우
+        const target = e.target as HTMLElement;
+        const isCard = target.closest('.ant-card');
+        const isTableRow = target.closest('tr');
+
+        // 카드나 테이블 행을 클릭하지 않은 경우 빈 영역 메뉴 표시
+        if (!isCard && !isTableRow) {
+          setEmptyAreaMenu({
+            visible: true,
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }
+      }}
     >
       <input
         ref={fileInputRef}
@@ -394,7 +468,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           >
             업로드
           </Button>
-          <Button.Group>
+          <AntSpace.Compact>
             <Button
               icon={<UnorderedListOutlined />}
               onClick={() => setViewMode('table')}
@@ -405,7 +479,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
               onClick={() => setViewMode('grid')}
               type={viewMode === 'grid' ? 'primary' : 'default'}
             />
-          </Button.Group>
+          </AntSpace.Compact>
         </AntSpace>
       </div>
 
@@ -418,25 +492,25 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           pagination={false}
           onRow={(record: FileNode) => ({
             onDoubleClick: () => record.isDir && onPathChange(record.path),
-            onContextMenu: (e) => handleContextMenu(e, record),
+            onContextMenu: (e: React.MouseEvent<HTMLElement>) => handleContextMenu(e, record),
           })}
           locale={{ emptyText: '이 폴더는 비어 있습니다.' }}
         />
       ) : (
         <Row gutter={[16, 16]}>
-          {content.length === 0 && !isLoading ? (
+          {(content?.length ?? 0) === 0 && !isLoading ? (
             <Col span={24}>
               <Empty description="이 폴더는 비어 있습니다." />
             </Col>
           ) : (
-            content.map((item) => (
+            content?.map((item) => (
               <Col key={item.path} xs={12} sm={8} md={6} lg={4} xl={3}>
                 <Card
                   hoverable
                   onDoubleClick={() => item.isDir && onPathChange(item.path)}
                   onContextMenu={(e) => handleContextMenu(e, item)}
                   style={{ textAlign: 'center', cursor: 'pointer' }}
-                  bodyStyle={{ padding: '16px 8px' }}
+                  styles={{ body: { padding: '16px 8px' } }}
                 >
                   <div style={{ fontSize: '48px', marginBottom: '8px' }}>
                     {item.isDir ? (
@@ -485,8 +559,33 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         <Input
           placeholder="새 이름"
           value={renameModal.newName}
-          onChange={(e) => setRenameModal({ ...renameModal, newName: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRenameModal({ ...renameModal, newName: e.target.value })}
           onPressEnter={handleRename}
+        />
+      </Modal>
+
+      <ContextMenu
+        open={emptyAreaMenu.visible}
+        x={emptyAreaMenu.x}
+        y={emptyAreaMenu.y}
+        items={emptyAreaMenuItems}
+        onClose={() => setEmptyAreaMenu({ visible: false, x: 0, y: 0 })}
+      />
+
+      <Modal
+        title="새 폴더 만들기"
+        open={createFolderModal.visible}
+        onOk={handleCreateFolder}
+        onCancel={() => setCreateFolderModal({ visible: false, folderName: '' })}
+        okText="생성"
+        cancelText="취소"
+      >
+        <Input
+          placeholder="폴더 이름"
+          value={createFolderModal.folderName}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCreateFolderModal({ ...createFolderModal, folderName: e.target.value })}
+          onPressEnter={handleCreateFolder}
+          autoFocus
         />
       </Modal>
 
