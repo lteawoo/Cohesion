@@ -301,6 +301,14 @@
         - 빈 영역 우클릭 시 "새 폴더 만들기" 메뉴 정상 표시.
         - 모달 열림, Input autoFocus 정상 작동.
         - 폴더 생성 후 목록 자동 새로고침 확인 (MyNewFolder 생성 성공).
+    - 버그 수정 (TypeScript 빌드 에러):
+        - 미사용 import 제거: `Upload`, `UploadProps`.
+        - 이벤트 핸들러 파라미터 타입 명시:
+            - `onContextMenu`: `React.MouseEvent<HTMLElement>`
+            - `onChange`: `React.ChangeEvent<HTMLInputElement>`
+            - `handleExpand`: `React.Key[]`
+            - `handleRightClick`: `{ event: React.MouseEvent; node: any }`
+        - 프론트엔드 재빌드 후 정상 동작 확인.
 
 ## 다음 작업 (Next Steps)
 - 정렬 옵션 추가 (파일/폴더 정렬).

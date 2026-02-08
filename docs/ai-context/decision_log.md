@@ -578,3 +578,31 @@
   - `apps/backend/internal/browse/handler/browse_handler.go` (handleCreateFolder, RegisterRoutes)
   - `apps/frontend/src/features/browse/components/FolderContent.tsx` (빈 영역 메뉴, 모달, 감지 로직)
 - **결과**: 빈 영역 우클릭 → 메뉴 → 모달 → 폴더 생성 → 자동 새로고침 흐름 정상 작동.
+
+### TypeScript 빌드 에러 수정 (2026-02-08)
+- **문제**: 프론트엔드 빌드 시 TypeScript 타입 에러 발생.
+  - `Upload`, `UploadProps` 임포트되었으나 사용되지 않음 (TS6133, TS6196).
+  - 이벤트 핸들러 파라미터에 타입 명시 없음 (TS7006, TS7031).
+  - 빌드 실패로 런타임에서 이전 코드가 실행되어 null 참조 에러 발생.
+- **결정**: 엄격한 타입 체크를 준수하여 모든 파라미터에 명시적 타입 지정.
+- **이유**:
+  - TypeScript strict mode: 타입 안정성 향상 및 런타임 에러 예방.
+  - 빌드 성공: 최신 코드가 브라우저에 반영되어야 버그 수정 효과 확인 가능.
+  - 코드 가독성: 명시적 타입은 IDE 자동완성 및 문서화에 도움.
+- **구현**:
+  - **FolderContent.tsx**:
+    - 미사용 import 제거: `Upload`, `UploadProps`.
+    - `onContextMenu`: `(e: React.MouseEvent<HTMLElement>) => ...`
+    - `onChange` (rename modal): `(e: React.ChangeEvent<HTMLInputElement>) => ...`
+    - `onChange` (create folder modal): `(e: React.ChangeEvent<HTMLInputElement>) => ...`
+  - **FolderTree.tsx**:
+    - `handleExpand`: `(keys: React.Key[]) => ...`
+    - `handleRightClick`: `({ event, node }: { event: React.MouseEvent; node: any }) => ...`
+- **대안 검토**:
+  - `@ts-ignore` 사용: 타입 체크 우회는 런타임 에러 위험 증가, 유지보수성 저하.
+  - `any` 타입 사용: 타입 안정성 손실, 버그 탐지 어려움.
+  - 타입 명시: 가장 안전하고 명확한 방법.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+  - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+- **결과**: 빌드 성공, 브라우저 새로고침 후 정상 동작 (null 참조 에러 해결).
