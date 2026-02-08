@@ -1,7 +1,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Tree, Spin, Menu } from 'antd';
+import { Tree, Spin } from 'antd';
 import type { GetProps, MenuProps } from 'antd';
+import ContextMenu from '@/components/ContextMenu';
 import { FolderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
@@ -208,17 +209,6 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     }
   };
 
-  // 컨텍스트 메뉴 닫기
-  useEffect(() => {
-    const handleClick = () => {
-      setContextMenu({ visible: false, x: 0, y: 0 });
-    };
-
-    if (contextMenu.visible) {
-      document.addEventListener('click', handleClick);
-      return () => document.removeEventListener('click', handleClick);
-    }
-  }, [contextMenu.visible]);
 
   if (!rootPath && !showBaseDirectories && (!spaces || spaces.length === 0)) {
     return (
@@ -264,17 +254,13 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
         icon={<FolderOutlined />}
         expandAction="click"
       />
-      {contextMenu.visible && (
-        <Menu
-          items={menuItems}
-          style={{
-            position: 'fixed',
-            left: contextMenu.x,
-            top: contextMenu.y,
-            zIndex: 1000,
-          }}
-        />
-      )}
+      <ContextMenu
+        open={contextMenu.visible}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        items={menuItems}
+        onClose={() => setContextMenu({ visible: false, x: 0, y: 0 })}
+      />
     </>
   );
 }

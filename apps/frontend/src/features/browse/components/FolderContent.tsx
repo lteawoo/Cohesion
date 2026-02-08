@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Table, Empty, Breadcrumb, Space as AntSpace, Menu, Modal, Input, message, Upload, Button, Card, Row, Col } from 'antd';
+import { Table, Empty, Breadcrumb, Space as AntSpace, Modal, Input, message, Upload, Button, Card, Row, Col } from 'antd';
 import type { MenuProps, UploadProps } from 'antd';
+import ContextMenu from '@/components/ContextMenu';
 import { FolderFilled, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined, UploadOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode } from '../types';
@@ -64,17 +65,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     }
   }, [selectedPath, fetchDirectoryContents]);
 
-  // 컨텍스트 메뉴 닫기
-  useEffect(() => {
-    const handleClick = () => {
-      setContextMenu({ visible: false, x: 0, y: 0 });
-    };
 
-    if (contextMenu.visible) {
-      document.addEventListener('click', handleClick);
-      return () => document.removeEventListener('click', handleClick);
-    }
-  }, [contextMenu.visible]);
 
   // 이름 변경 처리
   const handleRename = async () => {
@@ -474,17 +465,13 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         </Row>
       )}
 
-      {contextMenu.visible && (
-        <Menu
-          items={menuItems}
-          style={{
-            position: 'fixed',
-            left: contextMenu.x,
-            top: contextMenu.y,
-            zIndex: 1000,
-          }}
-        />
-      )}
+      <ContextMenu
+        open={contextMenu.visible}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        items={menuItems}
+        onClose={() => setContextMenu({ visible: false, x: 0, y: 0 })}
+      />
 
       <Modal
         title="이름 변경"
