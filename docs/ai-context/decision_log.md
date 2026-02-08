@@ -532,3 +532,49 @@
   - `apps/frontend/src/features/browse/components/FolderContent.tsx`
   - `apps/frontend/src/features/browse/components/FolderTree.tsx`
 - **결과**: 화면 경계 자동 보정, 페이드 애니메이션, ESC/외부 클릭 닫기, 중복 코드 제거.
+
+### 새 폴더 만들기 기능 구현 (2026-02-08)
+- **결정**: 빈 영역 우클릭 시 "새 폴더 만들기" 메뉴를 표시하고 모달로 폴더 생성.
+- **이유**:
+  - 파일 관리 기본 기능: 사용자가 직접 폴더 구조를 만들 수 있어야 함.
+  - 파일 복사/이동 기능(Task 2)의 기반: 빈 영역 컨텍스트 메뉴 인프라 구축.
+  - 직관적인 UX: Google Drive, Finder 등 주요 파일 관리자와 일관된 경험.
+  - 안전한 생성: 중복 확인 및 특수문자 검증으로 파일시스템 보호.
+- **구현**:
+  - **백엔드**:
+    - `POST /api/browse/create-folder` 엔드포인트 추가.
+    - 요청: `{ parentPath, folderName }`.
+    - 검증 순서:
+      1. POST 메서드 확인
+      2. Request body 파싱 및 필드 검증 (빈 값 체크)
+      3. `parentPath` Space 경로 검증 (`isPathAllowed`)
+      4. 부모 디렉토리 존재 및 디렉토리 여부 확인 (`os.Stat`)
+      5. 폴더명 유효성 검증 (`/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|` 금지)
+      6. 중복 확인 (동일 이름 폴더 존재 시 409 Conflict)
+      7. `os.Mkdir(folderPath, 0755)` 실행
+      8. 성공 응답 반환 (path, name 포함)
+    - 에러 코드: 400 (잘못된 요청), 403 (Space 외부), 404 (부모 없음), 409 (중복), 500 (OS 오류).
+  - **프론트엔드**:
+    - **빈 영역 감지**:
+      - 기존: `e.currentTarget === e.target` (너무 엄격, Grid View/Table View에서 실패).
+      - 개선: `!target.closest('.ant-card') && !target.closest('tr')` (카드나 테이블 행이 아닌 곳).
+    - **빈 영역 컨텍스트 메뉴**:
+      - `emptyAreaMenu` state로 빈 영역 메뉴 상태 관리.
+      - `emptyAreaMenuItems`: "새 폴더 만들기" (FolderOutlined 아이콘).
+      - ContextMenu 컴포넌트 재사용.
+    - **폴더 생성 모달**:
+      - `createFolderModal` state로 모달 상태 및 폴더명 관리.
+      - Input autoFocus, Enter 키로 생성, 취소/생성 버튼.
+      - `handleCreateFolder`: API 호출 → 성공 시 message.success → 목록 새로고침.
+    - **API 호출**:
+      - `POST /api/browse/create-folder` with `{ parentPath: selectedPath, folderName }`.
+      - 409 에러 시 "폴더 이미 존재" 메시지.
+- **대안 검토**:
+  - 별도 "새 폴더" 버튼: 화면 공간 낭비, 덜 직관적.
+  - 파일/폴더 메뉴에 "새 폴더" 추가: 빈 영역 메뉴가 더 직관적.
+  - 빈 영역 더블 클릭으로 생성: 실수로 생성 가능, 명시적 메뉴가 더 안전.
+  - 자동 이름 생성 ("새 폴더", "새 폴더 2", ...): 사용자 의도와 다를 수 있음, 직접 입력이 더 명확.
+- **수정 파일**:
+  - `apps/backend/internal/browse/handler/browse_handler.go` (handleCreateFolder, RegisterRoutes)
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx` (빈 영역 메뉴, 모달, 감지 로직)
+- **결과**: 빈 영역 우클릭 → 메뉴 → 모달 → 폴더 생성 → 자동 새로고침 흐름 정상 작동.

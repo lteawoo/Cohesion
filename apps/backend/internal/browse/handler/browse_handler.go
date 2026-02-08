@@ -35,6 +35,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/browse/download", web.Handler(h.handleDownload))
 	mux.Handle("/api/browse/rename", web.Handler(h.handleRename))
 	mux.Handle("/api/browse/delete", web.Handler(h.handleDelete))
+	mux.Handle("/api/browse/create-folder", web.Handler(h.handleCreateFolder))
 	mux.Handle("/api/browse/upload", web.Handler(h.handleUpload))
 }
 
@@ -406,6 +407,113 @@ func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) *web.Erro
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Successfully deleted"})
+
+	return nil
+}
+
+func (h *Handler) handleCreateFolder(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+		}
+	}
+
+	var req struct {
+		ParentPath string `json:"parentPath"`
+		FolderName string `json:"folderName"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Err:     err,
+		}
+	}
+
+	if req.ParentPath == "" || req.FolderName == "" {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "parentPath and folderName are required",
+		}
+	}
+
+	// Check if the parent path is allowed (within a Space)
+	allowed, err := h.isPathAllowed(r.Context(), req.ParentPath)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate path",
+			Err:     err,
+		}
+	}
+	if !allowed {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: path is not within any allowed Space",
+		}
+	}
+
+	// Check if parent path exists and is a directory
+	parentInfo, err := os.Stat(req.ParentPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{
+				Code:    http.StatusNotFound,
+				Message: "Parent directory not found",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to access parent directory",
+			Err:     err,
+		}
+	}
+
+	if !parentInfo.IsDir() {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Parent path is not a directory",
+		}
+	}
+
+	// Validate folder name (no path separators or special characters)
+	if strings.ContainsAny(req.FolderName, "/\\:*?\"<>|") {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Folder name contains invalid characters",
+		}
+	}
+
+	// Build full folder path
+	folderPath := filepath.Join(req.ParentPath, req.FolderName)
+
+	// Check if folder already exists
+	if _, err := os.Stat(folderPath); err == nil {
+		return &web.Error{
+			Code:    http.StatusConflict,
+			Message: "Folder already exists",
+		}
+	}
+
+	// Create the folder
+	if err := os.Mkdir(folderPath, 0755); err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to create folder",
+			Err:     err,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Successfully created",
+		"path":    folderPath,
+		"name":    req.FolderName,
+	})
 
 	return nil
 }
