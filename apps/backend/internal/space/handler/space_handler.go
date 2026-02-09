@@ -113,11 +113,21 @@ func (h *Handler) handleCreateSpace(w http.ResponseWriter, r *http.Request) *web
 func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.Error {
 	// URL에서 ID 추출: /api/spaces/123 -> 123
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/spaces/")
+
+	// 빈 ID 체크 (예: /api/spaces/)
+	if idStr == "" {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Space ID is required",
+			Err:     nil,
+		}
+	}
+
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return &web.Error{
 			Code:    http.StatusBadRequest,
-			Message: "Invalid space ID",
+			Message: "Invalid space ID format",
 			Err:     err,
 		}
 	}

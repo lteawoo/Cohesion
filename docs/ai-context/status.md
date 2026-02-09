@@ -358,6 +358,12 @@
     - 빌드 경고 제거, 정상 작동 확인.
     - 수정 파일: `go.mod`, `go.sum`, `internal/browse/service.go`.
 
+- **Space ID 검증 버그 수정** (2026-02-09):
+    - 문제: `/api/spaces/` (빈 ID) 요청 시 파싱 에러 발생.
+    - 해결: `handleSpaceByID`에서 빈 ID 사전 체크 추가.
+    - 에러 메시지 개선: "Space ID is required", "Invalid space ID format".
+    - 수정 파일: `internal/space/handler/space_handler.go`.
+
 ## 다음 작업 (Next Steps)
 - 드래그 영역 선택 (Box Selection) 기능 구현.
 - 검색 기능 검토.
