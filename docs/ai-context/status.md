@@ -362,6 +362,8 @@
     - 문제: `/api/spaces/` (빈 ID) 요청 시 파싱 에러 발생.
     - 해결: `handleSpaceByID`에서 빈 ID 사전 체크 추가.
     - 에러 메시지 개선: "Space ID is required", "Invalid space ID format".
+    - 추가 수정: `/api/spaces` 경로가 `handleSpaceByID`로 잘못 라우팅되는 문제 해결.
+    - Chrome extension으로 브라우저 테스트 완료.
     - 수정 파일: `internal/space/handler/space_handler.go`.
 
 ## 다음 작업 (Next Steps)

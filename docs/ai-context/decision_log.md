@@ -730,6 +730,13 @@
   - 라우팅 변경 (`/api/spaces/` 경로 제거): 기존 API 구조 변경 불필요, 검증 추가가 더 간단.
   - 빈 ID를 목록 조회로 리다이렉트: RESTful 원칙 위반, 혼란 야기.
   - 에러 메시지만 개선: 근본 원인(빈 문자열 파싱 시도) 해결 못함.
+- **추가 발견 및 수정** (브라우저 테스트 중):
+  - Go의 `http.ServeMux`가 `/api/spaces` 요청을 `/api/spaces/` 패턴으로 라우팅.
+  - `handleSpaceByID`에서 경로가 정확히 `/api/spaces`인 경우 `handleSpaces`로 위임하도록 수정.
+  - 브라우저 테스트 (chrome-extension): 모든 케이스 정상 작동 확인.
 - **수정 파일**:
   - `apps/backend/internal/space/handler/space_handler.go` (handleSpaceByID 함수)
-- **결과**: `/api/spaces/` 요청 시 명확한 에러 메시지 반환, 정상적인 요청은 영향 없음.
+- **결과**:
+  - `/api/spaces`: 200 OK (Space 목록)
+  - `/api/spaces/`: 400 Bad Request ("Space ID is required")
+  - `/api/spaces/abc`: 400 Bad Request ("Invalid space ID format")
