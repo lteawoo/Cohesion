@@ -47,5 +47,10 @@
   - [x] Phase 2: Context Menu Store (ContextMenuContext 제거)
   - [x] Phase 3: Space Store (Props drilling 제거, CRUD actions)
   - [x] Phase 4: Browse Store (파일 탐색 경로, 컨텐츠)
+- [ ] **FolderContent.tsx 리팩토링** (진행 중)
+  - [x] Phase 1: constants.ts, types.ts, hooks 생성
+  - [ ] Phase 2: 서브 컴포넌트 추출
+  - [ ] Phase 3: 메인 컴포넌트 리팩토링
+  - [ ] Phase 4: 검증 및 테스트
 - [ ] 검색 기능
 - [ ] 이미지/텍스트 파일 미리보기
