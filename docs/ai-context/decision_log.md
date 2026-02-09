@@ -672,3 +672,18 @@
 - **수정 파일**:
   - `apps/frontend/src/features/browse/components/FolderContent.tsx`
 - **결과**: 단일/다중 파일 드래그 이동 성공, 외부 파일 업로드와 충돌 없음, 텍스트 선택 방지 확인.
+
+### Shift 클릭 범위 선택 버그 수정 (2026-02-09)
+- **문제**: 정렬된 상태에서 Shift+클릭으로 범위 선택 시 원치 않은 항목 선택.
+- **원인**: `handleItemClick`에서 `content` 배열을 사용하지만, 화면에는 `sortedContent`가 표시되어 인덱스 불일치.
+- **결정**: `content` 대신 `sortedContent` 사용.
+- **이유**:
+  - 사용자가 화면에서 보는 순서와 실제 선택되는 항목이 일치해야 직관적.
+  - 정렬 기능과 다중 선택 기능이 함께 사용될 때 필수적인 수정.
+- **구현**:
+  - `handleItemClick`의 Shift+클릭 범위 선택 로직에서 `content[i]` → `sortedContent[i]`로 변경.
+  - 인덱스 계산은 동일하게 유지 (화면에 표시된 순서 기준).
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+- **테스트**: 크기 오름차순 정렬 후 첫 항목부터 마지막 항목까지 Shift+클릭으로 9개 항목 선택 성공.
+- **결과**: 정렬 상태와 무관하게 화면 순서대로 범위 선택 정상 작동.

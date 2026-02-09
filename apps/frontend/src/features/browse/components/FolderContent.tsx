@@ -611,8 +611,8 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       const end = Math.max(lastSelectedIndex, index);
       const newSelected = new Set(selectedItems);
       for (let i = start; i <= end; i++) {
-        if (content[i]) {
-          newSelected.add(content[i].path);
+        if (sortedContent[i]) {
+          newSelected.add(sortedContent[i].path);
         }
       }
       setSelectedItems(newSelected);
