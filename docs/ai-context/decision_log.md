@@ -687,3 +687,26 @@
   - `apps/frontend/src/features/browse/components/FolderContent.tsx`
 - **테스트**: 크기 오름차순 정렬 후 첫 항목부터 마지막 항목까지 Shift+클릭으로 9개 항목 선택 성공.
 - **결과**: 정렬 상태와 무관하게 화면 순서대로 범위 선택 정상 작동.
+
+## 의존성 관리
+### gopsutil v4로 업그레이드 (2026-02-09)
+- **결정**: `github.com/shirou/gopsutil` v3.21.11에서 v4.26.1로 업그레이드.
+- **이유**:
+  - macOS 12.0에서 deprecated된 `IOMasterPort` API 사용으로 인한 빌드 경고 제거.
+  - v4에서 해당 API가 `IOMainPort`로 업데이트되어 경고 해결.
+  - 최신 버전 사용으로 향후 macOS 호환성 확보.
+- **구현**:
+  - `go get github.com/shirou/gopsutil/v4@latest` 실행.
+  - import 경로 변경: `github.com/shirou/gopsutil/disk` → `github.com/shirou/gopsutil/v4/disk`.
+  - v3는 자동으로 제거되지 않고 `go.mod`에 남아있음 (하위 호환성).
+- **영향**:
+  - `apps/backend/internal/browse/service.go`의 디스크 파티션 정보 조회 기능.
+  - API 변경 없음, 기존 코드와 동일하게 동작.
+  - 빌드 시 더 이상 deprecation 경고 출력되지 않음.
+- **대안 검토**:
+  - 경고 무시: 향후 macOS 버전에서 API 제거 시 빌드 실패 가능성.
+  - 다른 라이브러리 사용: gopsutil이 Go에서 가장 널리 사용되는 시스템 정보 라이브러리.
+- **수정 파일**:
+  - `apps/backend/go.mod`, `apps/backend/go.sum` (의존성 업데이트)
+  - `apps/backend/internal/browse/service.go` (import 경로 변경)
+- **결과**: 빌드 경고 제거, 정상 작동 확인.
