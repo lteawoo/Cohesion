@@ -32,7 +32,7 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
     <Layout
       style={{
           display: 'flex',
-          minHeight: '100vh',
+          height: '100vh',
           overflow: 'hidden'
       }}
     >
