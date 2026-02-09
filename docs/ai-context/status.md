@@ -320,6 +320,29 @@
     - useMemo로 sortedContent 최적화.
     - Chrome Extension 브라우저 테스트 완료: 모든 정렬 옵션 정상 작동 확인.
 
+- **드래그 앤 드롭 파일 이동 기능 구현 완료** (2026-02-09):
+    - Google Drive 스타일 드래그 앤 드롭으로 파일/폴더 이동.
+    - 모든 파일/폴더 카드에 `draggable={true}` 속성 추가.
+    - 드래그 소스 처리:
+        - `onDragStart`: 선택되지 않은 항목 드래그 시 자동 선택, dataTransfer에 경로 저장.
+        - 데이터 타입: `application/json` with `{type: 'cohesion-internal', paths: [...]}`
+    - 드롭 타겟 처리:
+        - 폴더에만 드롭 가능, `onDragOver`로 시각적 피드백 (파란 테두리/배경).
+        - `onDrop`: 폴더에 드롭 시 해당 폴더로 이동, 자기 자신 이동 방지.
+        - 빈 영역 드롭: 현재 폴더에 이동 (같은 폴더면 무시).
+    - 외부 파일 업로드와 내부 이동 구분:
+        - `dataTransfer.files.length > 0`: 외부 파일 업로드.
+        - `dataTransfer.getData('application/json')`: 내부 파일 이동.
+    - 텍스트 선택 방지: `userSelect: 'none'` CSS 적용.
+    - 다중 선택 지원: 선택된 여러 파일을 한 번에 드래그 이동.
+    - 기존 우클릭 메뉴 이동/복사 기능과 병행 사용 가능.
+    - 수정 파일: `FolderContent.tsx`
+    - Chrome Extension 브라우저 테스트 완료:
+        - 단일 파일 드래그 이동 (README.md → docs 폴더).
+        - 다중 파일 드래그 이동 (GEMINI.md + package.json → dist 폴더).
+        - 외부 파일 업로드 드래그와 충돌 없음.
+        - 텍스트 선택 방지 확인.
+
 ## 다음 작업 (Next Steps)
 - 검색 기능 검토.
 - 이미지/텍스트 파일 미리보기 기능 검토.

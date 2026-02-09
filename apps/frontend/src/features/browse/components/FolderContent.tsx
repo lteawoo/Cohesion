@@ -54,6 +54,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
 
   // 드래그 상태 관리
   const [isDragging, setIsDragging] = useState(false);
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null); // 드롭 가능한 폴더 하이라이트
 
   // 이름 변경 모달 상태
   const [renameModal, setRenameModal] = useState<{
@@ -433,11 +434,95 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     }
   };
 
-  // 드래그 이벤트 핸들러
+  // 아이템 드래그 시작 핸들러
+  const handleItemDragStart = (e: React.DragEvent, record: FileNode) => {
+    // 드래그 시작 시 선택 처리
+    if (!selectedItems.has(record.path)) {
+      // 선택되지 않은 항목을 드래그하면 해당 항목만 선택
+      setSelectedItems(new Set([record.path]));
+    }
+
+    // dataTransfer에 경로 목록 저장
+    const dragData = {
+      type: 'cohesion-internal',
+      paths: selectedItems.has(record.path)
+        ? Array.from(selectedItems)
+        : [record.path]
+    };
+    e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // 아이템 드래그 종료 핸들러
+  const handleItemDragEnd = (_e: React.DragEvent) => {
+    setDragOverFolder(null);
+  };
+
+  // 폴더 위 드래그 오버 핸들러
+  const handleFolderDragOver = (e: React.DragEvent, folder: FileNode) => {
+    if (!folder.isDir) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 외부 파일인지 내부 이동인지 확인
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    if (hasFiles) {
+      // 외부 파일은 폴더 드롭 불가
+      return;
+    }
+
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverFolder(folder.path);
+  };
+
+  // 폴더 위 드래그 떠남 핸들러
+  const handleFolderDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverFolder(null);
+  };
+
+  // 폴더 위 드롭 핸들러
+  const handleFolderDrop = async (e: React.DragEvent, folder: FileNode) => {
+    if (!folder.isDir) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverFolder(null);
+
+    try {
+      const dataText = e.dataTransfer.getData('application/json');
+      if (dataText) {
+        const dragData = JSON.parse(dataText);
+        if (dragData.type === 'cohesion-internal') {
+          const sourcePaths = dragData.paths as string[];
+
+          // 자기 자신으로 이동 방지
+          if (sourcePaths.includes(folder.path)) {
+            message.warning('자기 자신으로 이동할 수 없습니다');
+            return;
+          }
+
+          // 해당 폴더로 이동
+          await handleMove(folder.path);
+        }
+      }
+    } catch (error) {
+      console.error('Drop error:', error);
+    }
+  };
+
+  // 드래그 이벤트 핸들러 (외부 파일 업로드용)
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+
+    // 외부 파일만 isDragging 상태 활성화
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    if (hasFiles) {
+      setIsDragging(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -459,10 +544,34 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     e.stopPropagation();
     setIsDragging(false);
 
+    // 1. 외부 파일 업로드 체크
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       // 첫 번째 파일만 업로드
       await handleFileUpload(files[0]);
+      return;
+    }
+
+    // 2. 내부 파일/폴더 이동 (빈 영역에 드롭 시 현재 폴더에 이동)
+    try {
+      const dataText = e.dataTransfer.getData('application/json');
+      if (dataText) {
+        const dragData = JSON.parse(dataText);
+        if (dragData.type === 'cohesion-internal') {
+          // 같은 폴더에 드롭하면 무시
+          const sourcePaths = dragData.paths as string[];
+          const allInSameFolder = sourcePaths.every(p => {
+            const parentPath = p.substring(0, p.lastIndexOf('/'));
+            return parentPath === selectedPath;
+          });
+          if (!allInSameFolder) {
+            // 현재 폴더로 이동
+            await handleMove(selectedPath);
+          }
+        }
+      }
+    } catch (error) {
+      // JSON 파싱 실패 시 무시
     }
   };
 
@@ -942,6 +1051,16 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
             onClick: (e: React.MouseEvent<HTMLElement>) => handleItemClick(e, record, index ?? 0),
             onDoubleClick: () => record.isDir && onPathChange(record.path),
             onContextMenu: (e: React.MouseEvent<HTMLElement>) => handleContextMenu(e, record),
+            draggable: true,
+            onDragStart: (e: React.DragEvent<HTMLElement>) => handleItemDragStart(e, record),
+            onDragEnd: (e: React.DragEvent<HTMLElement>) => handleItemDragEnd(e),
+            onDragOver: (e: React.DragEvent<HTMLElement>) => record.isDir && handleFolderDragOver(e, record),
+            onDragLeave: (e: React.DragEvent<HTMLElement>) => record.isDir && handleFolderDragLeave(e),
+            onDrop: (e: React.DragEvent<HTMLElement>) => record.isDir && handleFolderDrop(e, record),
+            style: {
+              backgroundColor: dragOverFolder === record.path ? 'rgba(24, 144, 255, 0.1)' : undefined,
+              userSelect: 'none',
+            } as React.CSSProperties,
           })}
           locale={{ emptyText: '이 폴더는 비어 있습니다.' }}
         />
@@ -958,14 +1077,21 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
               <Col key={item.path} xs={12} sm={8} md={6} lg={4} xl={3}>
                 <Card
                   hoverable
+                  draggable
                   onClick={(e) => handleItemClick(e, item, index)}
                   onDoubleClick={() => item.isDir && onPathChange(item.path)}
                   onContextMenu={(e) => handleContextMenu(e, item)}
+                  onDragStart={(e) => handleItemDragStart(e, item)}
+                  onDragEnd={(e) => handleItemDragEnd(e)}
+                  onDragOver={(e) => item.isDir && handleFolderDragOver(e, item)}
+                  onDragLeave={(e) => item.isDir && handleFolderDragLeave(e)}
+                  onDrop={(e) => item.isDir && handleFolderDrop(e, item)}
                   style={{
                     textAlign: 'center',
                     cursor: 'pointer',
-                    border: isSelected ? '2px solid #1890ff' : undefined,
-                    backgroundColor: isSelected ? 'rgba(24, 144, 255, 0.1)' : undefined,
+                    border: isSelected ? '2px solid #1890ff' : dragOverFolder === item.path ? '2px dashed #1890ff' : undefined,
+                    backgroundColor: isSelected ? 'rgba(24, 144, 255, 0.1)' : dragOverFolder === item.path ? 'rgba(24, 144, 255, 0.05)' : undefined,
+                    userSelect: 'none',
                   }}
                   styles={{ body: { padding: '16px 8px' } }}
                 >
