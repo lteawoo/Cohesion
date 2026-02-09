@@ -2,7 +2,7 @@ import { ConfigProvider, Layout, Switch, theme } from "antd";
 import { Outlet } from "react-router";
 import MainSider from "./MainSider";
 import ServerStatus from "./ServerStatus";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSpaces } from "@/features/space/hooks/useSpaces";
 import type { Space } from "@/features/space/types";
 import { ContextMenuProvider } from "@/contexts/ContextMenuContext";
@@ -12,21 +12,16 @@ const { Header, Content } = Layout;
 const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThemeChange: (checked: boolean) => void }) => {
   const { token } = theme.useToken();
   const { spaces, refetch } = useSpaces();
-  const [selectedPath, setSelectedPath] = useState<string>('');
-  const [selectedSpace, setSelectedSpace] = useState<Space | undefined>(undefined);
+  const [pathState, setPathState] = useState<{
+    path: string;
+    space?: Space;
+  }>({ path: '' });
 
-  const handlePathSelect = (path: string, space?: Space) => {
-    setSelectedPath(path);
-
-    // space가 명시적으로 전달된 경우 해당 Space 사용
-    if (space) {
-      setSelectedSpace(space);
-    } else {
-      // space가 전달되지 않은 경우, path에서 해당하는 Space를 찾기
-      const matchedSpace = spaces?.find(s => path.startsWith(s.space_path));
-      setSelectedSpace(matchedSpace);
-    }
-  };
+  const handlePathSelect = useCallback((path: string, space?: Space) => {
+    // 단일 setState로 통합하여 한 번의 리렌더링만 발생
+    const newSpace = space || spaces?.find(s => path.startsWith(s.space_path));
+    setPathState({ path, space: newSpace });
+  }, [spaces]);
 
   return (
     <Layout
@@ -60,7 +55,11 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
 
           <Content style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
               <main style={{ flex: 1, overflow: 'hidden' }}>
-                  <Outlet context={{ selectedPath, selectedSpace, onPathChange: setSelectedPath }} />
+                  <Outlet context={{
+                    selectedPath: pathState.path,
+                    selectedSpace: pathState.space,
+                    onPathChange: (path: string) => setPathState({ path, space: pathState.space })
+                  }} />
               </main>
           </Content>
       </Layout>
