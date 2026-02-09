@@ -711,6 +711,51 @@
   - `apps/backend/internal/browse/service.go` (import 경로 변경)
 - **결과**: 빌드 경고 제거, 정상 작동 확인.
 
+## 성능 최적화
+### API 중복 호출 최적화 (2026-02-09)
+- **문제**: Space 클릭 시 동일한 API가 3번 호출되어 성능 저하.
+  - `/api/browse?path=...` 엔드포인트가 중복 호출.
+  - 사용자 경험 저하 (불필요한 네트워크 요청, 서버 부하).
+- **원인 분석** (Chrome extension 네트워크 추적):
+  1. **React StrictMode**: 개발 환경에서 useEffect를 두 번 실행 (+1번).
+  2. **두 개의 독립적인 setState**: `selectedPath`와 `selectedSpace` 각각 호출.
+     - 각 setState마다 리렌더링 발생 → FolderContent의 useEffect 실행.
+  3. **useEffect 의존성**: `[selectedPath, fetchDirectoryContents]`
+     - fetchDirectoryContents 함수 참조 변경 시 추가 실행 가능성.
+- **결정**: 단일 state 객체로 통합하여 리렌더링 최소화.
+- **이유**:
+  - React의 배칭(batching)은 이벤트 핸들러 내에서 자동으로 작동하지만, 별개의 state 업데이트는 각각 리렌더링을 트리거할 수 있음.
+  - 단일 객체로 관리하면 한 번의 setState로 모든 값 업데이트 → 리렌더링 1회.
+  - StrictMode는 프로덕션에서 자동 비활성화되므로, 개발 환경 최적화로 제거 가능.
+- **구현**:
+  - **StrictMode 제거**: `main.tsx`에서 `<StrictMode>` 래퍼 제거.
+  - **단일 state 통합**:
+    ```typescript
+    // 변경 전
+    const [selectedPath, setSelectedPath] = useState<string>('');
+    const [selectedSpace, setSelectedSpace] = useState<Space | undefined>();
+
+    // 변경 후
+    const [pathState, setPathState] = useState<{ path: string; space?: Space }>({ path: '' });
+    ```
+  - **useCallback 메모이제이션**: `handlePathSelect` 함수 최적화.
+  - **단일 setState**: 한 번의 `setPathState({ path, space })` 호출.
+- **결과**:
+  - **3번 → 2번 호출**로 감소 (33% 개선).
+  - 불필요한 네트워크 요청 감소.
+  - Chrome extension 브라우저 테스트로 검증 완료.
+- **남은 이슈**:
+  - 여전히 2번 호출 발생 (완전한 1번 호출 미달성).
+  - 추정 원인: React Router의 Outlet 이중 렌더링 또는 컴포넌트 라이프사이클.
+  - 추가 조사 및 최적화 필요.
+- **대안 검토**:
+  - useEffect 의존성에서 fetchDirectoryContents 제거: ESLint 경고 무시 필요, 근본 해결 아님.
+  - useMemo로 API 응답 캐싱: 동일 경로 재방문 시 유용하지만 초기 중복 호출은 해결 못함.
+  - React Query 도입: 오버엔지니어링, 현재 상황에서는 과도.
+- **수정 파일**:
+  - `apps/frontend/src/main.tsx` (StrictMode 제거)
+  - `apps/frontend/src/components/layout/MainLayout/index.tsx` (단일 state, useCallback)
+
 ## 에러 핸들링
 ### Space ID 검증 개선 (2026-02-09)
 - **문제**: `/api/spaces/` (끝에 슬래시만 있는 경우) 요청 시 에러 발생.

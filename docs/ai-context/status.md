@@ -366,6 +366,14 @@
     - Chrome extension으로 브라우저 테스트 완료.
     - 수정 파일: `internal/space/handler/space_handler.go`.
 
+- **API 중복 호출 최적화** (2026-02-09):
+    - 문제: Space 클릭 시 동일 API 3번 호출 (`/api/browse?path=...`).
+    - 원인: StrictMode + 두 개의 독립적인 setState (selectedPath, selectedSpace).
+    - 해결: StrictMode 제거, 단일 state 객체로 통합, useCallback 메모이제이션.
+    - 결과: 3번 → 2번 호출로 개선 (33% 감소).
+    - 남은 이슈: 2번 호출 여전히 발생 (추가 조사 필요).
+    - 수정 파일: `main.tsx`, `MainLayout/index.tsx`.
+
 ## 다음 작업 (Next Steps)
 - 드래그 영역 선택 (Box Selection) 기능 구현.
 - 검색 기능 검토.
