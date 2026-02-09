@@ -42,5 +42,10 @@
 - [x] 다중 삭제 기능
 - [x] 정렬 옵션 추가 (폴더 우선 + 이름/수정일/크기 정렬)
 - [x] 드래그 앤 드롭 파일 이동 (Google Drive 스타일)
+- [x] **Zustand 전역 상태 관리 도입** (완료)
+  - [x] Phase 1: Theme Store (localStorage persist)
+  - [x] Phase 2: Context Menu Store (ContextMenuContext 제거)
+  - [x] Phase 3: Space Store (Props drilling 제거, CRUD actions)
+  - [x] Phase 4: Browse Store (파일 탐색 경로, 컨텐츠)
 - [ ] 검색 기능
 - [ ] 이미지/텍스트 파일 미리보기

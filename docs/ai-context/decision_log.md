@@ -711,6 +711,53 @@
   - `apps/backend/internal/browse/service.go` (import 경로 변경)
 - **결과**: 빌드 경고 제거, 정상 작동 확인.
 
+## 전역 상태 관리
+### Zustand 도입 (2026-02-09)
+- **결정**: Zustand를 전역 상태 관리 라이브러리로 도입.
+- **이유**:
+  - Props Drilling 제거: Space 데이터를 3단계로 전달하는 불편함 해소.
+  - 일관된 상태 관리: Context API와 로컬 state가 혼재된 상태를 통일.
+  - 확장성: 새로운 전역 상태 추가 시 간단한 store 생성으로 해결.
+  - 경량성: Redux보다 가볍고 간단한 API (bundle size 약 1.2KB).
+  - 성능: 선택적 구독으로 불필요한 리렌더링 방지.
+- **구조**: 기능별 독립 Store
+  - `themeStore`: 다크모드 설정, localStorage 연동 (persist middleware).
+  - `contextMenuStore`: 전역 컨텍스트 메뉴 상태 관리.
+  - `spaceStore`: Space 목록, 선택된 Space, CRUD actions.
+  - `browseStore`: 파일 탐색 경로, 컨텐츠 (예정).
+- **마이그레이션 완료**:
+  - **Phase 1 (Theme Store)**:
+    - `themeStore.ts` 생성, localStorage persist 설정.
+    - `MainLayout`에서 로컬 isDarkMode state → themeStore.
+    - useState 제거, useThemeStore 사용.
+  - **Phase 2 (Context Menu Store)**:
+    - `contextMenuStore.ts` 생성.
+    - `ContextMenu.tsx` 컴포넌트: props → store 직접 접근.
+    - `FolderTree.tsx`, `FolderContent.tsx`: `useContextMenu()` → `useContextMenuStore()`.
+    - `ContextMenuContext.tsx` 완전 제거.
+    - `MainLayout`에서 `ContextMenuProvider` 제거, `<ContextMenu />` 직접 렌더링.
+  - **Phase 3 (Space Store)**:
+    - `spaceStore.ts` 생성: `fetchSpaces`, `createSpace`, `deleteSpace` actions.
+    - `MainLayout`: `useSpaces()` → `useSpaceStore()`.
+    - `MainSider`: `spaces`, `onSpaceCreated` props 제거, store 직접 접근.
+    - `FolderTree`: `spaces` prop 제거, store 직접 접근.
+    - `DirectorySetupModal`: `useCreateSpace()` → store의 `createSpace` action.
+    - `useCreateSpace`, `useDeleteSpace` 훅 제거 (기능 store로 통합).
+  - **Phase 4 (Browse Store)** (완료):
+    - `browseStore.ts` 생성: `selectedPath`, `selectedSpace`, `content`, `isLoading`, `error` 상태 + `setPath`, `fetchDirectoryContents`, `clearContent` actions.
+    - `MainLayout`: `pathState` 로컬 state → browseStore, Outlet context 제거.
+    - `handlePathSelect`: Space가 명시되지 않으면 경로에서 자동으로 Space 탐지 (`spaces.find(s => path.startsWith(s.space_path))`).
+    - `FileExplorer`: Outlet context 제거, props 전달 제거, `<FolderContent />` 단독 렌더링.
+    - `FolderContent`: `selectedPath`, `selectedSpace`, `content` props 제거 → store 직접 접근.
+    - API 호출 후 `setContent` 중복 제거: `fetchDirectoryContents`가 이미 store 업데이트하므로 8개 위치에서 `setContent` 호출 제거.
+    - 미사용 import 제거: `Space` 타입, `useSpaceStore`, `get` 파라미터.
+- **마이그레이션 완료**: 모든 Phase (1~4) 완료, Props Drilling 완전 제거, 전역 상태 일관성 확보.
+- **수정 파일**:
+  - 생성: `stores/themeStore.ts`, `stores/contextMenuStore.ts`, `stores/spaceStore.ts`.
+  - 수정: `MainLayout/index.tsx`, `MainSider.tsx`, `ContextMenu.tsx`, `FolderTree.tsx`, `FolderContent.tsx`, `DirectorySetupModal.tsx`.
+  - 제거: `contexts/ContextMenuContext.tsx`.
+- **검증**: TypeScript 빌드 성공, 미사용 import 제거, ESLint 경고 없음.
+
 ## 성능 최적화
 ### API 중복 호출 최적화 (2026-02-09)
 - **문제**: Space 클릭 시 동일한 API가 3번 호출되어 성능 저하.

@@ -2,19 +2,14 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Table, Empty, Breadcrumb, Space as AntSpace, Modal, Input, message, Button, Card, Row, Col, Select } from 'antd';
 import type { MenuProps } from 'antd';
-import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { useContextMenuStore } from '@/stores/contextMenuStore';
+import { useBrowseStore } from '@/stores/browseStore';
 import { FolderFilled, FolderOutlined, FileOutlined, DownloadOutlined, DeleteOutlined, EditOutlined, InboxOutlined, UnorderedListOutlined, AppstoreOutlined, UploadOutlined, CopyOutlined, ScissorOutlined } from '@ant-design/icons';
-import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode } from '../types';
 import type { ColumnsType } from 'antd/es/table';
-import type { Space } from '@/features/space/types';
 import DestinationPickerModal from './DestinationPickerModal';
 
-interface FolderContentProps {
-  selectedPath: string;
-  selectedSpace?: Space;
-  onPathChange: (path: string) => void;
-}
+interface FolderContentProps {}
 
 const formatSize = (bytes: number) => {
   if (bytes === 0) return '0 B';
@@ -30,11 +25,18 @@ const formatDate = (dateString: string) => {
   return date.toLocaleString();
 };
 
-const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpace, onPathChange }) => {
-  const [content, setContent] = useState<FileNode[]>([]);
-  const { isLoading, fetchDirectoryContents } = useBrowseApi();
+const FolderContent: React.FC<FolderContentProps> = () => {
+  const selectedPath = useBrowseStore((state) => state.selectedPath);
+  const selectedSpace = useBrowseStore((state) => state.selectedSpace);
+  const content = useBrowseStore((state) => state.content);
+  const isLoading = useBrowseStore((state) => state.isLoading);
+  const fetchDirectoryContents = useBrowseStore((state) => state.fetchDirectoryContents);
+  const setPath = useBrowseStore((state) => state.setPath);
+
+  console.log('[FolderContent] Render - selectedPath:', selectedPath);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { openContextMenu } = useContextMenu();
+  const openContextMenu = useContextMenuStore((state) => state.openContextMenu);
 
   // 뷰 모드 상태 (테이블/그리드)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
@@ -76,18 +78,15 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
   }>({ visible: false, mode: 'move' });
 
   useEffect(() => {
+    console.log('[FolderContent] useEffect triggered - selectedPath:', selectedPath);
     if (selectedPath) {
-      const loadContent = async () => {
-        const contents = await fetchDirectoryContents(selectedPath);
-        setContent(contents);
-      };
-      loadContent();
+      console.log('[FolderContent] Fetching contents for:', selectedPath);
+      fetchDirectoryContents(selectedPath);
     }
     // 경로 변경 시 선택 해제
     setSelectedItems(new Set());
     setLastSelectedIndex(-1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPath]);
+  }, [selectedPath, fetchDirectoryContents]);
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useMemo(() => {
@@ -144,8 +143,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       setRenameModal({ visible: false, newName: '' });
 
       // 목록 새로고침
-      const contents = await fetchDirectoryContents(selectedPath);
-      setContent(contents);
+      await fetchDirectoryContents(selectedPath);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '이름 변경 실패');
     }
@@ -177,8 +175,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       setCreateFolderModal({ visible: false, folderName: '' });
 
       // 디렉토리 목록 새로고침
-      const contents = await fetchDirectoryContents(selectedPath);
-      setContent(contents);
+      await fetchDirectoryContents(selectedPath);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '폴더 생성 실패');
     }
@@ -256,8 +253,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           setLastSelectedIndex(-1);
 
           // 목록 새로고침
-          const contents = await fetchDirectoryContents(selectedPath);
-          setContent(contents);
+          await fetchDirectoryContents(selectedPath);
         } catch (error) {
           message.error(error instanceof Error ? error.message : '삭제 실패');
         }
@@ -299,8 +295,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       setDestinationModal({ visible: false, mode: 'move' });
 
       // 목록 새로고침
-      const contents = await fetchDirectoryContents(selectedPath);
-      setContent(contents);
+      await fetchDirectoryContents(selectedPath);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '이동 실패');
     }
@@ -340,8 +335,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       setDestinationModal({ visible: false, mode: 'copy' });
 
       // 목록 새로고침
-      const contents = await fetchDirectoryContents(selectedPath);
-      setContent(contents);
+      await fetchDirectoryContents(selectedPath);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '복사 실패');
     }
@@ -371,8 +365,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           message.success('삭제되었습니다');
 
           // 목록 새로고침
-          const contents = await fetchDirectoryContents(selectedPath);
-          setContent(contents);
+          await fetchDirectoryContents(selectedPath);
         } catch (error) {
           message.error(error instanceof Error ? error.message : '삭제 실패');
         }
@@ -403,8 +396,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     message.success(`"${result.filename}" 업로드 완료`);
 
     // 목록 새로고침
-    const contents = await fetchDirectoryContents(selectedPath);
-    setContent(contents);
+    await fetchDirectoryContents(selectedPath);
   };
 
   // 파일 업로드 처리 (중복 확인 포함)
@@ -647,7 +639,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
 
       const items: Array<{title: React.ReactNode; key: string}> = [
         {
-          title: <a onClick={() => onPathChange(selectedSpace.space_path)}>{selectedSpace.space_name}</a>,
+          title: <a onClick={() => setPath(selectedSpace.space_path)}>{selectedSpace.space_name}</a>,
           key: selectedSpace.space_path
         }
       ];
@@ -655,7 +647,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
       segments.forEach((curr, idx) => {
         const path = selectedSpace.space_path + '/' + segments.slice(0, idx + 1).join('/');
         items.push({
-          title: <a onClick={() => onPathChange(path)}>{curr}</a>,
+          title: <a onClick={() => setPath(path)}>{curr}</a>,
           key: path
         });
       });
@@ -667,11 +659,11 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
     return selectedPath.split('/').filter(Boolean).reduce((acc: Array<{title: React.ReactNode; key: string}>, curr, idx, array) => {
       const path = '/' + array.slice(0, idx + 1).join('/');
       acc.push({
-        title: <a onClick={() => onPathChange(path)}>{curr}</a>,
+        title: <a onClick={() => setPath(path)}>{curr}</a>,
         key: path
       });
       return acc;
-    }, [{ title: <a onClick={() => onPathChange('/')}>Root</a>, key: '/' }]);
+    }, [{ title: <a onClick={() => setPath('/')}>Root</a>, key: '/' }]);
   })();
 
   const columns: ColumnsType<FileNode> = [
@@ -683,7 +675,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
         <AntSpace>
           {record.isDir ? <FolderFilled style={{ color: '#ffca28' }} /> : <FileOutlined />}
           {record.isDir ? (
-            <a onClick={() => onPathChange(record.path)}>{text}</a>
+            <a onClick={() => setPath(record.path)}>{text}</a>
           ) : (
             <span>{text}</span>
           )}
@@ -1049,7 +1041,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
           }}
           onRow={(record: FileNode, index?: number) => ({
             onClick: (e: React.MouseEvent<HTMLElement>) => handleItemClick(e, record, index ?? 0),
-            onDoubleClick: () => record.isDir && onPathChange(record.path),
+            onDoubleClick: () => record.isDir && setPath(record.path),
             onContextMenu: (e: React.MouseEvent<HTMLElement>) => handleContextMenu(e, record),
             draggable: true,
             onDragStart: (e: React.DragEvent<HTMLElement>) => handleItemDragStart(e, record),
@@ -1079,7 +1071,7 @@ const FolderContent: React.FC<FolderContentProps> = ({ selectedPath, selectedSpa
                   hoverable
                   draggable
                   onClick={(e) => handleItemClick(e, item, index)}
-                  onDoubleClick={() => item.isDir && onPathChange(item.path)}
+                  onDoubleClick={() => item.isDir && setPath(item.path)}
                   onContextMenu={(e) => handleContextMenu(e, item)}
                   onDragStart={(e) => handleItemDragStart(e, item)}
                   onDragEnd={(e) => handleItemDragEnd(e)}

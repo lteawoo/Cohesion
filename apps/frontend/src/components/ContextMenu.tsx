@@ -1,22 +1,16 @@
 import React, { useEffect, useCallback } from 'react';
 import { Dropdown } from 'antd';
-import type { MenuProps } from 'antd';
+import { useContextMenuStore } from '@/stores/contextMenuStore';
 
-interface ContextMenuProps {
-  open: boolean;
-  x: number;
-  y: number;
-  items: MenuProps['items'];
-  onClose: () => void;
-}
+const ContextMenu: React.FC = () => {
+  const { visible, x, y, items, closeContextMenu } = useContextMenuStore();
 
-const ContextMenu: React.FC<ContextMenuProps> = ({ open, x, y, items, onClose }) => {
   const handleClose = useCallback(() => {
-    onClose();
-  }, [onClose]);
+    closeContextMenu();
+  }, [closeContextMenu]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!visible) return;
 
     const handleClick = () => handleClose();
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -29,13 +23,13 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ open, x, y, items, onClose })
       document.removeEventListener('click', handleClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open, handleClose]);
+  }, [visible, handleClose]);
 
   return (
     <Dropdown
       key={`${x}-${y}`}
       menu={{ items }}
-      open={open}
+      open={visible}
       trigger={[]}
       getPopupContainer={() => document.body}
     >

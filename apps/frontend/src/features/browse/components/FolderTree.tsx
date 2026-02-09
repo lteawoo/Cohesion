@@ -2,7 +2,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Tree, Spin } from 'antd';
 import type { GetProps, MenuProps } from 'antd';
-import { useContextMenu } from '@/contexts/ContextMenuContext';
+import { useContextMenuStore } from '@/stores/contextMenuStore';
+import { useSpaceStore } from '@/stores/spaceStore';
 import { FolderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
@@ -28,17 +29,17 @@ interface FolderTreeProps {
   rootPath?: string;
   rootName?: string;
   showBaseDirectories?: boolean;
-  spaces?: Space[];
   onSpaceDelete?: (space: Space) => void;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, spaces, onSpaceDelete }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, onSpaceDelete }) => {
+  const spaces = useSpaceStore((state) => state.spaces);
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const loadingKeysRef = useRef<Set<React.Key>>(new Set());
   const { isLoading, fetchBaseDirectories, fetchDirectoryContents } = useBrowseApi();
-  const { openContextMenu } = useContextMenu();
+  const openContextMenu = useContextMenuStore((state) => state.openContextMenu);
 
   // 초기 트리 데이터를 로드합니다.
   useEffect(() => {
@@ -162,13 +163,15 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
       if (key.startsWith('space-')) {
         const sepIndex = key.indexOf('::');
+        const spacePrefix = sepIndex >= 0 ? key.substring(0, sepIndex) : key;
+        const spaceId = parseInt(spacePrefix.replace('space-', ''));
+        const space = spaces?.find(s => s.id === spaceId);
+
         if (sepIndex >= 0) {
-          // Space 하위 노드 선택 — 실제 경로 추출
-          onSelect(key.substring(sepIndex + 2));
+          // Space 하위 노드 선택 — 실제 경로와 space 정보 전달
+          onSelect(key.substring(sepIndex + 2), space);
         } else {
           // Space 루트 노드 선택
-          const spaceId = parseInt(key.replace('space-', ''));
-          const space = spaces?.find(s => s.id === spaceId);
           if (space) {
             onSelect(space.space_path, space);
           }

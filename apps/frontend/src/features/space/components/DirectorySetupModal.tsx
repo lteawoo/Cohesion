@@ -1,23 +1,22 @@
 import { Modal, Input, message } from "antd";
 import FolderTree from "../../browse/components/FolderTree";
 import { useState } from "react";
-import { useCreateSpace } from "../hooks/useCreateSpace";
+import { useSpaceStore } from "@/stores/spaceStore";
 
 const { TextArea } = Input;
 
 export default function DirectorySetupModal({
   isOpen,
-  onClose,
-  onSuccess
+  onClose
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
 }) {
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [spaceName, setSpaceName] = useState<string>('');
   const [spaceDesc, setSpaceDesc] = useState<string>('');
-  const { createSpace, isLoading } = useCreateSpace();
+  const createSpace = useSpaceStore((state) => state.createSpace);
+  const isLoading = useSpaceStore((state) => state.isLoading);
 
   const handleClose = () => {
     setSelectedPath('');
@@ -49,17 +48,9 @@ export default function DirectorySetupModal({
     }
 
     try {
-      const response = await createSpace({
-        space_name: spaceName.trim(),
-        space_desc: spaceDesc.trim() || undefined,
-        space_path: selectedPath,
-      });
-
-      if (response) {
-        message.success(response.message || 'Space가 성공적으로 생성되었습니다.');
-        handleClose();
-        onSuccess?.();
-      }
+      await createSpace(spaceName.trim(), selectedPath);
+      message.success('Space가 성공적으로 생성되었습니다.');
+      handleClose();
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Space 생성에 실패했습니다.');
     }

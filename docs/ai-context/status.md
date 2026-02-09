@@ -374,7 +374,15 @@
     - 남은 이슈: 2번 호출 여전히 발생 (추가 조사 필요).
     - 수정 파일: `main.tsx`, `MainLayout/index.tsx`.
 
+- **Zustand 전역 상태 관리 도입** (2026-02-09, 진행 중):
+    - **Phase 1 완료**: Theme Store (다크모드 설정, localStorage 연동).
+    - **Phase 2 완료**: Context Menu Store (ContextMenuContext 완전 대체).
+    - **Phase 3 완료**: Space Store (Props drilling 제거, CRUD actions 통합).
+    - **Phase 4 남음**: Browse Store (파일 탐색 경로, 컨텐츠 상태 통합).
+    - Props Drilling 대폭 감소, 코드 일관성 향상, 확장성 개선.
+
 ## 다음 작업 (Next Steps)
+- **Zustand 마이그레이션 완료** (Phase 4: Browse Store).
 - 드래그 영역 선택 (Box Selection) 기능 구현.
 - 검색 기능 검토.
 - 이미지/텍스트 파일 미리보기 기능 검토.

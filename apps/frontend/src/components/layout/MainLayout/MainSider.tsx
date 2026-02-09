@@ -4,20 +4,19 @@ import { PlusOutlined } from "@ant-design/icons";
 import { Button, Layout, theme, Modal, message } from "antd";
 import type { Space } from "@/features/space/types";
 import { useState } from "react";
-import { useDeleteSpace } from "@/features/space/hooks/useDeleteSpace";
+import { useSpaceStore } from "@/stores/spaceStore";
 
 const { Sider } = Layout;
 
 interface MainSiderProps {
-  spaces: Space[];
-  onSpaceCreated?: () => void;
   onPathSelect?: (path: string, space?: Space) => void;
 }
 
-export default function MainSider({ spaces, onSpaceCreated, onPathSelect }: MainSiderProps) {
+export default function MainSider({ onPathSelect }: MainSiderProps) {
   const { token } = theme.useToken();
   const [isOpen, setIsOpen] = useState(false);
-  const { deleteSpace, isLoading: isDeleting } = useDeleteSpace();
+  const deleteSpaceAction = useSpaceStore((state) => state.deleteSpace);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDeleteSpace = (space: Space) => {
     Modal.confirm({
@@ -28,11 +27,13 @@ export default function MainSider({ spaces, onSpaceCreated, onPathSelect }: Main
       okButtonProps: { danger: true, loading: isDeleting },
       onOk: async () => {
         try {
-          await deleteSpace(space.id);
+          setIsDeleting(true);
+          await deleteSpaceAction(space.id);
           message.success('Space가 삭제되었습니다.');
-          onSpaceCreated?.(); // 트리 갱신
         } catch (error) {
           message.error(`Space 삭제 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+        } finally {
+          setIsDeleting(false);
         }
       },
     });
@@ -49,7 +50,6 @@ export default function MainSider({ spaces, onSpaceCreated, onPathSelect }: Main
       <DirectorySetupModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        onSuccess={onSpaceCreated}
       />
       <div style={{
         padding: '16px',
@@ -69,7 +69,6 @@ export default function MainSider({ spaces, onSpaceCreated, onPathSelect }: Main
       <div style={{ padding: '8px' }}>
         <FolderTree
           onSelect={onPathSelect || (() => {})}
-          spaces={spaces}
           onSpaceDelete={handleDeleteSpace}
         />
       </div>
