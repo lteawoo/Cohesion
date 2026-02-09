@@ -710,3 +710,26 @@
   - `apps/backend/go.mod`, `apps/backend/go.sum` (의존성 업데이트)
   - `apps/backend/internal/browse/service.go` (import 경로 변경)
 - **결과**: 빌드 경고 제거, 정상 작동 확인.
+
+## 에러 핸들링
+### Space ID 검증 개선 (2026-02-09)
+- **문제**: `/api/spaces/` (끝에 슬래시만 있는 경우) 요청 시 에러 발생.
+  - `strings.TrimPrefix`로 ID 추출 시 빈 문자열 반환.
+  - `strconv.ParseInt("")` 실행으로 파싱 에러 발생.
+  - 에러 메시지: `"strconv.ParseInt: parsing \"\": invalid syntax"` (사용자에게 불친절).
+- **결정**: `handleSpaceByID`에서 ID 파싱 전 빈 문자열 사전 체크 추가.
+- **이유**:
+  - 방어적 프로그래밍: 예상 가능한 잘못된 입력에 대한 명확한 처리.
+  - 사용자 경험: 기술적인 에러 대신 명확한 메시지 제공.
+  - 디버깅 용이성: 로그에서 문제 원인을 빠르게 파악 가능.
+- **구현**:
+  - `idStr == ""` 체크 추가.
+  - 빈 ID: `400 Bad Request`, 메시지: `"Space ID is required"`.
+  - 잘못된 형식: `400 Bad Request`, 메시지: `"Invalid space ID format"` (기존 "Invalid space ID"에서 개선).
+- **대안 검토**:
+  - 라우팅 변경 (`/api/spaces/` 경로 제거): 기존 API 구조 변경 불필요, 검증 추가가 더 간단.
+  - 빈 ID를 목록 조회로 리다이렉트: RESTful 원칙 위반, 혼란 야기.
+  - 에러 메시지만 개선: 근본 원인(빈 문자열 파싱 시도) 해결 못함.
+- **수정 파일**:
+  - `apps/backend/internal/space/handler/space_handler.go` (handleSpaceByID 함수)
+- **결과**: `/api/spaces/` 요청 시 명확한 에러 메시지 반환, 정상적인 요청은 영향 없음.
