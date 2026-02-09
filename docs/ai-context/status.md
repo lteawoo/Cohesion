@@ -351,6 +351,13 @@
     - 테스트: 크기 정렬 후 9개 항목 범위 선택 성공.
     - 결과: 정렬 상태와 무관하게 화면 순서대로 범위 선택 정상 작동.
 
+- **gopsutil v4 업그레이드** (2026-02-09):
+    - macOS 12.0 deprecated API 경고 제거를 위한 의존성 업그레이드.
+    - v3.21.11 → v4.26.1 업그레이드.
+    - import 경로 변경: `github.com/shirou/gopsutil/disk` → `github.com/shirou/gopsutil/v4/disk`.
+    - 빌드 경고 제거, 정상 작동 확인.
+    - 수정 파일: `go.mod`, `go.sum`, `internal/browse/service.go`.
+
 ## 다음 작업 (Next Steps)
 - 드래그 영역 선택 (Box Selection) 기능 구현.
 - 검색 기능 검토.
