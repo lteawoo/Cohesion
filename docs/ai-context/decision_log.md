@@ -630,3 +630,45 @@
 - **수정 파일**:
   - `apps/frontend/src/features/browse/components/FolderContent.tsx`
 - **결과**: 모든 정렬 옵션 정상 작동, 뷰 전환 시 정렬 유지 확인.
+
+### 드래그 앤 드롭 파일 이동 기능 (2026-02-09)
+- **결정**: Google Drive 스타일의 드래그 앤 드롭으로 파일/폴더를 다른 폴더로 이동하는 기능 구현.
+- **이유**:
+  - 직관적인 UX: 사용자가 익숙한 드래그 앤 드롭 인터페이스 제공.
+  - 작업 효율성: 우클릭 메뉴보다 빠른 파일 이동.
+  - 다중 이동 지원: 선택된 여러 파일을 한 번에 이동 가능.
+- **구현**:
+  - **드래그 소스**:
+    - 모든 Card와 Table Row에 `draggable={true}` 속성 추가.
+    - `onDragStart`: 선택되지 않은 항목 드래그 시 자동 선택, dataTransfer에 경로 목록 저장.
+    - 데이터 타입: `application/json` with `{type: 'cohesion-internal', paths: [...]}`
+  - **드롭 타겟**:
+    - 폴더에만 드롭 가능, 파일에는 불가.
+    - `onDragOver`: 폴더에 호버 시 `dragOverFolder` 상태로 시각적 피드백 (파란 테두리/배경).
+    - `onDrop`: 폴더에 드롭 시 해당 폴더로 이동, 자기 자신 이동 방지.
+    - 빈 영역 드롭: 현재 폴더에 이동 (같은 폴더면 무시).
+  - **외부 파일 업로드와 구분**:
+    - `dataTransfer.files.length > 0`: 외부 파일 업로드.
+    - `dataTransfer.getData('application/json')`: 내부 파일 이동.
+    - 외부 파일 드래그 시에만 `isDragging` 상태 활성화 (오버레이 표시).
+  - **텍스트 선택 방지**:
+    - Card와 Table Row에 `userSelect: 'none'` CSS 적용.
+    - 드래그 중 텍스트 선택 안 됨.
+  - **시각적 피드백**:
+    - 드롭 가능한 폴더: 파란 테두리 (그리드: 2px dashed, 테이블: 배경색).
+    - 선택된 항목: 파란 테두리 + 배경색.
+- **제약사항**:
+  - 자기 자신으로 이동 방지 (message.warning 표시).
+  - Space 외부 이동 방지 (기존 move API 검증 활용).
+  - 부모 폴더를 자식 폴더로 이동 방지 (백엔드 검증).
+- **기존 기능과의 호환성**:
+  - 기존 우클릭 메뉴 이동/복사 기능 유지.
+  - 외부 파일 업로드 드래그 앤 드롭 정상 작동.
+  - 다중 선택 기능과 완벽 통합.
+- **대안 검토**:
+  - 우클릭만 사용: 작업 효율성 떨어짐, Google Drive 등 경쟁 제품 대비 UX 열등.
+  - 별도 버튼으로 이동: 단계가 많아 불편함.
+  - 드래그 앤 드롭: 가장 직관적이고 효율적.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+- **결과**: 단일/다중 파일 드래그 이동 성공, 외부 파일 업로드와 충돌 없음, 텍스트 선택 방지 확인.
