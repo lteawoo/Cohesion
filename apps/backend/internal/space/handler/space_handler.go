@@ -111,6 +111,11 @@ func (h *Handler) handleCreateSpace(w http.ResponseWriter, r *http.Request) *web
 
 // handleSpaceByID는 /api/spaces/{id} 요청을 처리합니다
 func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.Error {
+	// /api/spaces (슬래시 없음) 요청은 handleSpaces로 리다이렉트
+	if r.URL.Path == "/api/spaces" {
+		return h.handleSpaces(w, r)
+	}
+
 	// URL에서 ID 추출: /api/spaces/123 -> 123
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/spaces/")
 
