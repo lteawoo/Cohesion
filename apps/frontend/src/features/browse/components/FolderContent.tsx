@@ -233,7 +233,11 @@ const FolderContent: React.FC = () => {
     const target = e.target as HTMLElement;
     const isCard = target.closest('.ant-card');
     const isTableRow = target.closest('tr');
-    if (!isCard && !isTableRow) {
+    const isButton = target.closest('button');
+    const isInput = target.closest('input');
+
+    // 카드, 테이블 행, 버튼, 입력 필드가 아닌 빈 영역만 선택 해제
+    if (!isCard && !isTableRow && !isButton && !isInput) {
       clearSelection();
     }
   };

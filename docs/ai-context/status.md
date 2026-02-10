@@ -395,6 +395,10 @@
         - 원인: `mouseup` → `click` 이벤트 순서로 `handleContainerClick`이 선택 해제.
         - 해결: `wasRecentlySelecting` 플래그 추가하여 박스 선택 직후 click 이벤트 무시.
         - `handleMouseUp`에서 선택 확정 후 플래그 설정, 다음 이벤트 루프에서 해제.
+    - 문제 5: 복사/이동 버튼 클릭 시 모달 열리면서 선택 해제됨.
+        - 원인: 버튼 클릭 이벤트가 버블링되어 `handleContainerClick`까지 도달.
+        - `handleContainerClick`이 버튼 클릭을 빈 영역 클릭으로 인식하여 선택 해제.
+        - 해결: `closest('button')`, `closest('input')` 체크 추가하여 버튼/입력 필드 클릭 시 선택 유지.
     - 수정 파일:
         - `apps/frontend/src/features/browse/hooks/useBoxSelection.ts`
         - `apps/frontend/src/features/browse/components/FolderContent.tsx`

@@ -910,3 +910,30 @@
   - `apps/frontend/src/features/browse/hooks/useFileOperations.ts`
   - `apps/frontend/src/features/browse/constants.tsx`
 - **테스트 결과**: 사용자 테스트 완료, 박스 선택 후 선택 상태 정상 유지.
+
+### 모달 열 때 선택 해제 버그 수정 (2026-02-10)
+- **문제**: 복사/이동 버튼 클릭 시 모달이 열리면서 선택이 해제됨.
+- **원인**:
+  - 버튼 클릭 → 이벤트 버블링 → `handleContainerClick` 실행.
+  - `handleContainerClick`의 체크 로직:
+    - 카드(`.ant-card`) 또는 테이블 행(`tr`)만 체크.
+    - 버튼 클릭은 빈 영역 클릭으로 인식 → `clearSelection()` 호출.
+- **결정**: 버튼과 입력 필드 클릭도 선택 유지하도록 수정.
+- **이유**:
+  - 사용자가 의도적으로 버튼을 클릭하는 것은 작업 수행이지 선택 해제 의도가 아님.
+  - 모달 열기, 삭제 확인 등 모든 버튼 동작 시 선택 유지 필요.
+  - 입력 필드도 마찬가지로 작업 중이므로 선택 유지.
+- **구현**:
+  ```typescript
+  const isButton = target.closest('button');
+  const isInput = target.closest('input');
+  if (!isCard && !isTableRow && !isButton && !isInput) {
+    clearSelection();
+  }
+  ```
+- **대안 검토**:
+  - `e.stopPropagation()` 사용: 모든 버튼에 추가 필요, 유지보수 어려움.
+  - 선택 바에만 체크 추가: 다른 버튼(컨텍스트 메뉴 등)에서도 문제 발생 가능.
+  - 포괄적인 `button`, `input` 체크: 가장 간단하고 확실 (채택).
+- **수정 파일**: `apps/frontend/src/features/browse/components/FolderContent.tsx`
+- **테스트 결과**: 복사/이동 버튼 클릭 시 선택 유지, 모달 정상 작동.
