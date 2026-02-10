@@ -1,5 +1,5 @@
 import { Card, Switch, Select, Typography, Space, Row, Col } from 'antd';
-import { useSettingsStore } from '@/stores/settingsStore';
+import { useSettingsStore, type SortBy, type SortOrder } from '@/stores/settingsStore';
 
 const { Title, Text } = Typography;
 
@@ -37,7 +37,7 @@ const FileSettings = () => {
                   size="small"
                   style={{ width: '100%' }}
                   value={defaultSortBy}
-                  onChange={(value) => setDefaultSort(value, defaultSortOrder)}
+                  onChange={(value: string) => setDefaultSort(value as SortBy, defaultSortOrder)}
                   options={[
                     { value: 'name', label: '이름' },
                     { value: 'modTime', label: '수정일' },
@@ -50,7 +50,7 @@ const FileSettings = () => {
                   size="small"
                   style={{ width: '100%' }}
                   value={defaultSortOrder}
-                  onChange={(value) => setDefaultSort(defaultSortBy, value)}
+                  onChange={(value: string) => setDefaultSort(defaultSortBy, value as SortOrder)}
                   options={[
                     { value: 'ascend', label: '오름차순' },
                     { value: 'descend', label: '내림차순' },

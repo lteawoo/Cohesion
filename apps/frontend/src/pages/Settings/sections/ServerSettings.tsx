@@ -215,7 +215,7 @@ const ServerSettings = () => {
             <Text strong>활성화</Text>
             <Switch
               checked={server.httpEnabled}
-              onChange={(checked) => updateServerConfig('httpEnabled', checked)}
+              onChange={(checked: boolean) => updateServerConfig('httpEnabled', checked)}
             />
           </div>
 
@@ -229,7 +229,7 @@ const ServerSettings = () => {
                   min={1}
                   max={65535}
                   value={parseInt(server.port)}
-                  onChange={(value) => value && updateServerConfig('port', value.toString())}
+                  onChange={(value: number | null) => value && updateServerConfig('port', value.toString())}
                   style={{ width: 100 }}
                 />
               </div>
@@ -244,7 +244,7 @@ const ServerSettings = () => {
             <Text strong>활성화</Text>
             <Switch
               checked={server.webdavEnabled}
-              onChange={(checked) => updateServerConfig('webdavEnabled', checked)}
+              onChange={(checked: boolean) => updateServerConfig('webdavEnabled', checked)}
               disabled={!server.httpEnabled}
             />
           </div>
@@ -275,7 +275,7 @@ const ServerSettings = () => {
             </div>
             <Switch
               checked={server.ftpEnabled}
-              onChange={(checked) => updateServerConfig('ftpEnabled', checked)}
+              onChange={(checked: boolean) => updateServerConfig('ftpEnabled', checked)}
             />
           </div>
 
@@ -289,7 +289,7 @@ const ServerSettings = () => {
                   min={1}
                   max={65535}
                   value={server.ftpPort}
-                  onChange={(value) => value && updateServerConfig('ftpPort', value)}
+                  onChange={(value: number | null) => value && updateServerConfig('ftpPort', value)}
                   style={{ width: 100 }}
                 />
               </div>
@@ -309,7 +309,7 @@ const ServerSettings = () => {
             </div>
             <Switch
               checked={server.sftpEnabled}
-              onChange={(checked) => updateServerConfig('sftpEnabled', checked)}
+              onChange={(checked: boolean) => updateServerConfig('sftpEnabled', checked)}
             />
           </div>
 
@@ -323,7 +323,7 @@ const ServerSettings = () => {
                   min={1}
                   max={65535}
                   value={server.sftpPort}
-                  onChange={(value) => value && updateServerConfig('sftpPort', value)}
+                  onChange={(value: number | null) => value && updateServerConfig('sftpPort', value)}
                   style={{ width: 100 }}
                 />
               </div>

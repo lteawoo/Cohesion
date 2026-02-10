@@ -428,6 +428,20 @@
         - `apps/frontend/src/features/browse/hooks/useSortedContent.ts` (신규)
         - `apps/frontend/src/features/browse/components/FolderContent.tsx`
 
+- **Settings 페이지 TypeScript 타입 오류 수정 완료** (2026-02-11):
+    - 문제: Implicit any 타입 오류 10개 발생 (Settings 관련 컴포넌트).
+    - 해결:
+        - 이벤트 핸들러 파라미터에 명시적 타입 추가.
+        - Menu onClick: `{ key: string }`.
+        - Select onChange: `string` → `SortBy`, `SortOrder` 타입 캐스팅.
+        - Switch onChange: `boolean`.
+        - InputNumber onChange: `number | null`.
+    - 수정 파일:
+        - `apps/frontend/src/pages/Settings/index.tsx` (Menu onClick 타입 추가)
+        - `apps/frontend/src/pages/Settings/sections/FileSettings.tsx` (Select 타입 추가 및 캐스팅)
+        - `apps/frontend/src/pages/Settings/sections/ServerSettings.tsx` (Switch, InputNumber 타입 추가)
+    - 결과: Lint 및 TypeScript 체크 통과 (0 errors).
+
 ## 다음 작업 (Next Steps)
 - **FolderContent.tsx 리팩토링** (Phase 4: 검증 및 테스트).
 - 검색 기능 구현.

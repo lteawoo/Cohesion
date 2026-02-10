@@ -103,7 +103,7 @@ const SettingsPage = () => {
             mode="inline"
             selectedKeys={[selectedSection]}
             items={menuItems}
-            onClick={({ key }) => setSelectedSection(key as SettingsSection)}
+            onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
             style={{ height: '100%', borderRight: 0 }}
           />
         </Sider>
