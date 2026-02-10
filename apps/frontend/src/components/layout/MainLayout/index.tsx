@@ -1,10 +1,11 @@
-import { ConfigProvider, Layout, Switch, theme } from "antd";
-import { Outlet } from "react-router";
+import { ConfigProvider, Layout, Switch, Button, theme } from "antd";
+import { Outlet, useNavigate } from "react-router";
+import { SettingOutlined } from "@ant-design/icons";
 import MainSider from "./MainSider";
 import ServerStatus from "./ServerStatus";
 import { useCallback, useEffect } from "react";
 import type { Space } from "@/features/space/types";
-import { useThemeStore } from "@/stores/themeStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useSpaceStore } from "@/stores/spaceStore";
 import { useBrowseStore } from "@/stores/browseStore";
 import ContextMenu from "@/components/ContextMenu";
@@ -13,6 +14,7 @@ const { Header, Content } = Layout;
 
 const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThemeChange: (checked: boolean) => void }) => {
   const { token } = theme.useToken();
+  const navigate = useNavigate();
   const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
   const spaces = useSpaceStore((state) => state.spaces);
   const setPath = useBrowseStore((state) => state.setPath);
@@ -52,7 +54,16 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
             <div style={{ color: token.colorText, fontSize: '20px' }}>Cohesion</div>
             <ServerStatus />
         </div>
-        <Switch checked={isDarkMode} onChange={onThemeChange} checkedChildren="Dark" unCheckedChildren="Light" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Button
+            type="text"
+            icon={<SettingOutlined />}
+            onClick={() => navigate('/settings')}
+          >
+            설정
+          </Button>
+          <Switch checked={isDarkMode} onChange={onThemeChange} checkedChildren="Dark" unCheckedChildren="Light" />
+        </div>
       </Header>
       <Layout>
           <MainSider
@@ -70,11 +81,13 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
 }
 
 export default function MainLayout() {
-    const isDarkMode = useThemeStore((state) => state.isDarkMode);
-    const setTheme = useThemeStore((state) => state.setTheme);
+    const currentTheme = useSettingsStore((state) => state.theme);
+    const setTheme = useSettingsStore((state) => state.setTheme);
+
+    const isDarkMode = currentTheme === 'dark';
 
     const handleThemeChange = (checked: boolean) => {
-        setTheme(checked);
+        setTheme(checked ? 'dark' : 'light');
     };
 
     const currentAlgorithm = isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm;
