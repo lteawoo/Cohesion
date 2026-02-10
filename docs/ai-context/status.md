@@ -418,7 +418,17 @@
         - `apps/frontend/src/features/browse/hooks/useModalManager.ts` (신규)
         - `apps/frontend/src/features/browse/components/FolderContent.tsx`
 
+- **FolderContent.tsx 리팩토링 Phase 3 완료** (2026-02-10):
+    - `useSortedContent` 훅 생성하여 정렬 로직 분리.
+    - 폴더 우선 + sortConfig 기반 정렬 로직을 재사용 가능한 훅으로 추출.
+    - 라인 수: 366줄 → 341줄 (-25줄, 6.8% 감소).
+    - **전체 리팩토링 효과**: 1,194줄 → 341줄 (**71.4% 감소**).
+    - 정렬 로직 재사용 가능, 테스트 용이성 향상.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/hooks/useSortedContent.ts` (신규)
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+
 ## 다음 작업 (Next Steps)
-- **FolderContent.tsx 리팩토링** (Phase 3~4 진행).
+- **FolderContent.tsx 리팩토링** (Phase 4: 검증 및 테스트).
 - 검색 기능 구현.
 - 이미지/텍스트 파일 미리보기 기능 구현.

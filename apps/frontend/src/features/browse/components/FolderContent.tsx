@@ -10,6 +10,7 @@ import { useDragAndDrop } from '../hooks/useDragAndDrop';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useBoxSelection } from '../hooks/useBoxSelection';
 import { useModalManager } from '../hooks/useModalManager';
+import { useSortedContent } from '../hooks/useSortedContent';
 import DestinationPickerModal from './DestinationPickerModal';
 import FolderContentToolbar from './FolderContent/FolderContentToolbar';
 import FolderContentSelectionBar from './FolderContent/FolderContentSelectionBar';
@@ -113,33 +114,7 @@ const FolderContent: React.FC = () => {
   }, [selectedPath, clearSelection]);
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
-  const sortedContent = useMemo(() => {
-    if (!Array.isArray(content)) {
-      return [];
-    }
-
-    const sorted = [...content].sort((a, b) => {
-      // 1. 폴더 우선 정렬
-      if (a.isDir !== b.isDir) {
-        return a.isDir ? -1 : 1;
-      }
-
-      // 2. sortBy에 따른 정렬
-      let result = 0;
-      if (sortConfig.sortBy === 'name') {
-        result = a.name.localeCompare(b.name);
-      } else if (sortConfig.sortBy === 'modTime') {
-        result = new Date(a.modTime).getTime() - new Date(b.modTime).getTime();
-      } else if (sortConfig.sortBy === 'size') {
-        result = a.size - b.size;
-      }
-
-      // 3. sortOrder 적용
-      return sortConfig.sortOrder === 'ascend' ? result : -result;
-    });
-
-    return sorted;
-  }, [content, sortConfig]);
+  const sortedContent = useSortedContent(content, sortConfig);
 
   // Columns for table view
   const columns = useMemo(() => buildTableColumns(setPath), [setPath]);

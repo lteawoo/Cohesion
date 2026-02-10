@@ -50,7 +50,7 @@
 - [ ] **FolderContent.tsx 리팩토링** (진행 중)
   - [x] Phase 1: constants.ts, types.ts, hooks 생성
   - [x] Phase 2: Modal 상태 관리 통합 (useModalManager)
-  - [ ] Phase 3: 메인 컴포넌트 추가 개선
+  - [x] Phase 3: 정렬 로직 분리 (useSortedContent)
   - [ ] Phase 4: 검증 및 테스트
 - [x] 박스 선택 버그 수정 (익스플로러 바깥 동작, 다중선택 안 됨)
 - [x] 박스 선택 기능 사용자 테스트 및 검증
