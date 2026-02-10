@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Tree, Spin } from 'antd';
 import type { GetProps, MenuProps } from 'antd';
+import type { EventDataNode } from 'antd/es/tree';
 import { useContextMenuStore } from '@/stores/contextMenuStore';
 import { useSpaceStore } from '@/stores/spaceStore';
 import { FolderOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -183,7 +184,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   };
 
   // 우클릭 핸들러
-  const handleRightClick: DirectoryTreeProps['onRightClick'] = ({ event, node }: { event: React.MouseEvent; node: any }) => {
+  const handleRightClick: DirectoryTreeProps['onRightClick'] = ({ event, node }: { event: React.MouseEvent; node: EventDataNode<TreeDataNode> }) => {
     if (!onSpaceDelete) return;
 
     const key = node.key as string;

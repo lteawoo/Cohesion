@@ -55,7 +55,7 @@ export function useDragAndDrop({
   );
 
   // 아이템 드래그 종료 핸들러
-  const handleItemDragEnd = useCallback((_e: React.DragEvent) => {
+  const handleItemDragEnd = useCallback(() => {
     setDragOverFolder(null);
   }, []);
 
@@ -175,7 +175,7 @@ export function useDragAndDrop({
             }
           }
         }
-      } catch (error) {
+      } catch {
         // JSON 파싱 실패 시 무시
       }
     },

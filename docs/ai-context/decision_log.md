@@ -832,3 +832,81 @@
   - `/api/spaces`: 200 OK (Space 목록)
   - `/api/spaces/`: 400 Bad Request ("Space ID is required")
   - `/api/spaces/abc`: 400 Bad Request ("Invalid space ID format")
+
+### 박스 선택 버그 수정 (2026-02-10)
+- **문제 1**: 익스플로러 바깥에서도 드래그 시 박스 선택이 동작.
+- **문제 2**: 드래그해도 파일/폴더가 다중선택되지 않음.
+- **원인 분석**:
+  - `useBoxSelection` 훅에서 이벤트 리스너를 `window` 전역에 등록.
+  - 페이지 어디서나 드래그가 시작되어 컨테이너 범위 제한 없음.
+  - `containerRef`를 의존성 배열에 포함하여 핸들러가 오래된 ref 참조.
+  - ref.current가 null일 때 핸들러가 생성되면 이후에도 계속 null 참조.
+- **결정**: 이벤트 리스너는 window에 유지하되, handleMouseDown에서 컨테이너 범위 체크.
+- **이유**:
+  - 컨테이너에 직접 이벤트 등록 시 ref lifecycle 문제 발생.
+  - window에 등록하면 드래그가 컨테이너 밖으로 나가도 계속 추적 가능.
+  - handleMouseDown에서 범위 체크하면 시작만 컨테이너 내부로 제한.
+- **구현**:
+  - `useBoxSelection` 훅 수정:
+    - `UseBoxSelectionParams`에 `containerRef: RefObject<HTMLElement>` 추가.
+    - `handleMouseDown`에서 `containerRef.current.getBoundingClientRect()` 로 범위 체크.
+    - 컨테이너 외부 클릭 시 early return.
+    - 카드(`ant-card`) 또는 테이블 행(`tr`) 클릭 시에도 early return.
+    - 의존성 배열에서 `containerRef` 제거 (ref는 변경되지 않으므로 불필요).
+  - `FolderContent.tsx` 수정:
+    - `gridContainerRef = useRef<HTMLDivElement>(null)` 생성.
+    - Grid를 감싸는 div에 `ref={gridContainerRef}` 연결.
+    - `useBoxSelection`에 `containerRef: gridContainerRef` 전달.
+- **대안 검토**:
+  - 컨테이너에 직접 이벤트 등록: ref lifecycle 복잡도 증가, useEffect 재실행 필요.
+  - callback ref 사용: 추가 복잡도, 불필요한 코드.
+  - window 등록 + 범위 체크: 간단하고 효과적 (채택).
+- **브라우저 테스트**:
+  - Chrome extension으로 테스트 시도했으나 automation 한계로 정확한 검증 어려움.
+  - 실제 사용자 마우스 테스트 필요.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/hooks/useBoxSelection.ts`
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+- **예상 결과**: 컨테이너 내부에서만 박스 선택 시작, 다중선택 정상 작동.
+
+### 박스 선택 후 선택 해제 버그 수정 (2026-02-10)
+- **문제**: 박스로 드래그한 파일들이 마우스를 놓으면 즉시 선택 해제됨.
+- **원인 분석**:
+  - 이벤트 순서: `mousedown` → `mousemove` → `mouseup` → **`click`**
+  - `handleContainerClick`이 빈 영역 클릭으로 인식하여 `clearSelection()` 호출.
+  - `useFileSelection`의 `handleContainerClick`: 카드/테이블 행이 아닌 곳 클릭 시 선택 해제.
+  - 박스 선택 직후 `click` 이벤트가 발생하여 선택이 즉시 해제됨.
+- **결정**: 박스 선택 직후 발생하는 `click` 이벤트를 무시하도록 수정.
+- **이유**:
+  - 박스 선택은 의도적인 다중 선택 동작이므로 유지되어야 함.
+  - `preventDefault()`는 기본 동작만 막고 `click` 이벤트 발생 자체를 막지 못함.
+  - 플래그 기반 접근이 가장 깔끔하고 명확함.
+- **구현**:
+  - `useBoxSelection`에 `wasRecentlySelecting` 상태 추가.
+  - `handleMouseUp`에서 선택 확정 후:
+    ```typescript
+    setWasRecentlySelecting(true);
+    setTimeout(() => setWasRecentlySelecting(false), 0);
+    ```
+  - `setTimeout(..., 0)`로 다음 이벤트 루프에서 플래그 해제 (click 이벤트보다 먼저).
+  - `FolderContent`의 `handleContainerClick`에서 플래그 확인:
+    ```typescript
+    if (wasRecentlySelecting) return;
+    ```
+- **대안 검토**:
+  - `stopPropagation()`: 다른 이벤트 핸들러에 영향, 부작용 가능.
+  - `preventDefault()`: click 이벤트 발생 자체를 막지 못함.
+  - 시간 기반 플래그: 타이밍 문제 가능성.
+  - 이벤트 루프 기반 플래그: 가장 안정적 (채택).
+- **추가 수정**:
+  - TypeScript 빌드 에러 수정:
+    - `useBoxSelection` containerRef 타입을 구조적 타이핑으로 변경.
+    - `ColumnsType` → `TableColumnsType` import 변경 (antd v5).
+    - `error.message` 타입 가드 추가.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/hooks/useBoxSelection.ts`
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+  - `apps/frontend/src/features/browse/components/FolderContent/FolderContentTable.tsx`
+  - `apps/frontend/src/features/browse/hooks/useFileOperations.ts`
+  - `apps/frontend/src/features/browse/constants.tsx`
+- **테스트 결과**: 사용자 테스트 완료, 박스 선택 후 선택 상태 정상 유지.

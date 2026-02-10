@@ -1,6 +1,5 @@
 import { Space as AntSpace } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import type { MenuProps } from 'antd';
+import type { TableColumnsType, MenuProps } from 'antd';
 import {
   FolderFilled,
   FileOutlined,
@@ -29,7 +28,7 @@ export const formatDate = (dateString: string): string => {
 };
 
 // Table columns builder
-export function buildTableColumns(onNavigate: (path: string) => void): ColumnsType<FileNode> {
+export function buildTableColumns(onNavigate: (path: string) => void): TableColumnsType<FileNode> {
   return [
     {
       title: '이름',

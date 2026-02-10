@@ -17,6 +17,8 @@ interface FolderContentGridProps {
   onFolderDragOver: (e: React.DragEvent<HTMLElement>, record: FileNode) => void;
   onFolderDragLeave: (e: React.DragEvent<HTMLElement>) => void;
   onFolderDrop: (e: React.DragEvent<HTMLElement>, record: FileNode) => void;
+  itemsRef?: React.MutableRefObject<Map<string, HTMLElement>>;
+  disableDraggable?: boolean;
 }
 
 const FolderContentGrid: React.FC<FolderContentGridProps> = ({
@@ -32,6 +34,8 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   onFolderDragOver,
   onFolderDragLeave,
   onFolderDrop,
+  itemsRef,
+  disableDraggable = false,
 }) => {
   return (
     <Row gutter={[16, 16]}>
@@ -45,8 +49,13 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
           return (
             <Col key={item.path} xs={12} sm={8} md={6} lg={4} xl={3}>
               <Card
+                ref={(el) => {
+                  if (el && itemsRef) {
+                    itemsRef.current.set(item.path, el);
+                  }
+                }}
                 hoverable
-                draggable
+                draggable={!disableDraggable}
                 onClick={(e) => onItemClick(e, item, index)}
                 onDoubleClick={() => item.isDir && onItemDoubleClick(item.path)}
                 onContextMenu={(e) => onContextMenu(e, item)}

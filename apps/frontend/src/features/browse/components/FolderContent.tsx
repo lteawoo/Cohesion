@@ -8,6 +8,7 @@ import { useBreadcrumb } from '../hooks/useBreadcrumb';
 import { useFileOperations } from '../hooks/useFileOperations';
 import { useDragAndDrop } from '../hooks/useDragAndDrop';
 import { useContextMenu } from '../hooks/useContextMenu';
+import { useBoxSelection } from '../hooks/useBoxSelection';
 import DestinationPickerModal from './DestinationPickerModal';
 import FolderContentToolbar from './FolderContent/FolderContentToolbar';
 import FolderContentSelectionBar from './FolderContent/FolderContentSelectionBar';
@@ -16,10 +17,9 @@ import FolderContentGrid from './FolderContent/FolderContentGrid';
 import RenameModal from './FolderContent/RenameModal';
 import CreateFolderModal from './FolderContent/CreateFolderModal';
 import UploadOverlay from './FolderContent/UploadOverlay';
+import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
 
-interface FolderContentProps {}
-
-const FolderContent: React.FC<FolderContentProps> = () => {
+const FolderContent: React.FC = () => {
   // Store selectors
   const selectedPath = useBrowseStore((state) => state.selectedPath);
   const selectedSpace = useBrowseStore((state) => state.selectedSpace);
@@ -30,6 +30,8 @@ const FolderContent: React.FC<FolderContentProps> = () => {
   console.log('[FolderContent] Render - selectedPath:', selectedPath);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const itemsRef = useRef<Map<string, HTMLElement>>(new Map());
 
   // Local state
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -154,6 +156,28 @@ const FolderContent: React.FC<FolderContentProps> = () => {
   // Columns for table view
   const columns = useMemo(() => buildTableColumns(setPath), [setPath]);
 
+  // Box selection (Grid 뷰 전용)
+  const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
+    enabled: viewMode === 'grid',
+    containerRef: gridContainerRef,
+    itemsRef,
+    selectedItems,
+    onSelectionChange: setSelection,
+  });
+
+  // itemsRef 메모리 정리 (sortedContent 변경 시)
+  useEffect(() => {
+    const currentPaths = new Set(sortedContent.map(item => item.path));
+    const itemsMap = itemsRef.current;
+
+    // Map에서 더 이상 존재하지 않는 path 제거
+    itemsMap.forEach((_, path) => {
+      if (!currentPaths.has(path)) {
+        itemsMap.delete(path);
+      }
+    });
+  }, [sortedContent]);
+
   // Modal wrapper handlers
   const handleRenameConfirm = async () => {
     if (!renameModal.record || !renameModal.newName.trim()) {
@@ -201,6 +225,11 @@ const FolderContent: React.FC<FolderContentProps> = () => {
 
   // Container click handler
   const handleContainerClick = (e: React.MouseEvent) => {
+    // 박스 선택 직후에는 무시
+    if (wasRecentlySelecting) {
+      return;
+    }
+
     const target = e.target as HTMLElement;
     const isCard = target.closest('.ant-card');
     const isTableRow = target.closest('tr');
@@ -285,20 +314,31 @@ const FolderContent: React.FC<FolderContentProps> = () => {
           onSortChange={setSortConfig}
         />
       ) : (
-        <FolderContentGrid
-          dataSource={sortedContent}
-          loading={isLoading}
-          selectedItems={selectedItems}
-          dragOverFolder={dragOverFolder}
-          onItemClick={(e, record, index) => handleItemClick(e, record, index, sortedContent)}
-          onItemDoubleClick={setPath}
-          onContextMenu={handleContextMenu}
-          onItemDragStart={handleItemDragStart}
-          onItemDragEnd={handleItemDragEnd}
-          onFolderDragOver={handleFolderDragOver}
-          onFolderDragLeave={handleFolderDragLeave}
-          onFolderDrop={handleFolderDrop}
-        />
+        <div ref={gridContainerRef} style={{ flex: 1, overflow: 'auto' }}>
+          <FolderContentGrid
+            dataSource={sortedContent}
+            loading={isLoading}
+            selectedItems={selectedItems}
+            dragOverFolder={dragOverFolder}
+            onItemClick={(e, record, index) => handleItemClick(e, record, index, sortedContent)}
+            onItemDoubleClick={setPath}
+            onContextMenu={handleContextMenu}
+            onItemDragStart={handleItemDragStart}
+            onItemDragEnd={handleItemDragEnd}
+            onFolderDragOver={handleFolderDragOver}
+            onFolderDragLeave={handleFolderDragLeave}
+            onFolderDrop={handleFolderDrop}
+            itemsRef={itemsRef}
+            disableDraggable={isSelecting}
+          />
+          <BoxSelectionOverlay
+            visible={isSelecting && selectionBox !== null}
+            startX={selectionBox?.startX ?? 0}
+            startY={selectionBox?.startY ?? 0}
+            currentX={selectionBox?.currentX ?? 0}
+            currentY={selectionBox?.currentY ?? 0}
+          />
+        </div>
       )}
 
       <RenameModal

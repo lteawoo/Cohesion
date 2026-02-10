@@ -43,3 +43,11 @@ export interface DragData {
   type: 'cohesion-internal';
   paths: string[];
 }
+
+// Box selection types
+export interface SelectionBox {
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}

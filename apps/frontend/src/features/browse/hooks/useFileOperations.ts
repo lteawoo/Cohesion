@@ -50,9 +50,9 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
     async (file: File, targetPath: string) => {
       try {
         await performUpload(file, targetPath, false);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 파일 중복 에러 (409)
-        if (error.status === 409) {
+        if (error && typeof error === 'object' && 'status' in error && error.status === 409) {
           Modal.confirm({
             title: '파일 덮어쓰기',
             content: `"${file.name}" 파일이 이미 존재합니다. 덮어쓰시겠습니까?`,
@@ -62,13 +62,19 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
             onOk: async () => {
               try {
                 await performUpload(file, targetPath, true);
-              } catch (retryError: any) {
-                message.error(retryError.message || '업로드 실패');
+              } catch (retryError: unknown) {
+                const errorMessage = retryError && typeof retryError === 'object' && 'message' in retryError
+                  ? String(retryError.message)
+                  : '업로드 실패';
+                message.error(errorMessage);
               }
             },
           });
         } else {
-          message.error(error.message || '업로드 실패');
+          const errorMessage = error && typeof error === 'object' && 'message' in error
+            ? String(error.message)
+            : '업로드 실패';
+          message.error(errorMessage);
         }
       }
     },

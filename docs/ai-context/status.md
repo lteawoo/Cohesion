@@ -380,9 +380,30 @@
     - **Phase 3 완료**: Space Store (Props drilling 제거, CRUD actions 통합).
     - **Phase 4 남음**: Browse Store (파일 탐색 경로, 컨텐츠 상태 통합).
     - Props Drilling 대폭 감소, 코드 일관성 향상, 확장성 개선.
+- **박스 선택 기능 버그 수정 완료** (2026-02-10):
+    - 문제 1: 익스플로러 바깥에서도 드래그 동작.
+        - 해결: `handleMouseDown`에서 `containerRef` 범위 체크 추가.
+        - 컨테이너 외부 클릭 시 박스 선택 시작 방지.
+    - 문제 2: 드래그해도 파일/폴더 다중선택 안 됨.
+        - 해결: `useBoxSelection` 의존성 배열에서 `containerRef` 제거.
+        - 핸들러가 올바르게 갱신되어 ref.current 참조 정상화.
+    - 문제 3: TypeScript 빌드 에러 (3개).
+        - `useBoxSelection`: `containerRef` 타입을 구조적 타이핑(`{ current: HTMLElement | null }`)으로 수정.
+        - `FolderContentTable`: `ColumnsType` → `TableColumnsType` import 변경.
+        - `useFileOperations`: `error.message` 타입 가드 추가.
+    - 문제 4: 박스 드래그 후 마우스 놓으면 선택 해제됨.
+        - 원인: `mouseup` → `click` 이벤트 순서로 `handleContainerClick`이 선택 해제.
+        - 해결: `wasRecentlySelecting` 플래그 추가하여 박스 선택 직후 click 이벤트 무시.
+        - `handleMouseUp`에서 선택 확정 후 플래그 설정, 다음 이벤트 루프에서 해제.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/hooks/useBoxSelection.ts`
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent/FolderContentTable.tsx`
+        - `apps/frontend/src/features/browse/hooks/useFileOperations.ts`
+        - `apps/frontend/src/features/browse/constants.tsx`
+    - 사용자 테스트 완료: 박스 선택 정상 작동 확인.
 
 ## 다음 작업 (Next Steps)
-- **Zustand 마이그레이션 완료** (Phase 4: Browse Store).
-- 드래그 영역 선택 (Box Selection) 기능 구현.
-- 검색 기능 검토.
-- 이미지/텍스트 파일 미리보기 기능 검토.
+- **FolderContent.tsx 리팩토링** (Phase 2~4 진행).
+- 검색 기능 구현.
+- 이미지/텍스트 파일 미리보기 기능 구현.

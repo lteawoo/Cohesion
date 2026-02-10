@@ -1,11 +1,11 @@
 import React from 'react';
 import { Table } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import type { TableColumnsType } from 'antd';
 import type { FileNode, SortConfig } from '../../types';
 
 interface FolderContentTableProps {
   dataSource: FileNode[];
-  columns: ColumnsType<FileNode>;
+  columns: TableColumnsType<FileNode>;
   loading: boolean;
   selectedItems: Set<string>;
   dragOverFolder: string | null;
@@ -37,7 +37,6 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
   onFolderDragOver,
   onFolderDragLeave,
   onFolderDrop,
-  sortConfig: _sortConfig,
   onSortChange,
 }) => {
   return (
@@ -52,7 +51,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
         selectedRowKeys: Array.from(selectedItems),
         onChange: (keys) => onSelectionChange(new Set(keys as string[])),
       }}
-      onChange={(_, __, sorter: any) => {
+      onChange={(_, __, sorter) => {
         if (sorter && !Array.isArray(sorter)) {
           const field = sorter.field as 'name' | 'modTime' | 'size';
           const order = sorter.order as 'ascend' | 'descend' | undefined;
