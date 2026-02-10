@@ -8,32 +8,25 @@ const GeneralSettings = () => {
   const setLanguage = useSettingsStore((state) => state.setLanguage);
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 600 }}>
+    <Space vertical size="small" style={{ width: '100%', maxWidth: 480 }}>
       <div>
-        <Title level={3}>일반 설정</Title>
-        <Text type="secondary">기본 애플리케이션 설정</Text>
+        <Title level={4} style={{ margin: 0 }}>일반 설정</Title>
+        <Text type="secondary" style={{ fontSize: 13 }}>기본 애플리케이션 설정</Text>
       </div>
 
-      <Card>
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <div>
-            <Text strong>언어</Text>
-            <div style={{ marginTop: 8 }}>
-              <Select
-                style={{ width: '100%' }}
-                value={language}
-                onChange={setLanguage}
-                options={[
-                  { value: 'ko', label: '한국어' },
-                  { value: 'en', label: 'English' },
-                ]}
-              />
-            </div>
-            <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-              애플리케이션 인터페이스 언어를 선택합니다.
-            </Text>
-          </div>
-        </Space>
+      <Card size="small">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text strong>언어</Text>
+          <Select
+            style={{ width: 140 }}
+            value={language}
+            onChange={setLanguage}
+            options={[
+              { value: 'ko', label: '한국어' },
+              { value: 'en', label: 'English' },
+            ]}
+          />
+        </div>
       </Card>
     </Space>
   );

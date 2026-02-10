@@ -46,14 +46,12 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   useEffect(() => {
     let isMounted = true;
     const loadInitialData = async () => {
-      if (spaces && spaces.length > 0) {
-        // Spaces를 루트 노드로 표시
+      // showBaseDirectories가 true면 파일 시스템을 최우선으로 표시
+      if (showBaseDirectories) {
+        // base directories 로드 (Space 생성 모달 등에서 사용)
+        const baseDirs = await fetchBaseDirectories();
         if (isMounted) {
-          setTreeData(spaces.map(space => ({
-            title: space.space_name,
-            key: `space-${space.id}`,
-            isLeaf: false,
-          })));
+          setTreeData(convertToFileTreeData(baseDirs));
           setLoadedKeys([]);
           setExpandedKeys([]);
         }
@@ -68,11 +66,14 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
           setLoadedKeys([]);
           setExpandedKeys([]);
         }
-      } else if (showBaseDirectories) {
-        // base directories 로드 (모달 등에서 사용)
-        const baseDirs = await fetchBaseDirectories();
+      } else if (spaces && spaces.length > 0) {
+        // Spaces를 루트 노드로 표시 (메인 사이드바에서 사용)
         if (isMounted) {
-          setTreeData(convertToFileTreeData(baseDirs));
+          setTreeData(spaces.map(space => ({
+            title: space.space_name,
+            key: `space-${space.id}`,
+            isLeaf: false,
+          })));
           setLoadedKeys([]);
           setExpandedKeys([]);
         }

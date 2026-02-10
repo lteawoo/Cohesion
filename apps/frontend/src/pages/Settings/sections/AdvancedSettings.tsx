@@ -18,61 +18,53 @@ const AdvancedSettings = () => {
   };
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 600 }}>
+    <Space vertical size="small" style={{ width: '100%', maxWidth: 480 }}>
       <div>
-        <Title level={3}>고급 설정</Title>
-        <Text type="secondary">시스템 관리 및 고급 옵션</Text>
+        <Title level={4} style={{ margin: 0 }}>고급 설정</Title>
+        <Text type="secondary" style={{ fontSize: 13 }}>시스템 관리 및 고급 옵션</Text>
       </div>
 
-      <Card title="데이터 관리">
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <div>
+      <Card title="데이터 관리" size="small">
+        <Space vertical size="small" style={{ width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text strong>캐시 삭제</Text>
-            <div style={{ marginTop: 8 }}>
-              <Button
-                icon={<DeleteOutlined />}
-                onClick={handleClearCache}
-              >
-                캐시 삭제
-              </Button>
-            </div>
-            <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-              브라우저에 저장된 임시 데이터를 삭제합니다.
-            </Text>
+            <Button
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={handleClearCache}
+            >
+              삭제
+            </Button>
           </div>
 
-          <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text strong>설정 초기화</Text>
-            <div style={{ marginTop: 8 }}>
-              <Popconfirm
-                title="설정 초기화"
-                description="모든 설정을 기본값으로 되돌립니다. 계속하시겠습니까?"
-                onConfirm={handleReset}
-                okText="초기화"
-                cancelText="취소"
-                okButtonProps={{ danger: true }}
+            <Popconfirm
+              title="설정 초기화"
+              description="모든 설정을 기본값으로 되돌립니다. 계속하시겠습니까?"
+              onConfirm={handleReset}
+              okText="초기화"
+              cancelText="취소"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                danger
               >
-                <Button
-                  icon={<ReloadOutlined />}
-                  danger
-                >
-                  설정 초기화
-                </Button>
-              </Popconfirm>
-            </div>
-            <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-              모든 사용자 설정을 기본값으로 되돌립니다.
-            </Text>
+                초기화
+              </Button>
+            </Popconfirm>
           </div>
         </Space>
       </Card>
 
-      <Card title="정보">
-        <Space direction="vertical" size="small">
-          <Text>
+      <Card title="정보" size="small">
+        <Space vertical size="small">
+          <Text style={{ fontSize: 13 }}>
             <Text strong>버전:</Text> 1.0.0
           </Text>
-          <Text>
+          <Text style={{ fontSize: 13 }}>
             <Text strong>빌드:</Text> {import.meta.env.MODE}
           </Text>
         </Space>

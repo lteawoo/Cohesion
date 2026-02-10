@@ -5,7 +5,7 @@ import {
   FileOutlined,
   GlobalOutlined,
   ToolOutlined,
-  ArrowLeftOutlined,
+  HomeFilled,
 } from '@ant-design/icons';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -84,11 +84,9 @@ const SettingsPage = () => {
       >
         <Button
           type="text"
-          icon={<ArrowLeftOutlined />}
+          icon={<HomeFilled style={{ fontSize: '20px' }} />}
           onClick={() => navigate('/')}
-        >
-          뒤로
-        </Button>
+        />
         <Title level={4} style={{ margin: 0 }}>
           설정
         </Title>
@@ -112,7 +110,7 @@ const SettingsPage = () => {
 
         <Content
           style={{
-            padding: '24px',
+            padding: '16px',
             overflow: 'auto',
             background: token.colorBgLayout,
           }}
