@@ -49,8 +49,8 @@
   - [x] Phase 4: Browse Store (파일 탐색 경로, 컨텐츠)
 - [ ] **FolderContent.tsx 리팩토링** (진행 중)
   - [x] Phase 1: constants.ts, types.ts, hooks 생성
-  - [ ] Phase 2: 서브 컴포넌트 추출
-  - [ ] Phase 3: 메인 컴포넌트 리팩토링
+  - [x] Phase 2: Modal 상태 관리 통합 (useModalManager)
+  - [ ] Phase 3: 메인 컴포넌트 추가 개선
   - [ ] Phase 4: 검증 및 테스트
 - [x] 박스 선택 버그 수정 (익스플로러 바깥 동작, 다중선택 안 됨)
 - [x] 박스 선택 기능 사용자 테스트 및 검증

@@ -407,7 +407,18 @@
         - `apps/frontend/src/features/browse/constants.tsx`
     - 사용자 테스트 완료: 박스 선택 정상 작동 확인.
 
+- **FolderContent.tsx 리팩토링 Phase 2 완료** (2026-02-10):
+    - `useModalManager` 훅 생성하여 모달 상태 관리 통합.
+    - 3개 모달(rename, createFolder, destination) 상태를 단일 훅으로 관리.
+    - TypeScript 제네릭으로 타입 안전성 확보.
+    - 라인 수: 380줄 → 366줄 (-14줄, 3.7% 감소).
+    - 중복 코드 제거, 일관성 향상, 확장성 개선.
+    - 향후 모달 추가 시 useModalManager에 타입만 추가하면 됨.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/hooks/useModalManager.ts` (신규)
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+
 ## 다음 작업 (Next Steps)
-- **FolderContent.tsx 리팩토링** (Phase 2~4 진행).
+- **FolderContent.tsx 리팩토링** (Phase 3~4 진행).
 - 검색 기능 구현.
 - 이미지/텍스트 파일 미리보기 기능 구현.

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Empty, message } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
-import type { FileNode, ViewMode, SortConfig, RenameModalState } from '../types';
+import type { FileNode, ViewMode, SortConfig } from '../types';
 import { buildTableColumns } from '../constants';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { useBreadcrumb } from '../hooks/useBreadcrumb';
@@ -9,6 +9,7 @@ import { useFileOperations } from '../hooks/useFileOperations';
 import { useDragAndDrop } from '../hooks/useDragAndDrop';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useBoxSelection } from '../hooks/useBoxSelection';
+import { useModalManager } from '../hooks/useModalManager';
 import DestinationPickerModal from './DestinationPickerModal';
 import FolderContentToolbar from './FolderContent/FolderContentToolbar';
 import FolderContentSelectionBar from './FolderContent/FolderContentSelectionBar';
@@ -39,18 +40,9 @@ const FolderContent: React.FC = () => {
     sortBy: 'name',
     sortOrder: 'ascend',
   });
-  const [renameModal, setRenameModal] = useState<RenameModalState>({
-    visible: false,
-    newName: '',
-  });
-  const [createFolderModal, setCreateFolderModal] = useState<{
-    visible: boolean;
-    folderName: string;
-  }>({ visible: false, folderName: '' });
-  const [destinationModal, setDestinationModal] = useState<{
-    visible: boolean;
-    mode: 'move' | 'copy';
-  }>({ visible: false, mode: 'move' });
+
+  // Modal management
+  const { modals, openModal, closeModal, updateModalData } = useModalManager();
 
   // Custom hooks
   const { selectedItems, handleItemClick, setSelection, clearSelection } = useFileSelection();
@@ -99,14 +91,10 @@ const FolderContent: React.FC = () => {
       onDownload: (path: string) => {
         window.location.href = `/api/browse/download?path=${encodeURIComponent(path)}`;
       },
-      onCopy: () => setDestinationModal({ visible: true, mode: 'copy' }),
-      onMove: () => setDestinationModal({ visible: true, mode: 'move' }),
+      onCopy: () => openModal('destination', { mode: 'copy' }),
+      onMove: () => openModal('destination', { mode: 'move' }),
       onRename: (record: FileNode) => {
-        setRenameModal({
-          visible: true,
-          record,
-          newName: record.name,
-        });
+        openModal('rename', { record, newName: record.name });
       },
       onDelete: handleDelete,
       onBulkDownload: () => handleBulkDownload(Array.from(selectedItems)),
@@ -180,33 +168,35 @@ const FolderContent: React.FC = () => {
 
   // Modal wrapper handlers
   const handleRenameConfirm = async () => {
-    if (!renameModal.record || !renameModal.newName.trim()) {
+    const { record, newName } = modals.rename.data;
+    if (!record || !newName.trim()) {
       message.error('새 이름을 입력하세요');
       return;
     }
-    await performRename(renameModal.record.path, renameModal.newName.trim());
-    setRenameModal({ visible: false, newName: '' });
+    await performRename(record.path, newName.trim());
+    closeModal('rename');
     clearSelection();
   };
 
   const handleCreateFolderConfirm = async () => {
-    if (!createFolderModal.folderName.trim()) {
+    const { folderName } = modals.createFolder.data;
+    if (!folderName.trim()) {
       message.error('폴더 이름을 입력하세요');
       return;
     }
-    await performCreateFolder(selectedPath, createFolderModal.folderName.trim());
-    setCreateFolderModal({ visible: false, folderName: '' });
+    await performCreateFolder(selectedPath, folderName.trim());
+    closeModal('createFolder');
   };
 
   const handleMoveConfirm = async (destination: string) => {
     await handleMove(Array.from(selectedItems), destination);
-    setDestinationModal({ visible: false, mode: 'move' });
+    closeModal('destination');
     clearSelection();
   };
 
   const handleCopyConfirm = async (destination: string) => {
     await handleCopy(Array.from(selectedItems), destination);
-    setDestinationModal({ visible: false, mode: 'copy' });
+    closeModal('destination');
     clearSelection();
   };
 
@@ -281,17 +271,13 @@ const FolderContent: React.FC = () => {
         selectedCount={selectedItems.size}
         showRename={selectedItems.size === 1}
         onDownload={() => handleBulkDownload(Array.from(selectedItems))}
-        onCopy={() => setDestinationModal({ visible: true, mode: 'copy' })}
-        onMove={() => setDestinationModal({ visible: true, mode: 'move' })}
+        onCopy={() => openModal('destination', { mode: 'copy' })}
+        onMove={() => openModal('destination', { mode: 'move' })}
         onRename={() => {
           const path = Array.from(selectedItems)[0];
           const record = sortedContent.find(item => item.path === path);
           if (record) {
-            setRenameModal({
-              visible: true,
-              record,
-              newName: record.name,
-            });
+            openModal('rename', { record, newName: record.name });
           }
         }}
         onDelete={() => handleBulkDelete(Array.from(selectedItems))}
@@ -346,30 +332,30 @@ const FolderContent: React.FC = () => {
       )}
 
       <RenameModal
-        visible={renameModal.visible}
-        initialName={renameModal.newName}
+        visible={modals.rename.visible}
+        initialName={modals.rename.data.newName}
         onConfirm={handleRenameConfirm}
-        onCancel={() => setRenameModal({ visible: false, newName: '' })}
-        onChange={(newName) => setRenameModal({ ...renameModal, newName })}
+        onCancel={() => closeModal('rename')}
+        onChange={(newName) => updateModalData('rename', { newName })}
       />
 
       <CreateFolderModal
-        visible={createFolderModal.visible}
-        folderName={createFolderModal.folderName}
+        visible={modals.createFolder.visible}
+        folderName={modals.createFolder.data.folderName}
         onConfirm={handleCreateFolderConfirm}
-        onCancel={() => setCreateFolderModal({ visible: false, folderName: '' })}
-        onChange={(folderName) => setCreateFolderModal({ ...createFolderModal, folderName })}
+        onCancel={() => closeModal('createFolder')}
+        onChange={(folderName) => updateModalData('createFolder', { folderName })}
       />
 
       <DestinationPickerModal
-        visible={destinationModal.visible}
-        mode={destinationModal.mode}
+        visible={modals.destination.visible}
+        mode={modals.destination.data.mode}
         sourceCount={selectedItems.size}
         sources={Array.from(selectedItems)}
         currentPath={selectedPath}
         selectedSpace={selectedSpace}
-        onConfirm={destinationModal.mode === 'move' ? handleMoveConfirm : handleCopyConfirm}
-        onCancel={() => setDestinationModal({ visible: false, mode: 'move' })}
+        onConfirm={modals.destination.data.mode === 'move' ? handleMoveConfirm : handleCopyConfirm}
+        onCancel={() => closeModal('destination')}
       />
 
       <UploadOverlay visible={isDragging} />
