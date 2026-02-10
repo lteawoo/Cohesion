@@ -28,12 +28,17 @@ export const formatDate = (dateString: string): string => {
 };
 
 // Table columns builder
-export function buildTableColumns(onNavigate: (path: string) => void): TableColumnsType<FileNode> {
+export function buildTableColumns(
+  onNavigate: (path: string) => void,
+  sortConfig: { sortBy: string; sortOrder: 'ascend' | 'descend' }
+): TableColumnsType<FileNode> {
   return [
     {
       title: '이름',
       dataIndex: 'name',
       key: 'name',
+      sorter: true, // Enable sorting UI
+      sortOrder: sortConfig.sortBy === 'name' ? sortConfig.sortOrder : null,
       render: (text: string, record: FileNode) => (
         <AntSpace>
           {record.isDir ? <FolderFilled style={{ color: '#ffca28' }} /> : <FileOutlined />}
@@ -44,23 +49,24 @@ export function buildTableColumns(onNavigate: (path: string) => void): TableColu
           )}
         </AntSpace>
       ),
-      sorter: (a, b) => a.name.localeCompare(b.name),
     },
     {
       title: '수정일',
       dataIndex: 'modTime',
       key: 'modTime',
       width: 200,
+      sorter: true,
+      sortOrder: sortConfig.sortBy === 'modTime' ? sortConfig.sortOrder : null,
       render: (date: string) => formatDate(date),
-      sorter: (a, b) => new Date(a.modTime).getTime() - new Date(b.modTime).getTime(),
     },
     {
       title: '크기',
       dataIndex: 'size',
       key: 'size',
       width: 120,
+      sorter: true,
+      sortOrder: sortConfig.sortBy === 'size' ? sortConfig.sortOrder : null,
       render: (size: number, record: FileNode) => (record.isDir ? '-' : formatSize(size)),
-      sorter: (a, b) => a.size - b.size,
     },
   ];
 }

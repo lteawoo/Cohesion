@@ -117,7 +117,7 @@ const FolderContent: React.FC = () => {
   const sortedContent = useSortedContent(content, sortConfig);
 
   // Columns for table view
-  const columns = useMemo(() => buildTableColumns(setPath), [setPath]);
+  const columns = useMemo(() => buildTableColumns(setPath, sortConfig), [setPath, sortConfig]);
 
   // Box selection (Grid 뷰 전용)
   const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
