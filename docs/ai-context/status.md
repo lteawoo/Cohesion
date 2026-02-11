@@ -442,6 +442,20 @@
         - `apps/frontend/src/pages/Settings/sections/ServerSettings.tsx` (Switch, InputNumber 타입 추가)
     - 결과: Lint 및 TypeScript 체크 통과 (0 errors).
 
+- **박스 선택 누적 기능 구현 완료** (2026-02-11, #25):
+    - 문제: 박스 선택 중 스크롤 시 박스를 벗어난 항목이 선택 해제되는 직관적이지 않은 UX.
+    - 해결: 드래그 영역에 한 번이라도 걸린 항목은 계속 선택 유지 (누적 방식).
+    - 구현:
+        - `accumulatedSelection` ref 추가로 드래그 중 교차한 모든 항목 추적.
+        - `handleMouseMove`, `handleScroll`, `handleMouseUp`에서 교차 항목 누적.
+        - Ctrl/Shift 모드 지원 유지 (일반: 누적, Shift: 초기+누적, Ctrl: 토글).
+        - `updateSelection` 함수 제거하고 각 핸들러에서 직접 선택 계산.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/hooks/useBoxSelection.ts` (126줄 추가, 74줄 삭제)
+    - Issue: #25 (https://github.com/lteawoo/Cohesion/issues/25)
+    - Commit: `1c07bed` (feat: 박스 선택 시 스크롤로 누적 선택 기능 구현)
+    - 결과: Grid 뷰에서 드래그 + 스크롤로 많은 파일을 효율적으로 선택 가능, 직관적인 UX 제공.
+
 ## 다음 작업 (Next Steps)
 - **FolderContent.tsx 리팩토링** (Phase 4: 검증 및 테스트).
 - 검색 기능 구현.

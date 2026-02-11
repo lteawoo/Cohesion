@@ -937,3 +937,56 @@
   - 포괄적인 `button`, `input` 체크: 가장 간단하고 확실 (채택).
 - **수정 파일**: `apps/frontend/src/features/browse/components/FolderContent.tsx`
 - **테스트 결과**: 복사/이동 버튼 클릭 시 선택 유지, 모달 정상 작동.
+
+### 박스 선택 누적 방식 채택 (2026-02-11, #25)
+- **문제**: 박스 선택 중 스크롤 시 박스를 벗어난 항목이 선택 해제되는 비직관적 UX.
+  - 사용자 기대: "한 번이라도 박스에 걸린 항목은 계속 선택 상태여야 한다."
+  - 기존 동작: 현재 박스와 교차하는 항목만 선택 (Viewport 좌표계).
+  - 스크롤 시 새로운 항목이 선택되고 이전 항목은 해제됨.
+- **원인 분석**:
+  - `updateSelection`이 매번 교차 항목으로 선택 상태를 덮어씀.
+  - `handleScroll`에서 현재 교차 항목만 전달하여 이전 선택이 사라짐.
+  - 선택 박스는 viewport에 고정, 아이템들이 스크롤로 이동.
+- **결정**: 드래그 중 교차한 모든 항목을 누적하는 방식으로 변경.
+- **이유**:
+  - 직관적인 UX: 대부분의 파일 탐색기(Windows, macOS)가 이 방식 사용.
+  - 사용자 멘탈 모델 일치: "지나간 영역의 파일들이 선택된다".
+  - 실수 방지: 우연히 스크롤해도 선택이 사라지지 않음.
+  - 많은 파일 선택 시 효율적: 드래그 + 스크롤로 빠른 선택.
+- **구현**:
+  - `accumulatedSelection = useRef<Set<string>>(new Set())` 추가.
+  - `handleMouseDown`: `accumulatedSelection` 초기화.
+  - `handleMouseMove`, `handleScroll`, `handleMouseUp`:
+    ```typescript
+    intersected.forEach(path => accumulatedSelection.current.add(path));
+    ```
+  - Ctrl/Shift 모드 처리를 각 핸들러에서 직접 계산:
+    - 일반 모드: `new Set(accumulatedSelection.current)` (누적된 항목만).
+    - Shift 모드: `new Set([...initialSelection.current, ...accumulatedSelection.current])`.
+    - Ctrl 모드: `initialSelection`에서 누적 항목 토글.
+  - `updateSelection` 함수 제거 (더 이상 불필요).
+- **대안 검토**:
+  - **Content 좌표계**: 선택 박스를 content에 고정 (스크롤 offset 포함).
+    - 장점: 선택 박스가 content와 함께 움직여 더 직관적일 수 있음.
+    - 단점: 구현 복잡도 높음, 박스가 화면 밖으로 사라질 수 있음.
+    - 기각 이유: 현재 viewport 좌표계를 유지하면서 누적 방식으로 UX 개선 가능.
+  - **드래그 중 스크롤 비활성화**: 스크롤 이벤트 자체를 막음.
+    - 장점: 선택 변경 문제 원천 차단.
+    - 단점: 많은 파일 선택 시 불편함, 기능 제한.
+    - 기각 이유: 스크롤은 유용한 기능이므로 유지하고 동작만 개선.
+  - **자동 스크롤**: 드래그 중 마우스를 가장자리에 대면 자동 스크롤.
+    - 장점: 일반적인 패턴, 마우스만으로 모든 조작 가능.
+    - 단점: 추가 구현 필요, 현재 이슈와는 별개.
+    - 판단: 향후 개선 사항으로 분류, 현재는 누적 방식으로 충분.
+- **변경 사항**:
+  - 126줄 추가, 74줄 삭제 (순 +52줄).
+  - `updateSelection` 함수 삭제로 코드 중복 감소.
+  - 각 핸들러에서 선택 계산 로직이 명확하게 드러남.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/hooks/useBoxSelection.ts`
+- **Issue**: #25 (https://github.com/lteawoo/Cohesion/issues/25)
+- **Commit**: `1c07bed`
+- **향후 개선 고려 사항**:
+  - 자동 스크롤 기능 추가 (마우스를 가장자리에 대면 자동으로 스크롤).
+  - 선택 박스 시각적 피드백 개선 (누적되고 있음을 명확히 표시).
+- **테스트 계획**: Grid 뷰에서 드래그 + 스크롤로 많은 파일 선택 후 선택 상태 유지 확인.
