@@ -80,6 +80,7 @@ export interface ContextMenuCallbacks {
   onDelete: (record: FileNode) => void;
   onBulkDownload: () => void;
   onBulkDelete: () => void;
+  onCreateFolder: () => void;
 }
 
 export function buildSingleItemMenu(

@@ -98,6 +98,7 @@ const FolderContent: React.FC = () => {
       onDelete: handleDelete,
       onBulkDownload: () => handleBulkDownload(Array.from(selectedItems)),
       onBulkDelete: () => handleBulkDelete(Array.from(selectedItems)),
+      onCreateFolder: () => openModal('createFolder', { folderName: '' }),
     },
   });
 
