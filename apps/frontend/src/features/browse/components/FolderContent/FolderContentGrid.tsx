@@ -3,6 +3,8 @@ import { Row, Col, Card, Empty } from 'antd';
 import { FolderFilled, FileOutlined } from '@ant-design/icons';
 import type { FileNode } from '../../types';
 import { formatSize } from '../../constants';
+import { isImageFile } from '../../utils/fileTypeUtils';
+import { ImageThumbnail } from '../ImageThumbnail';
 
 interface FolderContentGridProps {
   dataSource: FileNode[];
@@ -81,11 +83,31 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                 }}
                 styles={{ body: { padding: '16px 8px' } }}
               >
-                <div style={{ fontSize: '48px', marginBottom: '8px' }}>
+                <div style={{ marginBottom: '8px' }}>
                   {item.isDir ? (
-                    <FolderFilled style={{ color: '#ffca28' }} />
+                    <div
+                      style={{
+                        height: '120px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <FolderFilled style={{ fontSize: '48px', color: '#ffca28' }} />
+                    </div>
+                  ) : isImageFile(item.name) ? (
+                    <ImageThumbnail path={item.path} alt={item.name} size={120} />
                   ) : (
-                    <FileOutlined style={{ color: '#8c8c8c' }} />
+                    <div
+                      style={{
+                        height: '120px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <FileOutlined style={{ fontSize: '48px', color: '#8c8c8c' }} />
+                    </div>
                   )}
                 </div>
                 <div
