@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { FileNode } from '@/features/browse/types';
 import type { Space } from '@/features/space/types';
+import { useSpaceStore } from './spaceStore';
 
 interface BrowseStore {
   selectedPath: string;
@@ -37,7 +38,12 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data: FileNode[] = await response.json();
-      set({ content: data, isLoading: false, selectedPath: path });
+
+      // 현재 경로에 해당하는 Space 자동 탐색
+      const spaces = useSpaceStore.getState().spaces;
+      const matchingSpace = spaces?.find(s => path.startsWith(s.space_path));
+
+      set({ content: data, isLoading: false, selectedPath: path, selectedSpace: matchingSpace });
     } catch (e) {
       set({ error: e as Error, isLoading: false });
     }

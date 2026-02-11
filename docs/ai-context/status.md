@@ -489,6 +489,27 @@
     - Commit: `85ddd94` (fix: 이동/복사 모달이 모든 Space 표시하도록 수정)
     - 결과: Space 간 파일 이동/복사 가능, 시스템 디렉토리 노출 방지, UX 개선.
 
+- **Breadcrumb 및 모달 경로 표시 버그 수정 완료** (2026-02-11):
+    - 문제 1: 하위 폴더 이동 시 Breadcrumb이 절대 경로로 표시됨.
+        - 원인: `browseStore`의 `fetchDirectoryContents`가 `selectedSpace`를 업데이트하지 않음.
+        - 해결: `fetchDirectoryContents`에서 현재 경로에 해당하는 Space를 자동으로 찾아서 설정.
+        - `useSpaceStore`를 import하여 `spaces`에서 매칭되는 Space 탐색.
+    - 문제 2: 이동/복사 모달 하단에 절대 경로 표시.
+        - 해결: `DestinationPickerModal`에서 Space 정보를 받아서 상대 경로로 표시.
+        - `selectedDestinationSpace` state 추가.
+        - `handleSelect`에서 Space 정보도 함께 저장.
+        - `displayPath` 계산 로직 추가 (Space 상대 경로).
+    - 문제 3: 모달 하단 배경색이 다크모드에서 밝게 표시됨.
+        - 해결: Ant Design 테마 토큰 사용 (`token.colorBgContainer`, `token.colorBorder`).
+        - 하드코딩된 `#f0f0f0` 배경색 제거.
+    - 수정 파일:
+        - `apps/frontend/src/stores/browseStore.ts` (fetchDirectoryContents 수정)
+        - `apps/frontend/src/features/browse/components/DestinationPickerModal.tsx` (Space 상대 경로, 다크모드 지원)
+    - 결과:
+        - Breadcrumb: "Root / Users / ... / Test Folder" → "헬로 / Test Folder" ✅
+        - 모달 하단: "/Users/.../MyNewFolder" → "헬로/MyNewFolder" ✅
+        - 다크모드 배경색 정상 작동 ✅
+
 ## 다음 작업 (Next Steps)
 - **FolderContent.tsx 리팩토링** (Phase 4: 검증 및 테스트).
 - 검색 기능 구현.
