@@ -57,5 +57,7 @@
 - [x] 박스 선택 후 선택 해제 버그 수정
 - [x] Settings 페이지 TypeScript 타입 오류 수정 (implicit any 10개)
 - [x] 박스 선택 누적 기능 구현 (스크롤 시 선택 유지) (#25)
+- [x] Grid 뷰 이미지 썸네일 표시 기능 (ImageThumbnail 컴포넌트, fileTypeUtils)
+- [x] 이동/복사 모달 Space 트리 구조 개선 (모든 Space 표시)
 - [ ] 검색 기능
-- [ ] 이미지/텍스트 파일 미리보기
+- [ ] 텍스트 파일 미리보기

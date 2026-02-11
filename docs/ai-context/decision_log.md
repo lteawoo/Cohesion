@@ -990,3 +990,116 @@
   - 자동 스크롤 기능 추가 (마우스를 가장자리에 대면 자동으로 스크롤).
   - 선택 박스 시각적 피드백 개선 (누적되고 있음을 명확히 표시).
 - **테스트 계획**: Grid 뷰에서 드래그 + 스크롤로 많은 파일 선택 후 선택 상태 유지 확인.
+### Grid 뷰 이미지 썸네일 표시 방식 결정 (2026-02-11)
+- **문제**: Grid 뷰에서 이미지 파일이 일반 파일 아이콘으로 표시되어 이미지 파일 식별이 어려움.
+- **목표**: 이미지 파일의 실제 내용을 미리보기로 표시하여 사용자 경험 개선.
+- **고려한 방안**:
+  1. **프론트엔드 직접 로드 방식** (채택)
+     - 기존 `/api/browse/download` 엔드포인트 활용.
+     - 브라우저 네이티브 `loading="lazy"` 사용.
+     - 장점: 빠른 구현, 별도 API 불필요, 간단한 아키텍처.
+     - 단점: 원본 파일 다운로드 (네트워크 사용량 증가 가능).
+  2. **백엔드 썸네일 생성 API**
+     - 썸네일 생성 라이브러리 필요 (imaging, disintegration/imaging 등).
+     - 썸네일 크기 조정 및 캐싱 구현.
+     - 장점: 네트워크 효율적, 최적화된 이미지 제공.
+     - 단점: 구현 복잡도 높음, 외부 의존성 추가, 캐싱 관리 필요.
+  3. **하이브리드 방식**
+     - 일정 크기 이하: 프론트엔드 직접 로드.
+     - 일정 크기 이상: 백엔드 썸네일 생성.
+     - 장점: 균형잡힌 접근.
+     - 단점: 복잡도 증가, 일관성 부족.
+- **결정**: 방안 1 (프론트엔드 직접 로드 방식) 채택.
+- **이유**:
+  - 빠른 구현: 기존 API 활용, 추가 백엔드 작업 없음.
+  - 충분한 성능: 로컬 네트워크에서 원본 로드도 빠름, lazy loading으로 최적화.
+  - 단순한 아키텍처: 유지보수 쉬움, 외부 의존성 없음.
+  - 향후 확장 가능: 필요 시 백엔드 썸네일 생성으로 전환 가능.
+- **구현**:
+  - `ImageThumbnail` 컴포넌트 생성:
+    ```typescript
+    <img
+      src={`/api/browse/download?path=${encodeURIComponent(path)}`}
+      loading="lazy"
+      onLoad={() => setLoading(false)}
+      onError={() => setError(true)}
+    />
+    ```
+  - `fileTypeUtils` 유틸리티: 이미지 확장자 감지 (jpg, jpeg, png, gif, webp, svg, bmp, ico).
+  - `FolderContentGrid`: 이미지 파일 감지 시 `ImageThumbnail` 렌더링.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/ImageThumbnail.tsx` (신규)
+  - `apps/frontend/src/features/browse/utils/fileTypeUtils.ts` (신규)
+  - `apps/frontend/src/features/browse/components/FolderContent/FolderContentGrid.tsx`
+- **Commit**: `6fade96`
+- **향후 개선 고려 사항**:
+  - 네트워크 사용량이 문제가 되면 백엔드 썸네일 생성 API 추가.
+  - 더 많은 이미지 포맷 지원 (tiff, heic 등).
+  - 비디오 파일 썸네일 지원.
+
+### 이동/복사 모달 Space 트리 구조 결정 (2026-02-11)
+- **문제**: 이동/복사 모달의 FolderTree가 잘못된 방식으로 동작.
+  - **단일 Space만 표시**: `selectedSpace`가 있을 때 해당 Space 내부만 표시, Space 간 이동 불가능.
+  - **시스템 디렉토리 노출**: `selectedSpace`가 없을 때 `/Users`, `/Applications` 등 시스템 디렉토리 표시 (보안/UX 문제).
+- **올바른 동작**: 모든 Space 목록 표시, Space 간 파일 이동/복사 가능.
+- **원인 분석**:
+  - `DestinationPickerModal`이 `FolderTree`에 props 전달:
+    ```typescript
+    <FolderTree
+      rootPath={selectedSpace?.space_path}
+      rootName={selectedSpace?.space_name}
+      showBaseDirectories={!selectedSpace}
+    />
+    ```
+  - `FolderTree` 로직 우선순위:
+    1. `showBaseDirectories`: 시스템 디렉토리 표시 (Space 등록용).
+    2. `rootPath`, `rootName`: 단일 Space 표시.
+    3. (props 없음): 모든 Space 목록 표시 (원하는 동작!).
+- **고려한 방안**:
+  1. **새로운 prop 추가** (`spacePickerMode`)
+     - `FolderTree`에 `spacePickerMode` prop 추가하여 명시적으로 모드 구분.
+     - 장점: 명확한 의도 표현.
+     - 단점: prop 증가, 로직 복잡도 증가, 기존 동작 변경 위험.
+  2. **Props 제거** (채택)
+     - `DestinationPickerModal`에서 FolderTree props를 모두 제거.
+     - `FolderTree`가 자동으로 모든 Space 표시 (3순위 로직).
+     - 장점: 가장 간단, 명확, 기존 로직 활용.
+     - 단점: 없음.
+  3. **별도 컴포넌트 생성** (`SpacePicker`)
+     - Space 선택 전용 컴포넌트 생성.
+     - 장점: 명확한 분리.
+     - 단점: 코드 중복, 유지보수 어려움, 과도한 추상화.
+- **결정**: 방안 2 (Props 제거) 채택.
+- **이유**:
+  - 가장 간단한 해결책: 3줄 삭제로 문제 해결.
+  - 기존 로직 활용: `FolderTree`가 이미 Space 목록 표시 기능 보유.
+  - 메인 사이드바와 동일한 동작: 일관성 유지.
+  - 안전한 변경: Space 등록 모달(`showBaseDirectories`)과 충돌 없음.
+- **구현**:
+  ```diff
+  <FolderTree
+    onSelect={handleSelect}
+  - rootPath={selectedSpace?.space_path}
+  - rootName={selectedSpace?.space_name}
+  - showBaseDirectories={!selectedSpace}
+  />
+  ```
+- **기술적 고려사항**:
+  - **Space 경로 검증**: 백엔드 `isPathAllowed`로 Space 외부 이동 차단 (기존 구현).
+  - **하위 폴더 순환 참조 방지**: 프론트엔드에서 사전 체크 (기존 구현).
+  - **Space 목록 동기화**: Zustand store에서 자동으로 최신 목록 표시.
+- **영향 분석**:
+  - **Space 등록 모달**: `showBaseDirectories={true}` → 1순위 로직 (변경 없음).
+  - **메인 사이드바**: props 없음 → 3순위 로직 (변경 없음).
+  - **이동/복사 모달**: props 제거 → 3순위 로직 (개선됨).
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/DestinationPickerModal.tsx` (3줄 삭제)
+- **Commit**: `85ddd94`
+- **테스트 계획**:
+  - Space 간 파일 이동/복사 정상 작동 확인.
+  - Space 등록 모달 정상 작동 확인 (회귀 테스트).
+  - 메인 사이드바 정상 작동 확인 (회귀 테스트).
+- **향후 개선 고려 사항**:
+  - 현재 Space 강조 표시 (`defaultExpandedKeys`).
+  - 최근 사용 폴더 기록 (localStorage).
+  - Space 간 이동 시 확인 모달 추가.

@@ -456,6 +456,39 @@
     - Commit: `1c07bed` (feat: 박스 선택 시 스크롤로 누적 선택 기능 구현)
     - 결과: Grid 뷰에서 드래그 + 스크롤로 많은 파일을 효율적으로 선택 가능, 직관적인 UX 제공.
 
+- **Grid 뷰 이미지 썸네일 표시 기능 구현 완료** (2026-02-11):
+    - 문제: Grid 뷰에서 이미지 파일이 일반 파일 아이콘으로 표시되어 이미지 파일 식별이 어려움.
+    - 해결: 이미지 파일 자동 감지 및 썸네일 표시 기능 추가.
+    - 구현:
+        - `ImageThumbnail` 컴포넌트: 로딩/에러 상태 처리, 브라우저 네이티브 lazy loading 활용.
+        - `fileTypeUtils` 유틸리티: 이미지 확장자 감지 함수 (jpg, jpeg, png, gif, webp, svg, bmp, ico).
+        - `FolderContentGrid`: 이미지 파일 감지 시 썸네일 렌더링, 일반 파일은 기존 아이콘 유지.
+        - 기존 `/api/browse/download` 엔드포인트 활용 (별도 썸네일 API 불필요).
+        - 프론트엔드 직접 로드 방식 채택 (빠른 구현, 간단한 아키텍처).
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/components/ImageThumbnail.tsx` (신규)
+        - `apps/frontend/src/features/browse/utils/fileTypeUtils.ts` (신규)
+        - `apps/frontend/src/features/browse/components/FolderContent/FolderContentGrid.tsx`
+    - Commit: `6fade96` (feat: Grid 뷰에 이미지 썸네일 표시 기능 추가)
+    - 결과: Grid 뷰에서 이미지 파일 미리보기 가능, 파일 식별성 향상.
+
+- **이동/복사 모달 Space 트리 구조 개선 완료** (2026-02-11):
+    - 문제: 이동/복사 모달의 FolderTree가 잘못된 방식으로 동작.
+        - Space A에서 파일 선택 → 모달 열기 → Space A만 표시 (Space B, C로 이동 불가).
+        - Space 미선택 시 시스템 디렉토리 노출 (보안/UX 문제).
+    - 해결: FolderTree props 제거하여 모든 Space 목록 표시.
+        - `rootPath`, `rootName`, `showBaseDirectories` props 제거 (3줄 삭제).
+        - FolderTree가 자동으로 모든 Space 표시 (Zustand store 활용).
+        - 메인 사이드바와 동일한 동작 방식.
+    - 기술적 고려사항:
+        - Space 경로 검증: 백엔드 `isPathAllowed`로 Space 외부 이동 차단.
+        - 하위 폴더 순환 참조 방지: 프론트엔드에서 사전 체크.
+        - Space 목록 동기화: Zustand store에서 자동으로 최신 목록 표시.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/components/DestinationPickerModal.tsx`
+    - Commit: `85ddd94` (fix: 이동/복사 모달이 모든 Space 표시하도록 수정)
+    - 결과: Space 간 파일 이동/복사 가능, 시스템 디렉토리 노출 방지, UX 개선.
+
 ## 다음 작업 (Next Steps)
 - **FolderContent.tsx 리팩토링** (Phase 4: 검증 및 테스트).
 - 검색 기능 구현.
