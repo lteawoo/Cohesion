@@ -82,9 +82,6 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
       <div style={{ border: '1px solid #d9d9d9', borderRadius: '4px', padding: '8px', maxHeight: '400px', overflow: 'auto' }}>
         <FolderTree
           onSelect={handleSelect}
-          rootPath={selectedSpace?.space_path}
-          rootName={selectedSpace?.space_name}
-          showBaseDirectories={!selectedSpace}
         />
       </div>
       {selectedDestination && (
