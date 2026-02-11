@@ -29,8 +29,6 @@ const FolderContent: React.FC = () => {
   const isLoading = useBrowseStore((state) => state.isLoading);
   const setPath = useBrowseStore((state) => state.setPath);
 
-  console.log('[FolderContent] Render - selectedPath:', selectedPath);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const itemsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -104,9 +102,7 @@ const FolderContent: React.FC = () => {
   });
 
   useEffect(() => {
-    console.log('[FolderContent] useEffect triggered - selectedPath:', selectedPath);
     if (selectedPath) {
-      console.log('[FolderContent] Fetching contents for:', selectedPath);
       useBrowseStore.getState().fetchDirectoryContents(selectedPath);
     }
     // 경로 변경 시 선택 해제

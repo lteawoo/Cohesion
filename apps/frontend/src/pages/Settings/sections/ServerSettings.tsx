@@ -27,7 +27,6 @@ const ServerSettings = () => {
       setHasChanges(false);
     } catch (error) {
       message.error('설정을 불러오는데 실패했습니다');
-      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -43,7 +42,6 @@ const ServerSettings = () => {
       setHasChanges(false);
     } catch (error) {
       message.error('설정 저장에 실패했습니다');
-      console.error(error);
     } finally {
       setSaving(false);
     }
@@ -62,13 +60,10 @@ const ServerSettings = () => {
         try {
           // 먼저 저장
           if (hasChanges) {
-            console.log('[Restart] Saving config first...');
             await updateConfig(config);
           }
 
-          console.log('[Restart] Sending restart request...');
           const newPort = await restartServer();
-          console.log('[Restart] New port:', newPort);
 
           message.loading({
             content: '서버 재시작 중...',
@@ -77,13 +72,11 @@ const ServerSettings = () => {
           });
 
           // 잠시 대기 (서버가 종료될 시간)
-          console.log('[Restart] Waiting 2s for shutdown...');
           await new Promise(resolve => setTimeout(resolve, 2000));
 
           if (isDev) {
             // 개발 모드: 프론트엔드(5173)와 백엔드(3000)가 분리되어 있음
             // 백엔드 포트가 변경되어도 Vite proxy가 처리하므로 현재 페이지만 새로고침
-            console.log('[Restart] Development mode: reloading current page');
 
             const success = await waitForReconnect(newPort);
 
@@ -105,7 +98,6 @@ const ServerSettings = () => {
             // 프로덕션 모드: 프론트엔드와 백엔드가 같은 서버
             // 포트가 변경되었으면 새 포트로 리다이렉트
             const currentPort = window.location.port || '80';
-            console.log('[Restart] Production mode: current port', currentPort, 'new port', newPort);
 
             if (currentPort === newPort) {
               // 같은 포트
@@ -127,7 +119,6 @@ const ServerSettings = () => {
               }
             } else {
               // 다른 포트: 리다이렉트
-              console.log('[Restart] Redirecting to new port...');
               message.success({
                 content: `서버가 포트 ${newPort}에서 재시작되었습니다`,
                 key: 'restart',
@@ -141,7 +132,6 @@ const ServerSettings = () => {
             }
           }
         } catch (error) {
-          console.error('[Restart] Error:', error);
           message.error({
             content: `재시작 요청 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
             key: 'restart',

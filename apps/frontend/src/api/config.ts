@@ -71,17 +71,13 @@ export async function restartServer(): Promise<string> {
  */
 export async function healthCheck(): Promise<boolean> {
   try {
-    console.log(`[healthCheck] Checking /api/health`);
-
     const response = await fetch('/api/health', {
       method: 'GET',
       cache: 'no-cache',
     });
 
-    console.log(`[healthCheck] Response status: ${response.status}`);
     return response.ok;
   } catch (error) {
-    console.log(`[healthCheck] Error:`, error);
     return false;
   }
 }
@@ -91,21 +87,16 @@ export async function healthCheck(): Promise<boolean> {
  * 개발 모드에서는 Vite proxy를 통해 현재 오리진으로 체크
  */
 export async function waitForReconnect(newPort: string, maxAttempts = 30): Promise<boolean> {
-  console.log(`[waitForReconnect] Waiting for server (port ${newPort}), max attempts: ${maxAttempts}`);
-
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
 
-    console.log(`[waitForReconnect] Attempt ${i + 1}/${maxAttempts}...`);
     // 개발 모드에서는 상대 경로 사용 (Vite proxy를 통해 백엔드로 전달)
     const isHealthy = await healthCheck();
 
     if (isHealthy) {
-      console.log(`[waitForReconnect] Success on attempt ${i + 1}`);
       return true;
     }
   }
 
-  console.log(`[waitForReconnect] Failed after ${maxAttempts} attempts`);
   return false;
 }

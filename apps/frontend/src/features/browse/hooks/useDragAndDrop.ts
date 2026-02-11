@@ -111,7 +111,7 @@ export function useDragAndDrop({
           }
         }
       } catch (error) {
-        console.error('Drop error:', error);
+        // Error handled silently
       }
     },
     [onMove]

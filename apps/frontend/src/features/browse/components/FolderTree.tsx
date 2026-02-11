@@ -146,7 +146,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
           setTreeData(origin => updateTreeData(origin, key, newChildren));
           setLoadedKeys(prev => [...prev, key]);
         } catch (error) {
-          console.error('Failed to load directory contents:', error);
+          // Error handled silently
         } finally {
           loadingKeysRef.current.delete(key);
           resolve();
