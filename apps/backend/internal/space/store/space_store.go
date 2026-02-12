@@ -123,6 +123,51 @@ func (s *Store) GetByName(ctx context.Context, name string) (*space.Space, error
 	return &sp, nil
 }
 
+func (s *Store) GetByID(ctx context.Context, id int64) (*space.Space, error) {
+	sqlQuery, args, err := s.qb.
+		Select(
+			"id",
+			"space_name",
+			"space_desc",
+			"space_path",
+			"icon",
+			"space_category",
+			"created_at",
+			"created_user_id",
+			"updated_at",
+			"updated_user_id",
+		).
+		From("space").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build SQL query for GetByID: %w", err)
+	}
+
+	row := s.db.QueryRowContext(ctx, sqlQuery, args...)
+
+	var sp space.Space
+	if err := row.Scan(
+		&sp.ID,
+		&sp.SpaceName,
+		&sp.SpaceDesc,
+		&sp.SpacePath,
+		&sp.Icon,
+		&sp.SpaceCategory,
+		&sp.CreatedAt,
+		&sp.CreatedUserID,
+		&sp.UpdatedAt,
+		&sp.UpdatedUserID,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("space with id %d not found", id)
+		}
+		return nil, fmt.Errorf("failed to scan space row: %w", err)
+	}
+
+	return &sp, nil
+}
+
 // Create는 새로운 Space를 데이터베이스에 저장합니다
 func (s *Store) Create(ctx context.Context, req *space.CreateSpaceRequest) (*space.Space, error) {
 	now := time.Now()

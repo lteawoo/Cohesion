@@ -78,7 +78,7 @@ const ServerSettings = () => {
             // 개발 모드: 프론트엔드(5173)와 백엔드(3000)가 분리되어 있음
             // 백엔드 포트가 변경되어도 Vite proxy가 처리하므로 현재 페이지만 새로고침
 
-            const success = await waitForReconnect(newPort);
+            const success = await waitForReconnect();
 
             if (success) {
               message.success({
@@ -101,7 +101,7 @@ const ServerSettings = () => {
 
             if (currentPort === newPort) {
               // 같은 포트
-              const success = await waitForReconnect(newPort);
+              const success = await waitForReconnect();
 
               if (success) {
                 message.success({

@@ -20,7 +20,7 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   sourceCount,
   sources,
   currentPath,
-  selectedSpace,
+  selectedSpace: _selectedSpace,
   onConfirm,
   onCancel,
 }) => {

@@ -86,7 +86,7 @@ export async function healthCheck(): Promise<boolean> {
  * 새 포트로 reconnect될 때까지 polling
  * 개발 모드에서는 Vite proxy를 통해 현재 오리진으로 체크
  */
-export async function waitForReconnect(newPort: string, maxAttempts = 30): Promise<boolean> {
+export async function waitForReconnect(maxAttempts = 30): Promise<boolean> {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
 

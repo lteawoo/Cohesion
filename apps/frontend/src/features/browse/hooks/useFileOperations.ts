@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Modal, App } from 'antd';
+import { App } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
 
 interface UseFileOperationsReturn {

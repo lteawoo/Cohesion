@@ -12,6 +12,7 @@ interface BrowseStore {
 
   setPath: (path: string, space?: Space) => void;
   fetchDirectoryContents: (path: string, systemMode?: boolean) => Promise<void>;
+  fetchSpaceContents: (spaceId: number, relativePath: string) => Promise<void>;
   clearContent: () => void;
 }
 
@@ -39,16 +40,32 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
       }
       const data: FileNode[] = await response.json();
 
-      // 현재 경로에 해당하는 Space 자동 탐색 (가장 긴 매칭을 선택)
-      const spaces = useSpaceStore.getState().spaces;
-      const matchingSpaces = spaces?.filter(s => path.startsWith(s.space_path)) || [];
-      const matchingSpace = matchingSpaces.length > 0
-        ? matchingSpaces.reduce((longest, current) =>
-            current.space_path.length > longest.space_path.length ? current : longest
-          )
-        : undefined;
+      // ✅ Space 매칭 로직 제거 - systemMode 전용 함수
+      // Space 정보는 fetchSpaceContents 사용 시에만 설정됨
+      set({ content: data, isLoading: false });
+    } catch (e) {
+      set({ error: e as Error, isLoading: false });
+    }
+  },
 
-      set({ content: data, isLoading: false, selectedPath: path, selectedSpace: matchingSpace });
+  fetchSpaceContents: async (spaceId: number, relativePath: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const url = `/api/spaces/${spaceId}/browse?path=${encodeURIComponent(relativePath)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data: FileNode[] = await response.json();
+
+      // Space 정보는 ID로 확정 (매칭 불필요!)
+      const space = useSpaceStore.getState().spaces.find(s => s.id === spaceId);
+
+      set({
+        content: data,
+        isLoading: false,
+        selectedSpace: space  // 덮어쓰기 없음
+      });
     } catch (e) {
       set({ error: e as Error, isLoading: false });
     }

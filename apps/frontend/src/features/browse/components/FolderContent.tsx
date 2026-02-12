@@ -106,11 +106,24 @@ const FolderContent: React.FC = () => {
 
   useEffect(() => {
     if (selectedPath) {
-      useBrowseStore.getState().fetchDirectoryContents(selectedPath);
+      if (selectedSpace) {
+        // ✅ Space 내부 탐색: 새 API 사용
+        const relativePath = selectedPath
+          .replace(selectedSpace.space_path, '')
+          .replace(/^\//, '');  // leading slash 제거
+
+        useBrowseStore.getState().fetchSpaceContents(
+          selectedSpace.id,
+          relativePath
+        );
+      } else {
+        // ✅ 시스템 모드: 기존 API 사용 (Space 생성용)
+        useBrowseStore.getState().fetchDirectoryContents(selectedPath, true);
+      }
     }
     // 경로 변경 시 선택 해제
     clearSelection();
-  }, [selectedPath, clearSelection]);
+  }, [selectedPath, selectedSpace, clearSelection]);
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useSortedContent(content, sortConfig);

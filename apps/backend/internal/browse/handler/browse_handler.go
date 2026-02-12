@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"taeu.kr/cohesion/internal/browse"
@@ -30,6 +31,7 @@ func NewHandler(browseService *browse.Service, spaceService *space.Service) *Han
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	// 기존 API (Space 생성용, systemMode 지원)
 	mux.Handle("/api/browse", web.Handler(h.handleBrowse))
 	mux.Handle("/api/browse/base-directories", web.Handler(h.handleBaseDirectories))
 	mux.Handle("/api/browse/download", web.Handler(h.handleDownload))
@@ -41,6 +43,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/browse/delete-multiple", web.Handler(h.handleDeleteMultiple))
 	mux.Handle("/api/browse/move", web.Handler(h.handleMove))
 	mux.Handle("/api/browse/copy", web.Handler(h.handleCopy))
+
+	// 신규 API (Space 기반 탐색)
+	mux.Handle("/api/spaces/", web.Handler(h.handleSpaceAPI))
 }
 
 // isPathAllowed checks if the given path is within any allowed Space
@@ -1407,6 +1412,123 @@ func (h *Handler) copyDir(src, dst string) error {
 			if err := h.copyFile(srcPath, dstPath); err != nil {
 				return err
 			}
+		}
+	}
+
+	return nil
+}
+
+// isPathWithinSpace는 경로가 Space 내부에 있는지 검증 (디렉토리 트래버셜 방지)
+func isPathWithinSpace(path, spacePath string) bool {
+	cleanPath := filepath.Clean(path)
+	cleanSpace := filepath.Clean(spacePath)
+
+	// 상대 경로 계산
+	rel, err := filepath.Rel(cleanSpace, cleanPath)
+	if err != nil {
+		return false
+	}
+
+	// ".."로 시작하면 Space 외부 경로
+	return !strings.HasPrefix(rel, "..")
+}
+
+// handleSpaceAPI는 Space 기반 API 엔드포인트를 처리
+func (h *Handler) handleSpaceAPI(w http.ResponseWriter, r *http.Request) *web.Error {
+	// URL 파싱: /api/spaces/{id}/browse?path=...
+	pathParts := strings.TrimPrefix(r.URL.Path, "/api/spaces/")
+	parts := strings.Split(pathParts, "/")
+
+	if len(parts) < 2 {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid URL format. Expected: /api/spaces/{id}/{action}",
+		}
+	}
+
+	// Space ID 파싱
+	spaceID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid space ID",
+			Err:     err,
+		}
+	}
+
+	action := parts[1]
+
+	// Space 조회
+	ctx := r.Context()
+	spaceData, err := h.spaceService.GetSpaceByID(ctx, spaceID)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusNotFound,
+			Message: fmt.Sprintf("Space not found: %v", err),
+			Err:     err,
+		}
+	}
+
+	// 상대 경로 가져오기
+	relativePath := r.URL.Query().Get("path")
+
+	// 절대 경로 계산
+	absolutePath := filepath.Join(spaceData.SpacePath, relativePath)
+
+	// 경로 검증 (디렉토리 트래버셜 방지)
+	if !isPathWithinSpace(absolutePath, spaceData.SpacePath) {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: path is outside of Space",
+		}
+	}
+
+	// 액션별 처리
+	switch action {
+	case "browse":
+		return h.handleSpaceBrowse(w, r, absolutePath)
+	default:
+		return &web.Error{
+			Code:    http.StatusNotFound,
+			Message: fmt.Sprintf("Unknown action: %s", action),
+		}
+	}
+}
+
+// handleSpaceBrowse는 Space 내부 디렉토리 탐색을 처리
+func (h *Handler) handleSpaceBrowse(w http.ResponseWriter, r *http.Request, absolutePath string) *web.Error {
+	// 디렉토리 목록 조회
+	files, err := h.browseService.ListDirectory(false, absolutePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{
+				Code:    http.StatusNotFound,
+				Message: "Directory not found",
+				Err:     err,
+			}
+		}
+		if os.IsPermission(err) {
+			return &web.Error{
+				Code:    http.StatusForbidden,
+				Message: "Permission denied",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to list directory",
+			Err:     err,
+		}
+	}
+
+	// JSON 응답
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(files); err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to encode response",
+			Err:     err,
 		}
 	}
 
