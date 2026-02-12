@@ -7,7 +7,7 @@ export type BreadcrumbItem = NonNullable<BreadcrumbProps['items']>[number];
 interface UseBreadcrumbParams {
   selectedPath: string;
   selectedSpace?: Space;
-  onNavigate: (path: string) => void;
+  onNavigate: (path: string, space?: Space) => void;
 }
 
 export function useBreadcrumb({ selectedPath, selectedSpace, onNavigate }: UseBreadcrumbParams) {
@@ -21,7 +21,7 @@ export function useBreadcrumb({ selectedPath, selectedSpace, onNavigate }: UseBr
 
       const items: BreadcrumbItem[] = [
         {
-          title: <a onClick={() => onNavigate(selectedSpace.space_path)}>{selectedSpace.space_name}</a>,
+          title: <a onClick={() => onNavigate(selectedSpace.space_path, selectedSpace)}>{selectedSpace.space_name}</a>,
           key: selectedSpace.space_path,
         },
       ];
@@ -29,7 +29,7 @@ export function useBreadcrumb({ selectedPath, selectedSpace, onNavigate }: UseBr
       segments.forEach((curr, idx) => {
         const path = selectedSpace.space_path + '/' + segments.slice(0, idx + 1).join('/');
         items.push({
-          title: <a onClick={() => onNavigate(path)}>{curr}</a>,
+          title: <a onClick={() => onNavigate(path, selectedSpace)}>{curr}</a>,
           key: path,
         });
       });
