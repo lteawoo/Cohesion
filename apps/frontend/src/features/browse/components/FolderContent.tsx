@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Empty, message } from 'antd';
+import { Empty, App } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { buildTableColumns } from '../constants';
@@ -22,6 +22,8 @@ import UploadOverlay from './FolderContent/UploadOverlay';
 import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
 
 const FolderContent: React.FC = () => {
+  const { message } = App.useApp();
+
   // Store selectors
   const selectedPath = useBrowseStore((state) => state.selectedPath);
   const selectedSpace = useBrowseStore((state) => state.selectedSpace);

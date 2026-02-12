@@ -39,9 +39,14 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
       }
       const data: FileNode[] = await response.json();
 
-      // 현재 경로에 해당하는 Space 자동 탐색
+      // 현재 경로에 해당하는 Space 자동 탐색 (가장 긴 매칭을 선택)
       const spaces = useSpaceStore.getState().spaces;
-      const matchingSpace = spaces?.find(s => path.startsWith(s.space_path));
+      const matchingSpaces = spaces?.filter(s => path.startsWith(s.space_path)) || [];
+      const matchingSpace = matchingSpaces.length > 0
+        ? matchingSpaces.reduce((longest, current) =>
+            current.space_path.length > longest.space_path.length ? current : longest
+          )
+        : undefined;
 
       set({ content: data, isLoading: false, selectedPath: path, selectedSpace: matchingSpace });
     } catch (e) {

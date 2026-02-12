@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { message, Modal } from 'antd';
+import { Modal, App } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
 
 interface UseFileOperationsReturn {
@@ -14,6 +14,7 @@ interface UseFileOperationsReturn {
 }
 
 export function useFileOperations(selectedPath: string): UseFileOperationsReturn {
+  const { message, modal } = App.useApp();
   const fetchDirectoryContents = useBrowseStore((state) => state.fetchDirectoryContents);
 
   // 파일 업로드 실행 함수
@@ -42,7 +43,7 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
       // 목록 새로고침
       await fetchDirectoryContents(targetPath);
     },
-    [fetchDirectoryContents]
+    [fetchDirectoryContents, message]
   );
 
   // 파일 업로드 처리 (중복 확인 포함)
@@ -53,7 +54,7 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
       } catch (error: unknown) {
         // 파일 중복 에러 (409)
         if (error && typeof error === 'object' && 'status' in error && error.status === 409) {
-          Modal.confirm({
+          modal.confirm({
             title: '파일 덮어쓰기',
             content: `"${file.name}" 파일이 이미 존재합니다. 덮어쓰시겠습니까?`,
             okText: '덮어쓰기',
@@ -78,7 +79,7 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         }
       }
     },
-    [performUpload]
+    [performUpload, modal, message]
   );
 
   // 이름 변경 처리
@@ -112,7 +113,7 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         message.error(error instanceof Error ? error.message : '이름 변경 실패');
       }
     },
-    [selectedPath, fetchDirectoryContents]
+    [selectedPath, fetchDirectoryContents, message]
   );
 
   // 새 폴더 만들기 처리
@@ -146,7 +147,7 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         message.error(error instanceof Error ? error.message : '폴더 생성 실패');
       }
     },
-    [selectedPath, fetchDirectoryContents]
+    [selectedPath, fetchDirectoryContents, message]
   );
 
   // 다중 다운로드 처리
@@ -180,14 +181,14 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
     } catch (error) {
       message.error(error instanceof Error ? error.message : '다운로드 실패');
     }
-  }, []);
+  }, [message]);
 
   // 다중 삭제 처리
   const handleBulkDelete = useCallback(
     async (paths: string[]) => {
       if (paths.length === 0) return;
 
-      Modal.confirm({
+      modal.confirm({
         title: '삭제 확인',
         content: `선택한 ${paths.length}개 항목을 삭제하시겠습니까?`,
         okText: '삭제',
@@ -224,7 +225,7 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         },
       });
     },
-    [selectedPath, fetchDirectoryContents]
+    [selectedPath, fetchDirectoryContents, message, modal]
   );
 
   // 이동 처리
@@ -263,7 +264,7 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         message.error(error instanceof Error ? error.message : '이동 실패');
       }
     },
-    [selectedPath, fetchDirectoryContents]
+    [selectedPath, fetchDirectoryContents, message]
   );
 
   // 복사 처리
@@ -302,13 +303,13 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         message.error(error instanceof Error ? error.message : '복사 실패');
       }
     },
-    [selectedPath, fetchDirectoryContents]
+    [selectedPath, fetchDirectoryContents, message]
   );
 
   // 삭제 처리
   const handleDelete = useCallback(
     async (record: { path: string; name: string; isDir: boolean }) => {
-      Modal.confirm({
+      modal.confirm({
         title: '삭제 확인',
         content: `"${record.name}"을(를) 삭제하시겠습니까?${
           record.isDir ? ' (폴더 내 모든 파일도 삭제됩니다)' : ''
@@ -339,7 +340,7 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         },
       });
     },
-    [selectedPath, fetchDirectoryContents]
+    [selectedPath, fetchDirectoryContents, message, modal]
   );
 
   return {

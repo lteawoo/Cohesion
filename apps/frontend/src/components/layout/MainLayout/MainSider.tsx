@@ -1,7 +1,7 @@
 import DirectorySetupModal from "@/features/space/components/DirectorySetupModal";
 import FolderTree from "@/features/browse/components/FolderTree";
 import { PlusOutlined } from "@ant-design/icons";
-import { Button, Layout, theme, Modal, message } from "antd";
+import { Button, Layout, theme, App } from "antd";
 import type { Space } from "@/features/space/types";
 import { useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
@@ -14,12 +14,13 @@ interface MainSiderProps {
 
 export default function MainSider({ onPathSelect }: MainSiderProps) {
   const { token } = theme.useToken();
+  const { message, modal } = App.useApp();
   const [isOpen, setIsOpen] = useState(false);
   const deleteSpaceAction = useSpaceStore((state) => state.deleteSpace);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDeleteSpace = (space: Space) => {
-    Modal.confirm({
+    modal.confirm({
       title: 'Space 삭제',
       content: `"${space.space_name}" Space를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`,
       okText: '삭제',
