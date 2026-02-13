@@ -1,6 +1,10 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Ant Design message 컨텍스트 경고 제거 완료** (2026-02-13):
+    - `/settings` 라우트에 `antd` `App` 프로바이더를 추가해 메시지 컨텍스트를 보장.
+    - 정적 `message`/`Modal.confirm` 호출을 `App.useApp()` 기반 호출로 전환.
+    - 검증: `pnpm -s build` (in `apps/frontend`) 통과.
 - **Folder Explorer 가로 스크롤 최소화 및 자동 컬럼 배치 적용 완료** (2026-02-13):
     - Grid 카드 레이아웃을 `auto-fit + minmax` 기반의 자동 컬럼 배치로 전환.
     - 카드 단일 노출 시 과도한 확장을 방지하기 위해 카드 최대 폭(220px) 제한을 적용.

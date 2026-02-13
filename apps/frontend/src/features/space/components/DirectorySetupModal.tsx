@@ -1,4 +1,4 @@
-import { Modal, Input, message } from "antd";
+import { Modal, Input, App } from "antd";
 import FolderTree from "../../browse/components/FolderTree";
 import { useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
@@ -12,6 +12,7 @@ export default function DirectorySetupModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
+  const { message } = App.useApp();
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [spaceName, setSpaceName] = useState<string>('');
   const [spaceDesc, setSpaceDesc] = useState<string>('');

@@ -1,10 +1,11 @@
-import { Card, Button, Typography, Space, message, Popconfirm } from 'antd';
+import { Card, Button, Typography, Space, Popconfirm, App } from 'antd';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
 const AdvancedSettings = () => {
+  const { message } = App.useApp();
   const resetToDefaults = useSettingsStore((state) => state.resetToDefaults);
 
   const handleReset = () => {

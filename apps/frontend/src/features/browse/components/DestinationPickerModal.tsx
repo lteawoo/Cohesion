@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Modal, message, theme } from 'antd';
+import { Modal, theme, App } from 'antd';
 import FolderTree from './FolderTree';
 import type { Space } from '@/features/space/types';
 
@@ -22,6 +22,7 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const { message } = App.useApp();
   const [selectedDestination, setSelectedDestination] = useState<string>('');
   const [selectedDestinationSpace, setSelectedDestinationSpace] = useState<Space | undefined>();
 
