@@ -52,7 +52,12 @@ func NewService() *Service {
 		IsDir: true,
 	})
 
+	seen := make(map[string]bool)
 	for _, p := range partitions {
+		if seen[p.Mountpoint] {
+			continue
+		}
+		seen[p.Mountpoint] = true
 		baseDirectories = append(baseDirectories, FileInfo{
 			Name:  p.Mountpoint,
 			Path:  p.Mountpoint,

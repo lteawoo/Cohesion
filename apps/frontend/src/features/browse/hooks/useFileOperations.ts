@@ -1,33 +1,52 @@
 import { useCallback } from 'react';
 import { App } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
+import type { Space } from '@/features/space/types';
 
 interface UseFileOperationsReturn {
   handleRename: (oldPath: string, newName: string) => Promise<void>;
   handleCreateFolder: (parentPath: string, folderName: string) => Promise<void>;
   handleDelete: (record: { path: string; name: string; isDir: boolean }) => Promise<void>;
   handleBulkDelete: (paths: string[]) => Promise<void>;
-  handleMove: (sources: string[], destination: string) => Promise<void>;
-  handleCopy: (sources: string[], destination: string) => Promise<void>;
+  handleMove: (sources: string[], destination: string, destinationSpace?: Space) => Promise<void>;
+  handleCopy: (sources: string[], destination: string, destinationSpace?: Space) => Promise<void>;
   handleBulkDownload: (paths: string[]) => Promise<void>;
   handleFileUpload: (file: File, targetPath: string) => Promise<void>;
 }
 
-export function useFileOperations(selectedPath: string): UseFileOperationsReturn {
+// 절대 경로를 Space 상대 경로로 변환
+function toRelativePath(spacePath: string, absolutePath: string): string {
+  return absolutePath.replace(spacePath, '').replace(/^\//, '');
+}
+
+export function useFileOperations(selectedPath: string, selectedSpace?: Space): UseFileOperationsReturn {
   const { message, modal } = App.useApp();
+  const fetchSpaceContents = useBrowseStore((state) => state.fetchSpaceContents);
   const fetchDirectoryContents = useBrowseStore((state) => state.fetchDirectoryContents);
+
+  // 현재 경로로 목록 새로고침
+  const refreshContents = useCallback(async () => {
+    if (selectedSpace) {
+      const relativePath = toRelativePath(selectedSpace.space_path, selectedPath);
+      await fetchSpaceContents(selectedSpace.id, relativePath);
+    } else {
+      await fetchDirectoryContents(selectedPath, true);
+    }
+  }, [selectedPath, selectedSpace, fetchSpaceContents, fetchDirectoryContents]);
 
   // 파일 업로드 실행 함수
   const performUpload = useCallback(
     async (file: File, targetPath: string, overwrite: boolean = false): Promise<void> => {
+      if (!selectedSpace) throw new Error('Space가 선택되지 않았습니다');
+
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('targetPath', targetPath);
+      formData.append('path', toRelativePath(selectedSpace.space_path, targetPath));
       if (overwrite) {
         formData.append('overwrite', 'true');
       }
 
-      const response = await fetch('/api/browse/upload', {
+      const response = await fetch(`/api/spaces/${selectedSpace.id}/files/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -39,11 +58,9 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
 
       const result = await response.json();
       message.success(`"${result.filename}" 업로드 완료`);
-
-      // 목록 새로고침
-      await fetchDirectoryContents(targetPath);
+      await refreshContents();
     },
-    [fetchDirectoryContents, message]
+    [selectedSpace, refreshContents, message]
   );
 
   // 파일 업로드 처리 (중복 확인 포함)
@@ -52,7 +69,6 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
       try {
         await performUpload(file, targetPath, false);
       } catch (error: unknown) {
-        // 파일 중복 에러 (409)
         if (error && typeof error === 'object' && 'status' in error && error.status === 409) {
           modal.confirm({
             title: '파일 덮어쓰기',
@@ -89,13 +105,17 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         message.error('새 이름을 입력하세요');
         return;
       }
+      if (!selectedSpace) {
+        message.error('Space가 선택되지 않았습니다');
+        return;
+      }
 
       try {
-        const response = await fetch('/api/browse/rename', {
+        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/rename`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            oldPath,
+            path: toRelativePath(selectedSpace.space_path, oldPath),
             newName: newName.trim(),
           }),
         });
@@ -106,14 +126,12 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         }
 
         message.success('이름이 변경되었습니다');
-
-        // 목록 새로고침
-        await fetchDirectoryContents(selectedPath);
+        await refreshContents();
       } catch (error) {
         message.error(error instanceof Error ? error.message : '이름 변경 실패');
       }
     },
-    [selectedPath, fetchDirectoryContents, message]
+    [selectedSpace, refreshContents, message]
   );
 
   // 새 폴더 만들기 처리
@@ -123,13 +141,17 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         message.error('폴더 이름을 입력하세요');
         return;
       }
+      if (!selectedSpace) {
+        message.error('Space가 선택되지 않았습니다');
+        return;
+      }
 
       try {
-        const response = await fetch('/api/browse/create-folder', {
+        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/create-folder`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            parentPath,
+            parentPath: toRelativePath(selectedSpace.space_path, parentPath),
             folderName: folderName.trim(),
           }),
         });
@@ -140,48 +162,53 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         }
 
         message.success('폴더가 생성되었습니다');
-
-        // 디렉토리 목록 새로고침
-        await fetchDirectoryContents(selectedPath);
+        await refreshContents();
       } catch (error) {
         message.error(error instanceof Error ? error.message : '폴더 생성 실패');
       }
     },
-    [selectedPath, fetchDirectoryContents, message]
+    [selectedSpace, refreshContents, message]
   );
 
   // 다중 다운로드 처리
-  const handleBulkDownload = useCallback(async (paths: string[]) => {
-    if (paths.length === 0) return;
-
-    try {
-      const response = await fetch('/api/browse/download-multiple', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paths }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to download');
+  const handleBulkDownload = useCallback(
+    async (paths: string[]) => {
+      if (paths.length === 0) return;
+      if (!selectedSpace) {
+        message.error('Space가 선택되지 않았습니다');
+        return;
       }
 
-      // Blob 다운로드 처리
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `download-${Date.now()}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      try {
+        const relativePaths = paths.map(p => toRelativePath(selectedSpace.space_path, p));
+        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/download-multiple`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths: relativePaths }),
+        });
 
-      message.success('다운로드가 시작되었습니다');
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '다운로드 실패');
-    }
-  }, [message]);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to download');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `download-${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        message.success('다운로드가 시작되었습니다');
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '다운로드 실패');
+      }
+    },
+    [selectedSpace, message]
+  );
 
   // 다중 삭제 처리
   const handleBulkDelete = useCallback(
@@ -195,11 +222,16 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         okType: 'danger',
         cancelText: '취소',
         onOk: async () => {
+          if (!selectedSpace) {
+            message.error('Space가 선택되지 않았습니다');
+            return;
+          }
           try {
-            const response = await fetch('/api/browse/delete-multiple', {
+            const relativePaths = paths.map(p => toRelativePath(selectedSpace.space_path, p));
+            const response = await fetch(`/api/spaces/${selectedSpace.id}/files/delete-multiple`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paths }),
+              body: JSON.stringify({ paths: relativePaths }),
             });
 
             if (!response.ok) {
@@ -217,29 +249,40 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
               message.success(`${succeededCount}개 항목이 삭제되었습니다`);
             }
 
-            // 목록 새로고침
-            await fetchDirectoryContents(selectedPath);
+            await refreshContents();
           } catch (error) {
             message.error(error instanceof Error ? error.message : '삭제 실패');
           }
         },
       });
     },
-    [selectedPath, fetchDirectoryContents, message, modal]
+    [selectedSpace, refreshContents, message, modal]
   );
 
-  // 이동 처리
+  // 이동 처리 (cross-Space 지원)
   const handleMove = useCallback(
-    async (sources: string[], destination: string) => {
+    async (sources: string[], destination: string, destinationSpace?: Space) => {
       if (sources.length === 0) return;
+      if (!selectedSpace) {
+        message.error('Space가 선택되지 않았습니다');
+        return;
+      }
+
+      const dstSpace = destinationSpace ?? selectedSpace;
 
       try {
-        const response = await fetch('/api/browse/move', {
+        const relativeSources = sources.map(s => toRelativePath(selectedSpace.space_path, s));
+        const relativeDestination = toRelativePath(dstSpace.space_path, destination);
+
+        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/move`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            sources,
-            destination,
+            sources: relativeSources,
+            destination: {
+              spaceId: dstSpace.id,
+              path: relativeDestination,
+            },
           }),
         });
 
@@ -258,27 +301,38 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
           message.success(`${succeededCount}개 항목이 이동되었습니다`);
         }
 
-        // 목록 새로고침
-        await fetchDirectoryContents(selectedPath);
+        await refreshContents();
       } catch (error) {
         message.error(error instanceof Error ? error.message : '이동 실패');
       }
     },
-    [selectedPath, fetchDirectoryContents, message]
+    [selectedSpace, refreshContents, message]
   );
 
-  // 복사 처리
+  // 복사 처리 (cross-Space 지원)
   const handleCopy = useCallback(
-    async (sources: string[], destination: string) => {
+    async (sources: string[], destination: string, destinationSpace?: Space) => {
       if (sources.length === 0) return;
+      if (!selectedSpace) {
+        message.error('Space가 선택되지 않았습니다');
+        return;
+      }
+
+      const dstSpace = destinationSpace ?? selectedSpace;
 
       try {
-        const response = await fetch('/api/browse/copy', {
+        const relativeSources = sources.map(s => toRelativePath(selectedSpace.space_path, s));
+        const relativeDestination = toRelativePath(dstSpace.space_path, destination);
+
+        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/copy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            sources,
-            destination,
+            sources: relativeSources,
+            destination: {
+              spaceId: dstSpace.id,
+              path: relativeDestination,
+            },
           }),
         });
 
@@ -297,16 +351,15 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
           message.success(`${succeededCount}개 항목이 복사되었습니다`);
         }
 
-        // 목록 새로고침
-        await fetchDirectoryContents(selectedPath);
+        await refreshContents();
       } catch (error) {
         message.error(error instanceof Error ? error.message : '복사 실패');
       }
     },
-    [selectedPath, fetchDirectoryContents, message]
+    [selectedSpace, refreshContents, message]
   );
 
-  // 삭제 처리
+  // 단일 삭제 처리
   const handleDelete = useCallback(
     async (record: { path: string; name: string; isDir: boolean }) => {
       modal.confirm({
@@ -318,11 +371,15 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
         okType: 'danger',
         cancelText: '취소',
         onOk: async () => {
+          if (!selectedSpace) {
+            message.error('Space가 선택되지 않았습니다');
+            return;
+          }
           try {
-            const response = await fetch('/api/browse/delete', {
+            const response = await fetch(`/api/spaces/${selectedSpace.id}/files/delete`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: record.path }),
+              body: JSON.stringify({ path: toRelativePath(selectedSpace.space_path, record.path) }),
             });
 
             if (!response.ok) {
@@ -331,16 +388,14 @@ export function useFileOperations(selectedPath: string): UseFileOperationsReturn
             }
 
             message.success('삭제되었습니다');
-
-            // 목록 새로고침
-            await fetchDirectoryContents(selectedPath);
+            await refreshContents();
           } catch (error) {
             message.error(error instanceof Error ? error.message : '삭제 실패');
           }
         },
       });
     },
-    [selectedPath, fetchDirectoryContents, message, modal]
+    [selectedSpace, refreshContents, message, modal]
   );
 
   return {

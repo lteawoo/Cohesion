@@ -41,8 +41,8 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, error) {
 	// 의존성 주입
 	spaceStore := spaceStore.NewStore(db)
 	spaceService := space.NewService(spaceStore)
-	spaceHandler := spaceHandler.NewHandler(spaceService)
 	browseService := browse.NewService()
+	spaceHandler := spaceHandler.NewHandler(spaceService, browseService)
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	webDavService := webdav.NewService(spaceService)
 	webDavHandler := webdavHandler.NewHandler(webDavService)

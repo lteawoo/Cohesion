@@ -57,7 +57,7 @@ const FolderContent: React.FC = () => {
     handleCopy,
     handleBulkDownload,
     handleFileUpload,
-  } = useFileOperations(selectedPath);
+  } = useFileOperations(selectedPath, selectedSpace);
 
   const {
     isDragging,
@@ -90,7 +90,10 @@ const FolderContent: React.FC = () => {
     onSetSelection: setSelection,
     callbacks: {
       onDownload: (path: string) => {
-        window.location.href = `/api/browse/download?path=${encodeURIComponent(path)}`;
+        if (selectedSpace) {
+          const relativePath = path.replace(selectedSpace.space_path, '').replace(/^\//, '');
+          window.location.href = `/api/spaces/${selectedSpace.id}/files/download?path=${encodeURIComponent(relativePath)}`;
+        }
       },
       onCopy: () => openModal('destination', { mode: 'copy' }),
       onMove: () => openModal('destination', { mode: 'move' }),
@@ -175,14 +178,14 @@ const FolderContent: React.FC = () => {
     closeModal('createFolder');
   };
 
-  const handleMoveConfirm = async (destination: string) => {
-    await handleMove(Array.from(selectedItems), destination);
+  const handleMoveConfirm = async (destination: string, destinationSpace?: import('@/features/space/types').Space) => {
+    await handleMove(Array.from(selectedItems), destination, destinationSpace);
     closeModal('destination');
     clearSelection();
   };
 
-  const handleCopyConfirm = async (destination: string) => {
-    await handleCopy(Array.from(selectedItems), destination);
+  const handleCopyConfirm = async (destination: string, destinationSpace?: import('@/features/space/types').Space) => {
+    await handleCopy(Array.from(selectedItems), destination, destinationSpace);
     closeModal('destination');
     clearSelection();
   };
@@ -307,6 +310,8 @@ const FolderContent: React.FC = () => {
             onFolderDrop={handleFolderDrop}
             itemsRef={itemsRef}
             disableDraggable={isSelecting}
+            spaceId={selectedSpace?.id}
+            spacePath={selectedSpace?.space_path}
           />
           <BoxSelectionOverlay
             visible={isSelecting && selectionBox !== null}

@@ -3,12 +3,16 @@ import { FileOutlined } from '@ant-design/icons';
 import { Spin } from 'antd';
 
 interface ImageThumbnailProps {
-  path: string;
+  spaceId: number;
+  spacePath: string;
+  path: string;       // 절대 경로
   alt: string;
-  size?: number; // 컨테이너 크기
+  size?: number;
 }
 
 export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
+  spaceId,
+  spacePath,
   path,
   alt,
   size = 120,
@@ -16,8 +20,10 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  const relativePath = path.replace(spacePath, '').replace(/^\//, '');
+  const src = `/api/spaces/${spaceId}/files/download?path=${encodeURIComponent(relativePath)}`;
+
   if (error) {
-    // 로딩 실패 시 기본 파일 아이콘
     return (
       <div
         style={{
@@ -48,7 +54,7 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
         </div>
       )}
       <img
-        src={`/api/browse/download?path=${encodeURIComponent(path)}`}
+        src={src}
         alt={alt}
         loading="lazy"
         style={{
