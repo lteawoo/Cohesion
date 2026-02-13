@@ -113,9 +113,19 @@ export default function ServerStatus() {
       placement="bottom"
       arrow={{ pointAtCenter: true }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          cursor: 'pointer',
+          lineHeight: 'normal',
+          height: 'auto',
+          padding: '4px 0',
+        }}
+      >
         <StatusDot color={dotColor} />
-        <span style={{ fontSize: 13, color: token.colorTextSecondary }}>Status</span>
+        <span style={{ fontSize: 13, color: token.colorTextSecondary, lineHeight: 'normal' }}>Status</span>
       </div>
     </Popover>
   );
