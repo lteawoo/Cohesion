@@ -110,7 +110,8 @@ export default function ServerStatus() {
         )
       }
       trigger="hover"
-      placement="bottomLeft"
+      placement="bottom"
+      arrow={{ pointAtCenter: true }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
         <StatusDot color={dotColor} />
