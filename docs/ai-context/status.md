@@ -510,7 +510,32 @@
         - 모달 하단: "/Users/.../MyNewFolder" → "헬로/MyNewFolder" ✅
         - 다크모드 배경색 정상 작동 ✅
 
+- **이동/복사 모달 폴더 선택 시 선택 해제 버그 수정 완료** (2026-02-13):
+    - 문제: 파일/폴더를 선택한 상태에서 이동/복사 모달을 열고 모달 트리에서 폴더를 선택하면, 원래 선택된 항목이 해제되어 작업이 실패하거나 UX가 불안정함.
+    - 원인: `FolderContent`의 컨테이너 `onClick` 핸들러(`handleContainerClick`)가 React Portal로 렌더링된 Modal 내부 클릭 이벤트까지 버블링으로 받아 `clearSelection()`을 실행.
+    - 해결: `handleContainerClick`에서 `.ant-modal` 내부 클릭을 선택 해제 대상에서 제외.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 검증:
+        - `pnpm -C apps/frontend lint` 통과.
+        - `pnpm -C apps/frontend build` 통과.
+        - 브라우저 수동 테스트: 이동 모달에서 폴더 선택 후 취소 시 `1개 선택됨` 상태 유지 확인.
+        - 스크린샷: `.playwright-mcp/move-modal-selection-fixed.png`
+
 ## 다음 작업 (Next Steps)
 - **FolderContent.tsx 리팩토링** (Phase 4: 검증 및 테스트).
 - 검색 기능 구현.
 - 이미지/텍스트 파일 미리보기 기능 구현.
+
+- **이동/복사 모달 source selection 안정성 보강 완료** (2026-02-13):
+    - 기존 모달이 실시간 `selectedItems`를 참조해 외부 상태 변화 시 source가 유실될 수 있는 구조를 개선.
+    - `DestinationModalData.sources` 스냅샷 도입으로 모달 오픈 시점 source를 고정.
+    - 모달 열림 중에는 네비게이션 변화가 있어도 `clearSelection()`을 건너뛰도록 처리.
+    - 결과: 모달 폴더 선택/탐색 과정에서 source selection이 유지되고 이동/복사 동작 안정성 개선.
+- **이동/복사 모달 취소 시 selection 복원 보강 완료** (2026-02-13):
+    - 모달 취소/닫힘 타이밍에서 selection이 유실되는 케이스를 방지하기 위해 source snapshot 복원 로직 추가.
+- **파일 작업 후 트리 자동 반영 구조 개선 완료** (2026-02-13):
+    - `browseStore`에 `treeRefreshVersion`/`invalidateTree` 추가.
+    - 파일 작업 성공 시 트리 invalidate 수행 (`rename`, `create-folder`, `delete`, `delete-multiple`, `move`, `copy`).
+    - `FolderTree`가 invalidate 버전을 구독하여 로컬 트리 캐시를 초기화하고 최신 트리 재구성.
+    - 브라우저 검증: `MyNewFolder/1234` 삭제 후 좌측 트리 재확장 시 노드 제거 반영 확인.

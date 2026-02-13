@@ -1103,3 +1103,54 @@
   - 현재 Space 강조 표시 (`defaultExpandedKeys`).
   - 최근 사용 폴더 기록 (localStorage).
   - Space 간 이동 시 확인 모달 추가.
+
+### 이동/복사 모달 클릭 이벤트 버블링 처리 결정 (2026-02-13)
+- **문제**: 이동/복사 모달에서 대상 폴더를 선택하면 파일 익스플로러의 기존 선택이 해제됨.
+- **원인 분석**:
+  - `FolderContent` 루트 컨테이너의 `onClick`(`handleContainerClick`)는 빈 영역 클릭 시 `clearSelection()` 수행.
+  - 이동/복사 모달은 React Portal로 렌더링되지만 이벤트 버블링은 React 트리를 따라 상위 컴포넌트(`FolderContent`)로 전달됨.
+  - 모달 내부의 Tree 노드 클릭이 컨테이너 빈 영역 클릭으로 오인되어 선택이 해제됨.
+- **결정**: `handleContainerClick`에서 `.ant-modal` 내부 클릭은 선택 해제 로직에서 제외.
+- **이유**:
+  - 선택 해제 의도는 파일 목록 빈 영역 클릭에 한정되어야 함.
+  - 모달 내부 조작은 원본 selection state를 유지해야 이동/복사 작업의 일관성이 보장됨.
+  - 영향 범위가 작고 회귀 위험이 낮음.
+- **구현**:
+  - `const isModalContent = target.closest('.ant-modal');`
+  - `if (isModalContent) return;`
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+- **검증**:
+  - 린트/빌드 통과.
+  - 브라우저 수동 테스트로 모달 폴더 선택 후에도 `N개 선택됨` 유지 확인.
+  - 증빙 스크린샷: `.playwright-mcp/move-modal-selection-fixed.png`
+
+### 이동/복사 모달에서 source selection 안정성 보강 결정 (2026-02-13)
+- **추가 원인**:
+  - 기존 구조는 이동/복사 모달이 `selectedItems`를 실시간 참조.
+  - 전역 경로 상태(`selectedPath`, `selectedSpace`) 변화가 발생하면 `FolderContent`의 effect에서 `clearSelection()`이 실행되어 모달 작업 중 source가 사라질 수 있음.
+- **근본 대응 결정**:
+  1. 이동/복사 모달 오픈 시점의 source 목록을 스냅샷으로 고정.
+  2. 모달 열림 중에는 네비게이션 변화가 있어도 자동 selection clear를 수행하지 않음.
+- **구현**:
+  - `useModalManager`의 `DestinationModalData`에 `sources: string[]` 추가.
+  - `openModal('destination', { mode, sources })`로 현재 선택 목록 캡처.
+  - `handleMoveConfirm`/`handleCopyConfirm`은 실시간 `selectedItems` 대신 `modals.destination.data.sources` 사용.
+  - `selectedPath/selectedSpace` effect에서 `modals.destination.visible`일 때 `clearSelection()` skip.
+- **수정 파일**:
+  - `apps/frontend/src/features/browse/hooks/useModalManager.ts`
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+
+### 파일 작업 후 트리 반영을 위한 invalidate 구조 결정 (2026-02-13)
+- **문제**: 복사/이동/삭제/이름변경/폴더생성 후 우측 목록은 갱신되지만, 좌측/모달 트리는 stale 상태가 남음.
+- **원인**:
+  - 파일 작업 훅(`useFileOperations`)은 `refreshContents()`로 현재 폴더 내용만 재조회.
+  - `FolderTree`는 `treeData`, `loadedKeys`, `expandedKeys` 로컬 캐시를 유지하여 자동 무효화되지 않음.
+- **결정**: 전역 `treeRefreshVersion` 기반 invalidate 패턴 도입.
+- **구현**:
+  - `browseStore`에 `treeRefreshVersion`, `invalidateTree()` 추가.
+  - 파일 작업 성공 후(`rename/create-folder/delete/move/copy`) `invalidateTree()` 호출.
+  - `FolderTree`는 `treeRefreshVersion` 변경을 감지해 초기 트리 데이터 재구성 및 로컬 캐시 초기화.
+- **효과**:
+  - 파일 작업 직후 트리 컴포넌트(사이드바/모달) stale 상태 해소.
+  - 별도 수동 새로고침 없이 최신 구조 반영.

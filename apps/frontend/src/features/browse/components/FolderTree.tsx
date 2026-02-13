@@ -5,6 +5,7 @@ import type { GetProps, MenuProps } from 'antd';
 import type { EventDataNode } from 'antd/es/tree';
 import { useContextMenuStore } from '@/stores/contextMenuStore';
 import { useSpaceStore } from '@/stores/spaceStore';
+import { useBrowseStore } from '@/stores/browseStore';
 import { FolderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
@@ -35,6 +36,7 @@ interface FolderTreeProps {
 
 const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, onSpaceDelete }) => {
   const spaces = useSpaceStore((state) => state.spaces);
+  const treeRefreshVersion = useBrowseStore((state) => state.treeRefreshVersion);
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
@@ -88,7 +90,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     };
     loadInitialData();
     return () => { isMounted = false; };
-  }, [rootPath, rootName, showBaseDirectories, spaces, fetchBaseDirectories]);
+  }, [rootPath, rootName, showBaseDirectories, spaces, fetchBaseDirectories, treeRefreshVersion]);
 
   // 트리 노드를 확장할 때 자식 노드를 비동기적으로 불러옵니다 (Lazy Loading).
   const onLoadData = ({ key, children }: {key: React.Key; children?: TreeDataNode[]}): Promise<void> => {

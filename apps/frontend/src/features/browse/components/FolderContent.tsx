@@ -44,6 +44,7 @@ const FolderContent: React.FC = () => {
 
   // Modal management
   const { modals, openModal, closeModal, updateModalData } = useModalManager();
+  const prevNavRef = useRef<{ path: string; spaceId?: number }>({ path: '', spaceId: undefined });
 
   // Custom hooks
   const { selectedItems, handleItemClick, setSelection, clearSelection } = useFileSelection();
@@ -95,8 +96,8 @@ const FolderContent: React.FC = () => {
           window.location.href = `/api/spaces/${selectedSpace.id}/files/download?path=${encodeURIComponent(relativePath)}`;
         }
       },
-      onCopy: () => openModal('destination', { mode: 'copy' }),
-      onMove: () => openModal('destination', { mode: 'move' }),
+      onCopy: () => openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) }),
+      onMove: () => openModal('destination', { mode: 'move', sources: Array.from(selectedItems) }),
       onRename: (record: FileNode) => {
         openModal('rename', { record, newName: record.name });
       },
@@ -114,8 +115,18 @@ const FolderContent: React.FC = () => {
         .replace(/^\//, '');
       useBrowseStore.getState().fetchSpaceContents(selectedSpace.id, relativePath);
     }
-    clearSelection();
-  }, [selectedPath, selectedSpace, clearSelection]);
+
+    const currentNav = { path: selectedPath, spaceId: selectedSpace?.id };
+    const prevNav = prevNavRef.current;
+    const hasNavigated = prevNav.path !== currentNav.path || prevNav.spaceId !== currentNav.spaceId;
+
+    // 이동/복사 모달이 열려 있을 때는 selection을 유지해야 source 목록이 안정적으로 유지됨
+    if (hasNavigated && !modals.destination.visible) {
+      clearSelection();
+    }
+
+    prevNavRef.current = currentNav;
+  }, [selectedPath, selectedSpace, clearSelection, modals.destination.visible]);
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useSortedContent(content, sortConfig);
@@ -168,15 +179,25 @@ const FolderContent: React.FC = () => {
   };
 
   const handleMoveConfirm = async (destination: string, destinationSpace?: import('@/features/space/types').Space) => {
-    await handleMove(Array.from(selectedItems), destination, destinationSpace);
+    await handleMove(modals.destination.data.sources, destination, destinationSpace);
     closeModal('destination');
     clearSelection();
   };
 
   const handleCopyConfirm = async (destination: string, destinationSpace?: import('@/features/space/types').Space) => {
-    await handleCopy(Array.from(selectedItems), destination, destinationSpace);
+    await handleCopy(modals.destination.data.sources, destination, destinationSpace);
     closeModal('destination');
     clearSelection();
+  };
+
+  const handleDestinationCancel = () => {
+    const preservedSources = [...modals.destination.data.sources];
+    closeModal('destination');
+
+    // 모달 닫힘 과정에서 발생할 수 있는 클릭 이벤트 후 selection 복원
+    setTimeout(() => {
+      setSelection(new Set(preservedSources));
+    }, 0);
   };
 
   // File input handlers
@@ -194,6 +215,11 @@ const FolderContent: React.FC = () => {
 
   // Container click handler
   const handleContainerClick = (e: React.MouseEvent) => {
+    // 어떤 모달이든 열려 있으면 selection을 유지 (모달 조작 중 해제 방지)
+    if (modals.destination.visible || modals.rename.visible || modals.createFolder.visible) {
+      return;
+    }
+
     // 박스 선택 직후에는 무시
     if (wasRecentlySelecting) {
       return;
@@ -204,6 +230,12 @@ const FolderContent: React.FC = () => {
     const isTableRow = target.closest('tr');
     const isButton = target.closest('button');
     const isInput = target.closest('input');
+    const isModalContent = target.closest('.ant-modal');
+
+    // 모달 내부 클릭은 React portal 이벤트 버블링으로 들어오므로 선택 해제 대상에서 제외
+    if (isModalContent) {
+      return;
+    }
 
     // 카드, 테이블 행, 버튼, 입력 필드가 아닌 빈 영역만 선택 해제
     if (!isCard && !isTableRow && !isButton && !isInput) {
@@ -250,8 +282,8 @@ const FolderContent: React.FC = () => {
         selectedCount={selectedItems.size}
         showRename={selectedItems.size === 1}
         onDownload={() => handleBulkDownload(Array.from(selectedItems))}
-        onCopy={() => openModal('destination', { mode: 'copy' })}
-        onMove={() => openModal('destination', { mode: 'move' })}
+        onCopy={() => openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) })}
+        onMove={() => openModal('destination', { mode: 'move', sources: Array.from(selectedItems) })}
         onRename={() => {
           const path = Array.from(selectedItems)[0];
           const record = sortedContent.find(item => item.path === path);
@@ -331,11 +363,11 @@ const FolderContent: React.FC = () => {
       <DestinationPickerModal
         visible={modals.destination.visible}
         mode={modals.destination.data.mode}
-        sourceCount={selectedItems.size}
-        sources={Array.from(selectedItems)}
+        sourceCount={modals.destination.data.sources.length}
+        sources={modals.destination.data.sources}
         currentPath={selectedPath}
         onConfirm={modals.destination.data.mode === 'move' ? handleMoveConfirm : handleCopyConfirm}
-        onCancel={() => closeModal('destination')}
+        onCancel={handleDestinationCancel}
       />
 
       <UploadOverlay visible={isDragging} />
