@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Empty, message } from 'antd';
+import { Empty, App } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { buildTableColumns } from '../constants';
@@ -22,6 +22,8 @@ import UploadOverlay from './FolderContent/UploadOverlay';
 import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
 
 const FolderContent: React.FC = () => {
+  const { message } = App.useApp();
+
   // Store selectors
   const selectedPath = useBrowseStore((state) => state.selectedPath);
   const selectedSpace = useBrowseStore((state) => state.selectedSpace);
@@ -55,7 +57,7 @@ const FolderContent: React.FC = () => {
     handleCopy,
     handleBulkDownload,
     handleFileUpload,
-  } = useFileOperations(selectedPath);
+  } = useFileOperations(selectedPath, selectedSpace);
 
   const {
     isDragging,
@@ -88,7 +90,10 @@ const FolderContent: React.FC = () => {
     onSetSelection: setSelection,
     callbacks: {
       onDownload: (path: string) => {
-        window.location.href = `/api/browse/download?path=${encodeURIComponent(path)}`;
+        if (selectedSpace) {
+          const relativePath = path.replace(selectedSpace.space_path, '').replace(/^\//, '');
+          window.location.href = `/api/spaces/${selectedSpace.id}/files/download?path=${encodeURIComponent(relativePath)}`;
+        }
       },
       onCopy: () => openModal('destination', { mode: 'copy' }),
       onMove: () => openModal('destination', { mode: 'move' }),
@@ -98,16 +103,30 @@ const FolderContent: React.FC = () => {
       onDelete: handleDelete,
       onBulkDownload: () => handleBulkDownload(Array.from(selectedItems)),
       onBulkDelete: () => handleBulkDelete(Array.from(selectedItems)),
+      onCreateFolder: () => openModal('createFolder', { folderName: '' }),
     },
   });
 
   useEffect(() => {
     if (selectedPath) {
-      useBrowseStore.getState().fetchDirectoryContents(selectedPath);
+      if (selectedSpace) {
+        // ✅ Space 내부 탐색: 새 API 사용
+        const relativePath = selectedPath
+          .replace(selectedSpace.space_path, '')
+          .replace(/^\//, '');  // leading slash 제거
+
+        useBrowseStore.getState().fetchSpaceContents(
+          selectedSpace.id,
+          relativePath
+        );
+      } else {
+        // ✅ 시스템 모드: 기존 API 사용 (Space 생성용)
+        useBrowseStore.getState().fetchDirectoryContents(selectedPath, true);
+      }
     }
     // 경로 변경 시 선택 해제
     clearSelection();
-  }, [selectedPath, clearSelection]);
+  }, [selectedPath, selectedSpace, clearSelection]);
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useSortedContent(content, sortConfig);
@@ -159,14 +178,14 @@ const FolderContent: React.FC = () => {
     closeModal('createFolder');
   };
 
-  const handleMoveConfirm = async (destination: string) => {
-    await handleMove(Array.from(selectedItems), destination);
+  const handleMoveConfirm = async (destination: string, destinationSpace?: import('@/features/space/types').Space) => {
+    await handleMove(Array.from(selectedItems), destination, destinationSpace);
     closeModal('destination');
     clearSelection();
   };
 
-  const handleCopyConfirm = async (destination: string) => {
-    await handleCopy(Array.from(selectedItems), destination);
+  const handleCopyConfirm = async (destination: string, destinationSpace?: import('@/features/space/types').Space) => {
+    await handleCopy(Array.from(selectedItems), destination, destinationSpace);
     closeModal('destination');
     clearSelection();
   };
@@ -291,6 +310,8 @@ const FolderContent: React.FC = () => {
             onFolderDrop={handleFolderDrop}
             itemsRef={itemsRef}
             disableDraggable={isSelecting}
+            spaceId={selectedSpace?.id}
+            spacePath={selectedSpace?.space_path}
           />
           <BoxSelectionOverlay
             visible={isSelecting && selectionBox !== null}

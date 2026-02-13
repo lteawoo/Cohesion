@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Modal, Input } from 'antd';
 
 interface CreateFolderModalProps {
@@ -16,6 +16,17 @@ const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
   onCancel,
   onChange,
 }) => {
+  const inputRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (visible && inputRef.current) {
+      // 모달이 완전히 열린 후 포커스 설정
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [visible]);
+
   return (
     <Modal
       title="새 폴더 만들기"
@@ -26,11 +37,11 @@ const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
       cancelText="취소"
     >
       <Input
+        ref={inputRef}
         placeholder="폴더 이름"
         value={folderName}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         onPressEnter={onConfirm}
-        autoFocus
       />
     </Modal>
   );

@@ -1,4 +1,4 @@
-import { ConfigProvider, Layout, Switch, Button, theme } from "antd";
+import { ConfigProvider, Layout, Switch, Button, theme, App } from "antd";
 import { Outlet, useNavigate } from "react-router";
 import { SettingOutlined } from "@ant-design/icons";
 import MainSider from "./MainSider";
@@ -24,11 +24,16 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
   }, [fetchSpaces]);
 
   const handlePathSelect = useCallback((path: string, space?: Space) => {
-    // Space가 명시되지 않으면 경로에서 자동으로 찾기
+    // Space가 명시되지 않으면 경로에서 자동으로 찾기 (가장 긴 매칭 선택)
     if (space) {
       setPath(path, space);
     } else {
-      const matchedSpace = spaces?.find(s => path.startsWith(s.space_path));
+      const matchingSpaces = spaces?.filter(s => path.startsWith(s.space_path)) || [];
+      const matchedSpace = matchingSpaces.length > 0
+        ? matchingSpaces.reduce((longest, current) =>
+            current.space_path.length > longest.space_path.length ? current : longest
+          )
+        : undefined;
       setPath(path, matchedSpace);
     }
   }, [setPath, spaces]);
@@ -94,8 +99,10 @@ export default function MainLayout() {
 
     return (
         <ConfigProvider theme={{ algorithm: currentAlgorithm }}>
-          <PageLayout isDarkMode={isDarkMode} onThemeChange={handleThemeChange} />
-          <ContextMenu />
+          <App>
+            <PageLayout isDarkMode={isDarkMode} onThemeChange={handleThemeChange} />
+            <ContextMenu />
+          </App>
         </ConfigProvider>
     )
 }

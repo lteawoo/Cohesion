@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Modal, message } from 'antd';
+import React, { useState, useMemo } from 'react';
+import { Modal, message, theme } from 'antd';
 import FolderTree from './FolderTree';
 import type { Space } from '@/features/space/types';
 
@@ -10,7 +10,7 @@ interface DestinationPickerModalProps {
   sources: string[];
   currentPath: string;
   selectedSpace?: Space;
-  onConfirm: (destination: string) => void;
+  onConfirm: (destination: string, destinationSpace?: Space) => void;
   onCancel: () => void;
 }
 
@@ -20,11 +20,12 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   sourceCount,
   sources,
   currentPath,
-  selectedSpace,
+  selectedSpace: _selectedSpace,
   onConfirm,
   onCancel,
 }) => {
   const [selectedDestination, setSelectedDestination] = useState<string>('');
+  const [selectedDestinationSpace, setSelectedDestinationSpace] = useState<Space | undefined>();
 
   const handleOk = () => {
     if (!selectedDestination) {
@@ -53,18 +54,32 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
       return;
     }
 
-    onConfirm(selectedDestination);
+    onConfirm(selectedDestination, selectedDestinationSpace);
     setSelectedDestination('');
   };
 
   const handleCancel = () => {
     setSelectedDestination('');
+    setSelectedDestinationSpace(undefined);
     onCancel();
   };
 
-  const handleSelect = (path: string) => {
+  const handleSelect = (path: string, space?: Space) => {
     setSelectedDestination(path);
+    setSelectedDestinationSpace(space);
   };
+
+  const { token } = theme.useToken();
+
+  // 선택된 경로를 Space 상대 경로로 표시
+  const displayPath = useMemo(() => {
+    if (!selectedDestination) return '';
+    if (selectedDestinationSpace && selectedDestination.startsWith(selectedDestinationSpace.space_path)) {
+      const relativePath = selectedDestination.slice(selectedDestinationSpace.space_path.length);
+      return selectedDestinationSpace.space_name + (relativePath || '');
+    }
+    return selectedDestination;
+  }, [selectedDestination, selectedDestinationSpace]);
 
   return (
     <Modal
@@ -85,8 +100,8 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
         />
       </div>
       {selectedDestination && (
-        <div style={{ marginTop: '16px', padding: '8px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
-          선택된 경로: <strong>{selectedDestination}</strong>
+        <div style={{ marginTop: '16px', padding: '8px', backgroundColor: token.colorBgContainer, border: `1px solid ${token.colorBorder}`, borderRadius: '4px' }}>
+          선택된 경로: <strong>{displayPath}</strong>
         </div>
       )}
     </Modal>

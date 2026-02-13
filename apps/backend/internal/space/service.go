@@ -8,6 +8,7 @@ import (
 type Storer interface {
 	GetAll(ctx context.Context) ([]*Space, error)
 	GetByName(ctx context.Context, name string) (*Space, error)
+	GetByID(ctx context.Context, id int64) (*Space, error)
 	Create(ctx context.Context, req *CreateSpaceRequest) (*Space, error)
 	Delete(ctx context.Context, id int64) error
 }
@@ -30,6 +31,14 @@ func (s *Service) GetAllSpaces(ctx context.Context) ([]*Space, error) {
 // 특정 이름의 Space 조회
 func (s *Service) GetSpaceByName(ctx context.Context, name string) (*Space, error) {
 	return s.store.GetByName(ctx, name)
+}
+
+// 특정 ID의 Space 조회
+func (s *Service) GetSpaceByID(ctx context.Context, id int64) (*Space, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid space id: %d", id)
+	}
+	return s.store.GetByID(ctx, id)
 }
 
 // CreateSpace는 새로운 Space를 생성합니다

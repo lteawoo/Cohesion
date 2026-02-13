@@ -2,22 +2,33 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	"taeu.kr/cohesion/internal/browse"
 	"taeu.kr/cohesion/internal/platform/web"
 	"taeu.kr/cohesion/internal/space"
 )
 
+// BrowseService 인터페이스 정의 (browse handler 의존성)
+type BrowseService interface {
+	ListDirectory(onlyDir bool, path string) ([]browse.FileInfo, error)
+}
+
 type Handler struct {
-	spaceService *space.Service
+	spaceService  *space.Service
+	browseService BrowseService
 }
 
 // 의존성 주입 생성자 생성
-func NewHandler(spaceService *space.Service) *Handler {
+func NewHandler(spaceService *space.Service, browseService BrowseService) *Handler {
 	return &Handler{
-		spaceService: spaceService,
+		spaceService:  spaceService,
+		browseService: browseService,
 	}
 }
 
@@ -116,11 +127,12 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 		return h.handleSpaces(w, r)
 	}
 
-	// URL에서 ID 추출: /api/spaces/123 -> 123
-	idStr := strings.TrimPrefix(r.URL.Path, "/api/spaces/")
+	// URL 파싱: /api/spaces/{id} 또는 /api/spaces/{id}/browse
+	pathParts := strings.TrimPrefix(r.URL.Path, "/api/spaces/")
+	parts := strings.Split(pathParts, "/")
 
-	// 빈 ID 체크 (예: /api/spaces/)
-	if idStr == "" {
+	// 빈 ID 체크
+	if len(parts) == 0 || parts[0] == "" {
 		return &web.Error{
 			Code:    http.StatusBadRequest,
 			Message: "Space ID is required",
@@ -128,7 +140,8 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 		}
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	// Space ID 파싱
+	id, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
 		return &web.Error{
 			Code:    http.StatusBadRequest,
@@ -137,6 +150,17 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 		}
 	}
 
+	// 액션 확인 (/api/spaces/{id}/browse)
+	if len(parts) > 1 && parts[1] == "browse" {
+		return h.handleSpaceBrowse(w, r, id)
+	}
+
+	// 파일 작업 (/api/spaces/{id}/files/{action})
+	if len(parts) > 2 && parts[1] == "files" {
+		return h.handleSpaceFiles(w, r, id, parts[2])
+	}
+
+	// 기존 로직 (/api/spaces/{id})
 	switch r.Method {
 	case http.MethodDelete:
 		return h.handleDeleteSpace(w, r, id)
@@ -171,6 +195,86 @@ func (h *Handler) handleDeleteSpace(w http.ResponseWriter, r *http.Request, id i
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Space deleted successfully",
 	})
+
+	return nil
+}
+
+// isPathWithinSpace는 경로가 Space 내부에 있는지 검증 (디렉토리 트래버셜 방지)
+func isPathWithinSpace(path, spacePath string) bool {
+	cleanPath := filepath.Clean(path)
+	cleanSpace := filepath.Clean(spacePath)
+
+	// 상대 경로 계산
+	rel, err := filepath.Rel(cleanSpace, cleanPath)
+	if err != nil {
+		return false
+	}
+
+	// ".."로 시작하면 Space 외부 경로
+	return !strings.HasPrefix(rel, "..")
+}
+
+// handleSpaceBrowse는 Space 내부 디렉토리 탐색을 처리
+func (h *Handler) handleSpaceBrowse(w http.ResponseWriter, r *http.Request, spaceID int64) *web.Error {
+	// Space 조회
+	ctx := r.Context()
+	spaceData, err := h.spaceService.GetSpaceByID(ctx, spaceID)
+	if err != nil {
+		return &web.Error{
+			Code:    http.StatusNotFound,
+			Message: fmt.Sprintf("Space not found: %v", err),
+			Err:     err,
+		}
+	}
+
+	// 상대 경로 가져오기
+	relativePath := r.URL.Query().Get("path")
+
+	// 절대 경로 계산
+	absolutePath := filepath.Join(spaceData.SpacePath, relativePath)
+
+	// 경로 검증 (디렉토리 트래버셜 방지)
+	if !isPathWithinSpace(absolutePath, spaceData.SpacePath) {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: path is outside of Space",
+		}
+	}
+
+	// 디렉토리 목록 조회
+	files, err := h.browseService.ListDirectory(false, absolutePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{
+				Code:    http.StatusNotFound,
+				Message: "Directory not found",
+				Err:     err,
+			}
+		}
+		if os.IsPermission(err) {
+			return &web.Error{
+				Code:    http.StatusForbidden,
+				Message: "Permission denied",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to list directory",
+			Err:     err,
+		}
+	}
+
+	// JSON 응답
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(files); err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to encode response",
+			Err:     err,
+		}
+	}
 
 	return nil
 }
