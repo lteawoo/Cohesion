@@ -254,7 +254,7 @@ const FolderContent: React.FC = () => {
 
   return (
     <div
-      style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', height: '100%' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', height: '100%', minHeight: 0 }}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -296,24 +296,26 @@ const FolderContent: React.FC = () => {
       />
 
       {viewMode === 'table' ? (
-        <FolderContentTable
-          dataSource={sortedContent}
-          columns={columns}
-          loading={isLoading}
-          selectedItems={selectedItems}
-          dragOverFolder={dragOverFolder}
-          onSelectionChange={setSelection}
-          onItemClick={(e, record, index) => handleItemClick(e, record, index, sortedContent)}
-          onItemDoubleClick={setPath}
-          onContextMenu={handleContextMenu}
-          onItemDragStart={handleItemDragStart}
-          onItemDragEnd={handleItemDragEnd}
-          onFolderDragOver={handleFolderDragOver}
-          onFolderDragLeave={handleFolderDragLeave}
-          onFolderDrop={handleFolderDrop}
-          sortConfig={sortConfig}
-          onSortChange={setSortConfig}
-        />
+        <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+          <FolderContentTable
+            dataSource={sortedContent}
+            columns={columns}
+            loading={isLoading}
+            selectedItems={selectedItems}
+            dragOverFolder={dragOverFolder}
+            onSelectionChange={setSelection}
+            onItemClick={(e, record, index) => handleItemClick(e, record, index, sortedContent)}
+            onItemDoubleClick={setPath}
+            onContextMenu={handleContextMenu}
+            onItemDragStart={handleItemDragStart}
+            onItemDragEnd={handleItemDragEnd}
+            onFolderDragOver={handleFolderDragOver}
+            onFolderDragLeave={handleFolderDragLeave}
+            onFolderDrop={handleFolderDrop}
+            sortConfig={sortConfig}
+            onSortChange={setSortConfig}
+          />
+        </div>
       ) : (
         <div ref={gridContainerRef} style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}>
           <FolderContentGrid

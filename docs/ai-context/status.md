@@ -1,6 +1,10 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Table 뷰 세로 스크롤 복구 완료** (2026-02-13):
+    - `FolderContent` 루트에 `minHeight: 0`을 추가해 내부 스크롤 영역 축소/확장이 가능하도록 조정.
+    - Table 뷰를 `flex:1 + overflowY:auto` 래퍼로 감싸 하단 항목까지 스크롤 가능하도록 수정.
+    - 검증: `pnpm -C apps/frontend build` 통과.
 - **Space 생성 모달 입력/설명 전달 개선 완료** (2026-02-13):
     - `DirectorySetupModal`의 이름/설명 입력 비활성 조건을 전역 `spaceStore.isLoading`에서 분리하고, 로컬 `isCreating` 상태로 제출 시점에만 잠그도록 변경.
     - 설명 입력값(`spaceDesc`)을 Space 생성 API payload(`space_desc`)로 전달하도록 `spaceStore.createSpace` 시그니처 확장.
