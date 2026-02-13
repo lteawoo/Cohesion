@@ -110,7 +110,7 @@ export function useDragAndDrop({
             await onMove(sourcePaths, folder.path);
           }
         }
-      } catch (error) {
+      } catch {
         // Error handled silently
       }
     },

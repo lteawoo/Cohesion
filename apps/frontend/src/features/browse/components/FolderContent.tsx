@@ -334,7 +334,6 @@ const FolderContent: React.FC = () => {
         sourceCount={selectedItems.size}
         sources={Array.from(selectedItems)}
         currentPath={selectedPath}
-        selectedSpace={selectedSpace}
         onConfirm={modals.destination.data.mode === 'move' ? handleMoveConfirm : handleCopyConfirm}
         onCancel={() => closeModal('destination')}
       />

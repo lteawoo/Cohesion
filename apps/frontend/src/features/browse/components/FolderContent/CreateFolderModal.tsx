@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Modal, Input } from 'antd';
+import type { InputRef } from 'antd';
 
 interface CreateFolderModalProps {
   visible: boolean;
@@ -16,7 +17,7 @@ const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
   onCancel,
   onChange,
 }) => {
-  const inputRef = useRef<any>(null);
+  const inputRef = useRef<InputRef>(null);
 
   useEffect(() => {
     if (visible && inputRef.current) {

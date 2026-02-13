@@ -9,7 +9,6 @@ interface DestinationPickerModalProps {
   sourceCount: number;
   sources: string[];
   currentPath: string;
-  selectedSpace?: Space;
   onConfirm: (destination: string, destinationSpace?: Space) => void;
   onCancel: () => void;
 }
@@ -20,7 +19,6 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   sourceCount,
   sources,
   currentPath,
-  selectedSpace: _selectedSpace,
   onConfirm,
   onCancel,
 }) => {

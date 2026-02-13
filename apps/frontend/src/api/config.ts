@@ -77,7 +77,7 @@ export async function healthCheck(): Promise<boolean> {
     });
 
     return response.ok;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
