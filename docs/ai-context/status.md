@@ -1,6 +1,11 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Space 생성 모달 입력/설명 전달 개선 완료** (2026-02-13):
+    - `DirectorySetupModal`의 이름/설명 입력 비활성 조건을 전역 `spaceStore.isLoading`에서 분리하고, 로컬 `isCreating` 상태로 제출 시점에만 잠그도록 변경.
+    - 설명 입력값(`spaceDesc`)을 Space 생성 API payload(`space_desc`)로 전달하도록 `spaceStore.createSpace` 시그니처 확장.
+    - 브라우저 확인: `새 Space 생성` 모달에서 이름/설명 입력 가능 확인.
+    - 검증: `pnpm -C apps/frontend build` 통과.
 - **싱글/멀티 다운로드 분기 처리 완료** (2026-02-13):
     - 프론트엔드 `handleBulkDownload`에서 선택 항목이 1개일 때 `download` 단일 API를 호출하도록 분기.
     - 멀티 선택(2개 이상)일 때만 `download-multiple` ZIP API를 호출하도록 유지.
