@@ -1,6 +1,11 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **싱글/멀티 다운로드 분기 처리 완료** (2026-02-13):
+    - 프론트엔드 `handleBulkDownload`에서 선택 항목이 1개일 때 `download` 단일 API를 호출하도록 분기.
+    - 멀티 선택(2개 이상)일 때만 `download-multiple` ZIP API를 호출하도록 유지.
+    - 백엔드 `download-multiple`에도 안전 분기 추가: 요청 경로가 1개 파일이면 ZIP 없이 원본 스트리밍, 1개 폴더면 ZIP, 2개 이상은 ZIP.
+    - 검증: `pnpm -C apps/frontend build`, `go build ./...` (in `apps/backend`) 통과.
 - **Ant Design message 컨텍스트 경고 제거 완료** (2026-02-13):
     - `/settings` 라우트에 `antd` `App` 프로바이더를 추가해 메시지 컨텍스트를 보장.
     - 정적 `message`/`Modal.confirm` 호출을 `App.useApp()` 기반 호출로 전환.
