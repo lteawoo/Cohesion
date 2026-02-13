@@ -22,17 +22,13 @@ function toRelativePath(spacePath: string, absolutePath: string): string {
 export function useFileOperations(selectedPath: string, selectedSpace?: Space): UseFileOperationsReturn {
   const { message, modal } = App.useApp();
   const fetchSpaceContents = useBrowseStore((state) => state.fetchSpaceContents);
-  const fetchDirectoryContents = useBrowseStore((state) => state.fetchDirectoryContents);
 
-  // 현재 경로로 목록 새로고침
+  // 현재 경로로 목록 새로고침 (Space 필수)
   const refreshContents = useCallback(async () => {
-    if (selectedSpace) {
-      const relativePath = toRelativePath(selectedSpace.space_path, selectedPath);
-      await fetchSpaceContents(selectedSpace.id, relativePath);
-    } else {
-      await fetchDirectoryContents(selectedPath, true);
-    }
-  }, [selectedPath, selectedSpace, fetchSpaceContents, fetchDirectoryContents]);
+    if (!selectedSpace) return;
+    const relativePath = toRelativePath(selectedSpace.space_path, selectedPath);
+    await fetchSpaceContents(selectedSpace.id, relativePath);
+  }, [selectedPath, selectedSpace, fetchSpaceContents]);
 
   // 파일 업로드 실행 함수
   const performUpload = useCallback(

@@ -108,23 +108,12 @@ const FolderContent: React.FC = () => {
   });
 
   useEffect(() => {
-    if (selectedPath) {
-      if (selectedSpace) {
-        // ✅ Space 내부 탐색: 새 API 사용
-        const relativePath = selectedPath
-          .replace(selectedSpace.space_path, '')
-          .replace(/^\//, '');  // leading slash 제거
-
-        useBrowseStore.getState().fetchSpaceContents(
-          selectedSpace.id,
-          relativePath
-        );
-      } else {
-        // ✅ 시스템 모드: 기존 API 사용 (Space 생성용)
-        useBrowseStore.getState().fetchDirectoryContents(selectedPath, true);
-      }
+    if (selectedPath && selectedSpace) {
+      const relativePath = selectedPath
+        .replace(selectedSpace.space_path, '')
+        .replace(/^\//, '');
+      useBrowseStore.getState().fetchSpaceContents(selectedSpace.id, relativePath);
     }
-    // 경로 변경 시 선택 해제
     clearSelection();
   }, [selectedPath, selectedSpace, clearSelection]);
 
