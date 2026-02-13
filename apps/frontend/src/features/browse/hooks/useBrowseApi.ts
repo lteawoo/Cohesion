@@ -33,5 +33,10 @@ export function useBrowseApi() {
     return await fetchData(url);
   }, [fetchData]);
 
-  return { isLoading, error, fetchBaseDirectories, fetchDirectoryContents };
+  const fetchSpaceDirectoryContents = useCallback(async (spaceId: number, relativePath: string) => {
+    const url = `/api/spaces/${spaceId}/browse?path=${encodeURIComponent(relativePath)}`;
+    return await fetchData(url);
+  }, [fetchData]);
+
+  return { isLoading, error, fetchBaseDirectories, fetchDirectoryContents, fetchSpaceDirectoryContents };
 }

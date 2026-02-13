@@ -39,7 +39,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const loadingKeysRef = useRef<Set<React.Key>>(new Set());
-  const { isLoading, fetchBaseDirectories, fetchDirectoryContents } = useBrowseApi();
+  const { isLoading, fetchBaseDirectories, fetchDirectoryContents, fetchSpaceDirectoryContents } = useBrowseApi();
   const openContextMenu = useContextMenuStore((state) => state.openContextMenu);
 
   // 초기 트리 데이터를 로드합니다.
@@ -112,28 +112,34 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
           const keyStr = key as string;
 
           // Space 노드 또는 Space 하위 노드 판별
+          let contents;
           if (keyStr.startsWith('space-')) {
             const sepIndex = keyStr.indexOf('::');
             if (sepIndex >= 0) {
-              // Space 하위 노드 (space-{id}::{path} 형식)
+              // Space 하위 노드 (space-{id}::{absolutePath} 형식)
               spacePrefix = keyStr.substring(0, sepIndex);
               path = keyStr.substring(sepIndex + 2);
             } else {
               // Space 루트 노드
               spacePrefix = keyStr;
-              const spaceId = parseInt(keyStr.replace('space-', ''));
-              const space = spaces?.find(s => s.id === spaceId);
-              if (!space) {
-                resolve();
-                return;
-              }
-              path = space.space_path;
+              path = '';
             }
+            const spaceId = parseInt(spacePrefix.replace('space-', ''));
+            const space = spaces?.find(s => s.id === spaceId);
+            if (!space) {
+              resolve();
+              return;
+            }
+            // Space 상대 경로 계산
+            const relativePath = path
+              ? path.replace(space.space_path, '').replace(/^\//, '')
+              : '';
+            contents = await fetchSpaceDirectoryContents(spaceId, relativePath);
           } else {
             path = keyStr;
+            contents = await fetchDirectoryContents(path, showBaseDirectories);
           }
 
-          const contents = await fetchDirectoryContents(path, showBaseDirectories);
           // Space 하위 노드는 key에 prefix를 붙여 유일성 보장
           const newChildren = (contents ?? [])
             .filter(node => node.isDir)
