@@ -22,6 +22,7 @@ function toRelativePath(spacePath: string, absolutePath: string): string {
 export function useFileOperations(selectedPath: string, selectedSpace?: Space): UseFileOperationsReturn {
   const { message, modal } = App.useApp();
   const fetchSpaceContents = useBrowseStore((state) => state.fetchSpaceContents);
+  const invalidateTree = useBrowseStore((state) => state.invalidateTree);
 
   // 현재 경로로 목록 새로고침 (Space 필수)
   const refreshContents = useCallback(async () => {
@@ -123,11 +124,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
         message.success('이름이 변경되었습니다');
         await refreshContents();
+        invalidateTree();
       } catch (error) {
         message.error(error instanceof Error ? error.message : '이름 변경 실패');
       }
     },
-    [selectedSpace, refreshContents, message]
+    [selectedSpace, refreshContents, message, invalidateTree]
   );
 
   // 새 폴더 만들기 처리
@@ -159,11 +161,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
         message.success('폴더가 생성되었습니다');
         await refreshContents();
+        invalidateTree();
       } catch (error) {
         message.error(error instanceof Error ? error.message : '폴더 생성 실패');
       }
     },
-    [selectedSpace, refreshContents, message]
+    [selectedSpace, refreshContents, message, invalidateTree]
   );
 
   // 다중 다운로드 처리
@@ -246,13 +249,14 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
             }
 
             await refreshContents();
+            invalidateTree();
           } catch (error) {
             message.error(error instanceof Error ? error.message : '삭제 실패');
           }
         },
       });
     },
-    [selectedSpace, refreshContents, message, modal]
+    [selectedSpace, refreshContents, message, modal, invalidateTree]
   );
 
   // 이동 처리 (cross-Space 지원)
@@ -298,11 +302,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         }
 
         await refreshContents();
+        invalidateTree();
       } catch (error) {
         message.error(error instanceof Error ? error.message : '이동 실패');
       }
     },
-    [selectedSpace, refreshContents, message]
+    [selectedSpace, refreshContents, message, invalidateTree]
   );
 
   // 복사 처리 (cross-Space 지원)
@@ -348,11 +353,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         }
 
         await refreshContents();
+        invalidateTree();
       } catch (error) {
         message.error(error instanceof Error ? error.message : '복사 실패');
       }
     },
-    [selectedSpace, refreshContents, message]
+    [selectedSpace, refreshContents, message, invalidateTree]
   );
 
   // 단일 삭제 처리
@@ -385,13 +391,14 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
             message.success('삭제되었습니다');
             await refreshContents();
+            invalidateTree();
           } catch (error) {
             message.error(error instanceof Error ? error.message : '삭제 실패');
           }
         },
       });
     },
-    [selectedSpace, refreshContents, message, modal]
+    [selectedSpace, refreshContents, message, modal, invalidateTree]
   );
 
   return {

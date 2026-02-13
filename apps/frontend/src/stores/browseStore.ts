@@ -9,10 +9,12 @@ interface BrowseStore {
   content: FileNode[];
   isLoading: boolean;
   error: Error | null;
+  treeRefreshVersion: number;
 
   setPath: (path: string, space?: Space) => void;
   fetchSystemContents: (path: string) => Promise<void>;
   fetchSpaceContents: (spaceId: number, relativePath: string) => Promise<void>;
+  invalidateTree: () => void;
   clearContent: () => void;
 }
 
@@ -22,6 +24,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
   content: [],
   isLoading: false,
   error: null,
+  treeRefreshVersion: 0,
 
   setPath: (path: string, space?: Space) => {
     set((state) => ({
@@ -67,6 +70,10 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
     } catch (e) {
       set({ error: e as Error, isLoading: false });
     }
+  },
+
+  invalidateTree: () => {
+    set((state) => ({ treeRefreshVersion: state.treeRefreshVersion + 1 }));
   },
 
   clearContent: () => {

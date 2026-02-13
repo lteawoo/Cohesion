@@ -13,6 +13,7 @@ export interface CreateFolderModalData {
 
 export interface DestinationModalData {
   mode: 'move' | 'copy';
+  sources: string[];
 }
 
 // Modal 상태 타입
@@ -37,7 +38,7 @@ const defaultModalData: {
 } = {
   rename: { newName: '' },
   createFolder: { folderName: '' },
-  destination: { mode: 'move' },
+  destination: { mode: 'move', sources: [] },
 };
 
 export function useModalManager() {
