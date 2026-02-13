@@ -8,6 +8,7 @@ interface ImageThumbnailProps {
   path: string;       // 절대 경로
   alt: string;
   size?: number;
+  fit?: 'contain' | 'cover';
 }
 
 export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
@@ -16,6 +17,7 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
   path,
   alt,
   size = 120,
+  fit = 'cover',
 }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -27,10 +29,13 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
     return (
       <div
         style={{
+          width: '100%',
           height: size,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          borderRadius: '6px',
+          backgroundColor: 'rgba(140, 140, 140, 0.08)',
         }}
       >
         <FileOutlined style={{ fontSize: '48px', color: '#8c8c8c' }} />
@@ -41,11 +46,15 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
   return (
     <div
       style={{
+        width: '100%',
         height: size,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
+        overflow: 'hidden',
+        borderRadius: '6px',
+        backgroundColor: 'rgba(140, 140, 140, 0.08)',
       }}
     >
       {loading && (
@@ -58,10 +67,9 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
         alt={alt}
         loading="lazy"
         style={{
-          maxWidth: '100%',
-          maxHeight: size,
-          objectFit: 'contain',
-          borderRadius: '4px',
+          width: '100%',
+          height: '100%',
+          objectFit: fit,
           opacity: loading ? 0 : 1,
           transition: 'opacity 0.2s',
         }}

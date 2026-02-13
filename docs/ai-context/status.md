@@ -1,6 +1,13 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Folder Explorer 가로 스크롤 최소화 및 자동 컬럼 배치 적용 완료** (2026-02-13):
+    - Grid 카드 레이아웃을 `auto-fit + minmax` 기반의 자동 컬럼 배치로 전환.
+    - 카드 단일 노출 시 과도한 확장을 방지하기 위해 카드 최대 폭(220px) 제한을 적용.
+    - 외곽 컨테이너 스크롤을 숨기고, Grid 영역을 `overflowY` 중심으로 분리하여 가로 스크롤 발생을 억제.
+    - Toolbar/SelectionBar에 wrap을 적용해 좁은 해상도에서 버튼/경로가 줄바꿈되도록 개선.
+    - 썸네일을 `cover` 기준으로 카드 프리뷰 영역에 밀착되게 표시하고, 카드/그리드 간격을 더 촘촘하게 조정.
+    - 검증: `pnpm -C apps/frontend build` 통과, 1200/900/700 폭에서 가로 오버플로우 없음 확인.
 - **트리 targeted invalidation 최적화 완료** (2026-02-13, #35):
     - 전역 리셋 방식(`treeRefreshVersion` 단독)에서 경로 기반 무효화 타깃(`treeInvalidationTargets`) 방식으로 확장.
     - 파일 작업 후 영향 경로(소스 부모/대상 부모)만 invalidate 하도록 변경.

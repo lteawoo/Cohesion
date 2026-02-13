@@ -55,6 +55,20 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### Folder Explorer Grid 자동 컬럼 배치 + 가로 스크롤 억제 (2026-02-13)
+- **결정**: Grid 뷰를 브레이크포인트 고정 컬럼이 아닌 `auto-fit + minmax` 기반 자동 컬럼 배치로 전환하고, 가로 스크롤 억제를 위해 스크롤 축을 분리한다.
+- **이유**:
+  - 해상도별 고정 단계(예: 6/4/2)보다 연속적인 폭 적응이 가능해 공간 활용이 더 좋음.
+  - 카드 최소 폭을 유지하면서 가능한 한 많은 항목을 한 줄에 표시할 수 있음.
+  - 가로 스크롤의 주 원인(중첩 overflow, toolbar/selection bar 비랩핑) 제거.
+- **구현**:
+  - `FolderContentGrid`: CSS Grid `gridTemplateColumns: repeat(auto-fit, minmax(180px, 1fr))` 적용.
+  - `FileExplorer`: 외곽 `overflow: hidden`.
+  - `FolderContent` Grid 컨테이너: `overflowY: auto`, `overflowX: hidden`, `minWidth: 0`.
+  - `FolderContentToolbar`, `FolderContentSelectionBar`: `flexWrap` 및 `AntSpace wrap` 적용.
+  - 썸네일 표시: `ImageThumbnail`을 `object-fit: cover` 중심으로 변경하고 프리뷰 박스(`128px`)에 밀착되게 렌더링.
+  - 밀도 조정: Grid `gap`을 16px → 12px, 카드 body padding을 16px → 12px으로 축소.
+
 ### 트리 targeted invalidation 적용 (2026-02-13, #35)
 - **문제**: 파일 작업 후 트리를 전역 invalidate하여 불필요한 노드 재초기화/재로딩이 발생.
 - **결정**: invalidate payload에 영향 경로를 포함하고, 트리는 해당 노드만 부분 무효화.
