@@ -68,3 +68,4 @@
 - [x] 실행 환경 문서 위치 정리 (`docs/AGENTS.md` → `AGENTS.md`)
 - [x] Folder Explorer Grid 자동 컬럼 배치(auto-fit/minmax) 및 가로 스크롤 억제 레이아웃 적용
 - [x] antd 정적 message/Modal 경고 제거 (`App.useApp` 전환, Settings `App` 프로바이더 추가)
+- [x] Space 생성 모달 이름/설명 입력 가능 상태 개선 및 설명(`space_desc`) 저장 연동

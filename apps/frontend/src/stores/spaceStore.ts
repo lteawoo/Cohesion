@@ -9,7 +9,7 @@ interface SpaceStore {
 
   fetchSpaces: () => Promise<void>;
   setSelectedSpace: (space: Space | undefined) => void;
-  createSpace: (name: string, path: string) => Promise<void>;
+  createSpace: (name: string, path: string, description?: string) => Promise<void>;
   deleteSpace: (id: number) => Promise<void>;
 }
 
@@ -37,13 +37,18 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
     set({ selectedSpace: space });
   },
 
-  createSpace: async (name: string, path: string) => {
+  createSpace: async (name: string, path: string, description?: string) => {
     set({ isLoading: true, error: null });
     try {
+      const trimmedDescription = description?.trim();
       const response = await fetch('/api/spaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ space_name: name, space_path: path }),
+        body: JSON.stringify({
+          space_name: name,
+          space_path: path,
+          ...(trimmedDescription ? { space_desc: trimmedDescription } : {}),
+        }),
       });
 
       if (!response.ok) {
