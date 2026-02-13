@@ -33,11 +33,12 @@ const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
         borderRadius: '4px',
         display: 'flex',
         alignItems: 'center',
+        flexWrap: 'wrap',
         gap: '16px',
       }}
     >
       <span style={{ fontWeight: 'bold', color: '#1890ff' }}>✓ {selectedCount}개 선택됨</span>
-      <AntSpace size="small">
+      <AntSpace size="small" wrap>
         <Button size="small" icon={<DownloadOutlined />} onClick={onDownload}>
           다운로드
         </Button>

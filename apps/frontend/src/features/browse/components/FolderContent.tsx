@@ -315,7 +315,7 @@ const FolderContent: React.FC = () => {
           onSortChange={setSortConfig}
         />
       ) : (
-        <div ref={gridContainerRef} style={{ flex: 1, overflow: 'auto' }}>
+        <div ref={gridContainerRef} style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}>
           <FolderContentGrid
             dataSource={sortedContent}
             loading={isLoading}

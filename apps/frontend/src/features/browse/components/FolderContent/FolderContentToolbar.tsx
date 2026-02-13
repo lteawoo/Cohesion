@@ -23,9 +23,19 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
   onSortChange,
 }) => {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <Breadcrumb items={breadcrumbItems} />
-      <AntSpace>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '8px 16px',
+      }}
+    >
+      <div style={{ flex: '1 1 320px', minWidth: 0, overflow: 'hidden' }}>
+        <Breadcrumb items={breadcrumbItems} />
+      </div>
+      <AntSpace wrap>
         <Button icon={<UploadOutlined />} onClick={onUpload}>
           업로드
         </Button>

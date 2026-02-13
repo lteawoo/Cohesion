@@ -1,5 +1,5 @@
 import React from 'react';
-import { Row, Col, Card, Empty } from 'antd';
+import { Card, Empty } from 'antd';
 import { FolderFilled, FileOutlined } from '@ant-design/icons';
 import type { FileNode } from '../../types';
 import { formatSize } from '../../constants';
@@ -44,17 +44,23 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   spacePath,
 }) => {
   return (
-    <Row gutter={[16, 16]}>
+    <>
       {dataSource.length === 0 && !loading ? (
-        <Col span={24}>
-          <Empty description="이 폴더는 비어 있습니다." />
-        </Col>
+        <Empty description="이 폴더는 비어 있습니다." />
       ) : (
-        dataSource.map((item, index) => {
-          const isSelected = selectedItems.has(item.path);
-          return (
-            <Col key={item.path} xs={12} sm={8} md={6} lg={4} xl={3}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(172px, 220px))',
+            justifyContent: 'start',
+            gap: '12px',
+          }}
+        >
+          {dataSource.map((item, index) => {
+            const isSelected = selectedItems.has(item.path);
+            return (
               <Card
+                key={item.path}
                 ref={(el) => {
                   if (el && itemsRef) {
                     itemsRef.current.set(item.path, el);
@@ -85,16 +91,18 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                       : undefined,
                   userSelect: 'none',
                 }}
-                styles={{ body: { padding: '16px 8px' } }}
+                styles={{ body: { padding: '12px 8px' } }}
               >
-                <div style={{ marginBottom: '8px' }}>
+                <div style={{ marginBottom: '6px' }}>
                   {item.isDir ? (
                     <div
                       style={{
-                        height: '120px',
+                        height: '128px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(140, 140, 140, 0.08)',
                       }}
                     >
                       <FolderFilled style={{ fontSize: '48px', color: '#ffca28' }} />
@@ -105,15 +113,18 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                       spacePath={spacePath}
                       path={item.path}
                       alt={item.name}
-                      size={120}
+                      size={128}
+                      fit="cover"
                     />
                   ) : (
                     <div
                       style={{
-                        height: '120px',
+                        height: '128px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(140, 140, 140, 0.08)',
                       }}
                     >
                       <FileOutlined style={{ fontSize: '48px', color: '#8c8c8c' }} />
@@ -135,11 +146,11 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                   </div>
                 )}
               </Card>
-            </Col>
-          );
-        })
+            );
+          })}
+        </div>
       )}
-    </Row>
+    </>
   );
 };
 
