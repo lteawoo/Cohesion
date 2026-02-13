@@ -196,6 +196,13 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
       try {
         const relativePaths = paths.map(p => toRelativePath(selectedSpace.space_path, p));
+
+        if (relativePaths.length === 1) {
+          window.location.href = `/api/spaces/${selectedSpace.id}/files/download?path=${encodeURIComponent(relativePaths[0])}`;
+          message.success('다운로드가 시작되었습니다');
+          return;
+        }
+
         const response = await fetch(`/api/spaces/${selectedSpace.id}/files/download-multiple`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -217,7 +224,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
 
-        message.success('다운로드가 시작되었습니다');
+        message.success('ZIP 다운로드가 시작되었습니다');
       } catch (error) {
         message.error(error instanceof Error ? error.message : '다운로드 실패');
       }

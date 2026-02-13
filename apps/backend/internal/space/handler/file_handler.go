@@ -94,6 +94,10 @@ func (h *Handler) handleFileDownload(w http.ResponseWriter, r *http.Request, spa
 		return h.downloadFolderAsZip(w, absPath, fileInfo.Name())
 	}
 
+	return h.streamFileDownload(w, absPath)
+}
+
+func (h *Handler) streamFileDownload(w http.ResponseWriter, absPath string) *web.Error {
 	file, err := os.Open(absPath)
 	if err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to open file", Err: err}
@@ -646,6 +650,25 @@ func (h *Handler) handleFileDownloadMultiple(w http.ResponseWriter, r *http.Requ
 			return &web.Error{Code: http.StatusInternalServerError, Message: fmt.Sprintf("Failed to access path: %s", relPath), Err: err}
 		}
 		absPaths = append(absPaths, absPath)
+	}
+
+	if len(absPaths) == 1 {
+		fileInfo, err := os.Stat(absPaths[0])
+		if err != nil {
+			if os.IsNotExist(err) {
+				return &web.Error{Code: http.StatusNotFound, Message: "File not found", Err: err}
+			}
+			if os.IsPermission(err) {
+				return &web.Error{Code: http.StatusForbidden, Message: "Permission denied", Err: err}
+			}
+			return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to access file", Err: err}
+		}
+
+		if fileInfo.IsDir() {
+			return h.downloadFolderAsZip(w, absPaths[0], fileInfo.Name())
+		}
+
+		return h.streamFileDownload(w, absPaths[0])
 	}
 
 	zipFileName := fmt.Sprintf("download-%d.zip", os.Getpid())
