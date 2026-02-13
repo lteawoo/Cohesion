@@ -1,4 +1,4 @@
-import { ConfigProvider, Layout, Menu, Typography, Button, theme } from 'antd';
+import { ConfigProvider, Layout, Menu, Typography, Button, theme, App } from 'antd';
 import {
   AppstoreOutlined,
   BgColorsOutlined,
@@ -129,7 +129,9 @@ const Settings = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: currentAlgorithm }}>
-      <SettingsPage />
+      <App>
+        <SettingsPage />
+      </App>
     </ConfigProvider>
   );
 };

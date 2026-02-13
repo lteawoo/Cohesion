@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 import type { FileNode, DragData } from '../types';
 
 interface UseDragAndDropParams {
@@ -29,6 +29,7 @@ export function useDragAndDrop({
   selectedItems,
   currentPath,
 }: UseDragAndDropParams): UseDragAndDropReturn {
+  const { message } = App.useApp();
   const [isDragging, setIsDragging] = useState(false);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
 

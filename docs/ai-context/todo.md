@@ -66,3 +66,4 @@
 - [x] 트리 targeted invalidation 최적화 (영향 노드만 부분 갱신) (#35)
 - [x] 실행 환경 문서 위치 정리 (`docs/AGENTS.md` → `AGENTS.md`)
 - [x] Folder Explorer Grid 자동 컬럼 배치(auto-fit/minmax) 및 가로 스크롤 억제 레이아웃 적용
+- [x] antd 정적 message/Modal 경고 제거 (`App.useApp` 전환, Settings `App` 프로바이더 추가)

@@ -55,6 +55,17 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### antd 정적 message 사용 제거 (2026-02-13)
+- **문제**: `message` 정적 API 사용 시 동적 테마 컨텍스트를 소비하지 못해 경고 발생.
+- **결정**: 정적 `message`/`Modal.confirm` 호출 대신 `App.useApp()`에서 제공되는 `message`/`modal` 인스턴스를 사용.
+- **구현**:
+  - `/settings` 라우트의 `ConfigProvider` 하위에 `App` 프로바이더 추가.
+  - `AdvancedSettings`, `ServerSettings`, `DirectorySetupModal`, `DestinationPickerModal`, `useDragAndDrop`를 컨텍스트 기반 API로 전환.
+- **이유**:
+  - Ant Design 권장 패턴과 일치.
+  - 테마/컨텍스트 반영 가능한 일관된 메시지 렌더링 확보.
+  - 콘솔 경고 제거로 디버깅 신뢰도 개선.
+
 ### Folder Explorer Grid 자동 컬럼 배치 + 가로 스크롤 억제 (2026-02-13)
 - **결정**: Grid 뷰를 브레이크포인트 고정 컬럼이 아닌 `auto-fit + minmax` 기반 자동 컬럼 배치로 전환하고, 가로 스크롤 억제를 위해 스크롤 축을 분리한다.
 - **이유**:

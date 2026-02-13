@@ -1,4 +1,4 @@
-import { Card, Switch, InputNumber, Typography, Space, Alert, Divider, Button, message, Modal } from 'antd';
+import { Card, Switch, InputNumber, Typography, Space, Alert, Divider, Button, App } from 'antd';
 import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
 import { getConfig, updateConfig, restartServer, waitForReconnect, type Config } from '@/api/config';
@@ -6,6 +6,7 @@ import { getConfig, updateConfig, restartServer, waitForReconnect, type Config }
 const { Title, Text } = Typography;
 
 const ServerSettings = () => {
+  const { message, modal } = App.useApp();
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,7 +49,7 @@ const ServerSettings = () => {
   };
 
   const handleRestart = async () => {
-    Modal.confirm({
+    modal.confirm({
       title: '서버 재시작',
       content: '서버를 재시작하시겠습니까? 잠시 연결이 끊어질 수 있습니다.',
       okText: '재시작',
