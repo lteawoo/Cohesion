@@ -24,7 +24,10 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
   error: null,
 
   setPath: (path: string, space?: Space) => {
-    set({ selectedPath: path, selectedSpace: space });
+    set((state) => ({
+      selectedPath: path,
+      selectedSpace: space !== undefined ? space : state.selectedSpace,
+    }));
   },
 
   // Space 등록 모달 전용 — Space 외부 시스템 탐색에서만 사용
