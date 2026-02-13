@@ -539,3 +539,7 @@
     - 파일 작업 성공 시 트리 invalidate 수행 (`rename`, `create-folder`, `delete`, `delete-multiple`, `move`, `copy`).
     - `FolderTree`가 invalidate 버전을 구독하여 로컬 트리 캐시를 초기화하고 최신 트리 재구성.
     - 브라우저 검증: `MyNewFolder/1234` 삭제 후 좌측 트리 재확장 시 노드 제거 반영 확인.
+- **문서 위치 정리 완료** (2026-02-13):
+    - 실행 환경 문서를 `docs/AGENTS.md`에서 루트 `AGENTS.md`로 이동.
+    - `CLAUDE.md`, `GEMINI.md`가 루트 `AGENTS.md` 내용을 직접 포함하도록 동기화.
+    - `master_rule_v2.md`의 시각 검증 규칙을 `chrome-extention` 기준으로 정리.
