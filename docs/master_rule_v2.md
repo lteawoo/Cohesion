@@ -5,10 +5,12 @@
 ---
 
 ## 1. 필수 컨텍스트 관리 (Source of Truth)
-모든 작업 전/후에는 아래 파일들을 반드시 참조하고 최신 상태로 유지해야 합니다.
+1. 모든 작업 전/후에는 아래 파일들을 반드시 참조하고 최신 상태로 유지해야 합니다.
 - **`docs/ai-context/status.md`**: 현재 진행 중인 태스크 및 전체 진행률 요약.
 - **`docs/ai-context/decision_log.md`**: 아키텍처 선택, 라이브러리 도입 등 주요 결정 사항 및 이유(Why) 기록.
 - **`docs/ai-context/todo.md`**: 구체적인 하위 작업 목록 및 완료(`[x]`) 여부.
+
+2. Github issue 및 PR 작업 시에는 **Github Mcp**를 이용한다.
 
 ---
 
