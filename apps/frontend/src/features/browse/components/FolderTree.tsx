@@ -1,11 +1,12 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Tree, Spin } from 'antd';
 import type { GetProps, MenuProps } from 'antd';
 import type { EventDataNode } from 'antd/es/tree';
 import { useContextMenuStore } from '@/stores/contextMenuStore';
 import { useSpaceStore } from '@/stores/spaceStore';
 import { useBrowseStore } from '@/stores/browseStore';
+import type { TreeInvalidationTarget } from '@/stores/browseStore';
 import { FolderOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
@@ -34,15 +35,144 @@ interface FolderTreeProps {
   onSpaceDelete?: (space: Space) => void;
 }
 
+function resolveTargetKey(
+  target: TreeInvalidationTarget,
+  spaces: Space[],
+  rootPath?: string,
+  showBaseDirectories?: boolean
+): string | null {
+  if (showBaseDirectories) {
+    return target.path;
+  }
+
+  if (rootPath) {
+    return target.path;
+  }
+
+  if (!target.spaceId) {
+    return null;
+  }
+
+  const space = spaces.find((item) => item.id === target.spaceId);
+  if (!space) {
+    return null;
+  }
+
+  if (target.path === space.space_path) {
+    return `space-${space.id}`;
+  }
+
+  return `space-${space.id}::${target.path}`;
+}
+
+function findNodeByKey(list: TreeDataNode[], key: React.Key): TreeDataNode | null {
+  for (const node of list) {
+    if (node.key === key) {
+      return node;
+    }
+    if (node.children) {
+      const childNode = findNodeByKey(node.children, key);
+      if (childNode) {
+        return childNode;
+      }
+    }
+  }
+  return null;
+}
+
+function collectNodeKeys(node: TreeDataNode): React.Key[] {
+  const keys: React.Key[] = [node.key];
+  if (!node.children) {
+    return keys;
+  }
+
+  for (const child of node.children) {
+    keys.push(...collectNodeKeys(child));
+  }
+  return keys;
+}
+
+function clearChildrenByKeys(list: TreeDataNode[], keys: Set<string>): TreeDataNode[] {
+  return list.map((node) => {
+    const nodeKey = String(node.key);
+    if (keys.has(nodeKey)) {
+      return {
+        ...node,
+        children: undefined,
+      };
+    }
+    if (node.children) {
+      return {
+        ...node,
+        children: clearChildrenByKeys(node.children, keys),
+      };
+    }
+    return node;
+  });
+}
+
 const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, onSpaceDelete }) => {
   const spaces = useSpaceStore((state) => state.spaces);
   const treeRefreshVersion = useBrowseStore((state) => state.treeRefreshVersion);
+  const treeInvalidationTargets = useBrowseStore((state) => state.treeInvalidationTargets);
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const loadingKeysRef = useRef<Set<React.Key>>(new Set());
+  const handledRefreshVersionRef = useRef(0);
   const { isLoading, fetchBaseDirectories, fetchDirectoryContents, fetchSpaceDirectoryContents } = useBrowseApi();
   const openContextMenu = useContextMenuStore((state) => state.openContextMenu);
+
+  const loadChildrenForKey = useCallback(
+    async (key: React.Key) => {
+      if (loadingKeysRef.current.has(key)) {
+        return;
+      }
+
+      loadingKeysRef.current.add(key);
+      try {
+        let path: string;
+        let spacePrefix = '';
+        const keyStr = key as string;
+
+        let contents;
+        if (keyStr.startsWith('space-')) {
+          const sepIndex = keyStr.indexOf('::');
+          if (sepIndex >= 0) {
+            spacePrefix = keyStr.substring(0, sepIndex);
+            path = keyStr.substring(sepIndex + 2);
+          } else {
+            spacePrefix = keyStr;
+            path = '';
+          }
+          const spaceId = parseInt(spacePrefix.replace('space-', ''));
+          const space = spaces?.find((s) => s.id === spaceId);
+          if (!space) {
+            return;
+          }
+          const relativePath = path ? path.replace(space.space_path, '').replace(/^\//, '') : '';
+          contents = await fetchSpaceDirectoryContents(spaceId, relativePath);
+        } else {
+          path = keyStr;
+          contents = await fetchDirectoryContents(path, showBaseDirectories);
+        }
+
+        const newChildren = (contents ?? [])
+          .filter((node) => node.isDir)
+          .map((node) => ({
+            title: node.name,
+            key: spacePrefix ? `${spacePrefix}::${node.path}` : node.path,
+            isLeaf: false,
+          }));
+
+        setTreeData((origin) => updateTreeData(origin, key, newChildren));
+        setLoadedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
+      } finally {
+        loadingKeysRef.current.delete(key);
+      }
+    },
+    [fetchDirectoryContents, fetchSpaceDirectoryContents, showBaseDirectories, spaces]
+  );
 
   // 초기 트리 데이터를 로드합니다.
   useEffect(() => {
@@ -90,7 +220,75 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     };
     loadInitialData();
     return () => { isMounted = false; };
-  }, [rootPath, rootName, showBaseDirectories, spaces, fetchBaseDirectories, treeRefreshVersion]);
+  }, [rootPath, rootName, showBaseDirectories, spaces, fetchBaseDirectories]);
+
+  // 트리 전체 초기화 요청(legacy fallback)
+  useEffect(() => {
+    if (
+      treeRefreshVersion === 0 ||
+      treeInvalidationTargets.length > 0 ||
+      handledRefreshVersionRef.current === treeRefreshVersion
+    ) {
+      return;
+    }
+    handledRefreshVersionRef.current = treeRefreshVersion;
+    setLoadedKeys([]);
+    setExpandedKeys([]);
+  }, [treeRefreshVersion, treeInvalidationTargets.length]);
+
+  // 작업 영향 경로만 부분 갱신합니다.
+  useEffect(() => {
+    if (
+      treeRefreshVersion === 0 ||
+      treeInvalidationTargets.length === 0 ||
+      handledRefreshVersionRef.current === treeRefreshVersion
+    ) {
+      return;
+    }
+    handledRefreshVersionRef.current = treeRefreshVersion;
+
+    const targetKeySet = new Set(
+      treeInvalidationTargets
+        .map((target) => resolveTargetKey(target, spaces, rootPath, showBaseDirectories))
+        .filter((target): target is string => Boolean(target))
+    );
+
+    if (targetKeySet.size === 0) {
+      return;
+    }
+
+    const resetKeySet = new Set<React.Key>();
+    for (const targetKey of targetKeySet) {
+      const targetNode = findNodeByKey(treeData, targetKey);
+      if (!targetNode) {
+        continue;
+      }
+      collectNodeKeys(targetNode).forEach((key) => resetKeySet.add(key));
+    }
+
+    setTreeData((prev) => clearChildrenByKeys(prev, targetKeySet));
+    setLoadedKeys((prev) => prev.filter((key) => !resetKeySet.has(key)));
+    setExpandedKeys((prev) =>
+      prev.filter((key) => {
+        const keyStr = String(key);
+        return !Array.from(targetKeySet).some((target) => keyStr !== target && keyStr.startsWith(`${target}::`));
+      })
+    );
+
+    const reloadPromises = expandedKeys
+      .filter((key) => targetKeySet.has(String(key)))
+      .map((key) => loadChildrenForKey(key));
+    void Promise.all(reloadPromises);
+  }, [
+    expandedKeys,
+    loadChildrenForKey,
+    rootPath,
+    showBaseDirectories,
+    spaces,
+    treeData,
+    treeInvalidationTargets,
+    treeRefreshVersion,
+  ]);
 
   // 트리 노드를 확장할 때 자식 노드를 비동기적으로 불러옵니다 (Lazy Loading).
   const onLoadData = ({ key, children }: {key: React.Key; children?: TreeDataNode[]}): Promise<void> => {
@@ -105,58 +303,12 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
         return;
       }
 
-      loadingKeysRef.current.add(key);
-
       (async () => {
         try {
-          let path: string;
-          let spacePrefix = '';
-          const keyStr = key as string;
-
-          // Space 노드 또는 Space 하위 노드 판별
-          let contents;
-          if (keyStr.startsWith('space-')) {
-            const sepIndex = keyStr.indexOf('::');
-            if (sepIndex >= 0) {
-              // Space 하위 노드 (space-{id}::{absolutePath} 형식)
-              spacePrefix = keyStr.substring(0, sepIndex);
-              path = keyStr.substring(sepIndex + 2);
-            } else {
-              // Space 루트 노드
-              spacePrefix = keyStr;
-              path = '';
-            }
-            const spaceId = parseInt(spacePrefix.replace('space-', ''));
-            const space = spaces?.find(s => s.id === spaceId);
-            if (!space) {
-              resolve();
-              return;
-            }
-            // Space 상대 경로 계산
-            const relativePath = path
-              ? path.replace(space.space_path, '').replace(/^\//, '')
-              : '';
-            contents = await fetchSpaceDirectoryContents(spaceId, relativePath);
-          } else {
-            path = keyStr;
-            contents = await fetchDirectoryContents(path, showBaseDirectories);
-          }
-
-          // Space 하위 노드는 key에 prefix를 붙여 유일성 보장
-          const newChildren = (contents ?? [])
-            .filter(node => node.isDir)
-            .map(node => ({
-              title: node.name,
-              key: spacePrefix ? `${spacePrefix}::${node.path}` : node.path,
-              isLeaf: false,
-            }));
-
-          setTreeData(origin => updateTreeData(origin, key, newChildren));
-          setLoadedKeys(prev => [...prev, key]);
+          await loadChildrenForKey(key);
         } catch {
           // Error handled silently
         } finally {
-          loadingKeysRef.current.delete(key);
           resolve();
         }
       })();

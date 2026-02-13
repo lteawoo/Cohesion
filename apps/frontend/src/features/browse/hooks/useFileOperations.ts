@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { App } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
+import type { TreeInvalidationTarget } from '@/stores/browseStore';
 import type { Space } from '@/features/space/types';
 
 interface UseFileOperationsReturn {
@@ -17,6 +18,21 @@ interface UseFileOperationsReturn {
 // 절대 경로를 Space 상대 경로로 변환
 function toRelativePath(spacePath: string, absolutePath: string): string {
   return absolutePath.replace(spacePath, '').replace(/^\//, '');
+}
+
+function getParentPath(path: string): string {
+  if (!path || path === '/') return '/';
+  const normalizedPath = path.endsWith('/') && path.length > 1 ? path.slice(0, -1) : path;
+  const lastSlashIndex = normalizedPath.lastIndexOf('/');
+  if (lastSlashIndex <= 0) return '/';
+  return normalizedPath.slice(0, lastSlashIndex);
+}
+
+function createInvalidationTarget(path: string, space?: Space): TreeInvalidationTarget {
+  return {
+    path,
+    spaceId: space?.id,
+  };
 }
 
 export function useFileOperations(selectedPath: string, selectedSpace?: Space): UseFileOperationsReturn {
@@ -124,7 +140,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
         message.success('이름이 변경되었습니다');
         await refreshContents();
-        invalidateTree();
+        invalidateTree([createInvalidationTarget(getParentPath(oldPath), selectedSpace)]);
       } catch (error) {
         message.error(error instanceof Error ? error.message : '이름 변경 실패');
       }
@@ -161,7 +177,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
         message.success('폴더가 생성되었습니다');
         await refreshContents();
-        invalidateTree();
+        invalidateTree([createInvalidationTarget(parentPath, selectedSpace)]);
       } catch (error) {
         message.error(error instanceof Error ? error.message : '폴더 생성 실패');
       }
@@ -249,7 +265,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
             }
 
             await refreshContents();
-            invalidateTree();
+            invalidateTree(paths.map((path) => createInvalidationTarget(getParentPath(path), selectedSpace)));
           } catch (error) {
             message.error(error instanceof Error ? error.message : '삭제 실패');
           }
@@ -302,7 +318,10 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         }
 
         await refreshContents();
-        invalidateTree();
+        invalidateTree([
+          ...sources.map((source) => createInvalidationTarget(getParentPath(source), selectedSpace)),
+          createInvalidationTarget(destination, dstSpace),
+        ]);
       } catch (error) {
         message.error(error instanceof Error ? error.message : '이동 실패');
       }
@@ -353,7 +372,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         }
 
         await refreshContents();
-        invalidateTree();
+        invalidateTree([createInvalidationTarget(destination, dstSpace)]);
       } catch (error) {
         message.error(error instanceof Error ? error.message : '복사 실패');
       }
@@ -391,7 +410,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
             message.success('삭제되었습니다');
             await refreshContents();
-            invalidateTree();
+            invalidateTree([createInvalidationTarget(getParentPath(record.path), selectedSpace)]);
           } catch (error) {
             message.error(error instanceof Error ? error.message : '삭제 실패');
           }

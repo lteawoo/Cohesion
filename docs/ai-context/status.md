@@ -1,6 +1,12 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **트리 targeted invalidation 최적화 완료** (2026-02-13, #35):
+    - 전역 리셋 방식(`treeRefreshVersion` 단독)에서 경로 기반 무효화 타깃(`treeInvalidationTargets`) 방식으로 확장.
+    - 파일 작업 후 영향 경로(소스 부모/대상 부모)만 invalidate 하도록 변경.
+    - `FolderTree`에서 타깃 노드만 children/loaded state를 부분 무효화하고, 영향 없는 노드는 유지.
+    - 메인 사이드바 트리와 DestinationPickerModal 트리 모두 동일 store 이벤트를 통해 일관 갱신.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과.
 - **기능 구현 완료**: Google Drive 스타일의 파일 탐색 GUI 구현.
     - 백엔드 API 고도화 (파일 크기, 수정일 정보 추가).
     - 프론트엔드 `FolderContent`를 `Table` 기반으로 전면 개편.

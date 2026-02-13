@@ -55,6 +55,22 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### 트리 targeted invalidation 적용 (2026-02-13, #35)
+- **문제**: 파일 작업 후 트리를 전역 invalidate하여 불필요한 노드 재초기화/재로딩이 발생.
+- **결정**: invalidate payload에 영향 경로를 포함하고, 트리는 해당 노드만 부분 무효화.
+- **구현**:
+  - `browseStore`: `treeInvalidationTargets` 추가, `invalidateTree(targets?)`로 확장.
+  - `useFileOperations`: 액션별 영향 경로 계산.
+    - 이름변경/삭제: 소스 부모 경로.
+    - 폴더생성/업로드: 대상(부모) 경로.
+    - 이동: 소스 부모 + 대상 경로.
+    - 복사: 대상 경로.
+  - `FolderTree`: target key 해석 후 해당 노드 children/loadedKeys만 초기화하고 필요 시 재로딩.
+- **이유**:
+  - 영향 없는 트리를 유지해 UX 안정성 개선.
+  - 모달 트리와 사이드바 트리의 갱신 정책 일관성 확보.
+  - 기존 전역 리프레시 API와의 하위 호환 유지(`targets` 미전달 시 legacy fallback).
+
 ### Serena MCP 필수 사용 (2026-02-04)
 - **결정**: 모든 코드 탐색 및 수정 작업에서 Serena MCP 툴을 필수로 사용.
 - **이유**:

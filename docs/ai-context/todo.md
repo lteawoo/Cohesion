@@ -63,4 +63,5 @@
 - [ ] 검색 기능
 - [ ] 텍스트 파일 미리보기
 - [x] 파일 작업(복사/이동/삭제/이름변경/폴더생성) 후 트리 자동 invalidate 반영
+- [x] 트리 targeted invalidation 최적화 (영향 노드만 부분 갱신) (#35)
 - [x] 실행 환경 문서 위치 정리 (`docs/AGENTS.md` → `AGENTS.md`)

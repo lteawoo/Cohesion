@@ -3,6 +3,11 @@ import type { FileNode } from '@/features/browse/types';
 import type { Space } from '@/features/space/types';
 import { useSpaceStore } from './spaceStore';
 
+export interface TreeInvalidationTarget {
+  path: string;
+  spaceId?: number;
+}
+
 interface BrowseStore {
   selectedPath: string;
   selectedSpace: Space | undefined;
@@ -10,11 +15,12 @@ interface BrowseStore {
   isLoading: boolean;
   error: Error | null;
   treeRefreshVersion: number;
+  treeInvalidationTargets: TreeInvalidationTarget[];
 
   setPath: (path: string, space?: Space) => void;
   fetchSystemContents: (path: string) => Promise<void>;
   fetchSpaceContents: (spaceId: number, relativePath: string) => Promise<void>;
-  invalidateTree: () => void;
+  invalidateTree: (targets?: TreeInvalidationTarget[]) => void;
   clearContent: () => void;
 }
 
@@ -25,6 +31,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
   isLoading: false,
   error: null,
   treeRefreshVersion: 0,
+  treeInvalidationTargets: [],
 
   setPath: (path: string, space?: Space) => {
     set((state) => ({
@@ -72,8 +79,22 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
     }
   },
 
-  invalidateTree: () => {
-    set((state) => ({ treeRefreshVersion: state.treeRefreshVersion + 1 }));
+  invalidateTree: (targets?: TreeInvalidationTarget[]) => {
+    const normalizedTargets = (targets ?? [])
+      .filter((target) => target.path)
+      .map((target) => ({
+        path: target.path,
+        spaceId: target.spaceId,
+      }));
+
+    const dedupedTargets = Array.from(
+      new Map(normalizedTargets.map((target) => [`${target.spaceId ?? 'none'}::${target.path}`, target])).values()
+    );
+
+    set((state) => ({
+      treeRefreshVersion: state.treeRefreshVersion + 1,
+      treeInvalidationTargets: dedupedTargets,
+    }));
   },
 
   clearContent: () => {
