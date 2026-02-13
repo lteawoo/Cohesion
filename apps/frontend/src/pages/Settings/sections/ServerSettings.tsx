@@ -25,7 +25,7 @@ const ServerSettings = () => {
       const data = await getConfig();
       setConfig(data);
       setHasChanges(false);
-    } catch (error) {
+    } catch {
       message.error('설정을 불러오는데 실패했습니다');
     } finally {
       setLoading(false);
@@ -40,7 +40,7 @@ const ServerSettings = () => {
       await updateConfig(config);
       message.success('설정이 저장되었습니다');
       setHasChanges(false);
-    } catch (error) {
+    } catch {
       message.error('설정 저장에 실패했습니다');
     } finally {
       setSaving(false);

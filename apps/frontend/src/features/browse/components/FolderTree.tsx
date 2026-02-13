@@ -151,7 +151,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
           setTreeData(origin => updateTreeData(origin, key, newChildren));
           setLoadedKeys(prev => [...prev, key]);
-        } catch (error) {
+        } catch {
           // Error handled silently
         } finally {
           loadingKeysRef.current.delete(key);
@@ -273,4 +273,3 @@ function updateTreeData(list: TreeDataNode[], key: React.Key, children: TreeData
 }
 
 export default FolderTree;
-

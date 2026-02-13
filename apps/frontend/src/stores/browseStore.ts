@@ -11,7 +11,7 @@ interface BrowseStore {
   error: Error | null;
 
   setPath: (path: string, space?: Space) => void;
-  fetchDirectoryContents: (path: string, systemMode?: boolean) => Promise<void>;
+  fetchSystemContents: (path: string) => Promise<void>;
   fetchSpaceContents: (spaceId: number, relativePath: string) => Promise<void>;
   clearContent: () => void;
 }
@@ -24,24 +24,22 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
   error: null,
 
   setPath: (path: string, space?: Space) => {
-    set({ selectedPath: path, selectedSpace: space });
+    set((state) => ({
+      selectedPath: path,
+      selectedSpace: space !== undefined ? space : state.selectedSpace,
+    }));
   },
 
-  fetchDirectoryContents: async (path: string, systemMode = false) => {
+  // Space 등록 모달 전용 — Space 외부 시스템 탐색에서만 사용
+  fetchSystemContents: async (path: string) => {
     set({ isLoading: true, error: null });
     try {
-      const url = systemMode
-        ? `/api/browse?path=${encodeURIComponent(path)}&system=true`
-        : `/api/browse?path=${encodeURIComponent(path)}`;
-
+      const url = `/api/browse?path=${encodeURIComponent(path)}&system=true`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data: FileNode[] = await response.json();
-
-      // ✅ Space 매칭 로직 제거 - systemMode 전용 함수
-      // Space 정보는 fetchSpaceContents 사용 시에만 설정됨
       set({ content: data, isLoading: false });
     } catch (e) {
       set({ error: e as Error, isLoading: false });
