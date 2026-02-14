@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Empty, App } from 'antd';
+import { Empty, App, Grid, Drawer, Button, Space as AntSpace } from 'antd';
+import { DownloadOutlined, CopyOutlined, ScissorOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { buildTableColumns } from '../constants';
@@ -23,6 +24,8 @@ import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
 
 const FolderContent: React.FC = () => {
   const { message } = App.useApp();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.sm;
 
   // Store selectors
   const selectedPath = useBrowseStore((state) => state.selectedPath);
@@ -41,6 +44,7 @@ const FolderContent: React.FC = () => {
     sortBy: 'name',
     sortOrder: 'ascend',
   });
+  const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
 
   // Modal management
   const { modals, openModal, closeModal, updateModalData } = useModalManager();
@@ -155,6 +159,12 @@ const FolderContent: React.FC = () => {
       }
     });
   }, [sortedContent]);
+
+  useEffect(() => {
+    if (selectedItems.size === 0) {
+      setIsMobileActionsOpen(false);
+    }
+  }, [selectedItems.size]);
 
   // Modal wrapper handlers
   const handleRenameConfirm = async () => {
@@ -278,6 +288,7 @@ const FolderContent: React.FC = () => {
         onSortChange={setSortConfig}
       />
 
+      {!isMobile && (
       <FolderContentSelectionBar
         selectedCount={selectedItems.size}
         showRename={selectedItems.size === 1}
@@ -294,6 +305,7 @@ const FolderContent: React.FC = () => {
         onDelete={() => handleBulkDelete(Array.from(selectedItems))}
         onClear={clearSelection}
       />
+      )}
 
       {viewMode === 'table' ? (
         <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
@@ -304,7 +316,14 @@ const FolderContent: React.FC = () => {
             selectedItems={selectedItems}
             dragOverFolder={dragOverFolder}
             onSelectionChange={setSelection}
-            onItemClick={(e, record, index) => handleItemClick(e, record, index, sortedContent)}
+            onItemClick={(e, record, index) => {
+              if (isMobile && record.isDir) {
+                setPath(record.path);
+                clearSelection();
+                return;
+              }
+              handleItemClick(e, record, index, sortedContent);
+            }}
             onItemDoubleClick={setPath}
             onContextMenu={handleContextMenu}
             onItemDragStart={handleItemDragStart}
@@ -323,7 +342,14 @@ const FolderContent: React.FC = () => {
             loading={isLoading}
             selectedItems={selectedItems}
             dragOverFolder={dragOverFolder}
-            onItemClick={(e, record, index) => handleItemClick(e, record, index, sortedContent)}
+            onItemClick={(e, record, index) => {
+              if (isMobile && record.isDir) {
+                setPath(record.path);
+                clearSelection();
+                return;
+              }
+              handleItemClick(e, record, index, sortedContent);
+            }}
             onItemDoubleClick={setPath}
             onContextMenu={handleContextMenu}
             onItemDragStart={handleItemDragStart}
@@ -371,6 +397,74 @@ const FolderContent: React.FC = () => {
         onConfirm={modals.destination.data.mode === 'move' ? handleMoveConfirm : handleCopyConfirm}
         onCancel={handleDestinationCancel}
       />
+
+      {isMobile && selectedItems.size > 0 && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              left: 12,
+              right: 12,
+              bottom: 12,
+              zIndex: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '10px 12px',
+              background: 'rgba(24, 144, 255, 0.12)',
+              border: '1px solid rgba(24, 144, 255, 0.35)',
+              borderRadius: 8,
+              backdropFilter: 'blur(2px)',
+            }}
+          >
+            <span style={{ fontWeight: 600, color: '#1677ff' }}>✓ {selectedItems.size}개 선택됨</span>
+            <AntSpace size="small">
+              <Button size="small" onClick={() => setIsMobileActionsOpen(true)}>작업</Button>
+              <Button size="small" onClick={clearSelection}>해제</Button>
+            </AntSpace>
+          </div>
+
+          <Drawer
+            placement="bottom"
+            title={null}
+            open={isMobileActionsOpen}
+            onClose={() => setIsMobileActionsOpen(false)}
+            size="default"
+            styles={{ body: { padding: 12 } }}
+          >
+            <AntSpace direction="vertical" style={{ width: '100%' }}>
+              <Button icon={<DownloadOutlined />} onClick={() => { setIsMobileActionsOpen(false); handleBulkDownload(Array.from(selectedItems)); }}>
+                다운로드
+              </Button>
+              <Button icon={<CopyOutlined />} onClick={() => { setIsMobileActionsOpen(false); openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) }); }}>
+                복사
+              </Button>
+              <Button icon={<ScissorOutlined />} onClick={() => { setIsMobileActionsOpen(false); openModal('destination', { mode: 'move', sources: Array.from(selectedItems) }); }}>
+                이동
+              </Button>
+              {selectedItems.size === 1 && (
+                <Button
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    const path = Array.from(selectedItems)[0];
+                    const record = sortedContent.find(item => item.path === path);
+                    if (record) {
+                      setIsMobileActionsOpen(false);
+                      openModal('rename', { record, newName: record.name });
+                    }
+                  }}
+                >
+                  이름 변경
+                </Button>
+              )}
+              <Button danger icon={<DeleteOutlined />} onClick={() => { setIsMobileActionsOpen(false); handleBulkDelete(Array.from(selectedItems)); }}>
+                삭제
+              </Button>
+            </AntSpace>
+          </Drawer>
+        </>
+      )}
 
       <UploadOverlay visible={isDragging} />
     </div>

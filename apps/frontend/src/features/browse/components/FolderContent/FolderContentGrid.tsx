@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Empty } from 'antd';
+import { Card, Empty, Grid } from 'antd';
 import { FolderFilled, FileOutlined } from '@ant-design/icons';
 import type { FileNode } from '../../types';
 import { formatSize } from '../../constants';
@@ -43,6 +43,12 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   spaceId,
   spacePath,
 }) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.sm;
+  const gridTemplateColumns = isMobile
+    ? 'repeat(2, minmax(0, 1fr))'
+    : 'repeat(auto-fit, minmax(172px, 220px))';
+
   return (
     <>
       {dataSource.length === 0 && !loading ? (
@@ -51,7 +57,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(172px, 220px))',
+            gridTemplateColumns,
             justifyContent: 'start',
             gap: '12px',
           }}
