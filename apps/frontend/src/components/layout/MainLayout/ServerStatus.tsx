@@ -3,7 +3,7 @@ import { useServerStatus } from '@/features/status/hooks/useServerStatus';
 import type { ProtocolStatus } from '@/features/status/types';
 
 const PROTOCOL_LABELS: Record<string, string> = {
-  http: 'HTTP',
+  http: 'WEB',
   webdav: 'WebDAV',
   ftp: 'FTP',
 };
@@ -44,8 +44,10 @@ function getStatusLabel(status: ProtocolStatus['status']) {
   }
 }
 
-function PopoverContent({ protocols, hosts }: { protocols: Record<string, ProtocolStatus>; hosts?: string[] }) {
+function PopoverContent({ protocols }: { protocols: Record<string, ProtocolStatus> }) {
   const { token } = theme.useToken();
+  const webUrl = `${window.location.origin}/`;
+  const webPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
 
   return (
     <div style={{ minWidth: 180 }}>
@@ -65,8 +67,11 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <StatusDot color={getStatusColor(proto.status)} />
             <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
-            {proto.port && (
+            {key !== 'http' && proto.port && (
               <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{proto.port}{proto.path}</span>
+            )}
+            {key === 'http' && proto.path && (
+              <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{webPort}{proto.path}</span>
             )}
           </div>
           <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
@@ -74,20 +79,14 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
           </span>
         </div>
       ))}
-      {hosts && hosts.length > 0 && (
-        <>
-          <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 12, marginBottom: 8 }}>
-            접근 주소
-          </div>
-          {hosts.map((host) => (
-            <div key={host} style={{ padding: '2px 0' }}>
-              <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
-                {host}
-              </span>
-            </div>
-          ))}
-        </>
-      )}
+      <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 12, marginBottom: 8 }}>
+        웹 접근 주소
+      </div>
+      <div style={{ padding: '2px 0' }}>
+        <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
+          {webUrl}
+        </span>
+      </div>
     </div>
   );
 }
@@ -102,7 +101,7 @@ export default function ServerStatus() {
     <Popover
       content={
         status?.protocols ? (
-          <PopoverContent protocols={status.protocols} hosts={status.hosts} />
+          <PopoverContent protocols={status.protocols} />
         ) : (
           <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
             서버에 연결할 수 없습니다

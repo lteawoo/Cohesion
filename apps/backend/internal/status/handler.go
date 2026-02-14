@@ -53,7 +53,7 @@ func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) *web.Erro
 
 	protocols := make(map[string]ProtocolStatus)
 
-	// HTTP (DB 연결 기반)
+	// WEB (DB 연결 기반)
 	protocols["http"] = h.checkHTTP()
 
 	// WebDAV (Space 조회 가능 여부)
@@ -83,16 +83,14 @@ func (h *Handler) checkHTTP() ProtocolStatus {
 		return ProtocolStatus{
 			Status:  "unhealthy",
 			Message: "DB 연결 실패",
-			Port:    h.port,
-			Path:    "/api/",
+			Path:    "/",
 		}
 	}
 
 	return ProtocolStatus{
 		Status:  "healthy",
 		Message: "정상",
-		Port:    h.port,
-		Path:    "/api/",
+		Path:    "/",
 	}
 }
 
