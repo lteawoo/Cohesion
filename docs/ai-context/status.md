@@ -1,6 +1,10 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Status 웹 접근 주소 다중 노출 복원 완료** (2026-02-14):
+    - `status.hosts`를 다시 사용해 `localhost`와 LAN IP 주소를 함께 표시.
+    - 표시 포트는 백엔드 포트가 아닌 현재 웹 포트(`window.location.port`)로 통일해 `vite host: true` 환경에서도 실제 접속 주소를 노출.
+    - 검증: `pnpm -C apps/frontend build` 통과.
 - **Status WEB 포트 표시 복원 완료** (2026-02-14):
     - WEB 상태 행에 현재 브라우저 기준 포트(`window.location.port`, 기본 80/443 fallback)를 다시 표시.
     - 포트 계산 책임은 프론트에 유지하고, 표시 형식은 `:{port}/`로 통일.

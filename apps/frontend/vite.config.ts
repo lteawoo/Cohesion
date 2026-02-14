@@ -15,6 +15,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    host: true,
     port: 5173,
     proxy: {
       '/api': {

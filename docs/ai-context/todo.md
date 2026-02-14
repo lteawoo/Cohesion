@@ -73,3 +73,4 @@
 - [x] Status 팝오버 웹 접근 기준 표기 개선 (`/api` 표기 제거, WEB 접근 주소 표시)
 - [x] Status WEB 접근 주소 계산 책임 분리 (백엔드 하드코딩 제거, 프론트 origin 기준)
 - [x] Status WEB 포트 표시 복원 (프론트 origin 기반 포트 표기)
+- [x] Status 웹 접근 주소 다중 노출 복원 (localhost + LAN IP, 웹 포트 기준)
