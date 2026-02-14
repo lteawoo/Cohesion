@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Empty, App, Grid, Drawer, Button, Space as AntSpace } from 'antd';
-import { DownloadOutlined, CopyOutlined, ScissorOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { Empty, App, Grid, Drawer, Button, Space as AntSpace, theme } from 'antd';
+import { DownloadOutlined, CopyOutlined, ScissorOutlined, EditOutlined, DeleteOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { buildTableColumns } from '../constants';
@@ -22,8 +22,11 @@ import CreateFolderModal from './FolderContent/CreateFolderModal';
 import UploadOverlay from './FolderContent/UploadOverlay';
 import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
 
+const LONG_PRESS_DURATION_MS = 420;
+
 const FolderContent: React.FC = () => {
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.sm;
 
@@ -44,7 +47,12 @@ const FolderContent: React.FC = () => {
     sortBy: 'name',
     sortOrder: 'ascend',
   });
+  const [isMobileSelectionMode, setIsMobileSelectionMode] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
+  const suppressTapUntilRef = useRef(0);
+  const selectedItemsRef = useRef<Set<string>>(new Set());
 
   // Modal management
   const { modals, openModal, closeModal, updateModalData } = useModalManager();
@@ -52,6 +60,18 @@ const FolderContent: React.FC = () => {
 
   // Custom hooks
   const { selectedItems, handleItemClick, setSelection, clearSelection } = useFileSelection();
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    clearSelection();
+    setIsMobileSelectionMode(false);
+  }, [clearSelection]);
 
   const {
     handleRename: performRename,
@@ -126,11 +146,11 @@ const FolderContent: React.FC = () => {
 
     // 이동/복사 모달이 열려 있을 때는 selection을 유지해야 source 목록이 안정적으로 유지됨
     if (hasNavigated && !modals.destination.visible) {
-      clearSelection();
+      handleClearSelection();
     }
 
     prevNavRef.current = currentNav;
-  }, [selectedPath, selectedSpace, clearSelection, modals.destination.visible]);
+  }, [selectedPath, selectedSpace, handleClearSelection, modals.destination.visible]);
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useSortedContent(content, sortConfig);
@@ -140,7 +160,7 @@ const FolderContent: React.FC = () => {
 
   // Box selection (Grid 뷰 전용)
   const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
-    enabled: viewMode === 'grid',
+    enabled: viewMode === 'grid' && !isMobile,
     containerRef: gridContainerRef,
     itemsRef,
     selectedItems,
@@ -163,8 +183,117 @@ const FolderContent: React.FC = () => {
   useEffect(() => {
     if (selectedItems.size === 0) {
       setIsMobileActionsOpen(false);
+      if (isMobile) {
+        setIsMobileSelectionMode(false);
+      }
     }
-  }, [selectedItems.size]);
+  }, [selectedItems.size, isMobile]);
+
+  useEffect(() => {
+    selectedItemsRef.current = selectedItems;
+  }, [selectedItems]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setIsMobileSelectionMode(false);
+      clearLongPressTimer();
+      lastLongPressRef.current = null;
+    }
+  }, [isMobile, clearLongPressTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+    };
+  }, [clearLongPressTimer]);
+
+  const toggleMobileSelection = useCallback((path: string) => {
+    const next = new Set(selectedItemsRef.current);
+    if (next.has(path)) {
+      next.delete(path);
+    } else {
+      next.add(path);
+    }
+    setSelection(next);
+    if (next.size === 0) {
+      setIsMobileSelectionMode(false);
+    }
+  }, [setSelection]);
+
+  const armToolbarInteractionGuard = useCallback(() => {
+    suppressTapUntilRef.current = Date.now() + 700;
+  }, []);
+
+  const handleMobileLongPressStart = useCallback((record: FileNode) => {
+    if (!isMobile || isMobileSelectionMode) {
+      return;
+    }
+    clearLongPressTimer();
+    longPressTimerRef.current = setTimeout(() => {
+      lastLongPressRef.current = {
+        path: record.path,
+        expiresAt: Date.now() + 900,
+      };
+      setIsMobileSelectionMode(true);
+      setSelection(new Set([record.path]));
+    }, LONG_PRESS_DURATION_MS);
+  }, [isMobile, isMobileSelectionMode, clearLongPressTimer, setSelection]);
+
+  const handleMobileLongPressEnd = useCallback(() => {
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
+
+  const handleItemTap = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode, index: number) => {
+    if (!isMobile) {
+      handleItemClick(e, record, index, sortedContent);
+      return;
+    }
+
+    if (Date.now() < suppressTapUntilRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    const lastLongPress = lastLongPressRef.current;
+    if (lastLongPress) {
+      if (Date.now() > lastLongPress.expiresAt) {
+        lastLongPressRef.current = null;
+      } else if (lastLongPress.path === record.path) {
+        lastLongPressRef.current = null;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+    }
+
+    if (isMobileSelectionMode) {
+      toggleMobileSelection(record.path);
+      return;
+    }
+
+    if (record.isDir) {
+      setPath(record.path);
+      handleClearSelection();
+      return;
+    }
+  }, [isMobile, handleItemClick, sortedContent, isMobileSelectionMode, toggleMobileSelection, setPath, handleClearSelection]);
+
+  const handleItemContextMenu = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode) => {
+    if (isMobile) {
+      e.preventDefault();
+      return;
+    }
+    handleContextMenu(e, record);
+  }, [isMobile, handleContextMenu]);
+
+  const handleContainerContextMenu = useCallback((e: React.MouseEvent) => {
+    if (isMobile) {
+      e.preventDefault();
+      return;
+    }
+    handleEmptyAreaContextMenu(e);
+  }, [isMobile, handleEmptyAreaContextMenu]);
 
   // Modal wrapper handlers
   const handleRenameConfirm = async () => {
@@ -175,7 +304,7 @@ const FolderContent: React.FC = () => {
     }
     await performRename(record.path, newName.trim());
     closeModal('rename');
-    clearSelection();
+    handleClearSelection();
   };
 
   const handleCreateFolderConfirm = async () => {
@@ -191,13 +320,13 @@ const FolderContent: React.FC = () => {
   const handleMoveConfirm = async (destination: string, destinationSpace?: import('@/features/space/types').Space) => {
     await handleMove(modals.destination.data.sources, destination, destinationSpace);
     closeModal('destination');
-    clearSelection();
+    handleClearSelection();
   };
 
   const handleCopyConfirm = async (destination: string, destinationSpace?: import('@/features/space/types').Space) => {
     await handleCopy(modals.destination.data.sources, destination, destinationSpace);
     closeModal('destination');
-    clearSelection();
+    handleClearSelection();
   };
 
   const handleDestinationCancel = () => {
@@ -225,6 +354,15 @@ const FolderContent: React.FC = () => {
 
   // Container click handler
   const handleContainerClick = (e: React.MouseEvent) => {
+    if (isMobile && Date.now() < suppressTapUntilRef.current) {
+      return;
+    }
+
+    // 모바일 선택모드에서는 배경 탭으로 선택 해제하지 않는다.
+    if (isMobile && isMobileSelectionMode) {
+      return;
+    }
+
     // 어떤 모달이든 열려 있으면 selection을 유지 (모달 조작 중 해제 방지)
     if (modals.destination.visible || modals.rename.visible || modals.createFolder.visible) {
       return;
@@ -241,15 +379,21 @@ const FolderContent: React.FC = () => {
     const isButton = target.closest('button');
     const isInput = target.closest('input');
     const isModalContent = target.closest('.ant-modal');
+    const isMobileSelectionBar = target.closest('[data-mobile-selection-bar="true"]');
 
     // 모달 내부 클릭은 React portal 이벤트 버블링으로 들어오므로 선택 해제 대상에서 제외
     if (isModalContent) {
       return;
     }
 
+    if (isMobileSelectionBar) {
+      return;
+    }
+
     // 카드, 테이블 행, 버튼, 입력 필드가 아닌 빈 영역만 선택 해제
     if (!isCard && !isTableRow && !isButton && !isInput) {
-      clearSelection();
+      handleClearSelection();
+      return;
     }
   };
 
@@ -269,7 +413,7 @@ const FolderContent: React.FC = () => {
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      onContextMenu={handleEmptyAreaContextMenu}
+      onContextMenu={handleContainerContextMenu}
       onClick={handleContainerClick}
     >
       <input
@@ -303,7 +447,7 @@ const FolderContent: React.FC = () => {
           }
         }}
         onDelete={() => handleBulkDelete(Array.from(selectedItems))}
-        onClear={clearSelection}
+        onClear={handleClearSelection}
       />
       )}
 
@@ -316,16 +460,12 @@ const FolderContent: React.FC = () => {
             selectedItems={selectedItems}
             dragOverFolder={dragOverFolder}
             onSelectionChange={setSelection}
-            onItemClick={(e, record, index) => {
-              if (isMobile && record.isDir) {
-                setPath(record.path);
-                clearSelection();
-                return;
-              }
-              handleItemClick(e, record, index, sortedContent);
-            }}
+            onItemClick={handleItemTap}
             onItemDoubleClick={setPath}
-            onContextMenu={handleContextMenu}
+            onItemTouchStart={(record) => handleMobileLongPressStart(record)}
+            onItemTouchEnd={handleMobileLongPressEnd}
+            onItemTouchCancel={handleMobileLongPressEnd}
+            onContextMenu={handleItemContextMenu}
             onItemDragStart={handleItemDragStart}
             onItemDragEnd={handleItemDragEnd}
             onFolderDragOver={handleFolderDragOver}
@@ -333,6 +473,9 @@ const FolderContent: React.FC = () => {
             onFolderDrop={handleFolderDrop}
             sortConfig={sortConfig}
             onSortChange={setSortConfig}
+            isMobile={isMobile}
+            isSelectionMode={isMobileSelectionMode}
+            disableDrag={isMobile}
           />
         </div>
       ) : (
@@ -342,23 +485,19 @@ const FolderContent: React.FC = () => {
             loading={isLoading}
             selectedItems={selectedItems}
             dragOverFolder={dragOverFolder}
-            onItemClick={(e, record, index) => {
-              if (isMobile && record.isDir) {
-                setPath(record.path);
-                clearSelection();
-                return;
-              }
-              handleItemClick(e, record, index, sortedContent);
-            }}
+            onItemClick={handleItemTap}
             onItemDoubleClick={setPath}
-            onContextMenu={handleContextMenu}
+            onItemTouchStart={(record) => handleMobileLongPressStart(record)}
+            onItemTouchEnd={handleMobileLongPressEnd}
+            onItemTouchCancel={handleMobileLongPressEnd}
+            onContextMenu={handleItemContextMenu}
             onItemDragStart={handleItemDragStart}
             onItemDragEnd={handleItemDragEnd}
             onFolderDragOver={handleFolderDragOver}
             onFolderDragLeave={handleFolderDragLeave}
             onFolderDrop={handleFolderDrop}
             itemsRef={itemsRef}
-            disableDraggable={isSelecting}
+            disableDraggable={isSelecting || isMobile}
             spaceId={selectedSpace?.id}
             spacePath={selectedSpace?.space_path}
           />
@@ -401,6 +540,48 @@ const FolderContent: React.FC = () => {
       {isMobile && selectedItems.size > 0 && (
         <>
           <div
+            data-mobile-selection-shield="true"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onPointerDownCapture={(e) => {
+              e.stopPropagation();
+              suppressTapUntilRef.current = Date.now() + 700;
+            }}
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 88,
+              zIndex: 19,
+            }}
+          />
+          <div
+            data-mobile-selection-bar="true"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onPointerDownCapture={(e) => {
+              const target = e.target as HTMLElement;
+              const isButtonTarget = Boolean(target.closest('button'));
+              if (!isButtonTarget) {
+                e.preventDefault();
+              }
+              e.stopPropagation();
+              suppressTapUntilRef.current = Date.now() + 700;
+            }}
+            onTouchStartCapture={(e) => {
+              e.stopPropagation();
+              suppressTapUntilRef.current = Date.now() + 700;
+            }}
+            onClickCapture={(e) => {
+              const target = e.target as HTMLElement;
+              const isButtonTarget = Boolean(target.closest('button'));
+              if (!isButtonTarget) {
+                e.preventDefault();
+                e.stopPropagation();
+                suppressTapUntilRef.current = Date.now() + 700;
+              }
+            }}
             style={{
               position: 'absolute',
               left: 12,
@@ -409,20 +590,49 @@ const FolderContent: React.FC = () => {
               zIndex: 20,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              justifyContent: 'flex-start',
+              flexWrap: 'wrap',
               gap: 8,
               padding: '10px 12px',
-              background: 'rgba(24, 144, 255, 0.12)',
-              border: '1px solid rgba(24, 144, 255, 0.35)',
+              background: token.colorBgElevated,
+              border: `1px solid ${token.colorBorder}`,
               borderRadius: 8,
-              backdropFilter: 'blur(2px)',
             }}
           >
-            <span style={{ fontWeight: 600, color: '#1677ff' }}>✓ {selectedItems.size}개 선택됨</span>
-            <AntSpace size="small">
-              <Button size="small" onClick={() => setIsMobileActionsOpen(true)}>작업</Button>
-              <Button size="small" onClick={clearSelection}>해제</Button>
-            </AntSpace>
+            <Button
+              size="small"
+              icon={<CloseOutlined />}
+              onClick={() => {
+                armToolbarInteractionGuard();
+                handleClearSelection();
+              }}
+            />
+            <span style={{ fontWeight: 600, color: token.colorText }}>{selectedItems.size}개 항목</span>
+            <Button
+              size="small"
+              icon={<ScissorOutlined />}
+              onClick={() => {
+                armToolbarInteractionGuard();
+                openModal('destination', { mode: 'move', sources: Array.from(selectedItems) });
+              }}
+            />
+            <Button
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={() => {
+                armToolbarInteractionGuard();
+                handleBulkDelete(Array.from(selectedItems));
+              }}
+            />
+            <Button
+              size="small"
+              icon={<MoreOutlined />}
+              onClick={() => {
+                armToolbarInteractionGuard();
+                setIsMobileActionsOpen(true);
+              }}
+            />
           </div>
 
           <Drawer
@@ -433,15 +643,12 @@ const FolderContent: React.FC = () => {
             size="default"
             styles={{ body: { padding: 12 } }}
           >
-            <AntSpace direction="vertical" style={{ width: '100%' }}>
+            <AntSpace orientation="vertical" style={{ width: '100%' }}>
               <Button icon={<DownloadOutlined />} onClick={() => { setIsMobileActionsOpen(false); handleBulkDownload(Array.from(selectedItems)); }}>
                 다운로드
               </Button>
               <Button icon={<CopyOutlined />} onClick={() => { setIsMobileActionsOpen(false); openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) }); }}>
                 복사
-              </Button>
-              <Button icon={<ScissorOutlined />} onClick={() => { setIsMobileActionsOpen(false); openModal('destination', { mode: 'move', sources: Array.from(selectedItems) }); }}>
-                이동
               </Button>
               {selectedItems.size === 1 && (
                 <Button
@@ -458,9 +665,6 @@ const FolderContent: React.FC = () => {
                   이름 변경
                 </Button>
               )}
-              <Button danger icon={<DeleteOutlined />} onClick={() => { setIsMobileActionsOpen(false); handleBulkDelete(Array.from(selectedItems)); }}>
-                삭제
-              </Button>
             </AntSpace>
           </Drawer>
         </>
