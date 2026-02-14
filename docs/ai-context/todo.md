@@ -70,3 +70,6 @@
 - [x] antd 정적 message/Modal 경고 제거 (`App.useApp` 전환, Settings `App` 프로바이더 추가)
 - [x] Space 생성 모달 이름/설명 입력 가능 상태 개선 및 설명(`space_desc`) 저장 연동
 - [x] Table 뷰 스크롤 복구 (하단 항목 접근 가능)
+- [x] Status 팝오버 웹 접근 기준 표기 개선 (`/api` 표기 제거, WEB 접근 주소 표시)
+- [x] Status WEB 접근 주소 계산 책임 분리 (백엔드 하드코딩 제거, 프론트 origin 기준)
+- [x] Status WEB 포트 표시 복원 (프론트 origin 기반 포트 표기)

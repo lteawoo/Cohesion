@@ -1,6 +1,18 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Status WEB 포트 표시 복원 완료** (2026-02-14):
+    - WEB 상태 행에 현재 브라우저 기준 포트(`window.location.port`, 기본 80/443 fallback)를 다시 표시.
+    - 포트 계산 책임은 프론트에 유지하고, 표시 형식은 `:{port}/`로 통일.
+    - 검증: `pnpm -C apps/frontend build` 통과.
+- **Status 웹 접근 포트 계산 책임 분리 완료** (2026-02-14):
+    - 백엔드의 WEB 포트 하드코딩(`5173`)을 제거하고, 프론트에서 `window.location.origin`으로 웹 접근 주소를 계산하도록 변경.
+    - 개발환경에서는 현재 접속 origin(`:5173`), 프로덕션에서는 내장 서버 origin(`:3000` 등 설정 포트)을 자동 반영.
+    - 검증: `go test ./...` (in `apps/backend`), `pnpm -C apps/frontend build` 통과.
+- **Status 팝오버 웹 접근 정보 정리 완료** (2026-02-14):
+    - `/api/status`의 HTTP 경로 표기를 `/api/`에서 웹 루트(`/`) 기준으로 변경.
+    - 상태 팝오버의 HTTP 라벨을 `WEB`으로 조정하고, 접근 주소를 `http://{host}/` 형태로 표시.
+    - 검증: `go test ./...` (in `apps/backend`), `pnpm -C apps/frontend build` 통과.
 - **Table 뷰 세로 스크롤 복구 완료** (2026-02-13):
     - `FolderContent` 루트에 `minHeight: 0`을 추가해 내부 스크롤 영역 축소/확장이 가능하도록 조정.
     - Table 뷰를 `flex:1 + overflowY:auto` 래퍼로 감싸 하단 항목까지 스크롤 가능하도록 수정.
