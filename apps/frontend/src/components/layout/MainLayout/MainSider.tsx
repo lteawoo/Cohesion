@@ -10,9 +10,11 @@ const { Sider } = Layout;
 
 interface MainSiderProps {
   onPathSelect?: (path: string, space?: Space) => void;
+  onAfterSelect?: () => void;
+  containerType?: "sider" | "panel";
 }
 
-export default function MainSider({ onPathSelect }: MainSiderProps) {
+export default function MainSider({ onPathSelect, onAfterSelect, containerType = "sider" }: MainSiderProps) {
   const { token } = theme.useToken();
   const { message, modal } = App.useApp();
   const [isOpen, setIsOpen] = useState(false);
@@ -40,14 +42,13 @@ export default function MainSider({ onPathSelect }: MainSiderProps) {
     });
   };
 
-  return (
-    <Sider
-      width={300}
-      style={{
-        background: token.colorBgContainer,
-        overflow: 'auto'
-      }}
-    >
+  const handleSelect = (path: string, space?: Space) => {
+    (onPathSelect || (() => {}))(path, space);
+    onAfterSelect?.();
+  };
+
+  const panelContent = (
+    <>
       <DirectorySetupModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
@@ -69,10 +70,36 @@ export default function MainSider({ onPathSelect }: MainSiderProps) {
       </div>
       <div style={{ padding: '8px' }}>
         <FolderTree
-          onSelect={onPathSelect || (() => {})}
+          onSelect={handleSelect}
           onSpaceDelete={handleDeleteSpace}
         />
       </div>
+    </>
+  );
+
+  if (containerType === "panel") {
+    return (
+      <div
+        style={{
+          height: "100%",
+          background: token.colorBgContainer,
+          overflow: "auto",
+        }}
+      >
+        {panelContent}
+      </div>
+    );
+  }
+
+  return (
+    <Sider
+      width={300}
+      style={{
+        background: token.colorBgContainer,
+        overflow: 'auto'
+      }}
+    >
+      {panelContent}
     </Sider>
   );
 }

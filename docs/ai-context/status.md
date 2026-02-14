@@ -1,6 +1,13 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **메인 네비게이션 Drawer 도입 완료** (2026-02-14, #55):
+    - `MainLayout`에 `Drawer` 기반 네비게이션 패널을 추가하고 헤더에 `탐색기` 버튼을 배치.
+    - 반응형 분기 적용: 모바일(`lg` 미만)은 Drawer 중심, 데스크톱은 기존 고정 Sider 유지 + Drawer 병행 사용.
+    - `MainSider`를 `Sider`/`Drawer` 공용으로 재사용 가능하도록 `containerType` 구조로 정리.
+    - 모바일 Drawer에서 경로 선택 시 자동 닫힘 처리.
+    - 데스크톱 헤더에서는 `탐색기` 버튼을 숨겨 시각적 노이즈를 줄이고, 모바일에서만 노출하도록 조정.
+    - 검증: `pnpm -C apps/frontend build` 통과.
 - **Status 웹 접근 주소 다중 노출 복원 완료** (2026-02-14):
     - `status.hosts`를 다시 사용해 `localhost`와 LAN IP 주소를 함께 표시.
     - 표시 포트는 백엔드 포트가 아닌 현재 웹 포트(`window.location.port`)로 통일해 `vite host: true` 환경에서도 실제 접속 주소를 노출.

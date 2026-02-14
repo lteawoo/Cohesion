@@ -1,9 +1,9 @@
-import { ConfigProvider, Layout, Switch, Button, theme, App } from "antd";
+import { ConfigProvider, Layout, Switch, Button, theme, App, Drawer, Grid } from "antd";
 import { Outlet, useNavigate } from "react-router";
-import { SettingOutlined } from "@ant-design/icons";
+import { SettingOutlined, MenuOutlined } from "@ant-design/icons";
 import MainSider from "./MainSider";
 import ServerStatus from "./ServerStatus";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Space } from "@/features/space/types";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useSpaceStore } from "@/stores/spaceStore";
@@ -14,7 +14,10 @@ const { Header, Content } = Layout;
 
 const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThemeChange: (checked: boolean) => void }) => {
   const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.lg;
   const navigate = useNavigate();
+  const [isNavOpen, setIsNavOpen] = useState(false);
   const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
   const spaces = useSpaceStore((state) => state.spaces);
   const setPath = useBrowseStore((state) => state.setPath);
@@ -38,6 +41,10 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
     }
   }, [setPath, spaces]);
 
+  const closeNavDrawer = useCallback(() => {
+    setIsNavOpen(false);
+  }, []);
+
   return (
     <Layout
       style={{
@@ -56,6 +63,13 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {isMobile && (
+              <Button
+                type="text"
+                icon={<MenuOutlined />}
+                onClick={() => setIsNavOpen(true)}
+              />
+            )}
             <div style={{ color: token.colorText, fontSize: '20px' }}>Cohesion</div>
             <ServerStatus />
         </div>
@@ -71,9 +85,27 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
         </div>
       </Header>
       <Layout>
+          {!isMobile && (
           <MainSider
             onPathSelect={handlePathSelect}
           />
+          )}
+
+          <Drawer
+            title={null}
+            placement="left"
+            open={isNavOpen}
+            onClose={closeNavDrawer}
+            width={isMobile ? "88vw" : 360}
+            styles={{ body: { padding: 0 } }}
+            mask={isMobile}
+          >
+            <MainSider
+              onPathSelect={handlePathSelect}
+              onAfterSelect={closeNavDrawer}
+              containerType="panel"
+            />
+          </Drawer>
 
           <Content style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
               <main style={{ flex: 1, overflow: 'hidden' }}>

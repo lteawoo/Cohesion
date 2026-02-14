@@ -74,3 +74,4 @@
 - [x] Status WEB 접근 주소 계산 책임 분리 (백엔드 하드코딩 제거, 프론트 origin 기준)
 - [x] Status WEB 포트 표시 복원 (프론트 origin 기반 포트 표기)
 - [x] Status 웹 접근 주소 다중 노출 복원 (localhost + LAN IP, 웹 포트 기준)
+- [x] Main 네비게이션 Drawer 도입 (모바일 기본 + 데스크톱 병행)
