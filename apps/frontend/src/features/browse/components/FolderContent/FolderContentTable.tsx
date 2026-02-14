@@ -12,6 +12,9 @@ interface FolderContentTableProps {
   onSelectionChange: (items: Set<string>) => void;
   onItemClick: (e: React.MouseEvent<HTMLElement>, record: FileNode, index: number) => void;
   onItemDoubleClick: (path: string) => void;
+  onItemTouchStart?: (record: FileNode, index: number) => void;
+  onItemTouchEnd?: () => void;
+  onItemTouchCancel?: () => void;
   onContextMenu: (e: React.MouseEvent<HTMLElement>, record: FileNode) => void;
   onItemDragStart: (e: React.DragEvent<HTMLElement>, record: FileNode) => void;
   onItemDragEnd: (e: React.DragEvent<HTMLElement>) => void;
@@ -20,6 +23,9 @@ interface FolderContentTableProps {
   onFolderDrop: (e: React.DragEvent<HTMLElement>, record: FileNode) => void;
   sortConfig: SortConfig;
   onSortChange: (config: SortConfig) => void;
+  isMobile?: boolean;
+  isSelectionMode?: boolean;
+  disableDrag?: boolean;
 }
 
 const FolderContentTable: React.FC<FolderContentTableProps> = ({
@@ -31,6 +37,9 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
   onSelectionChange,
   onItemClick,
   onItemDoubleClick,
+  onItemTouchStart,
+  onItemTouchEnd,
+  onItemTouchCancel,
   onContextMenu,
   onItemDragStart,
   onItemDragEnd,
@@ -38,6 +47,9 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
   onFolderDragLeave,
   onFolderDrop,
   onSortChange,
+  isMobile = false,
+  isSelectionMode = false,
+  disableDrag = false,
 }) => {
   return (
     <Table
@@ -46,7 +58,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
       loading={loading}
       rowKey="path"
       pagination={false}
-      rowSelection={{
+      rowSelection={isMobile && !isSelectionMode ? undefined : {
         type: 'checkbox',
         selectedRowKeys: Array.from(selectedItems),
         onChange: (keys) => onSelectionChange(new Set(keys as string[])),
@@ -63,13 +75,17 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
       onRow={(record: FileNode, index?: number) => ({
         onClick: (e: React.MouseEvent<HTMLElement>) => onItemClick(e, record, index ?? 0),
         onDoubleClick: () => record.isDir && onItemDoubleClick(record.path),
+        onTouchStart: () => onItemTouchStart?.(record, index ?? 0),
+        onTouchEnd: () => onItemTouchEnd?.(),
+        onTouchCancel: () => onItemTouchCancel?.(),
+        onTouchMove: () => onItemTouchCancel?.(),
         onContextMenu: (e: React.MouseEvent<HTMLElement>) => onContextMenu(e, record),
-        draggable: true,
-        onDragStart: (e: React.DragEvent<HTMLElement>) => onItemDragStart(e, record),
-        onDragEnd: (e: React.DragEvent<HTMLElement>) => onItemDragEnd(e),
-        onDragOver: (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDragOver(e, record),
-        onDragLeave: (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDragLeave(e),
-        onDrop: (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDrop(e, record),
+        draggable: !disableDrag,
+        onDragStart: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => onItemDragStart(e, record),
+        onDragEnd: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => onItemDragEnd(e),
+        onDragOver: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDragOver(e, record),
+        onDragLeave: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDragLeave(e),
+        onDrop: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDrop(e, record),
         style: {
           backgroundColor: dragOverFolder === record.path ? 'rgba(24, 144, 255, 0.1)' : undefined,
           userSelect: 'none',

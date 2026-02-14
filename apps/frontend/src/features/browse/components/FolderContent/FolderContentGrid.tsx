@@ -15,6 +15,9 @@ interface FolderContentGridProps {
   spacePath?: string;
   onItemClick: (e: React.MouseEvent<HTMLElement>, record: FileNode, index: number) => void;
   onItemDoubleClick: (path: string) => void;
+  onItemTouchStart?: (record: FileNode, index: number) => void;
+  onItemTouchEnd?: () => void;
+  onItemTouchCancel?: () => void;
   onContextMenu: (e: React.MouseEvent<HTMLElement>, record: FileNode) => void;
   onItemDragStart: (e: React.DragEvent<HTMLElement>, record: FileNode) => void;
   onItemDragEnd: (e: React.DragEvent<HTMLElement>) => void;
@@ -32,6 +35,9 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   dragOverFolder,
   onItemClick,
   onItemDoubleClick,
+  onItemTouchStart,
+  onItemTouchEnd,
+  onItemTouchCancel,
   onContextMenu,
   onItemDragStart,
   onItemDragEnd,
@@ -76,6 +82,10 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                 draggable={!disableDraggable}
                 onClick={(e) => onItemClick(e, item, index)}
                 onDoubleClick={() => item.isDir && onItemDoubleClick(item.path)}
+                onTouchStart={() => onItemTouchStart?.(item, index)}
+                onTouchEnd={() => onItemTouchEnd?.()}
+                onTouchCancel={() => onItemTouchCancel?.()}
+                onTouchMove={() => onItemTouchCancel?.()}
                 onContextMenu={(e) => onContextMenu(e, item)}
                 onDragStart={(e) => onItemDragStart(e, item)}
                 onDragEnd={(e) => onItemDragEnd(e)}
