@@ -1,4 +1,4 @@
-import { ConfigProvider, Layout, Switch, Button, theme, App, Drawer, Grid } from "antd";
+import { ConfigProvider, Layout, Button, theme, App, Drawer, Grid } from "antd";
 import { Outlet, useNavigate } from "react-router";
 import { SettingOutlined, MenuOutlined } from "@ant-design/icons";
 import MainSider from "./MainSider";
@@ -12,7 +12,7 @@ import ContextMenu from "@/components/ContextMenu";
 
 const { Header, Content } = Layout;
 
-const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThemeChange: (checked: boolean) => void }) => {
+const PageLayout = () => {
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
@@ -81,7 +81,6 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
           >
             설정
           </Button>
-          <Switch checked={isDarkMode} onChange={onThemeChange} checkedChildren="Dark" unCheckedChildren="Light" />
         </div>
       </Header>
       <Layout>
@@ -96,7 +95,7 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
             placement="left"
             open={isNavOpen}
             onClose={closeNavDrawer}
-            width={isMobile ? "88vw" : 360}
+            size={isMobile ? "default" : "large"}
             styles={{ body: { padding: 0 } }}
             mask={isMobile}
           >
@@ -119,20 +118,15 @@ const PageLayout = ({ isDarkMode, onThemeChange }: { isDarkMode: boolean, onThem
 
 export default function MainLayout() {
     const currentTheme = useSettingsStore((state) => state.theme);
-    const setTheme = useSettingsStore((state) => state.setTheme);
 
     const isDarkMode = currentTheme === 'dark';
-
-    const handleThemeChange = (checked: boolean) => {
-        setTheme(checked ? 'dark' : 'light');
-    };
 
     const currentAlgorithm = isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm;
 
     return (
         <ConfigProvider theme={{ algorithm: currentAlgorithm }}>
           <App>
-            <PageLayout isDarkMode={isDarkMode} onThemeChange={handleThemeChange} />
+            <PageLayout />
             <ContextMenu />
           </App>
         </ConfigProvider>
