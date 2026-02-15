@@ -1,6 +1,11 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **트리 메뉴 화살표를 폴더 상태 아이콘으로 전환 완료** (2026-02-15):
+    - `FolderTree`에서 기본 화살표(`switcher`) 대신 폴더 닫힘/열림 아이콘으로 확장 상태를 표현.
+    - 최종 아이콘 세트는 Material Symbols Rounded(`folder`/`folder_open`)로 확정.
+    - 중복 아이콘을 방지하기 위해 `showIcon` 기반 기본 아이콘 렌더링 제거.
+    - 검증: `pnpm -C apps/frontend build` 통과.
 - **헤더/툴바 아이콘 버튼 텍스트 제거 완료** (2026-02-15):
     - `FolderContentToolbar` 업로드 버튼을 아이콘 전용으로 전환(`aria-label`, `title` 유지).
     - `MainLayout` 설정 버튼을 아이콘 전용으로 전환(`aria-label`, `title` 유지).

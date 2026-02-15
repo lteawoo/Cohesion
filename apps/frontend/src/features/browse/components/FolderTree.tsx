@@ -7,7 +7,7 @@ import { useContextMenuStore } from '@/stores/contextMenuStore';
 import { useSpaceStore } from '@/stores/spaceStore';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { TreeInvalidationTarget } from '@/stores/browseStore';
-import { FolderOutlined, DeleteOutlined } from '@ant-design/icons';
+import { DeleteOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
 import type { Space } from '@/features/space/types';
@@ -401,8 +401,30 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
       treeData={treeData}
       loadedKeys={loadedKeys}
       expandedKeys={expandedKeys}
-      showIcon={true}
-      icon={<FolderOutlined />}
+      showIcon={false}
+      switcherIcon={({ expanded, isLeaf }) => {
+        if (isLeaf) {
+          return <span style={{ display: 'inline-block', width: 14 }} />;
+        }
+        return (
+          <span
+            className="material-symbols-rounded"
+            style={{
+              fontSize: 18,
+              lineHeight: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 18,
+              height: 18,
+              fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20',
+            }}
+            aria-hidden="true"
+          >
+            {expanded ? 'folder_open' : 'folder'}
+          </span>
+        );
+      }}
       expandAction="click"
     />
   );
