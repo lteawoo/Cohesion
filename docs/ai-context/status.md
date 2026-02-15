@@ -1,6 +1,11 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **PC 모달 오픈 중 배경 선택 변경 버그 수정 완료** (2026-02-15):
+    - 원인: Grid 박스선택 훅(`useBoxSelection`)의 전역 `window.mousedown` 경로가 모달 오픈 상태에서도 동작.
+    - 조치: 모달 오픈 시 박스선택 비활성화 + 모달 레이어 타깃/오픈 마스크 감지 시 박스선택 시작 차단.
+    - 추가 보강: 모달 관련 탭/컨텍스트 메뉴/컨테이너 클릭 가드 경로 정리.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과 및 브라우저 수동 재현 테스트에서 선택 유지 확인.
 - **PC/모바일 이동 아이콘 일원화 완료** (2026-02-15):
     - `FolderContentSelectionBar`의 이동 아이콘을 가위 아이콘에서 Material Symbols `drive_file_move`로 전환.
     - 모바일 선택 헤더와 동일 아이콘으로 액션 의미를 통일.

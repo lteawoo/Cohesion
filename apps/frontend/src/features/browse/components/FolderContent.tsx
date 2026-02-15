@@ -158,13 +158,15 @@ const FolderContent: React.FC = () => {
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useSortedContent(content, sortConfig);
+  const isAnyModalOpen =
+    modals.destination.visible || modals.rename.visible || modals.createFolder.visible;
 
   // Columns for table view
   const columns = useMemo(() => buildTableColumns(setPath, sortConfig), [setPath, sortConfig]);
 
   // Box selection (Grid 뷰 전용)
   const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
-    enabled: viewMode === 'grid' && !isMobile,
+    enabled: viewMode === 'grid' && !isMobile && !isAnyModalOpen,
     containerRef: gridContainerRef,
     itemsRef,
     selectedItems,
@@ -247,14 +249,20 @@ const FolderContent: React.FC = () => {
   }, [clearLongPressTimer]);
 
   const handleItemTap = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode, index: number) => {
-    if (!isMobile) {
-      handleItemClick(e, record, index, sortedContent);
-      return;
-    }
-
     if (Date.now() < suppressTapUntilRef.current) {
       e.preventDefault();
       e.stopPropagation();
+      return;
+    }
+
+    if (isAnyModalOpen) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    if (!isMobile) {
+      handleItemClick(e, record, index, sortedContent);
       return;
     }
 
@@ -280,23 +288,23 @@ const FolderContent: React.FC = () => {
       handleClearSelection();
       return;
     }
-  }, [isMobile, handleItemClick, sortedContent, isMobileSelectionMode, toggleMobileSelection, setPath, handleClearSelection]);
+  }, [isAnyModalOpen, isMobile, handleItemClick, sortedContent, isMobileSelectionMode, toggleMobileSelection, setPath, handleClearSelection]);
 
   const handleItemContextMenu = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode) => {
-    if (isMobile) {
+    if (isMobile || isAnyModalOpen) {
       e.preventDefault();
       return;
     }
     handleContextMenu(e, record);
-  }, [isMobile, handleContextMenu]);
+  }, [isMobile, isAnyModalOpen, handleContextMenu]);
 
   const handleContainerContextMenu = useCallback((e: React.MouseEvent) => {
-    if (isMobile) {
+    if (isMobile || isAnyModalOpen) {
       e.preventDefault();
       return;
     }
     handleEmptyAreaContextMenu(e);
-  }, [isMobile, handleEmptyAreaContextMenu]);
+  }, [isMobile, isAnyModalOpen, handleEmptyAreaContextMenu]);
 
   // Modal wrapper handlers
   const handleRenameConfirm = async () => {
@@ -333,6 +341,7 @@ const FolderContent: React.FC = () => {
   };
 
   const handleDestinationCancel = () => {
+    suppressTapUntilRef.current = Date.now() + 700;
     const preservedSources = [...modals.destination.data.sources];
     closeModal('destination');
 
@@ -357,7 +366,7 @@ const FolderContent: React.FC = () => {
 
   // Container click handler
   const handleContainerClick = (e: React.MouseEvent) => {
-    if (isMobile && Date.now() < suppressTapUntilRef.current) {
+    if (Date.now() < suppressTapUntilRef.current) {
       return;
     }
 
@@ -367,7 +376,7 @@ const FolderContent: React.FC = () => {
     }
 
     // 어떤 모달이든 열려 있으면 selection을 유지 (모달 조작 중 해제 방지)
-    if (modals.destination.visible || modals.rename.visible || modals.createFolder.visible) {
+    if (isAnyModalOpen) {
       return;
     }
 
@@ -602,7 +611,10 @@ const FolderContent: React.FC = () => {
         visible={modals.rename.visible}
         initialName={modals.rename.data.newName}
         onConfirm={handleRenameConfirm}
-        onCancel={() => closeModal('rename')}
+        onCancel={() => {
+          suppressTapUntilRef.current = Date.now() + 700;
+          closeModal('rename');
+        }}
         onChange={(newName) => updateModalData('rename', { newName })}
       />
 
@@ -610,7 +622,10 @@ const FolderContent: React.FC = () => {
         visible={modals.createFolder.visible}
         folderName={modals.createFolder.data.folderName}
         onConfirm={handleCreateFolderConfirm}
-        onCancel={() => closeModal('createFolder')}
+        onCancel={() => {
+          suppressTapUntilRef.current = Date.now() + 700;
+          closeModal('createFolder');
+        }}
         onChange={(folderName) => updateModalData('createFolder', { folderName })}
       />
 

@@ -34,6 +34,8 @@ const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
       open={visible}
       onOk={onConfirm}
       onCancel={onCancel}
+      maskClosable={false}
+      styles={{ mask: { pointerEvents: 'auto' } }}
       okText="생성"
       cancelText="취소"
     >

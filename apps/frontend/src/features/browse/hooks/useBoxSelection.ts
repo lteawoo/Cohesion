@@ -165,6 +165,16 @@ export function useBoxSelection({
       }
 
       const target = e.target as HTMLElement;
+      const isModalLayer = target.closest('.ant-modal-root, .ant-modal-mask, .ant-modal-wrap, .ant-modal');
+      if (isModalLayer) {
+        return;
+      }
+
+      const hasOpenModal = Boolean(document.querySelector('.ant-modal-root .ant-modal-mask'));
+      if (hasOpenModal) {
+        return;
+      }
+
       const isCard = target.closest('.ant-card');
       const isTableRow = target.closest('tr');
 
