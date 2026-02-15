@@ -78,9 +78,9 @@ const PageLayout = () => {
             type="text"
             icon={<SettingOutlined />}
             onClick={() => navigate('/settings')}
-          >
-            설정
-          </Button>
+            aria-label="설정"
+            title="설정"
+          />
         </div>
       </Header>
       <Layout>

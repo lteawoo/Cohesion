@@ -1,6 +1,10 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **헤더/툴바 아이콘 버튼 텍스트 제거 완료** (2026-02-15):
+    - `FolderContentToolbar` 업로드 버튼을 아이콘 전용으로 전환(`aria-label`, `title` 유지).
+    - `MainLayout` 설정 버튼을 아이콘 전용으로 전환(`aria-label`, `title` 유지).
+    - 검증: `pnpm -C apps/frontend build` 통과.
 - **PC Grid 박스선택 실시간 교차 모드 전환 완료** (2026-02-14, #60):
     - `useBoxSelection` 선택 계산을 누적 방식에서 실시간 교차 방식으로 변경.
     - 드래그/스크롤 중 현재 박스와 교차하는 항목 기준으로 선택 집합이 즉시 증감되도록 조정.
