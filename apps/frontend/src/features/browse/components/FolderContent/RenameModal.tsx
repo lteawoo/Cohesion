@@ -22,6 +22,8 @@ const RenameModal: React.FC<RenameModalProps> = ({
       open={visible}
       onOk={onConfirm}
       onCancel={onCancel}
+      maskClosable={false}
+      styles={{ mask: { pointerEvents: 'auto' } }}
       okText="변경"
       cancelText="취소"
     >

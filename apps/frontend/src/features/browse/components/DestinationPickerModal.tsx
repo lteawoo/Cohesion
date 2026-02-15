@@ -86,6 +86,8 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
       open={visible}
       onOk={handleOk}
       onCancel={handleCancel}
+      maskClosable={false}
+      styles={{ mask: { pointerEvents: 'auto' } }}
       okText={mode === 'move' ? '이동' : '복사'}
       cancelText="취소"
       width={600}
