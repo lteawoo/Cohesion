@@ -36,9 +36,12 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
         <Breadcrumb items={breadcrumbItems} />
       </div>
       <AntSpace wrap>
-        <Button icon={<UploadOutlined />} onClick={onUpload}>
-          업로드
-        </Button>
+        <Button
+          icon={<UploadOutlined />}
+          onClick={onUpload}
+          aria-label="업로드"
+          title="업로드"
+        />
         {viewMode === 'grid' && (
           <Select
             style={{ width: 160 }}
