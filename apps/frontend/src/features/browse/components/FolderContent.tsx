@@ -479,7 +479,7 @@ const FolderContent: React.FC = () => {
           />
         </div>
       ) : (
-        <div ref={gridContainerRef} style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+        <div ref={gridContainerRef} style={{ position: 'relative', flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}>
           <FolderContentGrid
             dataSource={sortedContent}
             loading={isLoading}

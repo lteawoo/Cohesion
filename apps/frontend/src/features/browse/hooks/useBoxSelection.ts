@@ -32,9 +32,9 @@ export function useBoxSelection({
   });
 
   const initialSelection = useRef<Set<string>>(new Set());
-  const accumulatedSelection = useRef<Set<string>>(new Set());
   const animationFrameId = useRef<number | null>(null);
   const scrollAnimationFrameId = useRef<number | null>(null);
+  const pointerPositionRef = useRef<{ x: number; y: number } | null>(null);
 
   // 키보드 상태 추적
   useEffect(() => {
@@ -61,13 +61,26 @@ export function useBoxSelection({
     };
   }, []);
 
+  const toContentPoint = useCallback((clientX: number, clientY: number) => {
+    const container = containerRef.current;
+    if (!container) return null;
+
+    const containerRect = container.getBoundingClientRect();
+    return {
+      x: clientX - containerRect.left + container.scrollLeft,
+      y: clientY - containerRect.top + container.scrollTop,
+    };
+  }, [containerRef]);
+
   // 교차 판정 알고리즘 (AABB)
   const getIntersectedItems = useCallback(
     (box: SelectionBox): string[] => {
       const items = itemsRef.current;
-      if (!items) return [];
+      const container = containerRef.current;
+      if (!items || !container) return [];
 
       const intersected: string[] = [];
+      const containerRect = container.getBoundingClientRect();
 
       // 박스 정규화
       const boxRect = {
@@ -80,13 +93,19 @@ export function useBoxSelection({
       // 각 아이템 getBoundingClientRect() 비교
       items.forEach((element, path) => {
         const itemRect = element.getBoundingClientRect();
+        const contentRect = {
+          left: itemRect.left - containerRect.left + container.scrollLeft,
+          top: itemRect.top - containerRect.top + container.scrollTop,
+          right: itemRect.right - containerRect.left + container.scrollLeft,
+          bottom: itemRect.bottom - containerRect.top + container.scrollTop,
+        };
 
         // AABB 충돌 검사
         if (
-          boxRect.left < itemRect.right &&
-          boxRect.right > itemRect.left &&
-          boxRect.top < itemRect.bottom &&
-          boxRect.bottom > itemRect.top
+          boxRect.left < contentRect.right &&
+          boxRect.right > contentRect.left &&
+          boxRect.top < contentRect.bottom &&
+          boxRect.bottom > contentRect.top
         ) {
           intersected.push(path);
         }
@@ -97,6 +116,31 @@ export function useBoxSelection({
     [itemsRef]
   );
 
+
+  const computeSelectionFromIntersected = useCallback((intersected: string[]) => {
+    const intersectedSet = new Set(intersected);
+
+    if (modifierKeys.ctrl) {
+      // Ctrl/Cmd: 초기 선택 기준으로 현재 교차 항목만 토글
+      const next = new Set(initialSelection.current);
+      intersectedSet.forEach((path) => {
+        if (initialSelection.current.has(path)) {
+          next.delete(path);
+        } else {
+          next.add(path);
+        }
+      });
+      return next;
+    }
+
+    if (modifierKeys.shift) {
+      // Shift: 초기 선택에 현재 교차 항목 추가
+      return new Set([...initialSelection.current, ...intersectedSet]);
+    }
+
+    // 기본: 현재 교차 항목만 선택
+    return intersectedSet;
+  }, [modifierKeys]);
 
   // 마우스 다운: 박스 선택 시작 (컨테이너 내부의 빈 영역만)
   const handleMouseDown = useCallback(
@@ -130,20 +174,22 @@ export function useBoxSelection({
       }
 
       e.preventDefault(); // 텍스트 선택 방지
+      const contentPoint = toContentPoint(e.clientX, e.clientY);
+      if (!contentPoint) return;
+
+      pointerPositionRef.current = { x: e.clientX, y: e.clientY };
       setIsSelecting(true);
       setSelectionBox({
-        startX: e.clientX,
-        startY: e.clientY,
-        currentX: e.clientX,
-        currentY: e.clientY,
+        startX: contentPoint.x,
+        startY: contentPoint.y,
+        currentX: contentPoint.x,
+        currentY: contentPoint.y,
       });
 
       // 초기 선택 상태 저장 (Ctrl/Shift 처리용)
       initialSelection.current = new Set(selectedItems);
-      // 드래그 중 누적 선택 초기화
-      accumulatedSelection.current = new Set();
     },
-    [enabled, selectedItems, containerRef]
+    [enabled, selectedItems, containerRef, toContentPoint]
   );
 
   // 마우스 무브: requestAnimationFrame으로 최적화
@@ -156,47 +202,25 @@ export function useBoxSelection({
       }
 
       animationFrameId.current = requestAnimationFrame(() => {
+        pointerPositionRef.current = { x: e.clientX, y: e.clientY };
+        const contentPoint = toContentPoint(e.clientX, e.clientY);
+        if (!contentPoint) return;
+
         // 새 박스 생성 (state 업데이트와 교차 판정에 동일한 값 사용)
         const newBox = {
           ...selectionBox,
-          currentX: e.clientX,
-          currentY: e.clientY,
+          currentX: contentPoint.x,
+          currentY: contentPoint.y,
         };
 
         setSelectionBox(newBox);
 
-        // 교차 판정 + 누적
+        // 교차 판정 (실시간 교차 기준)
         const intersected = getIntersectedItems(newBox);
-        // 한 번이라도 드래그 영역에 걸린 항목들을 누적
-        intersected.forEach(path => accumulatedSelection.current.add(path));
-
-        // 최종 선택 계산 (Ctrl/Shift 모드 고려)
-        let finalSelection: Set<string>;
-        if (modifierKeys.ctrl) {
-          // Ctrl: 초기 선택 + 누적 항목 토글
-          finalSelection = new Set(initialSelection.current);
-          accumulatedSelection.current.forEach(path => {
-            if (initialSelection.current.has(path)) {
-              finalSelection.delete(path);
-            } else {
-              finalSelection.add(path);
-            }
-          });
-        } else if (modifierKeys.shift) {
-          // Shift: 초기 선택 + 누적 항목 추가
-          finalSelection = new Set([
-            ...initialSelection.current,
-            ...accumulatedSelection.current,
-          ]);
-        } else {
-          // 일반: 누적된 항목만 선택
-          finalSelection = new Set(accumulatedSelection.current);
-        }
-
-        onSelectionChange(finalSelection);
+        onSelectionChange(computeSelectionFromIntersected(intersected));
       });
     },
-    [isSelecting, selectionBox, getIntersectedItems, modifierKeys, onSelectionChange]
+    [isSelecting, selectionBox, getIntersectedItems, onSelectionChange, computeSelectionFromIntersected, toContentPoint]
   );
 
   // 마우스 업: 선택 완료
@@ -208,30 +232,7 @@ export function useBoxSelection({
     // 마지막 선택 상태 확정
     if (selectionBox) {
       const intersected = getIntersectedItems(selectionBox);
-      // 마지막으로 교차한 항목도 누적에 포함
-      intersected.forEach(path => accumulatedSelection.current.add(path));
-
-      // 최종 선택 계산 (Ctrl/Shift 모드 고려)
-      let finalSelection: Set<string>;
-      if (modifierKeys.ctrl) {
-        finalSelection = new Set(initialSelection.current);
-        accumulatedSelection.current.forEach(path => {
-          if (initialSelection.current.has(path)) {
-            finalSelection.delete(path);
-          } else {
-            finalSelection.add(path);
-          }
-        });
-      } else if (modifierKeys.shift) {
-        finalSelection = new Set([
-          ...initialSelection.current,
-          ...accumulatedSelection.current,
-        ]);
-      } else {
-        finalSelection = new Set(accumulatedSelection.current);
-      }
-
-      onSelectionChange(finalSelection);
+      onSelectionChange(computeSelectionFromIntersected(intersected));
 
       // 박스 선택이 실제로 발생했으면 플래그 설정
       setWasRecentlySelecting(true);
@@ -241,48 +242,37 @@ export function useBoxSelection({
 
     setIsSelecting(false);
     setSelectionBox(null);
-  }, [selectionBox, getIntersectedItems, modifierKeys, onSelectionChange]);
+    pointerPositionRef.current = null;
+  }, [selectionBox, getIntersectedItems, onSelectionChange, computeSelectionFromIntersected]);
 
   // 스크롤: 박스 선택 중 스크롤 시 교차 판정 재계산
   const handleScroll = useCallback(() => {
-    if (!isSelecting || !selectionBox) return;
+    if (!isSelecting || !selectionBox || !pointerPositionRef.current) return;
 
     if (scrollAnimationFrameId.current) {
       cancelAnimationFrame(scrollAnimationFrameId.current);
     }
 
     scrollAnimationFrameId.current = requestAnimationFrame(() => {
-      // 현재 selectionBox로 교차 판정 재계산 (박스는 고정, 아이템들이 움직임)
-      const intersected = getIntersectedItems(selectionBox);
-      // 한 번이라도 드래그 영역에 걸린 항목들을 누적
-      intersected.forEach(path => accumulatedSelection.current.add(path));
+      const pointer = pointerPositionRef.current;
+      if (!pointer) return;
 
-      // 최종 선택 계산 (Ctrl/Shift 모드 고려)
-      let finalSelection: Set<string>;
-      if (modifierKeys.ctrl) {
-        // Ctrl: 초기 선택 + 누적 항목 토글
-        finalSelection = new Set(initialSelection.current);
-        accumulatedSelection.current.forEach(path => {
-          if (initialSelection.current.has(path)) {
-            finalSelection.delete(path);
-          } else {
-            finalSelection.add(path);
-          }
-        });
-      } else if (modifierKeys.shift) {
-        // Shift: 초기 선택 + 누적 항목 추가
-        finalSelection = new Set([
-          ...initialSelection.current,
-          ...accumulatedSelection.current,
-        ]);
-      } else {
-        // 일반: 누적된 항목만 선택
-        finalSelection = new Set(accumulatedSelection.current);
-      }
+      const contentPoint = toContentPoint(pointer.x, pointer.y);
+      if (!contentPoint) return;
 
-      onSelectionChange(finalSelection);
+      // 스크롤 변화에 맞춰 현재 박스 끝점도 콘텐츠 좌표로 갱신
+      const newBox = {
+        ...selectionBox,
+        currentX: contentPoint.x,
+        currentY: contentPoint.y,
+      };
+      setSelectionBox(newBox);
+
+      // 현재 selectionBox로 교차 판정 재계산
+      const intersected = getIntersectedItems(newBox);
+      onSelectionChange(computeSelectionFromIntersected(intersected));
     });
-  }, [isSelecting, selectionBox, getIntersectedItems, modifierKeys, onSelectionChange]);
+  }, [isSelecting, selectionBox, getIntersectedItems, onSelectionChange, computeSelectionFromIntersected, toContentPoint]);
 
   // 이벤트 리스너 등록 (window에 등록하되 handleMouseDown에서 범위 체크)
   useEffect(() => {

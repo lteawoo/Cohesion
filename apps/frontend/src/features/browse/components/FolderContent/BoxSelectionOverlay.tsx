@@ -22,7 +22,7 @@ const BoxSelectionOverlay: React.FC<BoxSelectionOverlayProps> = ({
   return (
     <div
       style={{
-        position: 'fixed',
+        position: 'absolute',
         left: `${left}px`,
         top: `${top}px`,
         width: `${width}px`,
