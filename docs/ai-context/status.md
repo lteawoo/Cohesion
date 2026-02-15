@@ -1,6 +1,11 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **모바일 선택 툴바 상단 배치 + 린트 안정화 완료** (2026-02-15):
+    - 모바일 선택 툴바/터치 실드의 고정 위치를 하단(`bottom`)에서 상단(`top`)으로 이동.
+    - `FolderContent`의 effect 내부 동기 `setState` 경로를 정리해 React Hooks lint 에러 해소.
+    - `useBoxSelection`, `useDragAndDrop`, `ServerSettings`의 hook dependency 누락을 보정.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build`, `go test ./...` 통과.
 - **트리 메뉴 화살표를 폴더 상태 아이콘으로 전환 완료** (2026-02-15):
     - `FolderTree`에서 기본 화살표(`switcher`) 대신 폴더 닫힘/열림 아이콘으로 확장 상태를 표현.
     - 최종 아이콘 세트는 Material Symbols Rounded(`folder`/`folder_open`)로 확정.

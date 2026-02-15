@@ -115,7 +115,7 @@ export function useDragAndDrop({
         // Error handled silently
       }
     },
-    [onMove]
+    [onMove, message]
   );
 
   // 드래그 이벤트 핸들러 (외부 파일 업로드용)

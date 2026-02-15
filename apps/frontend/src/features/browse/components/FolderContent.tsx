@@ -71,6 +71,7 @@ const FolderContent: React.FC = () => {
   const handleClearSelection = useCallback(() => {
     clearSelection();
     setIsMobileSelectionMode(false);
+    setIsMobileActionsOpen(false);
   }, [clearSelection]);
 
   const {
@@ -146,7 +147,10 @@ const FolderContent: React.FC = () => {
 
     // 이동/복사 모달이 열려 있을 때는 selection을 유지해야 source 목록이 안정적으로 유지됨
     if (hasNavigated && !modals.destination.visible) {
-      handleClearSelection();
+      // Effect 내부의 동기 setState 호출을 피하고 다음 프레임에 반영
+      requestAnimationFrame(() => {
+        handleClearSelection();
+      });
     }
 
     prevNavRef.current = currentNav;
@@ -181,25 +185,8 @@ const FolderContent: React.FC = () => {
   }, [sortedContent]);
 
   useEffect(() => {
-    if (selectedItems.size === 0) {
-      setIsMobileActionsOpen(false);
-      if (isMobile) {
-        setIsMobileSelectionMode(false);
-      }
-    }
-  }, [selectedItems.size, isMobile]);
-
-  useEffect(() => {
     selectedItemsRef.current = selectedItems;
   }, [selectedItems]);
-
-  useEffect(() => {
-    if (!isMobile) {
-      setIsMobileSelectionMode(false);
-      clearLongPressTimer();
-      lastLongPressRef.current = null;
-    }
-  }, [isMobile, clearLongPressTimer]);
 
   useEffect(() => {
     return () => {
@@ -223,6 +210,9 @@ const FolderContent: React.FC = () => {
   const armToolbarInteractionGuard = useCallback(() => {
     suppressTapUntilRef.current = Date.now() + 700;
   }, []);
+
+  const showMobileSelectionBar =
+    isMobile && selectedItems.size > 0;
 
   const handleMobileLongPressStart = useCallback((record: FileNode) => {
     if (!isMobile || isMobileSelectionMode) {
@@ -537,7 +527,7 @@ const FolderContent: React.FC = () => {
         onCancel={handleDestinationCancel}
       />
 
-      {isMobile && selectedItems.size > 0 && (
+      {showMobileSelectionBar && (
         <>
           <div
             data-mobile-selection-shield="true"
@@ -551,7 +541,7 @@ const FolderContent: React.FC = () => {
               position: 'absolute',
               left: 0,
               right: 0,
-              bottom: 0,
+              top: 0,
               height: 88,
               zIndex: 19,
             }}
@@ -586,7 +576,7 @@ const FolderContent: React.FC = () => {
               position: 'absolute',
               left: 12,
               right: 12,
-              bottom: 12,
+              top: 12,
               zIndex: 20,
               display: 'flex',
               alignItems: 'center',
@@ -638,7 +628,7 @@ const FolderContent: React.FC = () => {
           <Drawer
             placement="bottom"
             title={null}
-            open={isMobileActionsOpen}
+            open={showMobileSelectionBar && isMobileActionsOpen}
             onClose={() => setIsMobileActionsOpen(false)}
             size="default"
             styles={{ body: { padding: 12 } }}

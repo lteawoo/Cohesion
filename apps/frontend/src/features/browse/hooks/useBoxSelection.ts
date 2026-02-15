@@ -113,7 +113,7 @@ export function useBoxSelection({
 
       return intersected;
     },
-    [itemsRef]
+    [itemsRef, containerRef]
   );
 
 
