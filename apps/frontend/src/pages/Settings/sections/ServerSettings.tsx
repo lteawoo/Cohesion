@@ -1,6 +1,6 @@
 import { Card, Switch, InputNumber, Typography, Space, Alert, Divider, Button, App } from 'antd';
 import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getConfig, updateConfig, restartServer, waitForReconnect, type Config } from '@/api/config';
 
 const { Title, Text } = Typography;
@@ -16,12 +16,7 @@ const ServerSettings = () => {
   // 개발 모드 여부
   const isDev = import.meta.env.DEV;
 
-  // 초기 설정 로드
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     try {
       const data = await getConfig();
       setConfig(data);
@@ -31,7 +26,12 @@ const ServerSettings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [message]);
+
+  // 초기 설정 로드
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
 
   const handleSave = async () => {
     if (!config) return;

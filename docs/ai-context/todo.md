@@ -52,7 +52,7 @@
   - [x] Phase 1: constants.ts, types.ts, hooks 생성
   - [x] Phase 2: Modal 상태 관리 통합 (useModalManager)
   - [x] Phase 3: 정렬 로직 분리 (useSortedContent)
-  - [ ] Phase 4: 검증 및 테스트
+  - [x] Phase 4: 검증 및 테스트 (`lint/build/go test` 기준)
 - [x] 박스 선택 버그 수정 (익스플로러 바깥 동작, 다중선택 안 됨)
 - [x] 박스 선택 기능 사용자 테스트 및 검증
 - [x] 박스 선택 후 선택 해제 버그 수정
@@ -82,3 +82,4 @@
 - [x] PC Grid 박스선택을 실시간 교차 모드로 전환 (#60)
 - [x] 업로드/설정 버튼을 아이콘 전용 UI로 전환
 - [x] 트리 메뉴 확장 아이콘을 화살표에서 폴더 상태 아이콘으로 전환
+- [x] 모바일 선택 툴바 위치를 하단에서 상단으로 이동
