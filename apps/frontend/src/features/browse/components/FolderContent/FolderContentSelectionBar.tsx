@@ -1,6 +1,6 @@
 import React from 'react';
 import { Space as AntSpace, Button } from 'antd';
-import { DownloadOutlined, CopyOutlined, ScissorOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { DownloadOutlined, CopyOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 
 interface FolderContentSelectionBarProps {
   selectedCount: number;
@@ -24,6 +24,19 @@ const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
   onClear,
 }) => {
   if (selectedCount === 0) return null;
+  const moveActionIcon = (
+    <span
+      className="material-symbols-rounded"
+      style={{
+        fontSize: 18,
+        lineHeight: 1,
+        fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20',
+      }}
+      aria-hidden="true"
+    >
+      drive_file_move
+    </span>
+  );
 
   return (
     <div
@@ -45,7 +58,7 @@ const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
         <Button size="small" icon={<CopyOutlined />} onClick={onCopy}>
           복사
         </Button>
-        <Button size="small" icon={<ScissorOutlined />} onClick={onMove}>
+        <Button size="small" icon={moveActionIcon} onClick={onMove}>
           이동
         </Button>
         {showRename && onRename && (
