@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { Empty, App, Grid, Button, theme } from 'antd';
-import { DownloadOutlined, CopyOutlined, DeleteOutlined, CloseOutlined } from '@ant-design/icons';
+import { Empty, App, Grid, Button, Drawer, Menu, theme } from 'antd';
+import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { buildTableColumns } from '../constants';
@@ -48,6 +48,7 @@ const FolderContent: React.FC = () => {
     sortOrder: 'ascend',
   });
   const [isMobileSelectionMode, setIsMobileSelectionMode] = useState(false);
+  const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
   const suppressTapUntilRef = useRef(0);
@@ -70,6 +71,7 @@ const FolderContent: React.FC = () => {
   const handleClearSelection = useCallback(() => {
     clearSelection();
     setIsMobileSelectionMode(false);
+    setIsMobileActionsOpen(false);
   }, [clearSelection]);
 
   const {
@@ -424,14 +426,98 @@ const FolderContent: React.FC = () => {
         onChange={handleFileSelect}
       />
 
-      <FolderContentToolbar
-        breadcrumbItems={breadcrumbItems}
-        viewMode={viewMode}
-        sortConfig={sortConfig}
-        onUpload={handleUploadClick}
-        onViewModeChange={setViewMode}
-        onSortChange={setSortConfig}
-      />
+      {showMobileSelectionBar ? (
+        <div
+          data-mobile-selection-bar="true"
+          onClick={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onPointerDownCapture={(e) => {
+            const target = e.target as HTMLElement;
+            const isButtonTarget = Boolean(target.closest('button'));
+            if (!isButtonTarget) {
+              e.preventDefault();
+            }
+            e.stopPropagation();
+            suppressTapUntilRef.current = Date.now() + 700;
+          }}
+          onTouchStartCapture={(e) => {
+            e.stopPropagation();
+            suppressTapUntilRef.current = Date.now() + 700;
+          }}
+          onClickCapture={(e) => {
+            const target = e.target as HTMLElement;
+            const isButtonTarget = Boolean(target.closest('button'));
+            if (!isButtonTarget) {
+              e.preventDefault();
+              e.stopPropagation();
+              suppressTapUntilRef.current = Date.now() + 700;
+            }
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            flexWrap: 'wrap',
+            gap: 8,
+            padding: '10px 12px',
+            background: token.colorBgElevated,
+            border: `1px solid ${token.colorBorder}`,
+            borderRadius: 8,
+          }}
+        >
+          <Button
+            size="small"
+            icon={<CloseOutlined />}
+            onClick={() => {
+              armToolbarInteractionGuard();
+              handleClearSelection();
+            }}
+          />
+          <span style={{ fontWeight: 600, color: token.colorText }}>{selectedItems.size}개 항목</span>
+          <Button
+            size="small"
+            icon={moveActionIcon}
+            onClick={() => {
+              armToolbarInteractionGuard();
+              openModal('destination', { mode: 'move', sources: Array.from(selectedItems) });
+            }}
+          />
+          <Button
+            size="small"
+            icon={<CopyOutlined />}
+            onClick={() => {
+              armToolbarInteractionGuard();
+              openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) });
+            }}
+          />
+          <Button
+            size="small"
+            icon={<DownloadOutlined />}
+            onClick={() => {
+              armToolbarInteractionGuard();
+              handleBulkDownload(Array.from(selectedItems));
+            }}
+          />
+          <Button
+            size="small"
+            icon={<MoreOutlined />}
+            style={{ marginLeft: 'auto' }}
+            onClick={() => {
+              armToolbarInteractionGuard();
+              setIsMobileActionsOpen(true);
+            }}
+          />
+        </div>
+      ) : (
+        <FolderContentToolbar
+          breadcrumbItems={breadcrumbItems}
+          viewMode={viewMode}
+          sortConfig={sortConfig}
+          onUpload={handleUploadClick}
+          onViewModeChange={setViewMode}
+          onSortChange={setSortConfig}
+        />
+      )}
 
       {!isMobile && (
       <FolderContentSelectionBar
@@ -538,114 +624,57 @@ const FolderContent: React.FC = () => {
         onCancel={handleDestinationCancel}
       />
 
-      {showMobileSelectionBar && (
-        <>
+      <Drawer
+        placement="bottom"
+        title={null}
+        open={showMobileSelectionBar && isMobileActionsOpen}
+        onClose={() => setIsMobileActionsOpen(false)}
+        closable={false}
+        size="default"
+        styles={{ body: { padding: 0 } }}
+      >
+        <div style={{ padding: '8px 0 4px' }}>
           <div
-            data-mobile-selection-shield="true"
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            onPointerDownCapture={(e) => {
-              e.stopPropagation();
-              suppressTapUntilRef.current = Date.now() + 700;
-            }}
             style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 'calc(92px + env(safe-area-inset-bottom, 0px))',
-              zIndex: 19,
+              width: 36,
+              height: 4,
+              borderRadius: 999,
+              background: token.colorBorderSecondary,
+              margin: '0 auto 8px',
             }}
           />
-          <div
-            data-mobile-selection-bar="true"
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            onPointerDownCapture={(e) => {
-              const target = e.target as HTMLElement;
-              const isButtonTarget = Boolean(target.closest('button'));
-              if (!isButtonTarget) {
-                e.preventDefault();
-              }
-              e.stopPropagation();
-              suppressTapUntilRef.current = Date.now() + 700;
-            }}
-            onTouchStartCapture={(e) => {
-              e.stopPropagation();
-              suppressTapUntilRef.current = Date.now() + 700;
-            }}
-            onClickCapture={(e) => {
-              const target = e.target as HTMLElement;
-              const isButtonTarget = Boolean(target.closest('button'));
-              if (!isButtonTarget) {
-                e.preventDefault();
-                e.stopPropagation();
-                suppressTapUntilRef.current = Date.now() + 700;
-              }
-            }}
-            style={{
-              position: 'absolute',
-              left: 12,
-              right: 12,
-              bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
-              zIndex: 20,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              flexWrap: 'wrap',
-              gap: 8,
-              padding: '10px 12px',
-              background: token.colorBgElevated,
-              border: `1px solid ${token.colorBorder}`,
-              borderRadius: 8,
-            }}
-          >
-            <Button
-              size="small"
-              icon={<CloseOutlined />}
-              onClick={() => {
-                armToolbarInteractionGuard();
-                handleClearSelection();
-              }}
-            />
-            <span style={{ fontWeight: 600, color: token.colorText }}>{selectedItems.size}개 항목</span>
-            <Button
-              size="small"
-              icon={moveActionIcon}
-              onClick={() => {
-                armToolbarInteractionGuard();
-                openModal('destination', { mode: 'move', sources: Array.from(selectedItems) });
-              }}
-            />
-            <Button
-              size="small"
-              icon={<CopyOutlined />}
-              onClick={() => {
-                armToolbarInteractionGuard();
-                openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) });
-              }}
-            />
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              onClick={() => {
-                armToolbarInteractionGuard();
-                handleBulkDownload(Array.from(selectedItems));
-              }}
-            />
-            <Button
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-              style={{ marginLeft: 'auto' }}
-              onClick={() => {
-                armToolbarInteractionGuard();
-                handleBulkDelete(Array.from(selectedItems));
-              }}
-            />
-          </div>
-        </>
-      )}
+          <Menu
+            selectable={false}
+            items={[
+              ...(selectedItems.size === 1
+                ? [{
+                    key: 'rename',
+                    icon: <EditOutlined />,
+                    label: '이름 변경',
+                    onClick: () => {
+                      const path = Array.from(selectedItems)[0];
+                      const record = sortedContent.find(item => item.path === path);
+                      if (record) {
+                        setIsMobileActionsOpen(false);
+                        openModal('rename', { record, newName: record.name });
+                      }
+                    },
+                  }]
+                : []),
+              {
+                key: 'delete',
+                icon: <DeleteOutlined />,
+                label: '삭제',
+                danger: true,
+                onClick: () => {
+                  setIsMobileActionsOpen(false);
+                  handleBulkDelete(Array.from(selectedItems));
+                },
+              },
+            ]}
+          />
+        </div>
+      </Drawer>
 
       <UploadOverlay visible={isDragging} />
     </div>
