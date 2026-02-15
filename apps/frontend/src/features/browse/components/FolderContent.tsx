@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { Empty, App, Grid, Drawer, Button, Space as AntSpace, theme } from 'antd';
-import { DownloadOutlined, CopyOutlined, ScissorOutlined, EditOutlined, DeleteOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
+import { Empty, App, Grid, Button, theme } from 'antd';
+import { DownloadOutlined, CopyOutlined, DeleteOutlined, CloseOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { buildTableColumns } from '../constants';
@@ -48,7 +48,6 @@ const FolderContent: React.FC = () => {
     sortOrder: 'ascend',
   });
   const [isMobileSelectionMode, setIsMobileSelectionMode] = useState(false);
-  const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
   const suppressTapUntilRef = useRef(0);
@@ -71,7 +70,6 @@ const FolderContent: React.FC = () => {
   const handleClearSelection = useCallback(() => {
     clearSelection();
     setIsMobileSelectionMode(false);
-    setIsMobileActionsOpen(false);
   }, [clearSelection]);
 
   const {
@@ -213,6 +211,19 @@ const FolderContent: React.FC = () => {
 
   const showMobileSelectionBar =
     isMobile && selectedItems.size > 0;
+  const moveActionIcon = (
+    <span
+      className="material-symbols-rounded"
+      style={{
+        fontSize: 18,
+        lineHeight: 1,
+        fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20',
+      }}
+      aria-hidden="true"
+    >
+      drive_file_move
+    </span>
+  );
 
   const handleMobileLongPressStart = useCallback((record: FileNode) => {
     if (!isMobile || isMobileSelectionMode) {
@@ -541,8 +552,8 @@ const FolderContent: React.FC = () => {
               position: 'absolute',
               left: 0,
               right: 0,
-              top: 0,
-              height: 88,
+              bottom: 0,
+              height: 'calc(92px + env(safe-area-inset-bottom, 0px))',
               zIndex: 19,
             }}
           />
@@ -576,7 +587,7 @@ const FolderContent: React.FC = () => {
               position: 'absolute',
               left: 12,
               right: 12,
-              top: 12,
+              bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
               zIndex: 20,
               display: 'flex',
               alignItems: 'center',
@@ -600,63 +611,39 @@ const FolderContent: React.FC = () => {
             <span style={{ fontWeight: 600, color: token.colorText }}>{selectedItems.size}개 항목</span>
             <Button
               size="small"
-              icon={<ScissorOutlined />}
+              icon={moveActionIcon}
               onClick={() => {
                 armToolbarInteractionGuard();
                 openModal('destination', { mode: 'move', sources: Array.from(selectedItems) });
               }}
             />
             <Button
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={() => {
+                armToolbarInteractionGuard();
+                openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) });
+              }}
+            />
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={() => {
+                armToolbarInteractionGuard();
+                handleBulkDownload(Array.from(selectedItems));
+              }}
+            />
+            <Button
               danger
               size="small"
               icon={<DeleteOutlined />}
+              style={{ marginLeft: 'auto' }}
               onClick={() => {
                 armToolbarInteractionGuard();
                 handleBulkDelete(Array.from(selectedItems));
               }}
             />
-            <Button
-              size="small"
-              icon={<MoreOutlined />}
-              onClick={() => {
-                armToolbarInteractionGuard();
-                setIsMobileActionsOpen(true);
-              }}
-            />
           </div>
-
-          <Drawer
-            placement="bottom"
-            title={null}
-            open={showMobileSelectionBar && isMobileActionsOpen}
-            onClose={() => setIsMobileActionsOpen(false)}
-            size="default"
-            styles={{ body: { padding: 12 } }}
-          >
-            <AntSpace orientation="vertical" style={{ width: '100%' }}>
-              <Button icon={<DownloadOutlined />} onClick={() => { setIsMobileActionsOpen(false); handleBulkDownload(Array.from(selectedItems)); }}>
-                다운로드
-              </Button>
-              <Button icon={<CopyOutlined />} onClick={() => { setIsMobileActionsOpen(false); openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) }); }}>
-                복사
-              </Button>
-              {selectedItems.size === 1 && (
-                <Button
-                  icon={<EditOutlined />}
-                  onClick={() => {
-                    const path = Array.from(selectedItems)[0];
-                    const record = sortedContent.find(item => item.path === path);
-                    if (record) {
-                      setIsMobileActionsOpen(false);
-                      openModal('rename', { record, newName: record.name });
-                    }
-                  }}
-                >
-                  이름 변경
-                </Button>
-              )}
-            </AntSpace>
-          </Drawer>
         </>
       )}
 
