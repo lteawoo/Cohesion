@@ -1,6 +1,12 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Main/Settings 헤더·사이드 + Settings 섹션 공통 컴포넌트화 완료** (2026-02-15):
+    - 전역 레이아웃 클래스(`layout-*`)로 메인/세팅의 페이지/헤더/사이드/본문 골격을 통일.
+    - 공통 헤더 컴포넌트(`HeaderBrand`, `HeaderGroup`)를 도입해 상단 브랜드/액션 그룹 구조를 일관화.
+    - Settings 섹션 공통 컴포넌트(`SettingSectionHeader`, `SettingRow`)를 도입해 반복 마크업을 제거.
+    - Settings 사이드 메뉴 아이템 패딩/높이를 조정해 메뉴 밀도를 정리.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과.
 - **Grid 아이템 가로 채움 레이아웃 적용 완료** (2026-02-15):
     - 데스크톱 Grid 컬럼을 `repeat(auto-fill, minmax(172px, 1fr))`로 전환.
     - 아이템 배열 이후 남는 가로 여백이 카드 폭으로 자연스럽게 분배되도록 조정.

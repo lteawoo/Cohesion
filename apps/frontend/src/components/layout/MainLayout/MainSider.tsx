@@ -53,13 +53,10 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
       />
-      <div style={{
-        padding: '16px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottom: `1px solid ${token.colorBorder}`
-      }}>
+      <div
+        className="layout-sider-header"
+        style={{ borderBottom: `1px solid ${token.colorBorder}` }}
+      >
         <span style={{ fontWeight: 'bold', fontSize: '14px', color: token.colorText }}>Spaces</span>
         <Button
           type="text"
@@ -68,7 +65,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
           onClick={() => setIsOpen(true)}
         />
       </div>
-      <div style={{ padding: '8px' }}>
+      <div className="layout-sider-body">
         <FolderTree
           onSelect={handleSelect}
           onSpaceDelete={handleDeleteSpace}
@@ -80,10 +77,10 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
   if (containerType === "panel") {
     return (
       <div
+        className="layout-sider"
         style={{
           height: "100%",
           background: token.colorBgContainer,
-          overflow: "auto",
         }}
       >
         {panelContent}
@@ -93,10 +90,10 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
 
   return (
     <Sider
+      className="layout-sider"
       width={300}
       style={{
         background: token.colorBgContainer,
-        overflow: 'auto'
       }}
     >
       {panelContent}

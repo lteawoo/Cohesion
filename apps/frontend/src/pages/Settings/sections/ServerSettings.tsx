@@ -2,8 +2,10 @@ import { Card, Switch, InputNumber, Typography, Space, Alert, Divider, Button, A
 import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { useState, useEffect, useCallback } from 'react';
 import { getConfig, updateConfig, restartServer, waitForReconnect, type Config } from '@/api/config';
+import SettingSectionHeader from '../components/SettingSectionHeader';
+import SettingRow from '../components/SettingRow';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const ServerSettings = () => {
   const { message, modal } = App.useApp();
@@ -166,11 +168,8 @@ const ServerSettings = () => {
   const { server } = config;
 
   return (
-    <Space vertical size="small" style={{ width: '100%', maxWidth: 480 }}>
-      <div>
-        <Title level={4} style={{ margin: 0 }}>서버 설정</Title>
-        <Text type="secondary" style={{ fontSize: 13 }}>서버 및 프로토콜 설정</Text>
-      </div>
+    <Space vertical size="small" className="settings-section">
+      <SettingSectionHeader title="서버 설정" subtitle="서버 및 프로토콜 설정" />
 
       <Alert
         title="변경 후 재시작 필요"
@@ -201,52 +200,58 @@ const ServerSettings = () => {
       </Space>
 
       <Card title="HTTP 서버" size="small">
-        <Space vertical size="small" style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text strong>활성화</Text>
-            <Switch
-              checked={server.httpEnabled}
-              onChange={(checked: boolean) => updateServerConfig('httpEnabled', checked)}
-            />
-          </div>
+        <Space vertical size="small" className="settings-stack-full">
+          <SettingRow
+            left={<Text strong>활성화</Text>}
+            right={(
+              <Switch
+                checked={server.httpEnabled}
+                onChange={(checked: boolean) => updateServerConfig('httpEnabled', checked)}
+              />
+            )}
+          />
 
           {server.httpEnabled && (
             <>
               <Divider style={{ margin: '6px 0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text strong>포트</Text>
-                <InputNumber
-                  size="small"
-                  min={1}
-                  max={65535}
-                  value={parseInt(server.port)}
-                  onChange={(value: number | null) => value && updateServerConfig('port', value.toString())}
-                  style={{ width: 100 }}
-                />
-              </div>
+              <SettingRow
+                left={<Text strong>포트</Text>}
+                right={(
+                  <InputNumber
+                    size="small"
+                    min={1}
+                    max={65535}
+                    value={parseInt(server.port)}
+                    onChange={(value: number | null) => value && updateServerConfig('port', value.toString())}
+                    style={{ width: 100 }}
+                  />
+                )}
+              />
             </>
           )}
         </Space>
       </Card>
 
       <Card title="WebDAV" size="small">
-        <Space vertical size="small" style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text strong>활성화</Text>
-            <Switch
-              checked={server.webdavEnabled}
-              onChange={(checked: boolean) => updateServerConfig('webdavEnabled', checked)}
-              disabled={!server.httpEnabled}
-            />
-          </div>
+        <Space vertical size="small" className="settings-stack-full">
+          <SettingRow
+            left={<Text strong>활성화</Text>}
+            right={(
+              <Switch
+                checked={server.webdavEnabled}
+                onChange={(checked: boolean) => updateServerConfig('webdavEnabled', checked)}
+                disabled={!server.httpEnabled}
+              />
+            )}
+          />
 
           {server.webdavEnabled && server.httpEnabled && (
             <>
               <Divider style={{ margin: '6px 0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text strong>경로</Text>
-                <Text code>/dav/</Text>
-              </div>
+              <SettingRow
+                left={<Text strong>경로</Text>}
+                right={<Text code>/dav/</Text>}
+              />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 HTTP 포트 {server.port} 사용
               </Text>
@@ -256,68 +261,80 @@ const ServerSettings = () => {
       </Card>
 
       <Card title="FTP 서버" size="small">
-        <Space vertical size="small" style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <Text strong>활성화</Text>
-              <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-                (구현 예정)
-              </Text>
-            </div>
-            <Switch
-              checked={server.ftpEnabled}
-              onChange={(checked: boolean) => updateServerConfig('ftpEnabled', checked)}
-            />
-          </div>
+        <Space vertical size="small" className="settings-stack-full">
+          <SettingRow
+            left={(
+              <div>
+                <Text strong>활성화</Text>
+                <Text type="secondary" className="settings-inline-note">
+                  (구현 예정)
+                </Text>
+              </div>
+            )}
+            right={(
+              <Switch
+                checked={server.ftpEnabled}
+                onChange={(checked: boolean) => updateServerConfig('ftpEnabled', checked)}
+              />
+            )}
+          />
 
           {server.ftpEnabled && (
             <>
               <Divider style={{ margin: '6px 0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text strong>포트</Text>
-                <InputNumber
-                  size="small"
-                  min={1}
-                  max={65535}
-                  value={server.ftpPort}
-                  onChange={(value: number | null) => value && updateServerConfig('ftpPort', value)}
-                  style={{ width: 100 }}
-                />
-              </div>
+              <SettingRow
+                left={<Text strong>포트</Text>}
+                right={(
+                  <InputNumber
+                    size="small"
+                    min={1}
+                    max={65535}
+                    value={server.ftpPort}
+                    onChange={(value: number | null) => value && updateServerConfig('ftpPort', value)}
+                    style={{ width: 100 }}
+                  />
+                )}
+              />
             </>
           )}
         </Space>
       </Card>
 
       <Card title="SFTP 서버" size="small">
-        <Space vertical size="small" style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <Text strong>활성화</Text>
-              <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-                (구현 예정)
-              </Text>
-            </div>
-            <Switch
-              checked={server.sftpEnabled}
-              onChange={(checked: boolean) => updateServerConfig('sftpEnabled', checked)}
-            />
-          </div>
+        <Space vertical size="small" className="settings-stack-full">
+          <SettingRow
+            left={(
+              <div>
+                <Text strong>활성화</Text>
+                <Text type="secondary" className="settings-inline-note">
+                  (구현 예정)
+                </Text>
+              </div>
+            )}
+            right={(
+              <Switch
+                checked={server.sftpEnabled}
+                onChange={(checked: boolean) => updateServerConfig('sftpEnabled', checked)}
+              />
+            )}
+          />
 
           {server.sftpEnabled && (
             <>
               <Divider style={{ margin: '6px 0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text strong>포트</Text>
-                <InputNumber
-                  size="small"
-                  min={1}
-                  max={65535}
-                  value={server.sftpPort}
-                  onChange={(value: number | null) => value && updateServerConfig('sftpPort', value)}
-                  style={{ width: 100 }}
-                />
-              </div>
+              <SettingRow
+                left={<Text strong>포트</Text>}
+                right={(
+                  <InputNumber
+                    size="small"
+                    min={1}
+                    max={65535}
+                    value={server.sftpPort}
+                    onChange={(value: number | null) => value && updateServerConfig('sftpPort', value)}
+                    style={{ width: 100 }}
+                  />
+                )}
+              />
             </>
           )}
         </Space>

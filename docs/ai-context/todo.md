@@ -89,3 +89,6 @@
 - [x] PC 모달 오픈 상태에서 배경 클릭 시 선택 변경 버그 수정 (박스선택 전역 이벤트 차단)
 - [x] 파일 목록 스크롤바 경량 스타일 적용 (네이티브 유지 + 얇은 thumb 테마, 커스텀 인디케이터 제거)
 - [x] Grid 레이아웃을 남는 가로 영역까지 채우도록 조정 (`auto-fill + minmax(172px, 1fr)`)
+- [x] Main/Settings 헤더·사이드 레이아웃 공통 클래스(`layout-*`) 도입 및 적용
+- [x] Settings 공통 컴포넌트(`SettingSectionHeader`, `SettingRow`) 도입
+- [x] 공통 헤더 컴포넌트(`HeaderBrand`, `HeaderGroup`) 도입 및 메인/세팅 적용
