@@ -15,6 +15,7 @@ import (
 	"taeu.kr/cohesion/internal/browse"
 	browseHandler "taeu.kr/cohesion/internal/browse/handler"
 	"taeu.kr/cohesion/internal/config"
+	"taeu.kr/cohesion/internal/ftp"
 	"taeu.kr/cohesion/internal/platform/database"
 	"taeu.kr/cohesion/internal/platform/web"
 	"taeu.kr/cohesion/internal/spa"
@@ -37,7 +38,7 @@ func init() {
 }
 
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
-func createServer(db *sql.DB, restartChan chan bool) (*http.Server, error) {
+func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service, error) {
 	// 의존성 주입
 	spaceStore := spaceStore.NewStore(db)
 	spaceService := space.NewService(spaceStore)
@@ -46,6 +47,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, error) {
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	webDavService := webdav.NewService(spaceService)
 	webDavHandler := webdavHandler.NewHandler(webDavService)
+	ftpService := ftp.NewService(spaceService, config.Conf.Server.FtpEnabled, config.Conf.Server.FtpPort)
 	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 	configHandler := config.NewHandler()
 	systemHandler := system.NewHandler(restartChan)
@@ -75,7 +77,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, error) {
 	if goEnv == "production" {
 		spaHandler, err := spa.NewSPAHandler(WebDist, "dist/web")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		mux.HandleFunc("/", spaHandler)
 	}
@@ -100,7 +102,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, error) {
 		Handler: finalLogHandler,
 	}
 
-	return server, nil
+	return server, ftpService, nil
 }
 
 func main() {
@@ -134,9 +136,12 @@ func main() {
 	// 서버 시작/재시작 루프
 	for {
 		// 서버 생성
-		server, err := createServer(db, restartChan)
+		server, ftpService, err := createServer(db, restartChan)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to create server")
+		}
+		if err := ftpService.Start(); err != nil {
+			log.Fatal().Err(err).Msg("Failed to start FTP server")
 		}
 
 		port := config.Conf.Server.Port
@@ -155,6 +160,9 @@ func main() {
 		select {
 		case <-sigChan:
 			log.Info().Msg("[Main] Shutdown signal received")
+			if err := ftpService.Stop(); err != nil {
+				log.Error().Err(err).Msg("FTP server shutdown error")
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := server.Shutdown(ctx); err != nil {
@@ -165,6 +173,9 @@ func main() {
 
 		case <-restartChan:
 			log.Info().Msg("[Main] Restart signal received")
+			if err := ftpService.Stop(); err != nil {
+				log.Error().Err(err).Msg("FTP server shutdown error")
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			if err := server.Shutdown(ctx); err != nil {
 				log.Error().Err(err).Msg("Server shutdown error")
@@ -178,6 +189,9 @@ func main() {
 			// 루프 계속 (재시작)
 
 		case err := <-serverErr:
+			if stopErr := ftpService.Stop(); stopErr != nil {
+				log.Error().Err(stopErr).Msg("FTP server shutdown error")
+			}
 			log.Fatal().Err(err).Msg("Server error")
 			return
 		}

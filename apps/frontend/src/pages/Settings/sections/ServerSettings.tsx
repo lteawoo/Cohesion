@@ -263,14 +263,7 @@ const ServerSettings = () => {
       <Card title="FTP 서버" size="small">
         <Space vertical size="small" className="settings-stack-full">
           <SettingRow
-            left={(
-              <div>
-                <Text strong>활성화</Text>
-                <Text type="secondary" className="settings-inline-note">
-                  (구현 예정)
-                </Text>
-              </div>
-            )}
+            left={<Text strong>활성화</Text>}
             right={(
               <Switch
                 checked={server.ftpEnabled}

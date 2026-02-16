@@ -1,6 +1,17 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **FTP 서버 1차 구현 완료** (2026-02-16, #70):
+    - 백엔드 `internal/ftp` 모듈 신설:
+      - Space 기반 가상 루트 드라이버(`/{spaceName}/...`) 구현.
+      - FTP start/stop 서비스 및 인증(`COHESION_FTP_USER`, `COHESION_FTP_PASSWORD`, 기본 `cohesion/cohesion`) 적용.
+    - `main.go` 재시작 lifecycle에 FTP 서버 기동/종료 연동.
+    - 상태 API `/api/status`의 FTP 항목을 하드코딩 `미구현`에서 실제 TCP 연결 기반 헬스체크로 전환.
+    - 설정 파일 기본 포트 정리:
+      - `config.dev.yaml`: `ftp_port: 2121`
+      - `config.prod.yaml`: `http/webdav/ftp/sftp` 기본 키 추가 및 `ftp_port: 2121`
+    - 프론트 Settings FTP UI의 `(구현 예정)` 문구 제거.
+    - 검증: `go test ./...` (apps/backend), `pnpm -C apps/frontend build` 통과.
 - **Settings 잔여 인라인 스타일 공통 클래스화 완료** (2026-02-16):
     - `settings.css`에 공통 유틸 클래스(`settings-nav-menu-full`, `settings-select-*`, `settings-divider-compact`, `settings-port-input` 등) 추가.
     - `GeneralSettings`, `FileSettings`, `ServerSettings`의 반복 인라인 스타일을 공통 클래스로 치환.
