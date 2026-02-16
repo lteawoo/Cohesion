@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { login as loginApi, logout as logoutApi, me, refreshAuth } from '@/api/auth';
+import { type AuthUser, login as loginApi, logout as logoutApi, me, refreshAuth } from '@/api/auth';
 import { AuthContext, type AuthContextValue } from './context';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

@@ -50,7 +50,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   spacePath,
 }) => {
   const screens = Grid.useBreakpoint();
-  const isMobile = !screens.sm;
+  const isMobile = !screens.lg;
   const gridTemplateColumns = isMobile
     ? 'repeat(2, minmax(0, 1fr))'
     : 'repeat(auto-fill, minmax(172px, 1fr))';

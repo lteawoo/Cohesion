@@ -28,7 +28,7 @@ const FolderContent: React.FC = () => {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
-  const isMobile = !screens.sm;
+  const isMobile = !screens.lg;
 
   // Store selectors
   const selectedPath = useBrowseStore((state) => state.selectedPath);

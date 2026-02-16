@@ -82,6 +82,10 @@ html, body {
   overflow: auto;
 }
 
+.layout-sider-panel {
+  width: 100%;
+}
+
 .layout-sider-header {
   display: flex;
   justify-content: space-between;
