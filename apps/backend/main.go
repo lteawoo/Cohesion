@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"os"
 	"os/signal"
@@ -49,9 +50,13 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	if err := accountService.EnsureDefaultAdmin(context.Background()); err != nil {
 		return nil, nil, err
 	}
+	authSecret, err := resolveJWTSecret()
+	if err != nil {
+		return nil, nil, err
+	}
 	accountHandler := account.NewHandler(accountService)
 	authService := auth.NewService(accountService, auth.Config{
-		Secret:         readEnv("COHESION_JWT_SECRET", "cohesion-dev-jwt-secret-change-me"),
+		Secret:         authSecret,
 		Issuer:         "cohesion",
 		AccessTokenTTL: 15 * time.Minute,
 		RefreshTTL:     7 * 24 * time.Hour,
@@ -226,4 +231,18 @@ func readEnv(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func resolveJWTSecret() (string, error) {
+	secret := strings.TrimSpace(os.Getenv("COHESION_JWT_SECRET"))
+	if secret == "" {
+		if goEnv == "production" {
+			return "", errors.New("COHESION_JWT_SECRET is required in production")
+		}
+		return "cohesion-dev-jwt-secret-change-me", nil
+	}
+	if goEnv == "production" && len(secret) < 32 {
+		return "", errors.New("COHESION_JWT_SECRET must be at least 32 characters in production")
+	}
+	return secret, nil
 }

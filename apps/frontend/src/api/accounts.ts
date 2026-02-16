@@ -1,3 +1,5 @@
+import { apiFetch } from './client';
+
 export type AccountRole = 'admin' | 'user';
 
 export interface AccountUser {
@@ -35,7 +37,7 @@ async function parseError(response: Response): Promise<Error> {
 }
 
 export async function listAccounts(): Promise<AccountUser[]> {
-  const response = await fetch('/api/accounts');
+  const response = await apiFetch('/api/accounts');
   if (!response.ok) {
     throw await parseError(response);
   }
@@ -43,7 +45,7 @@ export async function listAccounts(): Promise<AccountUser[]> {
 }
 
 export async function createAccount(payload: CreateAccountRequest): Promise<AccountUser> {
-  const response = await fetch('/api/accounts', {
+  const response = await apiFetch('/api/accounts', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -59,7 +61,7 @@ export async function createAccount(payload: CreateAccountRequest): Promise<Acco
 }
 
 export async function updateAccount(id: number, payload: UpdateAccountRequest): Promise<AccountUser> {
-  const response = await fetch(`/api/accounts/${id}`, {
+  const response = await apiFetch(`/api/accounts/${id}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -75,7 +77,7 @@ export async function updateAccount(id: number, payload: UpdateAccountRequest): 
 }
 
 export async function deleteAccount(id: number): Promise<void> {
-  const response = await fetch(`/api/accounts/${id}`, {
+  const response = await apiFetch(`/api/accounts/${id}`, {
     method: 'DELETE',
   });
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Space } from '../types';
+import { apiFetch } from '@/api/client';
 
 export function useSpaces() {
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -10,7 +11,7 @@ export function useSpaces() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/spaces');
+      const response = await apiFetch('/api/spaces');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

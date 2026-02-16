@@ -1,3 +1,5 @@
+import { apiFetch } from './client';
+
 export interface AuthUser {
   id: number;
   username: string;
@@ -36,7 +38,7 @@ async function throwResponseError(response: Response, fallback: string): Promise
 }
 
 export async function login(payload: LoginRequest): Promise<AuthUser> {
-  const response = await fetch('/api/auth/login', {
+  const response = await apiFetch('/api/auth/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -53,7 +55,7 @@ export async function login(payload: LoginRequest): Promise<AuthUser> {
 }
 
 export async function me(): Promise<AuthUser> {
-  const response = await fetch('/api/auth/me');
+  const response = await apiFetch('/api/auth/me');
   if (!response.ok) {
     await throwResponseError(response, '인증되지 않은 요청입니다');
   }
@@ -61,7 +63,7 @@ export async function me(): Promise<AuthUser> {
 }
 
 export async function refreshAuth(): Promise<AuthUser> {
-  const response = await fetch('/api/auth/refresh', {
+  const response = await apiFetch('/api/auth/refresh', {
     method: 'POST',
   });
   if (!response.ok) {
@@ -72,7 +74,7 @@ export async function refreshAuth(): Promise<AuthUser> {
 }
 
 export async function logout(): Promise<void> {
-  const response = await fetch('/api/auth/logout', {
+  const response = await apiFetch('/api/auth/logout', {
     method: 'POST',
   });
   if (!response.ok) {

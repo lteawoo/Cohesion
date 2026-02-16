@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"taeu.kr/cohesion/internal/platform/web"
@@ -111,7 +112,7 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) *web.Error {
 }
 
 func setAuthCookies(w http.ResponseWriter, r *http.Request, tokenPair *TokenPair) {
-	secure := r.TLS != nil
+	secure := isSecureRequest(r)
 	now := time.Now()
 
 	http.SetCookie(w, &http.Cookie{
@@ -136,7 +137,7 @@ func setAuthCookies(w http.ResponseWriter, r *http.Request, tokenPair *TokenPair
 }
 
 func clearAuthCookies(w http.ResponseWriter, r *http.Request) {
-	secure := r.TLS != nil
+	secure := isSecureRequest(r)
 	expired := time.Unix(0, 0)
 
 	http.SetCookie(w, &http.Cookie{
@@ -160,4 +161,14 @@ func clearAuthCookies(w http.ResponseWriter, r *http.Request) {
 		Expires:  expired,
 		MaxAge:   -1,
 	})
+}
+
+func isSecureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	if strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+		return true
+	}
+	return false
 }

@@ -1,6 +1,21 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **인증 401 전역 처리 + 보안 하드닝 적용 완료** (2026-02-16):
+    - 프론트 공통 API 레이어 `apiFetch` 추가 (`apps/frontend/src/api/client.ts`)
+      - 모든 API `fetch`를 `apiFetch`로 통일.
+      - 401 수신 시 refresh 재시도 후 실패하면 `/login` 리다이렉트.
+    - 백엔드 보안 하드닝:
+      - 프로덕션에서 `COHESION_JWT_SECRET` 미설정/짧은 값(32자 미만) 차단.
+      - 프록시 HTTPS(`X-Forwarded-Proto=https`) 환경에서도 `Secure` 쿠키 유지.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과
+- **Settings 내 프로필/로그아웃 섹션 추가 완료** (2026-02-16):
+    - 설정 메뉴 최상단에 `내 프로필` 섹션 추가.
+    - 현재 로그인 사용자 정보(아이디/닉네임/권한) 표시.
+    - `새로고침`(세션 갱신) 및 `로그아웃` 버튼 추가.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과.
 - **JWT 로그인 1차 구현 완료** (2026-02-16):
     - 백엔드 `internal/auth` 모듈 신설:
       - `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/auth/me`

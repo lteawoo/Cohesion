@@ -49,14 +49,14 @@ const Login = () => {
   return (
     <div className="login-page">
       <Card className="login-card">
-        <Space direction="vertical" size="middle" className="login-stack">
+        <Space orientation="vertical" size="middle" className="login-stack">
           <div>
             <Title level={3} className="login-title">Cohesion</Title>
             <Text type="secondary">계정으로 로그인하세요</Text>
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
-            <Space direction="vertical" size="small" className="login-stack">
+            <Space orientation="vertical" size="small" className="login-stack">
               <Input
                 autoComplete="username"
                 prefix={<UserOutlined />}

@@ -272,7 +272,7 @@ const AccountSettings = () => {
         cancelText="취소"
         okButtonProps={{ loading: creating }}
       >
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+        <Space orientation="vertical" size="small" style={{ width: '100%' }}>
           <Text strong>아이디</Text>
           <Input
             prefix={<UserOutlined />}
@@ -318,7 +318,7 @@ const AccountSettings = () => {
         cancelText="취소"
         okButtonProps={{ loading: updatingId !== null }}
       >
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+        <Space orientation="vertical" size="small" style={{ width: '100%' }}>
           <Text strong>아이디</Text>
           <Input value={editTarget?.username} disabled />
           <Text strong>닉네임</Text>

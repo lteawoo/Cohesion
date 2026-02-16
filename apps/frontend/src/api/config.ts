@@ -1,3 +1,5 @@
+import { apiFetch } from './client';
+
 export interface ServerConfig {
   port: string;
   httpEnabled: boolean;
@@ -24,7 +26,7 @@ export interface Config {
  * 현재 서버 설정을 조회합니다
  */
 export async function getConfig(): Promise<Config> {
-  const response = await fetch('/api/config');
+  const response = await apiFetch('/api/config');
   if (!response.ok) {
     throw new Error('Failed to fetch config');
   }
@@ -35,7 +37,7 @@ export async function getConfig(): Promise<Config> {
  * 서버 설정을 업데이트합니다
  */
 export async function updateConfig(config: Config): Promise<void> {
-  const response = await fetch('/api/config', {
+  const response = await apiFetch('/api/config', {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -53,7 +55,7 @@ export async function updateConfig(config: Config): Promise<void> {
  * @returns 새로운 포트 번호
  */
 export async function restartServer(): Promise<string> {
-  const response = await fetch('/api/system/restart', {
+  const response = await apiFetch('/api/system/restart', {
     method: 'POST',
   });
 
@@ -71,7 +73,7 @@ export async function restartServer(): Promise<string> {
  */
 export async function healthCheck(): Promise<boolean> {
   try {
-    const response = await fetch('/api/health', {
+    const response = await apiFetch('/api/health', {
       method: 'GET',
       cache: 'no-cache',
     });
