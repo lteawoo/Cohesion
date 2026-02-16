@@ -5,6 +5,7 @@ import { Button, Layout, theme, App } from "antd";
 import type { Space } from "@/features/space/types";
 import { useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
+import type React from "react";
 
 const { Sider } = Layout;
 
@@ -47,19 +48,18 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
     onAfterSelect?.();
   };
 
+  const uiVars = {
+    '--ui-bg-container': token.colorBgContainer,
+    '--ui-border': token.colorBorder,
+  } as React.CSSProperties;
+
   const panelContent = (
     <>
       <DirectorySetupModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
       />
-      <div style={{
-        padding: '16px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottom: `1px solid ${token.colorBorder}`
-      }}>
+      <div className="ui-sider-header">
         <span style={{ fontWeight: 'bold', fontSize: '14px', color: token.colorText }}>Spaces</span>
         <Button
           type="text"
@@ -68,7 +68,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
           onClick={() => setIsOpen(true)}
         />
       </div>
-      <div style={{ padding: '8px' }}>
+      <div className="ui-pad-sm">
         <FolderTree
           onSelect={handleSelect}
           onSpaceDelete={handleDeleteSpace}
@@ -80,11 +80,8 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
   if (containerType === "panel") {
     return (
       <div
-        style={{
-          height: "100%",
-          background: token.colorBgContainer,
-          overflow: "auto",
-        }}
+        className="ui-sider"
+        style={{ ...uiVars, height: "100%" }}
       >
         {panelContent}
       </div>
@@ -94,10 +91,8 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
   return (
     <Sider
       width={300}
-      style={{
-        background: token.colorBgContainer,
-        overflow: 'auto'
-      }}
+      className="ui-sider"
+      style={uiVars}
     >
       {panelContent}
     </Sider>

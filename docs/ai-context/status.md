@@ -1,6 +1,11 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Sass 기반 공통 레이아웃 스타일 도입 완료** (2026-02-15):
+    - `assets/scss`에 토큰(`_tokens.scss`)·믹스인(`_mixins.scss`)·전역 유틸(`global.scss`) 구조 추가.
+    - `MainLayout`, `MainSider`, `Settings`, `FileExplorer`의 반복 인라인 레이아웃 스타일을 공통 `ui-*` 클래스 기반으로 정리.
+    - 전역 스타일 로딩을 `global.css`에서 `global.scss`로 전환하고 `sass` 개발 의존성 추가.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과.
 - **Grid 아이템 가로 채움 레이아웃 적용 완료** (2026-02-15):
     - 데스크톱 Grid 컬럼을 `repeat(auto-fill, minmax(172px, 1fr))`로 전환.
     - 아이템 배열 이후 남는 가로 여백이 카드 폭으로 자연스럽게 분배되도록 조정.
