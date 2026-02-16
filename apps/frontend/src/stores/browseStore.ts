@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { FileNode } from '@/features/browse/types';
 import type { Space } from '@/features/space/types';
 import { useSpaceStore } from './spaceStore';
+import { apiFetch } from '@/api/client';
 
 export interface TreeInvalidationTarget {
   path: string;
@@ -45,7 +46,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const url = `/api/browse?path=${encodeURIComponent(path)}&system=true`;
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -60,7 +61,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const url = `/api/spaces/${spaceId}/browse?path=${encodeURIComponent(relativePath)}`;
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

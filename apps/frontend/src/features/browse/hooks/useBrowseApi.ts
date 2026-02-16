@@ -1,6 +1,7 @@
 
 import { useState, useCallback } from 'react';
 import type { FileNode } from '../types';
+import { apiFetch } from '@/api/client';
 
 export function useBrowseApi() {
   const [isLoading, setIsLoading] = useState(false);
@@ -10,7 +11,7 @@ export function useBrowseApi() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(url);
+      const response = await apiFetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

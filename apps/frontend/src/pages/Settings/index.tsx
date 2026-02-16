@@ -1,5 +1,6 @@
 import { ConfigProvider, Layout, Menu, Button, theme, App } from 'antd';
 import {
+  UserOutlined,
   AppstoreOutlined,
   BgColorsOutlined,
   FileOutlined,
@@ -17,20 +18,26 @@ import FileSettings from './sections/FileSettings';
 import ServerSettings from './sections/ServerSettings';
 import AdvancedSettings from './sections/AdvancedSettings';
 import AccountSettings from './sections/AccountSettings';
+import ProfileSettings from './sections/ProfileSettings';
 import HeaderBrand from '@/components/common/HeaderBrand';
 import HeaderGroup from '@/components/common/HeaderGroup';
 import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
 
-type SettingsSection = 'general' | 'appearance' | 'files' | 'server' | 'accounts' | 'advanced';
+type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server' | 'accounts' | 'advanced';
 
 const SettingsPage = () => {
   const { token } = theme.useToken();
   const navigate = useNavigate();
-  const [selectedSection, setSelectedSection] = useState<SettingsSection>('general');
+  const [selectedSection, setSelectedSection] = useState<SettingsSection>('profile');
 
   const menuItems = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: '내 프로필',
+    },
     {
       key: 'general',
       icon: <AppstoreOutlined />,
@@ -65,6 +72,8 @@ const SettingsPage = () => {
 
   const renderContent = () => {
     switch (selectedSection) {
+      case 'profile':
+        return <ProfileSettings />;
       case 'general':
         return <GeneralSettings />;
       case 'appearance':
@@ -78,7 +87,7 @@ const SettingsPage = () => {
       case 'advanced':
         return <AdvancedSettings />;
       default:
-        return <GeneralSettings />;
+        return <ProfileSettings />;
     }
   };
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { login as loginApi, logout as logoutApi, me, refreshAuth } from '@/api/auth';
+import { type AuthUser, login as loginApi, logout as logoutApi, me } from '@/api/auth';
 import { AuthContext, type AuthContextValue } from './context';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -10,21 +10,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const currentUser = await me();
       setUser(currentUser);
-      return;
-    } catch {
-      // continue to refresh flow
-    }
-
-    try {
-      await refreshAuth();
-      const currentUser = await me();
-      setUser(currentUser);
     } catch {
       setUser(null);
     }
   }, []);
 
   useEffect(() => {
+    if (window.location.pathname === '/login') {
+      setIsLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         await refreshSession();

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Space } from '@/features/space/types';
+import { apiFetch } from '@/api/client';
 
 interface SpaceStore {
   spaces: Space[];
@@ -22,7 +23,7 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
   fetchSpaces: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch('/api/spaces');
+      const response = await apiFetch('/api/spaces');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -41,7 +42,7 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const trimmedDescription = description?.trim();
-      const response = await fetch('/api/spaces', {
+      const response = await apiFetch('/api/spaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -67,7 +68,7 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
   deleteSpace: async (id: number) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`/api/spaces/${id}`, {
+      const response = await apiFetch(`/api/spaces/${id}`, {
         method: 'DELETE',
       });
 

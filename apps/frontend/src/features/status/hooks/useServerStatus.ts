@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { StatusResponse } from '../types';
+import { apiFetch } from '@/api/client';
 
 const POLL_INTERVAL = 30000;
 
@@ -12,7 +13,7 @@ export function useServerStatus() {
   const fetchStatus = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/status');
+      const response = await apiFetch('/api/status');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

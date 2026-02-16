@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { CreateSpaceRequest, CreateSpaceResponse, SpaceApiError } from '../types';
+import { apiFetch } from '@/api/client';
 
 export function useCreateSpace() {
   const [isLoading, setIsLoading] = useState(false);
@@ -12,7 +13,7 @@ export function useCreateSpace() {
     setError(null);
 
     try {
-      const response = await fetch('/api/spaces', {
+      const response = await apiFetch('/api/spaces', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

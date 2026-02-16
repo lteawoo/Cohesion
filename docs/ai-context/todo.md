@@ -98,3 +98,6 @@
 - [x] 계정 관리 1차 백엔드 구현 (admin/user + Space 권한 + FTP 인증/권한 연동) (#72)
 - [x] Settings 계정관리 페이지 추가 (목록/생성/수정/삭제, `/api/accounts` 연동)
 - [x] JWT 로그인 1차 구현 (login/refresh/logout/me + API 인증 미들웨어 + 프론트 로그인 라우트/가드)
+- [x] Settings `내 프로필` 섹션 추가 (사용자 정보 표시 + 로그아웃)
+- [x] 프론트 API 호출 전역 401 처리(`apiFetch`) 및 인증 만료 시 로그인 리다이렉트
+- [x] 보안 하드닝: 프로덕션 JWT 시크릿 강제 + 프록시 HTTPS Secure 쿠키 처리
