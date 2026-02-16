@@ -3,6 +3,7 @@ import { App } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { TreeInvalidationTarget } from '@/stores/browseStore';
 import type { Space } from '@/features/space/types';
+import { apiFetch } from '@/api/client';
 
 interface UseFileOperationsReturn {
   handleRename: (oldPath: string, newName: string) => Promise<void>;
@@ -59,7 +60,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         formData.append('overwrite', 'true');
       }
 
-      const response = await fetch(`/api/spaces/${selectedSpace.id}/files/upload`, {
+      const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -124,7 +125,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       }
 
       try {
-        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/rename`, {
+        const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/rename`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -161,7 +162,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       }
 
       try {
-        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/create-folder`, {
+        const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/create-folder`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -203,7 +204,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           return;
         }
 
-        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/download-multiple`, {
+        const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/download-multiple`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paths: relativePaths }),
@@ -250,7 +251,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           }
           try {
             const relativePaths = paths.map(p => toRelativePath(selectedSpace.space_path, p));
-            const response = await fetch(`/api/spaces/${selectedSpace.id}/files/delete-multiple`, {
+            const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/delete-multiple`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ paths: relativePaths }),
@@ -297,7 +298,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         const relativeSources = sources.map(s => toRelativePath(selectedSpace.space_path, s));
         const relativeDestination = toRelativePath(dstSpace.space_path, destination);
 
-        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/move`, {
+        const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/move`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -351,7 +352,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         const relativeSources = sources.map(s => toRelativePath(selectedSpace.space_path, s));
         const relativeDestination = toRelativePath(dstSpace.space_path, destination);
 
-        const response = await fetch(`/api/spaces/${selectedSpace.id}/files/copy`, {
+        const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/copy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -404,7 +405,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
             return;
           }
           try {
-            const response = await fetch(`/api/spaces/${selectedSpace.id}/files/delete`, {
+            const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/delete`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ path: toRelativePath(selectedSpace.space_path, record.path) }),

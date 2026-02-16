@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { DeleteSpaceResponse, SpaceApiError } from '../types';
+import { apiFetch } from '@/api/client';
 
 export function useDeleteSpace() {
   const [isLoading, setIsLoading] = useState(false);
@@ -10,7 +11,7 @@ export function useDeleteSpace() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/spaces/${id}`, {
+      const response = await apiFetch(`/api/spaces/${id}`, {
         method: 'DELETE',
       });
 
