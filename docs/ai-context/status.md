@@ -1,6 +1,20 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **계정 관리 1차(백엔드) + FTP 계정/권한 연동 완료** (2026-02-16, #72):
+    - DB 스키마 확장:
+      - `users`(username/password_hash/nickname/role[admin|user])
+      - `user_space_permissions`(user_id/space_id/permission[read|write|manage])
+    - 백엔드 `internal/account` 모듈 신설:
+      - 사용자 CRUD API: `GET/POST /api/accounts`, `PATCH/DELETE /api/accounts/{id}`
+      - 권한 API: `GET/PUT /api/accounts/{id}/permissions`
+      - 기본 admin 자동 생성(`COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`, 기본 `admin/admin1234`)
+    - FTP 인증을 고정 계정 방식에서 계정 테이블 기반 인증으로 전환.
+    - FTP 권한 연동:
+      - `admin`은 모든 Space 접근 허용.
+      - `user`는 `user_space_permissions` 기반으로 Space 접근 제어.
+      - 읽기/쓰기 연산 권한 분리(`read` vs `write/manage`).
+    - 검증: `go test ./...` (apps/backend), `pnpm -C apps/frontend build` 통과.
 - **FTP 서버 1차 구현 완료** (2026-02-16, #70):
     - 백엔드 `internal/ftp` 모듈 신설:
       - Space 기반 가상 루트 드라이버(`/{spaceName}/...`) 구현.

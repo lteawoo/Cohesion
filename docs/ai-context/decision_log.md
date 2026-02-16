@@ -1487,3 +1487,36 @@
 - **검증**:
   - `go test ./...` (apps/backend) 통과.
   - `pnpm -C apps/frontend build` 통과.
+
+### 계정/권한 모델 및 FTP 인증 전환 결정 (2026-02-16, #72)
+- **요구사항**:
+  - `owner` 없이 `admin` 단일 최고권한으로 관리.
+  - 사용자별 FTP 계정(아이디/비밀번호/닉네임)과 Space 권한 제어 필요.
+- **결정**:
+  1. 역할은 `admin | user`만 유지 (`owner` 제거).
+  2. Space 권한은 `read | write | manage` 3단계로 관리.
+  3. FTP 인증은 고정 계정 방식에서 DB 계정 검증 방식으로 전환.
+  4. FTP 접근은 `deny by default` 정책:
+     - `admin`: 전체 Space 허용
+     - `user`: `user_space_permissions`에 명시된 Space만 허용
+     - 쓰기 연산은 `write` 이상 권한 필요
+- **이유**:
+  - 단일 최고권한(admin)으로 운영 모델 단순화.
+  - Space 중심 도메인 구조와 자연스럽게 결합.
+  - FTP를 사용자 권한 모델에 편입해 보안 일관성 확보.
+- **적용 내용**:
+  - 스키마 추가: `users`, `user_space_permissions`.
+  - 백엔드 모듈 추가: `internal/account`(store/service/handler).
+  - FTP 모듈 변경:
+    - auth: `account.Service.Authenticate` 사용
+    - driver: 로그인 사용자 기준 Space 목록/읽기/쓰기 권한 체크
+  - 서버 부팅 시 기본 admin 보장:
+    - `COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`, `COHESION_ADMIN_NICKNAME`
+    - 미지정 시 `admin/admin1234` 생성
+- **API**:
+  - `GET/POST /api/accounts`
+  - `PATCH/DELETE /api/accounts/{id}`
+  - `GET/PUT /api/accounts/{id}/permissions`
+- **검증**:
+  - `go test ./...` (apps/backend) 통과.
+  - `pnpm -C apps/frontend build` 통과.

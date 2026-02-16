@@ -12,6 +12,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/hlog"
 	"github.com/rs/zerolog/log"
+	"taeu.kr/cohesion/internal/account"
+	accountStore "taeu.kr/cohesion/internal/account/store"
 	"taeu.kr/cohesion/internal/browse"
 	browseHandler "taeu.kr/cohesion/internal/browse/handler"
 	"taeu.kr/cohesion/internal/config"
@@ -40,6 +42,13 @@ func init() {
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
 func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service, error) {
 	// 의존성 주입
+	accountRepo := accountStore.NewStore(db)
+	accountService := account.NewService(accountRepo)
+	if err := accountService.EnsureDefaultAdmin(context.Background()); err != nil {
+		return nil, nil, err
+	}
+	accountHandler := account.NewHandler(accountService)
+
 	spaceStore := spaceStore.NewStore(db)
 	spaceService := space.NewService(spaceStore)
 	browseService := browse.NewService()
@@ -47,7 +56,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	webDavService := webdav.NewService(spaceService)
 	webDavHandler := webdavHandler.NewHandler(webDavService)
-	ftpService := ftp.NewService(spaceService, config.Conf.Server.FtpEnabled, config.Conf.Server.FtpPort)
+	ftpService := ftp.NewService(spaceService, accountService, config.Conf.Server.FtpEnabled, config.Conf.Server.FtpPort)
 	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 	configHandler := config.NewHandler()
 	systemHandler := system.NewHandler(restartChan)
@@ -68,6 +77,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	statusHandler.RegisterRoutes(mux)
 	configHandler.RegisterRoutes(mux)
 	systemHandler.RegisterRoutes(mux)
+	accountHandler.RegisterRoutes(mux)
 
 	// WebDAV 핸들러 등록
 	mux.Handle("/dav/", web.Handler(func(w http.ResponseWriter, r *http.Request) *web.Error {
