@@ -15,17 +15,26 @@ html, body {
   -webkit-font-smoothing: antialiased; /* 폰트 부드럽게 */
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Lightweight native scrollbar styling (WebKit + Firefox) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 140, 140, 0.35) transparent;
 }
-::-webkit-scrollbar-track {
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
   background: transparent;
 }
-::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 4px;
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 140, 0.35);
+  border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #999;
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 140, 140, 0.5);
 }
