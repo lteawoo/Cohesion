@@ -2,7 +2,7 @@ server:
   port: "3000"
   http_enabled: true
   webdav_enabled: true
-  ftp_enabled: false
+  ftp_enabled: true
   ftp_port: 2121
   sftp_enabled: false
   sftp_port: 22

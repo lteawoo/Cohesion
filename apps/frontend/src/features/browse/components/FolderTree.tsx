@@ -115,6 +115,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   const spaces = useSpaceStore((state) => state.spaces);
   const treeRefreshVersion = useBrowseStore((state) => state.treeRefreshVersion);
   const treeInvalidationTargets = useBrowseStore((state) => state.treeInvalidationTargets);
+  const selectedPath = useBrowseStore((state) => state.selectedPath);
+  const selectedSpace = useBrowseStore((state) => state.selectedSpace);
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
@@ -125,6 +127,9 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
   const loadChildrenForKey = useCallback(
     async (key: React.Key) => {
+      if (loadedKeys.includes(key)) {
+        return;
+      }
       if (loadingKeysRef.current.has(key)) {
         return;
       }
@@ -171,7 +176,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
         loadingKeysRef.current.delete(key);
       }
     },
-    [fetchDirectoryContents, fetchSpaceDirectoryContents, showBaseDirectories, spaces]
+    [fetchDirectoryContents, fetchSpaceDirectoryContents, showBaseDirectories, spaces, loadedKeys]
   );
 
   // 초기 트리 데이터를 로드합니다.
@@ -290,38 +295,33 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     treeRefreshVersion,
   ]);
 
-  // 트리 노드를 확장할 때 자식 노드를 비동기적으로 불러옵니다 (Lazy Loading).
-  const onLoadData = ({ key, children }: {key: React.Key; children?: TreeDataNode[]}): Promise<void> => {
-    return new Promise((resolve) => {
-      if (children && children.length > 0) {
-        resolve();
-        return;
+  // 확장된 노드만 단일 경로로 lazy load합니다.
+  useEffect(() => {
+    for (const key of expandedKeys) {
+      if (!loadedKeys.includes(key) && !loadingKeysRef.current.has(key)) {
+        void loadChildrenForKey(key);
       }
-
-      if (loadingKeysRef.current.has(key)) {
-        resolve();
-        return;
-      }
-
-      (async () => {
-        try {
-          await loadChildrenForKey(key);
-        } catch {
-          // Error handled silently
-        } finally {
-          resolve();
-        }
-      })();
-    });
-  };
+    }
+  }, [expandedKeys, loadedKeys, loadChildrenForKey]);
 
   const handleExpand: DirectoryTreeProps['onExpand'] = (keys: React.Key[]) => {
     setExpandedKeys(keys);
   };
 
-  const handleSelect: DirectoryTreeProps['onSelect'] = (keys: React.Key[]) => {
+  const handleSelect: DirectoryTreeProps['onSelect'] = (
+    keys: React.Key[],
+    info: Parameters<NonNullable<DirectoryTreeProps['onSelect']>>[1]
+  ) => {
     if (keys.length > 0) {
       const key = keys[0] as string;
+      const isLeaf = info.node.isLeaf;
+      const isSameSelection = (nextPath: string, nextSpace?: Space) =>
+        selectedPath === nextPath && (selectedSpace?.id ?? null) === (nextSpace?.id ?? null);
+
+      // 클릭 시에는 "열기만" 수행하고(닫힘 토글 금지), 닫기는 스위처 아이콘에서만 처리합니다.
+      if (!isLeaf && !expandedKeys.includes(key)) {
+        setExpandedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
+      }
 
       if (key.startsWith('space-')) {
         const sepIndex = key.indexOf('::');
@@ -331,15 +331,22 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
         if (sepIndex >= 0) {
           // Space 하위 노드 선택 — 실제 경로와 space 정보 전달
-          onSelect(key.substring(sepIndex + 2), space);
+          const nextPath = key.substring(sepIndex + 2);
+          if (!isSameSelection(nextPath, space)) {
+            onSelect(nextPath, space);
+          }
         } else {
           // Space 루트 노드 선택
           if (space) {
-            onSelect(space.space_path, space);
+            if (!isSameSelection(space.space_path, space)) {
+              onSelect(space.space_path, space);
+            }
           }
         }
       } else {
-        onSelect(key);
+        if (!isSameSelection(key)) {
+          onSelect(key);
+        }
       }
     }
   };
@@ -397,7 +404,6 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
       onSelect={handleSelect}
       onExpand={handleExpand}
       onRightClick={handleRightClick}
-      loadData={onLoadData}
       treeData={treeData}
       loadedKeys={loadedKeys}
       expandedKeys={expandedKeys}
@@ -425,7 +431,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
           </span>
         );
       }}
-      expandAction="click"
+      expandAction={false}
     />
   );
 }
