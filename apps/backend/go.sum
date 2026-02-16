@@ -18,6 +18,8 @@ github.com/goftp/file-driver v0.0.0-20180502053751-5d604a0fc0c9 h1:cC0Hbb+18DJ4i
 github.com/goftp/file-driver v0.0.0-20180502053751-5d604a0fc0c9/go.mod h1:GpOj6zuVBG3Inr9qjEnuVTgBlk2lZ1S9DcoFiXWyKss=
 github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42 h1:JdOp2qR5PF4O75tzHeqrwnDDv8oHDptWyTbyYS4fD8E=
 github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42/go.mod h1:k/SS6VWkxY7dHPhoMQ8IdRu8L4lQtmGbhyXGg+vCnXE=
+github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
+github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/hashicorp/errwrap v1.0.0 h1:hLrqtEDnRye3+sgx6z4qVLNuviH3MR5aQ0ykNJa/UYA=

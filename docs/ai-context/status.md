@@ -1,6 +1,32 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **JWT 로그인 1차 구현 완료** (2026-02-16):
+    - 백엔드 `internal/auth` 모듈 신설:
+      - `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/auth/me`
+      - `access(15분)` + `refresh(7일)` JWT 발급
+      - HttpOnly 쿠키 저장 (`cohesion_access_token`, `cohesion_refresh_token`)
+    - API 인증 미들웨어 적용:
+      - `/api/*` 기본 인증 강제 (`/api/health`, `/api/auth/login|refresh|logout` 예외)
+      - 관리자 전용 경로 제한: `/api/accounts*`, `/api/config`, `/api/system/restart`
+    - 프론트 인증 흐름 추가:
+      - `AuthProvider` 세션 부트스트랩(`me -> refresh -> me`)
+      - 보호 라우트(`RequireAuth`) 및 `/login` 페이지 추가
+      - 전역 라우팅에서 `/`, `/settings` 인증 가드 적용
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `pnpm -C apps/frontend build` 통과
+- **Settings 계정관리 페이지(프론트) 추가 완료** (2026-02-16):
+    - 설정 사이드 메뉴에 `계정 관리` 섹션 추가.
+    - 프론트 API 유틸 `apps/frontend/src/api/accounts.ts` 추가:
+      - `GET/POST /api/accounts`
+      - `PATCH/DELETE /api/accounts/{id}`
+    - `AccountSettings` 섹션 추가:
+      - 계정 목록 조회(Table)
+      - 계정 생성(아이디/비밀번호/닉네임/권한)
+      - 계정 수정(닉네임/권한/선택적 비밀번호 변경)
+      - 계정 삭제
+    - 검증: `pnpm -C apps/frontend build` 통과.
 - **계정 관리 1차(백엔드) + FTP 계정/권한 연동 완료** (2026-02-16, #72):
     - DB 스키마 확장:
       - `users`(username/password_hash/nickname/role[admin|user])

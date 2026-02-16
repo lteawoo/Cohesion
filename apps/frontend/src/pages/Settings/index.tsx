@@ -5,6 +5,7 @@ import {
   FileOutlined,
   GlobalOutlined,
   ToolOutlined,
+  TeamOutlined,
   HomeFilled,
 } from '@ant-design/icons';
 import { useState } from 'react';
@@ -15,13 +16,14 @@ import AppearanceSettings from './sections/AppearanceSettings';
 import FileSettings from './sections/FileSettings';
 import ServerSettings from './sections/ServerSettings';
 import AdvancedSettings from './sections/AdvancedSettings';
+import AccountSettings from './sections/AccountSettings';
 import HeaderBrand from '@/components/common/HeaderBrand';
 import HeaderGroup from '@/components/common/HeaderGroup';
 import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
 
-type SettingsSection = 'general' | 'appearance' | 'files' | 'server' | 'advanced';
+type SettingsSection = 'general' | 'appearance' | 'files' | 'server' | 'accounts' | 'advanced';
 
 const SettingsPage = () => {
   const { token } = theme.useToken();
@@ -50,6 +52,11 @@ const SettingsPage = () => {
       label: '서버',
     },
     {
+      key: 'accounts',
+      icon: <TeamOutlined />,
+      label: '계정 관리',
+    },
+    {
       key: 'advanced',
       icon: <ToolOutlined />,
       label: '고급',
@@ -66,6 +73,8 @@ const SettingsPage = () => {
         return <FileSettings />;
       case 'server':
         return <ServerSettings />;
+      case 'accounts':
+        return <AccountSettings />;
       case 'advanced':
         return <AdvancedSettings />;
       default:

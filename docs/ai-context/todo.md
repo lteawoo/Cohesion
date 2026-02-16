@@ -96,3 +96,5 @@
 - [x] MainLayout/MainSider 잔여 인라인 스타일 공통 클래스화 (`layout-content-scroll-hidden`, `layout-sider-title`)
 - [x] FTP 서버 1차 구현 (Space 가상 루트, start/stop lifecycle, status 연동) (#70)
 - [x] 계정 관리 1차 백엔드 구현 (admin/user + Space 권한 + FTP 인증/권한 연동) (#72)
+- [x] Settings 계정관리 페이지 추가 (목록/생성/수정/삭제, `/api/accounts` 연동)
+- [x] JWT 로그인 1차 구현 (login/refresh/logout/me + API 인증 미들웨어 + 프론트 로그인 라우트/가드)
