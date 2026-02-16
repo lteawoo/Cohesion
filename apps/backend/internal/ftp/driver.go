@@ -11,26 +11,33 @@ import (
 	"time"
 
 	goftp "github.com/goftp/server"
+	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/space"
 )
 
 type driverFactory struct {
-	spaceService *space.Service
+	spaceService   *space.Service
+	accountService *account.Service
 }
 
 func (f *driverFactory) NewDriver() (goftp.Driver, error) {
 	return &spaceDriver{
-		spaceService: f.spaceService,
-		perm:         goftp.NewSimplePerm("cohesion", "cohesion"),
+		spaceService:   f.spaceService,
+		accountService: f.accountService,
+		perm:           goftp.NewSimplePerm("cohesion", "cohesion"),
 	}, nil
 }
 
 type spaceDriver struct {
-	spaceService *space.Service
-	perm         goftp.Perm
+	spaceService   *space.Service
+	accountService *account.Service
+	perm           goftp.Perm
+	conn           *goftp.Conn
 }
 
-func (d *spaceDriver) Init(*goftp.Conn) {}
+func (d *spaceDriver) Init(conn *goftp.Conn) {
+	d.conn = conn
+}
 
 func (d *spaceDriver) Stat(virtualPath string) (goftp.FileInfo, error) {
 	cleanPath := normalizeVirtualPath(virtualPath)
@@ -38,12 +45,7 @@ func (d *spaceDriver) Stat(virtualPath string) (goftp.FileInfo, error) {
 		return newVirtualDirInfo("/", "cohesion", "cohesion", time.Now()), nil
 	}
 
-	spaceName, relPath, err := splitVirtualPath(cleanPath)
-	if err != nil {
-		return nil, err
-	}
-
-	spaceObj, absPath, err := d.resolveAbsPath(spaceName, relPath)
+	spaceObj, absPath, relPath, err := d.resolvePath(cleanPath, account.PermissionRead)
 	if err != nil {
 		return nil, err
 	}
@@ -74,28 +76,10 @@ func (d *spaceDriver) ChangeDir(virtualPath string) error {
 func (d *spaceDriver) ListDir(virtualPath string, callback func(goftp.FileInfo) error) error {
 	cleanPath := normalizeVirtualPath(virtualPath)
 	if cleanPath == "/" {
-		spaces, err := d.spaceService.GetAllSpaces(context.Background())
-		if err != nil {
-			return err
-		}
-
-		for _, sp := range spaces {
-			mod := time.Now()
-			if stat, err := os.Stat(sp.SpacePath); err == nil {
-				mod = stat.ModTime()
-			}
-			if err := callback(newVirtualDirInfo(sp.SpaceName, "cohesion", "cohesion", mod)); err != nil {
-				return err
-			}
-		}
-		return nil
+		return d.listAccessibleSpaces(callback)
 	}
 
-	spaceName, relPath, err := splitVirtualPath(cleanPath)
-	if err != nil {
-		return err
-	}
-	_, absPath, err := d.resolveAbsPath(spaceName, relPath)
+	_, absPath, _, err := d.resolvePath(cleanPath, account.PermissionRead)
 	if err != nil {
 		return err
 	}
@@ -129,17 +113,12 @@ func (d *spaceDriver) DeleteDir(virtualPath string) error {
 		return os.ErrPermission
 	}
 
-	spaceName, relPath, err := splitVirtualPath(cleanPath)
+	_, absPath, relPath, err := d.resolvePath(cleanPath, account.PermissionWrite)
 	if err != nil {
 		return err
 	}
 	if relPath == "" {
 		return os.ErrPermission
-	}
-
-	_, absPath, err := d.resolveAbsPath(spaceName, relPath)
-	if err != nil {
-		return err
 	}
 
 	info, err := os.Stat(absPath)
@@ -155,7 +134,7 @@ func (d *spaceDriver) DeleteDir(virtualPath string) error {
 
 func (d *spaceDriver) DeleteFile(virtualPath string) error {
 	cleanPath := normalizeVirtualPath(virtualPath)
-	spaceName, relPath, err := splitVirtualPath(cleanPath)
+	_, absPath, relPath, err := d.resolvePath(cleanPath, account.PermissionWrite)
 	if err != nil {
 		return err
 	}
@@ -163,10 +142,6 @@ func (d *spaceDriver) DeleteFile(virtualPath string) error {
 		return os.ErrPermission
 	}
 
-	_, absPath, err := d.resolveAbsPath(spaceName, relPath)
-	if err != nil {
-		return err
-	}
 	info, err := os.Stat(absPath)
 	if err != nil {
 		return err
@@ -190,18 +165,22 @@ func (d *spaceDriver) Rename(fromPath string, toPath string) error {
 	if err != nil {
 		return err
 	}
-
 	if fromSpace != toSpace || fromRel == "" || toRel == "" {
 		return os.ErrPermission
 	}
 
-	_, absFrom, err := d.resolveAbsPath(fromSpace, fromRel)
+	if _, err := d.resolveSpaceByName(fromSpace, account.PermissionWrite); err != nil {
+		return err
+	}
+	spaceObj, err := d.resolveSpaceByName(toSpace, account.PermissionWrite)
 	if err != nil {
 		return err
 	}
-	_, absTo, err := d.resolveAbsPath(toSpace, toRel)
-	if err != nil {
-		return err
+
+	absFrom := filepath.Join(spaceObj.SpacePath, filepath.FromSlash(fromRel))
+	absTo := filepath.Join(spaceObj.SpacePath, filepath.FromSlash(toRel))
+	if !isPathWithinSpace(absFrom, spaceObj.SpacePath) || !isPathWithinSpace(absTo, spaceObj.SpacePath) {
+		return os.ErrPermission
 	}
 
 	return os.Rename(absFrom, absTo)
@@ -209,35 +188,24 @@ func (d *spaceDriver) Rename(fromPath string, toPath string) error {
 
 func (d *spaceDriver) MakeDir(virtualPath string) error {
 	cleanPath := normalizeVirtualPath(virtualPath)
-	spaceName, relPath, err := splitVirtualPath(cleanPath)
+	spaceObj, absPath, relPath, err := d.resolvePath(cleanPath, account.PermissionWrite)
 	if err != nil {
 		return err
 	}
-	if relPath == "" {
+	if relPath == "" || !isPathWithinSpace(absPath, spaceObj.SpacePath) {
 		return os.ErrPermission
 	}
-
-	_, absPath, err := d.resolveAbsPath(spaceName, relPath)
-	if err != nil {
-		return err
-	}
-
 	return os.MkdirAll(absPath, 0755)
 }
 
 func (d *spaceDriver) GetFile(virtualPath string, offset int64) (int64, io.ReadCloser, error) {
 	cleanPath := normalizeVirtualPath(virtualPath)
-	spaceName, relPath, err := splitVirtualPath(cleanPath)
+	_, absPath, relPath, err := d.resolvePath(cleanPath, account.PermissionRead)
 	if err != nil {
 		return 0, nil, err
 	}
 	if relPath == "" {
 		return 0, nil, os.ErrPermission
-	}
-
-	_, absPath, err := d.resolveAbsPath(spaceName, relPath)
-	if err != nil {
-		return 0, nil, err
 	}
 
 	file, err := os.Open(absPath)
@@ -265,17 +233,12 @@ func (d *spaceDriver) GetFile(virtualPath string, offset int64) (int64, io.ReadC
 
 func (d *spaceDriver) PutFile(virtualPath string, data io.Reader, appendData bool) (int64, error) {
 	cleanPath := normalizeVirtualPath(virtualPath)
-	spaceName, relPath, err := splitVirtualPath(cleanPath)
+	spaceObj, absPath, relPath, err := d.resolvePath(cleanPath, account.PermissionWrite)
 	if err != nil {
 		return 0, err
 	}
 	if relPath == "" {
 		return 0, os.ErrPermission
-	}
-
-	spaceObj, absPath, err := d.resolveAbsPath(spaceName, relPath)
-	if err != nil {
-		return 0, err
 	}
 
 	parent := filepath.Dir(absPath)
@@ -306,21 +269,76 @@ func (d *spaceDriver) PutFile(virtualPath string, data io.Reader, appendData boo
 	return written, nil
 }
 
-func (d *spaceDriver) resolveAbsPath(spaceName, relativePath string) (*space.Space, string, error) {
-	spaceObj, err := d.spaceService.GetSpaceByName(context.Background(), spaceName)
+func (d *spaceDriver) listAccessibleSpaces(callback func(goftp.FileInfo) error) error {
+	spaces, err := d.spaceService.GetAllSpaces(context.Background())
 	if err != nil {
-		return nil, "", os.ErrNotExist
+		return err
+	}
+
+	username := d.username()
+	for _, sp := range spaces {
+		allowed, err := d.accountService.CanAccessSpaceByID(context.Background(), username, sp.ID, account.PermissionRead)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			continue
+		}
+
+		mod := time.Now()
+		if stat, err := os.Stat(sp.SpacePath); err == nil {
+			mod = stat.ModTime()
+		}
+		if err := callback(newVirtualDirInfo(sp.SpaceName, "cohesion", "cohesion", mod)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *spaceDriver) resolvePath(cleanPath string, required account.Permission) (*space.Space, string, string, error) {
+	spaceName, relPath, err := splitVirtualPath(cleanPath)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	spaceObj, err := d.resolveSpaceByName(spaceName, required)
+	if err != nil {
+		return nil, "", "", err
 	}
 
 	absPath := spaceObj.SpacePath
-	if relativePath != "" {
-		absPath = filepath.Join(spaceObj.SpacePath, filepath.FromSlash(relativePath))
+	if relPath != "" {
+		absPath = filepath.Join(spaceObj.SpacePath, filepath.FromSlash(relPath))
 	}
 	if !isPathWithinSpace(absPath, spaceObj.SpacePath) {
-		return nil, "", os.ErrPermission
+		return nil, "", "", os.ErrPermission
+	}
+	return spaceObj, absPath, relPath, nil
+}
+
+func (d *spaceDriver) resolveSpaceByName(spaceName string, required account.Permission) (*space.Space, error) {
+	spaceObj, err := d.spaceService.GetSpaceByName(context.Background(), spaceName)
+	if err != nil {
+		return nil, os.ErrNotExist
 	}
 
-	return spaceObj, absPath, nil
+	allowed, err := d.accountService.CanAccessSpaceByID(context.Background(), d.username(), spaceObj.ID, required)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, os.ErrPermission
+	}
+
+	return spaceObj, nil
+}
+
+func (d *spaceDriver) username() string {
+	if d.conn == nil {
+		return ""
+	}
+	return d.conn.LoginUser()
 }
 
 func (d *spaceDriver) wrapFileInfo(virtualPath string, info os.FileInfo, name string) (goftp.FileInfo, error) {

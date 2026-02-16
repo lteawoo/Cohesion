@@ -4,10 +4,12 @@ go 1.25.4
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
+	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42
 	github.com/ncruces/go-sqlite3 v0.30.3
 	github.com/rs/zerolog v1.34.0
 	github.com/shirou/gopsutil/v4 v4.26.1
 	github.com/spf13/viper v1.21.0
+	golang.org/x/crypto v0.47.0
 	golang.org/x/net v0.49.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -18,7 +20,7 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/goftp/file-driver v0.0.0-20180502053751-5d604a0fc0c9 // indirect
-	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42 // indirect
+	github.com/jlaffaye/ftp v0.2.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect

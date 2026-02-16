@@ -3,53 +3,39 @@ package ftp
 import (
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	goftp "github.com/goftp/server"
 	"github.com/rs/zerolog/log"
+	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/space"
 )
 
 const (
-	defaultFTPPort     = 2121
-	defaultFTPUser     = "cohesion"
-	defaultFTPPassword = "cohesion"
+	defaultFTPPort = 2121
 )
 
 type Service struct {
-	spaceService *space.Service
-	server       *goftp.Server
-	enabled      bool
-	port         int
-	username     string
-	password     string
-	running      bool
-	mu           sync.RWMutex
+	spaceService   *space.Service
+	accountService *account.Service
+	server         *goftp.Server
+	enabled        bool
+	port           int
+	running        bool
+	mu             sync.RWMutex
 }
 
-func NewService(spaceService *space.Service, enabled bool, port int) *Service {
+func NewService(spaceService *space.Service, accountService *account.Service, enabled bool, port int) *Service {
 	if port <= 0 {
 		port = defaultFTPPort
 	}
 
-	username := os.Getenv("COHESION_FTP_USER")
-	if username == "" {
-		username = defaultFTPUser
-	}
-
-	password := os.Getenv("COHESION_FTP_PASSWORD")
-	if password == "" {
-		password = defaultFTPPassword
-	}
-
 	return &Service{
-		spaceService: spaceService,
-		enabled:      enabled,
-		port:         port,
-		username:     username,
-		password:     password,
+		spaceService:   spaceService,
+		accountService: accountService,
+		enabled:        enabled,
+		port:           port,
 	}
 }
 
@@ -66,12 +52,12 @@ func (s *Service) Start() error {
 	}
 
 	opts := &goftp.ServerOpts{
-		Factory:        &driverFactory{spaceService: s.spaceService},
+		Factory:        &driverFactory{spaceService: s.spaceService, accountService: s.accountService},
 		Port:           s.port,
 		Hostname:       "0.0.0.0",
 		Name:           "Cohesion FTP",
 		WelcomeMessage: "Cohesion FTP",
-		Auth:           &goftp.SimpleAuth{Name: s.username, Password: s.password},
+		Auth:           &accountAuth{accountService: s.accountService},
 		Logger:         &ftpLogger{},
 	}
 
@@ -90,7 +76,7 @@ func (s *Service) Start() error {
 	case <-time.After(200 * time.Millisecond):
 		s.server = ftpServer
 		s.running = true
-		log.Info().Msgf("[FTP] server started on port %d (user: %s)", s.port, s.username)
+		log.Info().Msgf("[FTP] server started on port %d", s.port)
 		return nil
 	}
 }
