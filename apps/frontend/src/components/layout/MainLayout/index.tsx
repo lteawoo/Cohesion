@@ -89,7 +89,8 @@ const PageLayout = () => {
             open={isNavOpen}
             onClose={closeNavDrawer}
             size={isMobile ? "default" : "large"}
-            styles={{ body: { padding: 0 } }}
+            closeIcon={null}
+            styles={{ body: { padding: 0 }, header: { display: "none" } }}
             mask={isMobile}
           >
             <MainSider

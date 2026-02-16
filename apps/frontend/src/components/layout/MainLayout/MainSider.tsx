@@ -77,9 +77,10 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
   if (containerType === "panel") {
     return (
       <div
-        className="layout-sider"
+        className="layout-sider layout-sider-panel"
         style={{
           height: "100%",
+          width: "100%",
           background: token.colorBgContainer,
         }}
       >

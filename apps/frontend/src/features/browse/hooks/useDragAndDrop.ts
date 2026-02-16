@@ -29,9 +29,24 @@ export function useDragAndDrop({
   selectedItems,
   currentPath,
 }: UseDragAndDropParams): UseDragAndDropReturn {
-  const { message } = App.useApp();
+  const { modal } = App.useApp();
   const [isDragging, setIsDragging] = useState(false);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+
+  const confirmAndMove = useCallback(
+    (sourcePaths: string[], destinationPath: string) => {
+      modal.confirm({
+        title: '이동 확인',
+        content: `선택한 ${sourcePaths.length}개 항목을 이동하시겠습니까?`,
+        okText: '이동',
+        cancelText: '취소',
+        onOk: async () => {
+          await onMove(sourcePaths, destinationPath);
+        },
+      });
+    },
+    [modal, onMove]
+  );
 
   // 아이템 드래그 시작 핸들러
   const handleItemDragStart = useCallback(
@@ -103,19 +118,18 @@ export function useDragAndDrop({
 
             // 자기 자신으로 이동 방지
             if (sourcePaths.includes(folder.path)) {
-              message.warning('자기 자신으로 이동할 수 없습니다');
               return;
             }
 
             // 해당 폴더로 이동
-            await onMove(sourcePaths, folder.path);
+            confirmAndMove(sourcePaths, folder.path);
           }
         }
       } catch {
         // Error handled silently
       }
     },
-    [onMove, message]
+    [confirmAndMove]
   );
 
   // 드래그 이벤트 핸들러 (외부 파일 업로드용)
@@ -172,7 +186,7 @@ export function useDragAndDrop({
             });
             if (!allInSameFolder) {
               // 현재 폴더로 이동
-              await onMove(sourcePaths, currentPath);
+              confirmAndMove(sourcePaths, currentPath);
             }
           }
         }
@@ -180,7 +194,7 @@ export function useDragAndDrop({
         // JSON 파싱 실패 시 무시
       }
     },
-    [onMove, onFileUpload, currentPath]
+    [confirmAndMove, onFileUpload, currentPath]
   );
 
   return {
