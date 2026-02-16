@@ -5,6 +5,7 @@ go 1.25.4
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/ncruces/go-sqlite3 v0.30.3
 	github.com/rs/zerolog v1.34.0
 	github.com/shirou/gopsutil/v4 v4.26.1

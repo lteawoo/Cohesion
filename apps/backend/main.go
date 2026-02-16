@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"taeu.kr/cohesion/internal/account"
 	accountStore "taeu.kr/cohesion/internal/account/store"
+	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/browse"
 	browseHandler "taeu.kr/cohesion/internal/browse/handler"
 	"taeu.kr/cohesion/internal/config"
@@ -48,6 +50,13 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 		return nil, nil, err
 	}
 	accountHandler := account.NewHandler(accountService)
+	authService := auth.NewService(accountService, auth.Config{
+		Secret:         readEnv("COHESION_JWT_SECRET", "cohesion-dev-jwt-secret-change-me"),
+		Issuer:         "cohesion",
+		AccessTokenTTL: 15 * time.Minute,
+		RefreshTTL:     7 * 24 * time.Hour,
+	})
+	authHandler := auth.NewHandler(authService)
 
 	spaceStore := spaceStore.NewStore(db)
 	spaceService := space.NewService(spaceStore)
@@ -78,6 +87,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	configHandler.RegisterRoutes(mux)
 	systemHandler.RegisterRoutes(mux)
 	accountHandler.RegisterRoutes(mux)
+	authHandler.RegisterRoutes(mux)
 
 	// WebDAV 핸들러 등록
 	mux.Handle("/dav/", web.Handler(func(w http.ResponseWriter, r *http.Request) *web.Error {
@@ -96,6 +106,8 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	hlogHandler := hlog.NewHandler(log.Logger)
 
 	// hlog.AccessHandler는 요청 및 응답에 대한 로그를 기록
+	finalHandler := authService.Middleware(mux)
+
 	finalLogHandler := hlogHandler(hlog.AccessHandler(func(r *http.Request, status, size int, duration time.Duration) {
 		hlog.FromRequest(r).Info().
 			Str("method", r.Method).
@@ -104,7 +116,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 			Int("size", size).
 			Dur("duration", duration).
 			Msg("Access log")
-	})(mux))
+	})(finalHandler))
 
 	port := ":" + config.Conf.Server.Port
 	server := &http.Server{
@@ -206,4 +218,12 @@ func main() {
 			return
 		}
 	}
+}
+
+func readEnv(key, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	return value
 }

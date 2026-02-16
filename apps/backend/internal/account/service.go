@@ -61,6 +61,24 @@ func (s *Service) ListUsers(ctx context.Context) ([]*User, error) {
 	return s.store.ListUsers(ctx)
 }
 
+func (s *Service) GetUserByID(ctx context.Context, id int64) (*User, error) {
+	user, err := s.store.GetUserByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	user.PasswordHash = ""
+	return user, nil
+}
+
+func (s *Service) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+	user, err := s.store.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	user.PasswordHash = ""
+	return user, nil
+}
+
 func (s *Service) CreateUser(ctx context.Context, req *CreateUserRequest) (*User, error) {
 	if err := validateCreateUser(req); err != nil {
 		return nil, err
