@@ -18,7 +18,7 @@ const GeneralSettings = () => {
           left={<Text strong>언어</Text>}
           right={(
             <Select
-              style={{ width: 140 }}
+              className="settings-select-compact"
               value={language}
               onChange={setLanguage}
               options={[

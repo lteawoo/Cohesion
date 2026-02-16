@@ -1,6 +1,11 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Settings 잔여 인라인 스타일 공통 클래스화 완료** (2026-02-16):
+    - `settings.css`에 공통 유틸 클래스(`settings-nav-menu-full`, `settings-select-*`, `settings-divider-compact`, `settings-port-input` 등) 추가.
+    - `GeneralSettings`, `FileSettings`, `ServerSettings`의 반복 인라인 스타일을 공통 클래스로 치환.
+    - `MainLayout`/`MainSider`에도 잔여 구조 스타일을 공통 클래스(`layout-content-scroll-hidden`, `layout-sider-title`)로 정리.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과.
 - **Main/Settings 헤더·사이드 + Settings 섹션 공통 컴포넌트화 완료** (2026-02-15):
     - 전역 레이아웃 클래스(`layout-*`)로 메인/세팅의 페이지/헤더/사이드/본문 골격을 통일.
     - 공통 헤더 컴포넌트(`HeaderBrand`, `HeaderGroup`)를 도입해 상단 브랜드/액션 그룹 구조를 일관화.

@@ -107,3 +107,13 @@ html, body {
   min-height: 0;
   overflow: auto;
 }
+
+.layout-content-scroll-hidden {
+  overflow: hidden;
+}
+
+.layout-sider-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}

@@ -36,7 +36,7 @@ const FileSettings = () => {
               <Col span={12}>
                 <Select
                   size="small"
-                  style={{ width: '100%' }}
+                  className="settings-select-full"
                   value={defaultSortBy}
                   onChange={(value: string) => setDefaultSort(value as SortBy, defaultSortOrder)}
                   options={[
@@ -49,7 +49,7 @@ const FileSettings = () => {
               <Col span={12}>
                 <Select
                   size="small"
-                  style={{ width: '100%' }}
+                  className="settings-select-full"
                   value={defaultSortOrder}
                   onChange={(value: string) => setDefaultSort(defaultSortBy, value as SortOrder)}
                   options={[

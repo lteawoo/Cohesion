@@ -1435,3 +1435,23 @@
   - `docs/AGENTS.md` 제거.
   - 루트 `AGENTS.md` 유지/갱신.
   - `master_rule_v2.md`의 검증 절차 문구 최신화.
+
+### Settings/레이아웃 잔여 인라인 스타일 공통화 결정 (2026-02-16)
+- **문제**:
+  - `Settings` 섹션(`General/File/Server`)에 폭/간격 관련 인라인 스타일이 남아 있어 재사용성과 유지보수성이 떨어짐.
+  - `MainLayout`/`MainSider`에도 소규모 인라인 구조 스타일이 남아 공통화 일관성이 낮음.
+- **결정**:
+  1. `settings.css`에 공통 유틸 클래스를 추가해 반복 스타일을 클래스 기반으로 치환.
+  2. `global.css`에 레이아웃 보조 클래스(`layout-content-scroll-hidden`, `layout-sider-title`)를 추가해 상위 레이아웃과 일관화.
+- **이유**:
+  - 토큰 의존 동적 스타일(배경/보더 컬러)과 정적 구조 스타일(폭/여백/폰트)을 분리하면 변경 영향이 작고 회귀 위험이 낮음.
+  - 이후 Settings 확장 시 인라인 복제를 줄이고 클래스 재사용이 가능함.
+- **적용 내용**:
+  - `GeneralSettings`: 언어 Select 폭 클래스화.
+  - `FileSettings`: 정렬 Select 2개 `width: 100%` 클래스화.
+  - `ServerSettings`: Alert padding, Divider margin, 포트 Input 폭, 보조 텍스트 크기 클래스화.
+  - `Settings index`: 홈 아이콘 크기/메뉴 전체 높이·보더 클래스화.
+  - `MainLayout/MainSider`: 콘텐츠 overflow/사이드 타이틀 스타일 클래스화.
+- **검증**:
+  - `pnpm -C apps/frontend lint` 통과.
+  - `pnpm -C apps/frontend build` 통과.

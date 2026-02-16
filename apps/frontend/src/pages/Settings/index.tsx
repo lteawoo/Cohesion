@@ -17,7 +17,7 @@ import ServerSettings from './sections/ServerSettings';
 import AdvancedSettings from './sections/AdvancedSettings';
 import HeaderBrand from '@/components/common/HeaderBrand';
 import HeaderGroup from '@/components/common/HeaderGroup';
-import './settings.css';
+import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
 
@@ -76,7 +76,7 @@ const SettingsPage = () => {
   return (
     <Layout className="layout-page">
       <Header
-        className="layout-header settings-header"
+        className="layout-header"
         style={{
           background: token.colorBgContainer,
         }}
@@ -84,7 +84,7 @@ const SettingsPage = () => {
         <HeaderGroup align="start">
           <Button
             type="text"
-            icon={<HomeFilled style={{ fontSize: '20px' }} />}
+            icon={<HomeFilled className="settings-icon-lg" />}
             onClick={() => navigate('/')}
           />
           <HeaderBrand text="설정" color={token.colorText} />
@@ -100,12 +100,11 @@ const SettingsPage = () => {
           }}
         >
           <Menu
-            className="settings-nav-menu"
+            className="settings-nav-menu settings-nav-menu-full"
             mode="inline"
             selectedKeys={[selectedSection]}
             items={menuItems}
             onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
-            style={{ height: '100%', borderRight: 0 }}
           />
         </Sider>
 

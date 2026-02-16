@@ -92,3 +92,5 @@
 - [x] Main/Settings 헤더·사이드 레이아웃 공통 클래스(`layout-*`) 도입 및 적용
 - [x] Settings 공통 컴포넌트(`SettingSectionHeader`, `SettingRow`) 도입
 - [x] 공통 헤더 컴포넌트(`HeaderBrand`, `HeaderGroup`) 도입 및 메인/세팅 적용
+- [x] Settings 잔여 인라인 스타일(`Select/Divider/InputNumber/Alert`) 공통 클래스화
+- [x] MainLayout/MainSider 잔여 인라인 스타일 공통 클래스화 (`layout-content-scroll-hidden`, `layout-sider-title`)

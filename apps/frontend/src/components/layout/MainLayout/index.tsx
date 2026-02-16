@@ -100,7 +100,7 @@ const PageLayout = () => {
           </Drawer>
 
           <Content className="layout-content">
-              <main className="layout-content-scroll" style={{ overflow: 'hidden' }}>
+              <main className="layout-content-scroll layout-content-scroll-hidden">
                   <Outlet />
               </main>
           </Content>

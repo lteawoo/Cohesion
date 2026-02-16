@@ -175,7 +175,7 @@ const ServerSettings = () => {
         title="변경 후 재시작 필요"
         type="warning"
         showIcon
-        style={{ padding: '8px 12px' }}
+        className="settings-alert-compact"
       />
 
       <Space size="small">
@@ -213,7 +213,7 @@ const ServerSettings = () => {
 
           {server.httpEnabled && (
             <>
-              <Divider style={{ margin: '6px 0' }} />
+              <Divider className="settings-divider-compact" />
               <SettingRow
                 left={<Text strong>포트</Text>}
                 right={(
@@ -223,7 +223,7 @@ const ServerSettings = () => {
                     max={65535}
                     value={parseInt(server.port)}
                     onChange={(value: number | null) => value && updateServerConfig('port', value.toString())}
-                    style={{ width: 100 }}
+                    className="settings-port-input"
                   />
                 )}
               />
@@ -247,12 +247,12 @@ const ServerSettings = () => {
 
           {server.webdavEnabled && server.httpEnabled && (
             <>
-              <Divider style={{ margin: '6px 0' }} />
+              <Divider className="settings-divider-compact" />
               <SettingRow
                 left={<Text strong>경로</Text>}
                 right={<Text code>/dav/</Text>}
               />
-              <Text type="secondary" style={{ fontSize: 12 }}>
+              <Text type="secondary" className="settings-text-xs">
                 HTTP 포트 {server.port} 사용
               </Text>
             </>
@@ -281,7 +281,7 @@ const ServerSettings = () => {
 
           {server.ftpEnabled && (
             <>
-              <Divider style={{ margin: '6px 0' }} />
+              <Divider className="settings-divider-compact" />
               <SettingRow
                 left={<Text strong>포트</Text>}
                 right={(
@@ -291,7 +291,7 @@ const ServerSettings = () => {
                     max={65535}
                     value={server.ftpPort}
                     onChange={(value: number | null) => value && updateServerConfig('ftpPort', value)}
-                    style={{ width: 100 }}
+                    className="settings-port-input"
                   />
                 )}
               />
@@ -321,7 +321,7 @@ const ServerSettings = () => {
 
           {server.sftpEnabled && (
             <>
-              <Divider style={{ margin: '6px 0' }} />
+              <Divider className="settings-divider-compact" />
               <SettingRow
                 left={<Text strong>포트</Text>}
                 right={(
@@ -331,7 +331,7 @@ const ServerSettings = () => {
                     max={65535}
                     value={server.sftpPort}
                     onChange={(value: number | null) => value && updateServerConfig('sftpPort', value)}
-                    style={{ width: 100 }}
+                    className="settings-port-input"
                   />
                 )}
               />

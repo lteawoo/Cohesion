@@ -55,9 +55,9 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
       />
       <div
         className="layout-sider-header"
-        style={{ borderBottom: `1px solid ${token.colorBorder}` }}
+        style={{ borderBottom: `1px solid ${token.colorBorder}`, color: token.colorText }}
       >
-        <span style={{ fontWeight: 'bold', fontSize: '14px', color: token.colorText }}>Spaces</span>
+        <span className="layout-sider-title">Spaces</span>
         <Button
           type="text"
           icon={<PlusOutlined />}
