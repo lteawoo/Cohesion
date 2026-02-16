@@ -1455,3 +1455,35 @@
 - **검증**:
   - `pnpm -C apps/frontend lint` 통과.
   - `pnpm -C apps/frontend build` 통과.
+
+### FTP 서버 1차 구현 방식 결정 (2026-02-16, #70)
+- **문제**:
+  - UI/설정 모델에 `ftpEnabled`, `ftpPort`가 존재하지만 실제 FTP 서버 구현이 없어 기능이 동작하지 않음.
+  - 상태 API도 FTP를 하드코딩 `미구현`으로 반환해 실제 상태를 반영하지 못함.
+- **검토안**:
+  1. 외부 파일 드라이버(`goftp/file-driver`) 재사용:
+     - 장점: 구현 빠름.
+     - 단점: 경로 정규화/트래버셜 통제가 약해 Space 경계 보장에 불리.
+  2. Space 가상 루트 커스텀 드라이버 구현 (채택):
+     - `/{spaceName}/...` 구조로 Space 경계를 강제.
+     - 루트에서는 Space 목록만 디렉토리로 노출.
+     - 경로는 `filepath.Rel` 기반으로 Space 외부 접근 차단.
+- **결정**:
+  - `internal/ftp` 모듈 신설 및 커스텀 드라이버 채택.
+  - `main` 재시작 lifecycle에 FTP start/stop 연동.
+  - 상태 API FTP 항목을 실제 포트 연결 체크로 변경.
+- **보안/운영 고려**:
+  - 기본 포트는 비특권 포트 `2121`로 설정(개발/로컬 실행 안정성).
+  - 기본 계정은 `cohesion/cohesion`, 환경변수(`COHESION_FTP_USER`, `COHESION_FTP_PASSWORD`)로 오버라이드 가능.
+  - FTPS(TLS), SFTP, 다중 계정은 후속 이슈에서 확장.
+- **변경 파일**:
+  - `apps/backend/internal/ftp/driver.go` (Space 가상 루트 드라이버)
+  - `apps/backend/internal/ftp/service.go` (FTP 서비스 lifecycle)
+  - `apps/backend/internal/ftp/logger.go` (FTP 로그 어댑터)
+  - `apps/backend/main.go` (재시작 루프 연동)
+  - `apps/backend/internal/status/handler.go` (FTP 상태 실연동)
+  - `apps/backend/config/config.dev.yaml`, `apps/backend/config/config.prod.yaml` (기본 포트/키 정리)
+  - `apps/frontend/src/pages/Settings/sections/ServerSettings.tsx` (FTP 문구 정리)
+- **검증**:
+  - `go test ./...` (apps/backend) 통과.
+  - `pnpm -C apps/frontend build` 통과.

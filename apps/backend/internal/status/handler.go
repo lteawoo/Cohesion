@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
+	"taeu.kr/cohesion/internal/config"
 	"taeu.kr/cohesion/internal/platform/web"
 	"taeu.kr/cohesion/internal/space"
 )
@@ -59,12 +61,7 @@ func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) *web.Erro
 	// WebDAV (Space 조회 가능 여부)
 	protocols["webdav"] = h.checkWebDAV()
 
-	// FTP (미구현)
-	protocols["ftp"] = ProtocolStatus{
-		Status:  "unavailable",
-		Message: "미구현",
-		Port:    "21",
-	}
+	protocols["ftp"] = h.checkFTP()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(StatusResponse{
@@ -113,6 +110,40 @@ func (h *Handler) checkWebDAV() ProtocolStatus {
 		Message: "정상",
 		Port:    h.port,
 		Path:    "/dav/",
+	}
+}
+
+func (h *Handler) checkFTP() ProtocolStatus {
+	if !config.Conf.Server.FtpEnabled {
+		return ProtocolStatus{
+			Status:  "unavailable",
+			Message: "비활성화",
+			Port:    strconv.Itoa(config.Conf.Server.FtpPort),
+		}
+	}
+
+	if config.Conf.Server.FtpPort <= 0 {
+		return ProtocolStatus{
+			Status:  "unhealthy",
+			Message: "포트 설정 오류",
+		}
+	}
+
+	port := strconv.Itoa(config.Conf.Server.FtpPort)
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", port), 1500*time.Millisecond)
+	if err != nil {
+		return ProtocolStatus{
+			Status:  "unhealthy",
+			Message: "연결 실패",
+			Port:    port,
+		}
+	}
+	_ = conn.Close()
+
+	return ProtocolStatus{
+		Status:  "healthy",
+		Message: "정상",
+		Port:    port,
 	}
 }
 
