@@ -9,7 +9,6 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useSpaceStore } from "@/stores/spaceStore";
 import { useBrowseStore } from "@/stores/browseStore";
 import ContextMenu from "@/components/ContextMenu";
-import type React from "react";
 
 const { Header, Content } = Layout;
 
@@ -46,15 +45,24 @@ const PageLayout = () => {
     setIsNavOpen(false);
   }, []);
 
-  const uiVars = {
-    '--ui-bg-container': token.colorBgContainer,
-    '--ui-border': token.colorBorder,
-  } as React.CSSProperties;
-
   return (
-    <Layout className="ui-page-shell" style={uiVars}>
-      <Header className="ui-header">
-        <div className="ui-header-left">
+    <Layout
+      style={{
+          display: 'flex',
+          height: '100vh',
+          overflow: 'hidden'
+      }}
+    >
+      <Header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '0 16px',
+          background: token.colorBgContainer
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {isMobile && (
               <Button
                 type="text"
@@ -65,7 +73,7 @@ const PageLayout = () => {
             <div style={{ color: token.colorText, fontSize: '20px' }}>Cohesion</div>
             <ServerStatus />
         </div>
-        <div className="ui-header-right">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Button
             type="text"
             icon={<SettingOutlined />}
@@ -75,7 +83,7 @@ const PageLayout = () => {
           />
         </div>
       </Header>
-      <Layout className="ui-content-shell">
+      <Layout>
           {!isMobile && (
           <MainSider
             onPathSelect={handlePathSelect}
@@ -98,8 +106,8 @@ const PageLayout = () => {
             />
           </Drawer>
 
-          <Content className="ui-main-content">
-              <main className="ui-main-scroll" style={{ overflow: 'hidden' }}>
+          <Content style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+              <main style={{ flex: 1, overflow: 'hidden' }}>
                   <Outlet />
               </main>
           </Content>

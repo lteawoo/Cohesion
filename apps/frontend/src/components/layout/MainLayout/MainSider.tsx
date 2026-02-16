@@ -5,7 +5,6 @@ import { Button, Layout, theme, App } from "antd";
 import type { Space } from "@/features/space/types";
 import { useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
-import type React from "react";
 
 const { Sider } = Layout;
 
@@ -48,18 +47,19 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
     onAfterSelect?.();
   };
 
-  const uiVars = {
-    '--ui-bg-container': token.colorBgContainer,
-    '--ui-border': token.colorBorder,
-  } as React.CSSProperties;
-
   const panelContent = (
     <>
       <DirectorySetupModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
       />
-      <div className="ui-sider-header">
+      <div style={{
+        padding: '16px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottom: `1px solid ${token.colorBorder}`
+      }}>
         <span style={{ fontWeight: 'bold', fontSize: '14px', color: token.colorText }}>Spaces</span>
         <Button
           type="text"
@@ -68,7 +68,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
           onClick={() => setIsOpen(true)}
         />
       </div>
-      <div className="ui-pad-sm">
+      <div style={{ padding: '8px' }}>
         <FolderTree
           onSelect={handleSelect}
           onSpaceDelete={handleDeleteSpace}
@@ -80,8 +80,11 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
   if (containerType === "panel") {
     return (
       <div
-        className="ui-sider"
-        style={{ ...uiVars, height: "100%" }}
+        style={{
+          height: "100%",
+          background: token.colorBgContainer,
+          overflow: "auto",
+        }}
       >
         {panelContent}
       </div>
@@ -91,8 +94,10 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
   return (
     <Sider
       width={300}
-      className="ui-sider"
-      style={uiVars}
+      style={{
+        background: token.colorBgContainer,
+        overflow: 'auto'
+      }}
     >
       {panelContent}
     </Sider>

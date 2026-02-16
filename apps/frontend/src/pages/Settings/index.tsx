@@ -10,7 +10,6 @@ import {
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSettingsStore } from '@/stores/settingsStore';
-import type React from 'react';
 import GeneralSettings from './sections/GeneralSettings';
 import AppearanceSettings from './sections/AppearanceSettings';
 import FileSettings from './sections/FileSettings';
@@ -26,10 +25,6 @@ const SettingsPage = () => {
   const { token } = theme.useToken();
   const navigate = useNavigate();
   const [selectedSection, setSelectedSection] = useState<SettingsSection>('general');
-  const uiVars = {
-    '--ui-bg-container': token.colorBgContainer,
-    '--ui-border': token.colorBorder,
-  } as React.CSSProperties;
 
   const menuItems = [
     {
@@ -77,8 +72,16 @@ const SettingsPage = () => {
   };
 
   return (
-    <Layout className="ui-page-shell" style={uiVars}>
-      <Header className="ui-header" style={{ justifyContent: 'flex-start', gap: 16 }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+      <Header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          padding: '0 16px',
+          background: token.colorBgContainer,
+        }}
+      >
         <Button
           type="text"
           icon={<HomeFilled style={{ fontSize: '20px' }} />}
@@ -89,26 +92,28 @@ const SettingsPage = () => {
         </Title>
       </Header>
 
-      <Layout className="ui-content-shell">
+      <Layout style={{ height: '100%' }}>
         <Sider
           width={300}
-          className="ui-sider"
-          style={{ borderRight: `1px solid ${token.colorBorder}` }}
+          style={{
+            background: token.colorBgContainer,
+          }}
         >
-          <div className="ui-pad-sm">
-            <Menu
-              mode="inline"
-              selectedKeys={[selectedSection]}
-              items={menuItems}
-              onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
-              style={{ height: '100%', borderRight: 0, borderRadius: 8 }}
-            />
-          </div>
+          <Menu
+            mode="inline"
+            selectedKeys={[selectedSection]}
+            items={menuItems}
+            onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
+            style={{ height: '100%', borderRight: 0 }}
+          />
         </Sider>
 
         <Content
-          className="ui-main-scroll ui-page-padding"
-          style={{ background: token.colorBgLayout }}
+          style={{
+            padding: '16px',
+            overflow: 'auto',
+            background: token.colorBgLayout,
+          }}
         >
           {renderContent()}
         </Content>
