@@ -1,7 +1,9 @@
 import { Card, Switch, Select, Typography, Space, Row, Col } from 'antd';
 import { useSettingsStore, type SortBy, type SortOrder } from '@/stores/settingsStore';
+import SettingSectionHeader from '../components/SettingSectionHeader';
+import SettingRow from '../components/SettingRow';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const FileSettings = () => {
   const showHiddenFiles = useSettingsStore((state) => state.showHiddenFiles);
@@ -11,31 +13,30 @@ const FileSettings = () => {
   const setDefaultSort = useSettingsStore((state) => state.setDefaultSort);
 
   return (
-    <Space vertical size="small" style={{ width: '100%', maxWidth: 480 }}>
-      <div>
-        <Title level={4} style={{ margin: 0 }}>파일 설정</Title>
-        <Text type="secondary" style={{ fontSize: 13 }}>파일 브라우저 동작 설정</Text>
-      </div>
+    <Space vertical size="small" className="settings-section">
+      <SettingSectionHeader title="파일 설정" subtitle="파일 브라우저 동작 설정" />
 
       <Card size="small">
-        <Space vertical size="small" style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text strong>숨김 파일 표시</Text>
-            <Switch
-              checked={showHiddenFiles}
-              onChange={setShowHiddenFiles}
-            />
-          </div>
+        <Space vertical size="small" className="settings-stack-full">
+          <SettingRow
+            left={<Text strong>숨김 파일 표시</Text>}
+            right={(
+              <Switch
+                checked={showHiddenFiles}
+                onChange={setShowHiddenFiles}
+              />
+            )}
+          />
 
           <div>
-            <div style={{ marginBottom: 4 }}>
+            <div className="settings-field-title">
               <Text strong>기본 정렬</Text>
             </div>
             <Row gutter={8}>
               <Col span={12}>
                 <Select
                   size="small"
-                  style={{ width: '100%' }}
+                  className="settings-select-full"
                   value={defaultSortBy}
                   onChange={(value: string) => setDefaultSort(value as SortBy, defaultSortOrder)}
                   options={[
@@ -48,7 +49,7 @@ const FileSettings = () => {
               <Col span={12}>
                 <Select
                   size="small"
-                  style={{ width: '100%' }}
+                  className="settings-select-full"
                   value={defaultSortOrder}
                   onChange={(value: string) => setDefaultSort(defaultSortBy, value as SortOrder)}
                   options={[

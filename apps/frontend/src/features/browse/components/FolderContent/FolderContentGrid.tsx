@@ -53,7 +53,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   const isMobile = !screens.sm;
   const gridTemplateColumns = isMobile
     ? 'repeat(2, minmax(0, 1fr))'
-    : 'repeat(auto-fit, minmax(172px, 220px))';
+    : 'repeat(auto-fill, minmax(172px, 1fr))';
 
   return (
     <>

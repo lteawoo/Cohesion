@@ -548,7 +548,9 @@ const FolderContent: React.FC = () => {
       )}
 
       {viewMode === 'table' ? (
-        <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+        <div
+          style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}
+        >
           <FolderContentTable
             dataSource={sortedContent}
             columns={columns}
@@ -575,7 +577,10 @@ const FolderContent: React.FC = () => {
           />
         </div>
       ) : (
-        <div ref={gridContainerRef} style={{ position: 'relative', flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+        <div
+          ref={gridContainerRef}
+          style={{ position: 'relative', flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}
+        >
           <FolderContentGrid
             dataSource={sortedContent}
             loading={isLoading}

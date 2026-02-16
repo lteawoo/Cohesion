@@ -44,7 +44,8 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
         />
         {viewMode === 'grid' && (
           <Select
-            style={{ width: 160 }}
+            popupMatchSelectWidth={false}
+            style={{ width: 'fit-content' }}
             value={`${sortConfig.sortBy}-${sortConfig.sortOrder}`}
             onChange={(value: string) => {
               const [sortBy, sortOrder] = value.split('-') as [

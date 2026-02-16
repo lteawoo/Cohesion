@@ -15,17 +15,105 @@ html, body {
   -webkit-font-smoothing: antialiased; /* 폰트 부드럽게 */
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Lightweight native scrollbar styling (WebKit + Firefox) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 140, 140, 0.35) transparent;
 }
-::-webkit-scrollbar-track {
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
   background: transparent;
 }
-::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 4px;
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 140, 0.35);
+  border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #999;
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 140, 140, 0.5);
+}
+
+.layout-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.layout-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+}
+
+.layout-header-start {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.layout-header-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.layout-header-brand {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.layout-body {
+  height: 100%;
+  min-height: 0;
+}
+
+.layout-sider {
+  width: 300px;
+  overflow: auto;
+}
+
+.layout-sider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+}
+
+.layout-sider-body {
+  padding: 8px;
+}
+
+.layout-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.layout-content-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.layout-content-scroll-hidden {
+  overflow: hidden;
+}
+
+.layout-sider-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
 }

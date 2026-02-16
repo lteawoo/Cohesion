@@ -1,6 +1,26 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Settings 잔여 인라인 스타일 공통 클래스화 완료** (2026-02-16):
+    - `settings.css`에 공통 유틸 클래스(`settings-nav-menu-full`, `settings-select-*`, `settings-divider-compact`, `settings-port-input` 등) 추가.
+    - `GeneralSettings`, `FileSettings`, `ServerSettings`의 반복 인라인 스타일을 공통 클래스로 치환.
+    - `MainLayout`/`MainSider`에도 잔여 구조 스타일을 공통 클래스(`layout-content-scroll-hidden`, `layout-sider-title`)로 정리.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과.
+- **Main/Settings 헤더·사이드 + Settings 섹션 공통 컴포넌트화 완료** (2026-02-15):
+    - 전역 레이아웃 클래스(`layout-*`)로 메인/세팅의 페이지/헤더/사이드/본문 골격을 통일.
+    - 공통 헤더 컴포넌트(`HeaderBrand`, `HeaderGroup`)를 도입해 상단 브랜드/액션 그룹 구조를 일관화.
+    - Settings 섹션 공통 컴포넌트(`SettingSectionHeader`, `SettingRow`)를 도입해 반복 마크업을 제거.
+    - Settings 사이드 메뉴 아이템 패딩/높이를 조정해 메뉴 밀도를 정리.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과.
+- **Grid 아이템 가로 채움 레이아웃 적용 완료** (2026-02-15):
+    - 데스크톱 Grid 컬럼을 `repeat(auto-fill, minmax(172px, 1fr))`로 전환.
+    - 아이템 배열 이후 남는 가로 여백이 카드 폭으로 자연스럽게 분배되도록 조정.
+    - 검증: `pnpm -C apps/frontend build` 통과.
+- **파일 목록 스크롤바 경량 스타일 정리 완료** (2026-02-15):
+    - 커스텀 오버레이 기반 페이드 인디케이터를 제거하고 네이티브 스크롤 동작으로 복원.
+    - 전역 스크롤바 스타일을 6px 얇은 thumb/투명 track 기반의 경량 테마로 정리.
+    - 정렬 Select를 고정폭(160px)에서 `fit-content`로 전환해 옵션 길이에 맞춰 폭이 맞도록 조정.
+    - 검증: `pnpm -C apps/frontend lint`, `pnpm -C apps/frontend build` 통과.
 - **PC 모달 오픈 중 배경 선택 변경 버그 수정 완료** (2026-02-15):
     - 원인: Grid 박스선택 훅(`useBoxSelection`)의 전역 `window.mousedown` 경로가 모달 오픈 상태에서도 동작.
     - 조치: 모달 오픈 시 박스선택 비활성화 + 모달 레이어 타깃/오픈 마스크 감지 시 박스선택 시작 차단.

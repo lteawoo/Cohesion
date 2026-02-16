@@ -1,0 +1,80 @@
+.settings-content {
+  padding: 16px;
+}
+
+.settings-nav-menu .ant-menu-item,
+.settings-nav-menu .ant-menu-submenu-title {
+  min-height: 34px;
+  line-height: 34px;
+  margin-block: 2px;
+  padding-inline: 10px !important;
+}
+
+.settings-nav-menu-full {
+  height: 100%;
+  border-right: 0 !important;
+}
+
+.settings-icon-lg {
+  font-size: 20px;
+}
+
+.settings-section {
+  width: 100%;
+  max-width: 480px;
+}
+
+.settings-section-title {
+  margin: 0 !important;
+}
+
+.settings-section-subtitle {
+  font-size: 13px;
+}
+
+.settings-stack-full {
+  width: 100%;
+}
+
+.settings-row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-field-title {
+  margin-bottom: 4px;
+}
+
+.settings-inline-note {
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.settings-info-text {
+  font-size: 13px;
+}
+
+.settings-select-compact {
+  width: 140px;
+}
+
+.settings-select-full {
+  width: 100%;
+}
+
+.settings-alert-compact {
+  padding: 8px 12px;
+}
+
+.settings-divider-compact {
+  margin: 6px 0 !important;
+}
+
+.settings-port-input {
+  width: 100px;
+}
+
+.settings-text-xs {
+  font-size: 12px;
+}

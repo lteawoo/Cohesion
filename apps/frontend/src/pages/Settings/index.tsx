@@ -1,4 +1,4 @@
-import { ConfigProvider, Layout, Menu, Typography, Button, theme, App } from 'antd';
+import { ConfigProvider, Layout, Menu, Button, theme, App } from 'antd';
 import {
   AppstoreOutlined,
   BgColorsOutlined,
@@ -15,9 +15,11 @@ import AppearanceSettings from './sections/AppearanceSettings';
 import FileSettings from './sections/FileSettings';
 import ServerSettings from './sections/ServerSettings';
 import AdvancedSettings from './sections/AdvancedSettings';
+import HeaderBrand from '@/components/common/HeaderBrand';
+import HeaderGroup from '@/components/common/HeaderGroup';
+import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
-const { Title } = Typography;
 
 type SettingsSection = 'general' | 'appearance' | 'files' | 'server' | 'advanced';
 
@@ -72,46 +74,43 @@ const SettingsPage = () => {
   };
 
   return (
-    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+    <Layout className="layout-page">
       <Header
+        className="layout-header"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          padding: '0 16px',
           background: token.colorBgContainer,
         }}
       >
-        <Button
-          type="text"
-          icon={<HomeFilled style={{ fontSize: '20px' }} />}
-          onClick={() => navigate('/')}
-        />
-        <Title level={4} style={{ margin: 0 }}>
-          설정
-        </Title>
+        <HeaderGroup align="start">
+          <Button
+            type="text"
+            icon={<HomeFilled className="settings-icon-lg" />}
+            onClick={() => navigate('/')}
+          />
+          <HeaderBrand text="설정" color={token.colorText} />
+        </HeaderGroup>
       </Header>
 
-      <Layout style={{ height: '100%' }}>
+      <Layout className="layout-body">
         <Sider
+          className="layout-sider"
           width={300}
           style={{
             background: token.colorBgContainer,
           }}
         >
           <Menu
+            className="settings-nav-menu settings-nav-menu-full"
             mode="inline"
             selectedKeys={[selectedSection]}
             items={menuItems}
             onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
-            style={{ height: '100%', borderRight: 0 }}
           />
         </Sider>
 
         <Content
+          className="layout-content-scroll settings-content"
           style={{
-            padding: '16px',
-            overflow: 'auto',
             background: token.colorBgLayout,
           }}
         >

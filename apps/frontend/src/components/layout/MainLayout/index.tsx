@@ -9,6 +9,8 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useSpaceStore } from "@/stores/spaceStore";
 import { useBrowseStore } from "@/stores/browseStore";
 import ContextMenu from "@/components/ContextMenu";
+import HeaderBrand from "@/components/common/HeaderBrand";
+import HeaderGroup from "@/components/common/HeaderGroup";
 
 const { Header, Content } = Layout;
 
@@ -46,23 +48,14 @@ const PageLayout = () => {
   }, []);
 
   return (
-    <Layout
-      style={{
-          display: 'flex',
-          height: '100vh',
-          overflow: 'hidden'
-      }}
-    >
+    <Layout className="layout-page">
       <Header
+        className="layout-header"
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0 16px',
           background: token.colorBgContainer
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <HeaderGroup align="start">
             {isMobile && (
               <Button
                 type="text"
@@ -70,10 +63,10 @@ const PageLayout = () => {
                 onClick={() => setIsNavOpen(true)}
               />
             )}
-            <div style={{ color: token.colorText, fontSize: '20px' }}>Cohesion</div>
+            <HeaderBrand text="Cohesion" color={token.colorText} />
             <ServerStatus />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        </HeaderGroup>
+        <HeaderGroup align="end">
           <Button
             type="text"
             icon={<SettingOutlined />}
@@ -81,9 +74,9 @@ const PageLayout = () => {
             aria-label="설정"
             title="설정"
           />
-        </div>
+        </HeaderGroup>
       </Header>
-      <Layout>
+      <Layout className="layout-body">
           {!isMobile && (
           <MainSider
             onPathSelect={handlePathSelect}
@@ -106,8 +99,8 @@ const PageLayout = () => {
             />
           </Drawer>
 
-          <Content style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
-              <main style={{ flex: 1, overflow: 'hidden' }}>
+          <Content className="layout-content">
+              <main className="layout-content-scroll layout-content-scroll-hidden">
                   <Outlet />
               </main>
           </Content>
