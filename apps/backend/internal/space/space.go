@@ -54,6 +54,5 @@ func (req *CreateSpaceRequest) Validate() error {
 type CreateSpaceResponse struct {
 	ID        int64  `json:"id"`
 	SpaceName string `json:"space_name"`
-	SpacePath string `json:"space_path"`
 	Message   string `json:"message"`
 }

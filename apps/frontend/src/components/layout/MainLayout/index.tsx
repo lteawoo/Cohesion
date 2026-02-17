@@ -22,26 +22,33 @@ const PageLayout = () => {
   const [isNavOpen, setIsNavOpen] = useState(false);
   const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
   const spaces = useSpaceStore((state) => state.spaces);
+  const selectedSpace = useBrowseStore((state) => state.selectedSpace);
   const setPath = useBrowseStore((state) => state.setPath);
+  const clearContent = useBrowseStore((state) => state.clearContent);
 
   useEffect(() => {
     fetchSpaces();
   }, [fetchSpaces]);
 
   const handlePathSelect = useCallback((path: string, space?: Space) => {
-    // Space가 명시되지 않으면 경로에서 자동으로 찾기 (가장 긴 매칭 선택)
     if (space) {
       setPath(path, space);
-    } else {
-      const matchingSpaces = spaces?.filter(s => path.startsWith(s.space_path)) || [];
-      const matchedSpace = matchingSpaces.length > 0
-        ? matchingSpaces.reduce((longest, current) =>
-            current.space_path.length > longest.space_path.length ? current : longest
-          )
-        : undefined;
-      setPath(path, matchedSpace);
+      return;
     }
-  }, [setPath, spaces]);
+    if (selectedSpace) {
+      setPath(path, selectedSpace);
+    }
+  }, [setPath, selectedSpace]);
+
+  useEffect(() => {
+    if (!selectedSpace) {
+      return;
+    }
+    const isSelectedSpaceAllowed = spaces.some((space) => space.id === selectedSpace.id);
+    if (!isSelectedSpaceAllowed) {
+      clearContent();
+    }
+  }, [spaces, selectedSpace, clearContent]);
 
   const closeNavDrawer = useCallback(() => {
     setIsNavOpen(false);

@@ -4,8 +4,7 @@ import { Spin } from 'antd';
 
 interface ImageThumbnailProps {
   spaceId: number;
-  spacePath: string;
-  path: string;       // 절대 경로
+  path: string;
   alt: string;
   size?: number;
   fit?: 'contain' | 'cover';
@@ -13,7 +12,6 @@ interface ImageThumbnailProps {
 
 export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
   spaceId,
-  spacePath,
   path,
   alt,
   size = 120,
@@ -22,8 +20,7 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const relativePath = path.replace(spacePath, '').replace(/^\//, '');
-  const src = `/api/spaces/${spaceId}/files/download?path=${encodeURIComponent(relativePath)}`;
+  const src = `/api/spaces/${spaceId}/files/download?path=${encodeURIComponent(path)}`;
 
   if (error) {
     return (

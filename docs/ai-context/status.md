@@ -1,6 +1,18 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Space 절대경로 비노출 구조 1차 적용 완료** (2026-02-17):
+    - 백엔드:
+      - `GET /api/spaces` 응답에서 `space_path` 제거(클라이언트 노출 차단).
+      - `GET /api/spaces/{id}/browse`의 파일 `path`를 Space 상대경로로 변환하여 반환.
+      - Space 목록 응답은 사용자별 Space 접근 권한(`read`) 필터링 유지.
+    - 프론트:
+      - 탐색기 경로 모델을 Space 상대경로 중심으로 전환(`selectedPath`를 relative path로 사용).
+      - 트리/브레드크럼/파일작업(업로드/이동/복사/삭제/다운로드) 로직을 relative path 기준으로 정렬.
+      - 설정/모달에서 절대경로 텍스트 노출 제거 유지.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `cd apps/frontend && pnpm exec tsc --noEmit` 통과
 - **RBAC 하드닝 및 테스트 보강 완료** (2026-02-17):
     - 백엔드:
       - 사용 중인 Role 삭제 차단(해당 Role 사용자 존재 시 삭제 불가).

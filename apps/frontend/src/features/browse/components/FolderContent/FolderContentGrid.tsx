@@ -12,7 +12,6 @@ interface FolderContentGridProps {
   selectedItems: Set<string>;
   dragOverFolder: string | null;
   spaceId?: number;
-  spacePath?: string;
   onItemClick: (e: React.MouseEvent<HTMLElement>, record: FileNode, index: number) => void;
   onItemDoubleClick: (path: string) => void;
   onItemTouchStart?: (record: FileNode, index: number) => void;
@@ -47,7 +46,6 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   itemsRef,
   disableDraggable = false,
   spaceId,
-  spacePath,
 }) => {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
@@ -123,10 +121,9 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                     >
                       <FolderFilled style={{ fontSize: '48px', color: '#ffca28' }} />
                     </div>
-                  ) : isImageFile(item.name) && spaceId && spacePath ? (
+                  ) : isImageFile(item.name) && spaceId ? (
                     <ImageThumbnail
                       spaceId={spaceId}
-                      spacePath={spacePath}
                       path={item.path}
                       alt={item.name}
                       size={128}

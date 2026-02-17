@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { Space } from '@/features/space/types';
 
 export type AccountRole = string;
 
@@ -22,6 +23,14 @@ export interface UpdateAccountRequest {
   nickname?: string;
   password?: string;
   role?: AccountRole;
+}
+
+export type SpacePermission = 'read' | 'write' | 'manage';
+
+export interface UserSpacePermission {
+  userId: number;
+  spaceId: number;
+  permission: SpacePermission;
 }
 
 async function parseError(response: Response): Promise<Error> {
@@ -84,4 +93,33 @@ export async function deleteAccount(id: number): Promise<void> {
   if (!response.ok) {
     throw await parseError(response);
   }
+}
+
+export async function listAccountPermissions(id: number): Promise<UserSpacePermission[]> {
+  const response = await apiFetch(`/api/accounts/${id}/permissions`);
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  return response.json();
+}
+
+export async function updateAccountPermissions(id: number, permissions: UserSpacePermission[]): Promise<void> {
+  const response = await apiFetch(`/api/accounts/${id}/permissions`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ permissions }),
+  });
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+}
+
+export async function listSpaces(): Promise<Space[]> {
+  const response = await apiFetch('/api/spaces');
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  return response.json();
 }

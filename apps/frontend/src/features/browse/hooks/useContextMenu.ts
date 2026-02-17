@@ -6,6 +6,7 @@ import type { FileNode } from '../types';
 interface UseContextMenuParams {
   selectedItems: Set<string>;
   sortedContent: FileNode[];
+  canWriteFiles: boolean;
   onSetSelection: (items: Set<string>, index: number) => void;
   callbacks: ContextMenuCallbacks;
 }
@@ -18,6 +19,7 @@ interface UseContextMenuReturn {
 export function useContextMenu({
   selectedItems,
   sortedContent,
+  canWriteFiles,
   onSetSelection,
   callbacks,
 }: UseContextMenuParams): UseContextMenuReturn {
@@ -38,23 +40,23 @@ export function useContextMenu({
           onCopy: callbacks.onCopy,
           onMove: callbacks.onMove,
           onBulkDelete: callbacks.onBulkDelete,
-        });
+        }, { canWriteFiles });
 
         openContextMenu(e.clientX, e.clientY, menuItems);
       } else if (isSelectedItem && selectedItems.size === 1) {
         // 단일 선택 메뉴 (선택된 항목 우클릭)
-        const menuItems = buildSingleItemMenu(record, callbacks);
+        const menuItems = buildSingleItemMenu(record, callbacks, { canWriteFiles });
         openContextMenu(e.clientX, e.clientY, menuItems);
       } else {
         // 선택되지 않은 항목 우클릭 - 해당 항목만 선택하고 단일 메뉴 표시
         const index = sortedContent.findIndex((item) => item.path === record.path);
         onSetSelection(new Set([record.path]), index);
 
-        const menuItems = buildSingleItemMenu(record, callbacks);
+        const menuItems = buildSingleItemMenu(record, callbacks, { canWriteFiles });
         openContextMenu(e.clientX, e.clientY, menuItems);
       }
     },
-    [selectedItems, sortedContent, onSetSelection, callbacks, openContextMenu]
+    [selectedItems, sortedContent, canWriteFiles, onSetSelection, callbacks, openContextMenu]
   );
 
   const handleEmptyAreaContextMenu = useCallback(
@@ -67,11 +69,14 @@ export function useContextMenu({
 
       // 카드나 테이블 행을 클릭하지 않은 경우 빈 영역 메뉴 표시
       if (!isCard && !isTableRow) {
-        const emptyAreaMenuItems = buildEmptyAreaMenu(callbacks.onCreateFolder);
+        const emptyAreaMenuItems = buildEmptyAreaMenu(callbacks.onCreateFolder, { canWriteFiles });
+        if (emptyAreaMenuItems.length === 0) {
+          return;
+        }
         openContextMenu(e.clientX, e.clientY, emptyAreaMenuItems);
       }
     },
-    [callbacks, openContextMenu]
+    [callbacks, canWriteFiles, openContextMenu]
   );
 
   return {

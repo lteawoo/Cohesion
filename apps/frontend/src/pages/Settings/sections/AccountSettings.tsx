@@ -6,13 +6,19 @@ import type { ChangeEvent } from 'react';
 import {
   type AccountRole,
   type AccountUser,
+  type SpacePermission,
+  type UserSpacePermission,
   createAccount,
   deleteAccount,
+  listAccountPermissions,
   listAccounts,
+  listSpaces,
+  updateAccountPermissions,
   updateAccount,
 } from '@/api/accounts';
 import { listRoles } from '@/api/roles';
 import SettingSectionHeader from '../components/SettingSectionHeader';
+import type { Space as SpaceItem } from '@/features/space/types';
 
 const { Text } = Typography;
 
@@ -51,6 +57,11 @@ const AccountSettings = () => {
     password: '',
     role: 'user',
   });
+  const [permissionTarget, setPermissionTarget] = useState<AccountUser | null>(null);
+  const [spaceList, setSpaceList] = useState<SpaceItem[]>([]);
+  const [spacePermissionMap, setSpacePermissionMap] = useState<Record<number, SpacePermission | undefined>>({});
+  const [permissionLoading, setPermissionLoading] = useState(false);
+  const [permissionSaving, setPermissionSaving] = useState(false);
   const [roleOptions, setRoleOptions] = useState<{ value: AccountRole; label: string }[]>([
     { value: 'admin', label: 'admin' },
     { value: 'user', label: 'user' },
@@ -189,6 +200,54 @@ const AccountSettings = () => {
     }
   };
 
+  const loadAccountPermissions = useCallback(async (user: AccountUser) => {
+    setPermissionLoading(true);
+    try {
+      const [spaces, permissions] = await Promise.all([
+        listSpaces(),
+        listAccountPermissions(user.id),
+      ]);
+
+      const permissionMap: Record<number, SpacePermission | undefined> = {};
+      permissions.forEach((item) => {
+        // legacy manage 값은 UI에서 read+write(write)로 매핑
+        permissionMap[item.spaceId] = item.permission === 'manage' ? 'write' : item.permission;
+      });
+
+      setSpaceList(spaces);
+      setSpacePermissionMap(permissionMap);
+      setPermissionTarget(user);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Space 권한을 불러오지 못했습니다');
+    } finally {
+      setPermissionLoading(false);
+    }
+  }, [message]);
+
+  const handleSavePermissions = async () => {
+    if (!permissionTarget) return;
+    setPermissionSaving(true);
+    try {
+      const payload: UserSpacePermission[] = Object.entries(spacePermissionMap)
+        .filter(([, permission]) => Boolean(permission))
+        .map(([spaceId, permission]) => ({
+          userId: permissionTarget.id,
+          spaceId: Number(spaceId),
+          permission: permission as SpacePermission,
+        }));
+
+      await updateAccountPermissions(permissionTarget.id, payload);
+      message.success('Space 권한이 저장되었습니다');
+      setPermissionTarget(null);
+      setSpacePermissionMap({});
+      setSpaceList([]);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Space 권한 저장에 실패했습니다');
+    } finally {
+      setPermissionSaving(false);
+    }
+  };
+
   const columns: ColumnsType<AccountUser> = [
     {
       title: '아이디',
@@ -215,9 +274,15 @@ const AccountSettings = () => {
     {
       title: '작업',
       key: 'actions',
-      width: 180,
+      width: 280,
       render: (_: unknown, record: AccountUser) => (
         <Space size="small">
+          <Button
+            size="small"
+            onClick={() => void loadAccountPermissions(record)}
+          >
+            Space 권한
+          </Button>
           <Button
             size="small"
             icon={<EditOutlined />}
@@ -359,6 +424,49 @@ const AccountSettings = () => {
             value={editForm.role}
             onChange={(value: AccountRole) => setEditForm((prev) => ({ ...prev, role: value }))}
           />
+        </Space>
+      </Modal>
+
+      <Modal
+        title={permissionTarget ? `${permissionTarget.username} Space 권한` : 'Space 권한'}
+        open={Boolean(permissionTarget)}
+        onCancel={() => {
+          setPermissionTarget(null);
+          setSpacePermissionMap({});
+          setSpaceList([]);
+        }}
+        onOk={() => void handleSavePermissions()}
+        okText="저장"
+        cancelText="취소"
+        confirmLoading={permissionSaving}
+      >
+        <Space orientation="vertical" size="small" className="settings-stack-full">
+          {permissionLoading ? (
+            <Text type="secondary">불러오는 중...</Text>
+          ) : (
+            spaceList.map((space) => (
+                <div key={space.id} style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <Text strong>{space.space_name}</Text>
+                  </div>
+                  <Select
+                  style={{ width: 140 }}
+                  value={spacePermissionMap[space.id] ?? 'none'}
+                  options={[
+                    { value: 'none', label: '없음' },
+                    { value: 'read', label: 'read' },
+                    { value: 'write', label: 'read + write' },
+                  ]}
+                  onChange={(value: string) => {
+                    setSpacePermissionMap((prev) => ({
+                      ...prev,
+                      [space.id]: value === 'none' ? undefined : value as SpacePermission,
+                    }));
+                  }}
+                />
+              </div>
+            ))
+          )}
         </Space>
       </Modal>
     </Space>

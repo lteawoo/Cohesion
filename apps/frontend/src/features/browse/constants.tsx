@@ -85,8 +85,10 @@ export interface ContextMenuCallbacks {
 
 export function buildSingleItemMenu(
   record: FileNode,
-  callbacks: ContextMenuCallbacks
+  callbacks: ContextMenuCallbacks,
+  options?: { canWriteFiles?: boolean }
 ): MenuProps['items'] {
+  const canWriteFiles = options?.canWriteFiles ?? true;
   return [
     {
       key: 'download',
@@ -94,39 +96,45 @@ export function buildSingleItemMenu(
       label: record.isDir ? '폴더 다운로드 (ZIP)' : '다운로드',
       onClick: () => callbacks.onDownload(record.path),
     },
-    {
-      key: 'copy',
-      icon: <CopyOutlined />,
-      label: '복사',
-      onClick: callbacks.onCopy,
-    },
-    {
-      key: 'move',
-      icon: <ScissorOutlined />,
-      label: '이동',
-      onClick: callbacks.onMove,
-    },
-    {
-      key: 'rename',
-      icon: <EditOutlined />,
-      label: '이름 변경',
-      onClick: () => callbacks.onRename(record),
-    },
-    { type: 'divider' },
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      label: '삭제',
-      danger: true,
-      onClick: () => callbacks.onDelete(record),
-    },
+    ...(canWriteFiles
+      ? [
+          {
+            key: 'copy',
+            icon: <CopyOutlined />,
+            label: '복사',
+            onClick: callbacks.onCopy,
+          },
+          {
+            key: 'move',
+            icon: <ScissorOutlined />,
+            label: '이동',
+            onClick: callbacks.onMove,
+          },
+          {
+            key: 'rename',
+            icon: <EditOutlined />,
+            label: '이름 변경',
+            onClick: () => callbacks.onRename(record),
+          },
+          { type: 'divider' as const },
+          {
+            key: 'delete',
+            icon: <DeleteOutlined />,
+            label: '삭제',
+            danger: true,
+            onClick: () => callbacks.onDelete(record),
+          },
+        ]
+      : []),
   ];
 }
 
 export function buildMultiItemMenu(
   count: number,
-  callbacks: Pick<ContextMenuCallbacks, 'onBulkDownload' | 'onCopy' | 'onMove' | 'onBulkDelete'>
+  callbacks: Pick<ContextMenuCallbacks, 'onBulkDownload' | 'onCopy' | 'onMove' | 'onBulkDelete'>,
+  options?: { canWriteFiles?: boolean }
 ): MenuProps['items'] {
+  const canWriteFiles = options?.canWriteFiles ?? true;
   return [
     {
       key: 'download',
@@ -134,30 +142,38 @@ export function buildMultiItemMenu(
       label: `다운로드 (${count}개)`,
       onClick: callbacks.onBulkDownload,
     },
-    {
-      key: 'copy',
-      icon: <CopyOutlined />,
-      label: `복사 (${count}개)`,
-      onClick: callbacks.onCopy,
-    },
-    {
-      key: 'move',
-      icon: <ScissorOutlined />,
-      label: `이동 (${count}개)`,
-      onClick: callbacks.onMove,
-    },
-    { type: 'divider' },
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      label: `삭제 (${count}개)`,
-      danger: true,
-      onClick: callbacks.onBulkDelete,
-    },
+    ...(canWriteFiles
+      ? [
+          {
+            key: 'copy',
+            icon: <CopyOutlined />,
+            label: `복사 (${count}개)`,
+            onClick: callbacks.onCopy,
+          },
+          {
+            key: 'move',
+            icon: <ScissorOutlined />,
+            label: `이동 (${count}개)`,
+            onClick: callbacks.onMove,
+          },
+          { type: 'divider' as const },
+          {
+            key: 'delete',
+            icon: <DeleteOutlined />,
+            label: `삭제 (${count}개)`,
+            danger: true,
+            onClick: callbacks.onBulkDelete,
+          },
+        ]
+      : []),
   ];
 }
 
-export function buildEmptyAreaMenu(onCreateFolder: () => void): MenuProps['items'] {
+export function buildEmptyAreaMenu(onCreateFolder: () => void, options?: { canWriteFiles?: boolean }): MenuProps['items'] {
+  const canWriteFiles = options?.canWriteFiles ?? true;
+  if (!canWriteFiles) {
+    return [];
+  }
   return [
     {
       key: 'create-folder',

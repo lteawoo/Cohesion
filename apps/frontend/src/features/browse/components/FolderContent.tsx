@@ -117,12 +117,12 @@ const FolderContent: React.FC = () => {
   const { handleContextMenu, handleEmptyAreaContextMenu } = useContextMenu({
     selectedItems,
     sortedContent: content,
+    canWriteFiles,
     onSetSelection: setSelection,
     callbacks: {
       onDownload: (path: string) => {
         if (selectedSpace) {
-          const relativePath = path.replace(selectedSpace.space_path, '').replace(/^\//, '');
-          window.location.href = `/api/spaces/${selectedSpace.id}/files/download?path=${encodeURIComponent(relativePath)}`;
+          window.location.href = `/api/spaces/${selectedSpace.id}/files/download?path=${encodeURIComponent(path)}`;
         }
       },
       onCopy: () => openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) }),
@@ -138,11 +138,8 @@ const FolderContent: React.FC = () => {
   });
 
   useEffect(() => {
-    if (selectedPath && selectedSpace) {
-      const relativePath = selectedPath
-        .replace(selectedSpace.space_path, '')
-        .replace(/^\//, '');
-      useBrowseStore.getState().fetchSpaceContents(selectedSpace.id, relativePath);
+    if (selectedSpace) {
+      useBrowseStore.getState().fetchSpaceContents(selectedSpace.id, selectedPath);
     }
 
     const currentNav = { path: selectedPath, spaceId: selectedSpace?.id };
@@ -413,8 +410,8 @@ const FolderContent: React.FC = () => {
     }
   };
 
-  // Early return if no path selected
-  if (!selectedPath) {
+  // Early return if no space selected
+  if (!selectedSpace) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Empty description="왼쪽 트리나 스페이스에서 폴더를 선택하세요." />
@@ -612,7 +609,6 @@ const FolderContent: React.FC = () => {
             itemsRef={itemsRef}
             disableDraggable={isSelecting || isMobile || !canWriteFiles}
             spaceId={selectedSpace?.id}
-            spacePath={selectedSpace?.space_path}
           />
           <BoxSelectionOverlay
             visible={isSelecting && selectionBox !== null}

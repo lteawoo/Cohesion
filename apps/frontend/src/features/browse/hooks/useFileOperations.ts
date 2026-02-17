@@ -16,16 +16,16 @@ interface UseFileOperationsReturn {
   handleFileUpload: (file: File, targetPath: string) => Promise<void>;
 }
 
-// 절대 경로를 Space 상대 경로로 변환
-function toRelativePath(spacePath: string, absolutePath: string): string {
-  return absolutePath.replace(spacePath, '').replace(/^\//, '');
+function normalizeRelativePath(path: string): string {
+  return path.replace(/^\/+/, '').replace(/\/+$/, '');
 }
 
 function getParentPath(path: string): string {
-  if (!path || path === '/') return '/';
-  const normalizedPath = path.endsWith('/') && path.length > 1 ? path.slice(0, -1) : path;
+  if (!path) return '';
+  const normalizedPath = normalizeRelativePath(path);
+  if (!normalizedPath) return '';
   const lastSlashIndex = normalizedPath.lastIndexOf('/');
-  if (lastSlashIndex <= 0) return '/';
+  if (lastSlashIndex <= 0) return '';
   return normalizedPath.slice(0, lastSlashIndex);
 }
 
@@ -44,8 +44,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
   // 현재 경로로 목록 새로고침 (Space 필수)
   const refreshContents = useCallback(async () => {
     if (!selectedSpace) return;
-    const relativePath = toRelativePath(selectedSpace.space_path, selectedPath);
-    await fetchSpaceContents(selectedSpace.id, relativePath);
+    await fetchSpaceContents(selectedSpace.id, normalizeRelativePath(selectedPath));
   }, [selectedPath, selectedSpace, fetchSpaceContents]);
 
   // 파일 업로드 실행 함수
@@ -55,7 +54,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('path', toRelativePath(selectedSpace.space_path, targetPath));
+      formData.append('path', normalizeRelativePath(targetPath));
       if (overwrite) {
         formData.append('overwrite', 'true');
       }
@@ -129,7 +128,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            path: toRelativePath(selectedSpace.space_path, oldPath),
+            path: normalizeRelativePath(oldPath),
             newName: newName.trim(),
           }),
         });
@@ -166,7 +165,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            parentPath: toRelativePath(selectedSpace.space_path, parentPath),
+            parentPath: normalizeRelativePath(parentPath),
             folderName: folderName.trim(),
           }),
         });
@@ -196,7 +195,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       }
 
       try {
-        const relativePaths = paths.map(p => toRelativePath(selectedSpace.space_path, p));
+        const relativePaths = paths.map(p => normalizeRelativePath(p));
 
         if (relativePaths.length === 1) {
           window.location.href = `/api/spaces/${selectedSpace.id}/files/download?path=${encodeURIComponent(relativePaths[0])}`;
@@ -250,7 +249,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
             return;
           }
           try {
-            const relativePaths = paths.map(p => toRelativePath(selectedSpace.space_path, p));
+            const relativePaths = paths.map(p => normalizeRelativePath(p));
             const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/delete-multiple`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -295,8 +294,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       const dstSpace = destinationSpace ?? selectedSpace;
 
       try {
-        const relativeSources = sources.map(s => toRelativePath(selectedSpace.space_path, s));
-        const relativeDestination = toRelativePath(dstSpace.space_path, destination);
+        const relativeSources = sources.map(s => normalizeRelativePath(s));
+        const relativeDestination = normalizeRelativePath(destination);
 
         const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/move`, {
           method: 'POST',
@@ -349,8 +348,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       const dstSpace = destinationSpace ?? selectedSpace;
 
       try {
-        const relativeSources = sources.map(s => toRelativePath(selectedSpace.space_path, s));
-        const relativeDestination = toRelativePath(dstSpace.space_path, destination);
+        const relativeSources = sources.map(s => normalizeRelativePath(s));
+        const relativeDestination = normalizeRelativePath(destination);
 
         const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/copy`, {
           method: 'POST',
@@ -408,7 +407,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
             const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/delete`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: toRelativePath(selectedSpace.space_path, record.path) }),
+              body: JSON.stringify({ path: normalizeRelativePath(record.path) }),
             });
 
             if (!response.ok) {

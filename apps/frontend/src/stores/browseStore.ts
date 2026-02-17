@@ -4,6 +4,10 @@ import type { Space } from '@/features/space/types';
 import { useSpaceStore } from './spaceStore';
 import { apiFetch } from '@/api/client';
 
+function normalizeRelativePath(path: string): string {
+  return path.replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
 export interface TreeInvalidationTarget {
   path: string;
   spaceId?: number;
@@ -35,10 +39,13 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
   treeInvalidationTargets: [],
 
   setPath: (path: string, space?: Space) => {
-    set((state) => ({
-      selectedPath: path,
-      selectedSpace: space !== undefined ? space : state.selectedSpace,
-    }));
+    set((state) => {
+      const nextSpace = space !== undefined ? space : state.selectedSpace;
+      return {
+        selectedPath: nextSpace ? normalizeRelativePath(path) : path,
+        selectedSpace: nextSpace,
+      };
+    });
   },
 
   // Space 등록 모달 전용 — Space 외부 시스템 탐색에서만 사용

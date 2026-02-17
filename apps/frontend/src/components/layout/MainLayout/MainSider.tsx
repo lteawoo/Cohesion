@@ -5,6 +5,7 @@ import { Button, Layout, theme, App } from "antd";
 import type { Space } from "@/features/space/types";
 import { useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
+import { useAuth } from "@/features/auth/useAuth";
 
 const { Sider } = Layout;
 
@@ -17,6 +18,8 @@ interface MainSiderProps {
 export default function MainSider({ onPathSelect, onAfterSelect, containerType = "sider" }: MainSiderProps) {
   const { token } = theme.useToken();
   const { message, modal } = App.useApp();
+  const { user } = useAuth();
+  const canWriteSpaces = (user?.permissions ?? []).includes("space.write");
   const [isOpen, setIsOpen] = useState(false);
   const deleteSpaceAction = useSpaceStore((state) => state.deleteSpace);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -58,17 +61,19 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
         style={{ borderBottom: `1px solid ${token.colorBorder}`, color: token.colorText }}
       >
         <span className="layout-sider-title">Spaces</span>
-        <Button
-          type="text"
-          icon={<PlusOutlined />}
-          size="small"
-          onClick={() => setIsOpen(true)}
-        />
+        {canWriteSpaces && (
+          <Button
+            type="text"
+            icon={<PlusOutlined />}
+            size="small"
+            onClick={() => setIsOpen(true)}
+          />
+        )}
       </div>
       <div className="layout-sider-body">
         <FolderTree
           onSelect={handleSelect}
-          onSpaceDelete={handleDeleteSpace}
+          onSpaceDelete={canWriteSpaces ? handleDeleteSpace : undefined}
         />
       </div>
     </>
