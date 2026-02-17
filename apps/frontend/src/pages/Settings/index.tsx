@@ -1,4 +1,4 @@
-import { ConfigProvider, Layout, Menu, Button, theme, App } from 'antd';
+import { ConfigProvider, Layout, Menu, Button, theme, App, Grid, Drawer } from 'antd';
 import {
   UserOutlined,
   AppstoreOutlined,
@@ -8,6 +8,7 @@ import {
   SafetyCertificateOutlined,
   TeamOutlined,
   HomeFilled,
+  MenuOutlined,
 } from '@ant-design/icons';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -30,9 +31,12 @@ type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server'
 
 const SettingsPage = () => {
   const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.lg;
   const navigate = useNavigate();
   const { user } = useAuth();
   const [selectedSection, setSelectedSection] = useState<SettingsSection>('profile');
+  const [isNavOpen, setIsNavOpen] = useState(false);
 
   const permissions = user?.permissions ?? [];
   const canAccessServerSettings = permissions.includes('server.config.read') || permissions.includes('server.config.write');
@@ -114,6 +118,15 @@ const SettingsPage = () => {
         }}
       >
         <HeaderGroup align="start">
+          {isMobile && (
+            <Button
+              type="text"
+              icon={<MenuOutlined className="settings-icon-lg" />}
+              onClick={() => setIsNavOpen(true)}
+              aria-label="설정 메뉴 열기"
+              title="설정 메뉴"
+            />
+          )}
           <Button
             type="text"
             icon={<HomeFilled className="settings-icon-lg" />}
@@ -124,21 +137,23 @@ const SettingsPage = () => {
       </Header>
 
       <Layout className="layout-body">
-        <Sider
-          className="layout-sider"
-          width={300}
-          style={{
-            background: token.colorBgContainer,
-          }}
-        >
-          <Menu
-            className="settings-nav-menu settings-nav-menu-full"
-            mode="inline"
-            selectedKeys={[effectiveSection]}
-            items={menuItems}
-            onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
-          />
-        </Sider>
+        {!isMobile && (
+          <Sider
+            className="layout-sider"
+            width={300}
+            style={{
+              background: token.colorBgContainer,
+            }}
+          >
+            <Menu
+              className="settings-nav-menu settings-nav-menu-full"
+              mode="inline"
+              selectedKeys={[effectiveSection]}
+              items={menuItems}
+              onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
+            />
+          </Sider>
+        )}
 
         <Content
           className="layout-content-scroll settings-content"
@@ -148,6 +163,26 @@ const SettingsPage = () => {
         >
           {renderContent()}
         </Content>
+
+        <Drawer
+          rootClassName="app-drawer app-drawer--settings-nav"
+          placement="left"
+          title="설정 메뉴"
+          open={isMobile && isNavOpen}
+          onClose={() => setIsNavOpen(false)}
+          maskClosable
+        >
+          <Menu
+            className="settings-nav-menu settings-nav-menu-full"
+            mode="inline"
+            selectedKeys={[effectiveSection]}
+            items={menuItems}
+            onClick={({ key }: { key: string }) => {
+              setSelectedSection(key as SettingsSection);
+              setIsNavOpen(false);
+            }}
+          />
+        </Drawer>
       </Layout>
     </Layout>
   );

@@ -77,3 +77,13 @@
 .settings-text-xs {
   font-size: 12px;
 }
+
+.app-drawer--settings-nav .settings-nav-menu-full {
+  border-right: 0 !important;
+}
+
+@media (max-width: 991px) {
+  .settings-content {
+    padding: 12px;
+  }
+}

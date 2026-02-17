@@ -649,24 +649,36 @@ const FolderContent: React.FC = () => {
       />
 
       <Drawer
+        rootClassName="app-drawer app-drawer--no-header app-drawer--bottom-actions"
         placement="bottom"
         title={null}
         open={showMobileSelectionBar && isMobileActionsOpen}
         onClose={() => setIsMobileActionsOpen(false)}
         closable={false}
         size="default"
-        styles={{ body: { padding: 0 } }}
+        maskClosable
       >
         <div style={{ padding: '8px 0 4px' }}>
-          <div
-            style={{
-              width: 36,
-              height: 4,
-              borderRadius: 999,
-              background: token.colorBorderSecondary,
-              margin: '0 auto 8px',
-            }}
-          />
+          <div style={{ position: 'relative', height: 28, marginBottom: 4 }}>
+            <div
+              style={{
+                width: 36,
+                height: 4,
+                borderRadius: 999,
+                background: token.colorBorderSecondary,
+                margin: '0 auto',
+              }}
+            />
+            <Button
+              type="text"
+              size="small"
+              icon={<CloseOutlined />}
+              onClick={() => setIsMobileActionsOpen(false)}
+              aria-label="닫기"
+              title="닫기"
+              style={{ position: 'absolute', right: 8, top: -8 }}
+            />
+          </div>
           <Menu
             selectable={false}
             items={[
