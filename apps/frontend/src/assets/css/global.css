@@ -88,9 +88,26 @@ html, body {
 
 .layout-sider-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   padding: 16px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--ant-colorBorder);
+  color: var(--ant-colorText);
+}
+
+.layout-sider-header-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.layout-sider-header-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
 }
 
 .layout-sider-body {
@@ -120,6 +137,7 @@ html, body {
   font-size: 14px;
   font-weight: 600;
   line-height: 1;
+  min-width: 0;
 }
 
 .app-drawer .ant-drawer-body {
@@ -128,4 +146,17 @@ html, body {
 
 .app-drawer--no-header .ant-drawer-header {
   display: none;
+}
+
+.app-drawer--nav .ant-drawer-content,
+.app-drawer--nav .ant-drawer-body {
+  background: var(--ant-colorBgContainer);
+}
+
+.panel-close-btn.ant-btn-text,
+.panel-close-btn.ant-btn-text:hover,
+.panel-close-btn.ant-btn-text:active,
+.panel-close-btn.ant-btn-text:focus,
+.panel-close-btn.ant-btn-text:focus-visible {
+  background: transparent !important;
 }
