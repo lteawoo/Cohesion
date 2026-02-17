@@ -1,9 +1,8 @@
-import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Empty, App, Grid, Button, Drawer, Menu, theme } from 'antd';
 import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
-import { buildTableColumns } from '../constants';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { useBreadcrumb } from '../hooks/useBreadcrumb';
 import { useFileOperations } from '../hooks/useFileOperations';
@@ -161,9 +160,6 @@ const FolderContent: React.FC = () => {
   const sortedContent = useSortedContent(content, sortConfig);
   const isAnyModalOpen =
     modals.destination.visible || modals.rename.visible || modals.createFolder.visible;
-
-  // Columns for table view
-  const columns = useMemo(() => buildTableColumns(setPath, sortConfig), [setPath, sortConfig]);
 
   // Box selection (Grid 뷰 전용)
   const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
@@ -562,11 +558,9 @@ const FolderContent: React.FC = () => {
         >
           <FolderContentTable
             dataSource={sortedContent}
-            columns={columns}
             loading={isLoading}
             selectedItems={selectedItems}
             dragOverFolder={dragOverFolder}
-            onSelectionChange={setSelection}
             onItemClick={handleItemTap}
             onItemDoubleClick={setPath}
             onItemTouchStart={(record) => handleMobileLongPressStart(record)}
@@ -578,11 +572,13 @@ const FolderContent: React.FC = () => {
             onFolderDragOver={handleFolderDragOver}
             onFolderDragLeave={handleFolderDragLeave}
             onFolderDrop={handleFolderDrop}
-            sortConfig={sortConfig}
-            onSortChange={setSortConfig}
-            isMobile={isMobile}
-            isSelectionMode={isMobileSelectionMode}
             disableDrag={isMobile || !canWriteFiles}
+            canWriteFiles={canWriteFiles}
+            onItemDownload={(record) => handleBulkDownload([record.path])}
+            onItemCopy={(record) => openModal('destination', { mode: 'copy', sources: [record.path] })}
+            onItemMove={(record) => openModal('destination', { mode: 'move', sources: [record.path] })}
+            onItemRename={(record) => openModal('rename', { record, newName: record.name })}
+            onItemDelete={handleDelete}
           />
         </div>
       ) : (

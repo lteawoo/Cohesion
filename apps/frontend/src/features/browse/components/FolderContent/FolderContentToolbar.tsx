@@ -46,21 +46,19 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
             title="업로드"
           />
         )}
-        {viewMode === 'grid' && (
-          <Select
-            popupMatchSelectWidth={false}
-            style={{ width: 'fit-content' }}
-            value={`${sortConfig.sortBy}-${sortConfig.sortOrder}`}
-            onChange={(value: string) => {
-              const [sortBy, sortOrder] = value.split('-') as [
-                'name' | 'modTime' | 'size',
-                'ascend' | 'descend'
-              ];
-              onSortChange({ sortBy, sortOrder });
-            }}
-            options={SORT_OPTIONS}
-          />
-        )}
+        <Select
+          popupMatchSelectWidth={false}
+          style={{ width: 'fit-content' }}
+          value={`${sortConfig.sortBy}-${sortConfig.sortOrder}`}
+          onChange={(value: string) => {
+            const [sortBy, sortOrder] = value.split('-') as [
+              'name' | 'modTime' | 'size',
+              'ascend' | 'descend'
+            ];
+            onSortChange({ sortBy, sortOrder });
+          }}
+          options={SORT_OPTIONS}
+        />
         <AntSpace.Compact>
           <Button
             icon={<UnorderedListOutlined />}
