@@ -30,10 +30,11 @@ type loginRequest struct {
 }
 
 type authUserResponse struct {
-	ID       int64  `json:"id"`
-	Username string `json:"username"`
-	Nickname string `json:"nickname"`
-	Role     string `json:"role"`
+	ID          int64    `json:"id"`
+	Username    string   `json:"username"`
+	Nickname    string   `json:"nickname"`
+	Role        string   `json:"role"`
+	Permissions []string `json:"permissions"`
 }
 
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) *web.Error {
@@ -55,10 +56,11 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) *web.Error
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"user": authUserResponse{
-			ID:       user.ID,
-			Username: user.Username,
-			Nickname: user.Nickname,
-			Role:     string(user.Role),
+			ID:          user.ID,
+			Username:    user.Username,
+			Nickname:    user.Nickname,
+			Role:        string(user.Role),
+			Permissions: h.service.PermissionsForRole(r.Context(), user.Role),
 		},
 	})
 	return nil
@@ -80,10 +82,11 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) *web.Err
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"user": authUserResponse{
-			ID:       user.ID,
-			Username: user.Username,
-			Nickname: user.Nickname,
-			Role:     string(user.Role),
+			ID:          user.ID,
+			Username:    user.Username,
+			Nickname:    user.Nickname,
+			Role:        string(user.Role),
+			Permissions: h.service.PermissionsForRole(r.Context(), user.Role),
 		},
 	})
 	return nil
@@ -103,10 +106,11 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) *web.Error {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(authUserResponse{
-		ID:       claims.UserID,
-		Username: claims.Username,
-		Nickname: claims.Nickname,
-		Role:     string(claims.Role),
+		ID:          claims.UserID,
+		Username:    claims.Username,
+		Nickname:    claims.Nickname,
+		Role:        string(claims.Role),
+		Permissions: h.service.PermissionsForRole(r.Context(), claims.Role),
 	})
 	return nil
 }

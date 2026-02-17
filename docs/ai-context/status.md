@@ -1,6 +1,71 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **RBAC 하드닝 및 테스트 보강 완료** (2026-02-17):
+    - 백엔드:
+      - 사용 중인 Role 삭제 차단(해당 Role 사용자 존재 시 삭제 불가).
+      - 시스템 Role 권한 전체 제거 차단(최소 1개 권한 유지 강제).
+      - 에러/메시지의 Role 표기 통일(`Role`).
+    - 프론트:
+      - 권한 관리에서 현재 로그인 사용자의 Role 권한을 저장하면 `refreshSession()` 즉시 실행해 메뉴/권한 상태 실시간 반영.
+      - UI 문구의 `역할` 표기를 `Role`로 통일.
+    - 테스트:
+      - `internal/account/service_rbac_test.go`: 사용 중 Role 삭제 차단, 시스템 Role 빈 권한 차단.
+      - `internal/auth/permissions_test.go`: `/api/roles`, `/api/permissions` 권한 매핑 검증.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend build` 통과
+- **편집형 RBAC 관리(역할/권한) 1차 구현 완료** (2026-02-17):
+    - 백엔드:
+      - DB 스키마에 `roles`, `permissions`, `role_permissions` 추가 및 기본 시드(admin/user + 권한 키) 적용.
+      - 기존 DB의 `users.role CHECK(admin|user)` 제약을 제거하는 마이그레이션 추가(데이터 보존).
+      - 역할 관리 API 추가:
+        - `GET/POST /api/roles`
+        - `DELETE /api/roles/{name}`
+        - `PUT /api/roles/{name}/permissions`
+        - `GET /api/permissions`
+      - 인증 권한 체크를 역할별 DB 매핑 기반으로 전환(`GetRolePermissionKeys` 조회).
+    - 프론트:
+      - 설정 `권한 관리` 섹션을 편집형 UI로 전환:
+        - 역할 생성/삭제
+        - 역할별 권한 체크/저장
+      - 계정관리의 역할 목록을 하드코딩에서 서버 조회 기반으로 전환.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend build` 통과
+- **권한 2차 적용 시작: Space/File API 가드 + 파일 액션 UI 제한** (2026-02-17):
+    - 백엔드:
+      - `/api/spaces`, `/api/spaces/{id}/browse`, `/api/spaces/{id}/files/*`, `/api/browse*`에 권한 키 매핑 추가.
+      - `space.write` 권한 키 추가(관리자 전용) 및 role-permission 매핑 반영.
+      - Space ID 기반 리소스 권한 체크(`CanAccessSpaceByID`)를 인증 미들웨어에 연동.
+        - 파일 다운로드 계열: `read`
+        - 파일 변경 계열(업로드/이동/복사/삭제/이름변경/폴더생성): `write`
+    - 프론트:
+      - `file.write` 미보유 시 탐색기 쓰기 액션 UI 비노출:
+        - 업로드 버튼
+        - 선택바의 이동/복사/이름변경/삭제
+        - 모바일 More/액션시트 쓰기 액션
+      - 쓰기 권한 없을 때 드래그 이동/업로드 DnD 비활성화.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend build` 통과
+- **권한 키 기반 API 접근 제어 1차 정리 완료** (2026-02-17):
+    - 백엔드 인증 미들웨어를 `admin 전용 경로 하드코딩`에서 `권한 키 매핑` 방식으로 전환.
+      - `/api/accounts*` → `account.read`(GET) / `account.write`(변경)
+      - `/api/config` → `server.config.read|write`
+      - `/api/system/restart` → `server.config.write`
+    - `ftp.manage` 별도 권한은 두지 않고 `server.config.*`로 통합 유지.
+    - `/api/auth/login|refresh|me` 응답에 `permissions` 배열 포함.
+    - 프론트 Settings 메뉴를 권한 기반으로 노출 제어:
+      - `서버`: `server.config.read|write` 보유 시 노출
+      - `계정 관리`: `account.read|write` 보유 시 노출
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend build` 통과
 - **인증 401 전역 처리 + 보안 하드닝 적용 완료** (2026-02-16):
     - 프론트 공통 API 레이어 `apiFetch` 추가 (`apps/frontend/src/api/client.ts`)
       - 모든 API `fetch`를 `apiFetch`로 통일.

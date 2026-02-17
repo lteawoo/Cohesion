@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-
-	"taeu.kr/cohesion/internal/account"
 )
 
 var publicAPIPaths = map[string]struct{}{
@@ -13,15 +11,6 @@ var publicAPIPaths = map[string]struct{}{
 	"/api/auth/login":   {},
 	"/api/auth/refresh": {},
 	"/api/auth/logout":  {},
-}
-
-var adminOnlyPrefixes = []string{
-	"/api/accounts",
-}
-
-var adminOnlyPaths = map[string]struct{}{
-	"/api/config":         {},
-	"/api/system/restart": {},
 }
 
 func (s *Service) Middleware(next http.Handler) http.Handler {
@@ -53,9 +42,27 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if isAdminOnlyPath(r.URL.Path) && claims.Role != account.RoleAdmin {
-			writeForbidden(w)
-			return
+		if requiredPermission, ok := requiredPermissionForRequest(r); ok {
+			allowed, err := s.HasPermission(r.Context(), claims.Role, requiredPermission)
+			if err != nil {
+				writeInternalServerError(w)
+				return
+			}
+			if !allowed {
+				writeForbidden(w)
+				return
+			}
+		}
+		if spacePermission, ok := requiredSpacePermissionForRequest(r); ok {
+			allowed, err := s.accountService.CanAccessSpaceByID(r.Context(), claims.Username, spacePermission.spaceID, spacePermission.required)
+			if err != nil {
+				writeInternalServerError(w)
+				return
+			}
+			if !allowed {
+				writeForbidden(w)
+				return
+			}
 		}
 
 		next.ServeHTTP(w, r.WithContext(WithClaims(r.Context(), claims)))
@@ -78,14 +85,10 @@ func writeForbidden(w http.ResponseWriter) {
 	})
 }
 
-func isAdminOnlyPath(path string) bool {
-	if _, ok := adminOnlyPaths[path]; ok {
-		return true
-	}
-	for _, prefix := range adminOnlyPrefixes {
-		if strings.HasPrefix(path, prefix) {
-			return true
-		}
-	}
-	return false
+func writeInternalServerError(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"error": "Internal server error",
+	})
 }

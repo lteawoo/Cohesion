@@ -18,8 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
     nickname      TEXT NOT NULL,
     role          TEXT NOT NULL DEFAULT 'user',
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CHECK (role IN ('admin', 'user'))
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS user_space_permissions (
@@ -33,3 +32,61 @@ CREATE TABLE IF NOT EXISTS user_space_permissions (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (space_id) REFERENCES space(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS roles (
+    name         TEXT PRIMARY KEY,
+    description  TEXT,
+    is_system    INTEGER NOT NULL DEFAULT 0,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+    key          TEXT PRIMARY KEY,
+    description  TEXT NOT NULL,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role_name      TEXT NOT NULL,
+    permission_key TEXT NOT NULL,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (role_name, permission_key),
+    FOREIGN KEY (role_name) REFERENCES roles(name) ON DELETE CASCADE,
+    FOREIGN KEY (permission_key) REFERENCES permissions(key) ON DELETE CASCADE
+);
+
+INSERT OR IGNORE INTO roles(name, description, is_system) VALUES
+('admin', '관리자', 1),
+('user', '일반 사용자', 1);
+
+INSERT OR IGNORE INTO permissions(key, description) VALUES
+('account.read', '계정 목록/조회'),
+('account.write', '계정 생성/수정/삭제'),
+('profile.read', '내 프로필 조회'),
+('profile.write', '내 프로필 수정'),
+('server.config.read', '서버 설정 조회'),
+('server.config.write', '서버 설정 변경/재시작'),
+('space.read', 'Space 조회'),
+('space.write', 'Space 생성/삭제'),
+('file.read', '파일 조회/다운로드'),
+('file.write', '파일 업로드/수정/이동/삭제');
+
+INSERT OR IGNORE INTO role_permissions(role_name, permission_key) VALUES
+('admin', 'account.read'),
+('admin', 'account.write'),
+('admin', 'profile.read'),
+('admin', 'profile.write'),
+('admin', 'server.config.read'),
+('admin', 'server.config.write'),
+('admin', 'space.read'),
+('admin', 'space.write'),
+('admin', 'file.read'),
+('admin', 'file.write'),
+('user', 'profile.read'),
+('user', 'profile.write'),
+('user', 'space.read'),
+('user', 'file.read'),
+('user', 'file.write');

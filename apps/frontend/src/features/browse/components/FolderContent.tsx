@@ -21,6 +21,7 @@ import RenameModal from './FolderContent/RenameModal';
 import CreateFolderModal from './FolderContent/CreateFolderModal';
 import UploadOverlay from './FolderContent/UploadOverlay';
 import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
+import { useAuth } from '@/features/auth/useAuth';
 
 const LONG_PRESS_DURATION_MS = 420;
 
@@ -29,6 +30,9 @@ const FolderContent: React.FC = () => {
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
+  const { user } = useAuth();
+  const permissions = user?.permissions ?? [];
+  const canWriteFiles = permissions.includes('file.write');
 
   // Store selectors
   const selectedPath = useBrowseStore((state) => state.selectedPath);
@@ -421,10 +425,10 @@ const FolderContent: React.FC = () => {
   return (
     <div
       style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', height: '100%', minHeight: 0 }}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
+      onDragEnter={canWriteFiles ? handleDragEnter : undefined}
+      onDragLeave={canWriteFiles ? handleDragLeave : undefined}
+      onDragOver={canWriteFiles ? handleDragOver : undefined}
+      onDrop={canWriteFiles ? handleDrop : undefined}
       onContextMenu={handleContainerContextMenu}
       onClick={handleContainerClick}
     >
@@ -483,22 +487,26 @@ const FolderContent: React.FC = () => {
             }}
           />
           <span style={{ fontWeight: 600, color: token.colorText }}>{selectedItems.size}개 항목</span>
-          <Button
-            size="small"
-            icon={moveActionIcon}
-            onClick={() => {
-              armToolbarInteractionGuard();
-              openModal('destination', { mode: 'move', sources: Array.from(selectedItems) });
-            }}
-          />
-          <Button
-            size="small"
-            icon={<CopyOutlined />}
-            onClick={() => {
-              armToolbarInteractionGuard();
-              openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) });
-            }}
-          />
+          {canWriteFiles && (
+            <Button
+              size="small"
+              icon={moveActionIcon}
+              onClick={() => {
+                armToolbarInteractionGuard();
+                openModal('destination', { mode: 'move', sources: Array.from(selectedItems) });
+              }}
+            />
+          )}
+          {canWriteFiles && (
+            <Button
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={() => {
+                armToolbarInteractionGuard();
+                openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) });
+              }}
+            />
+          )}
           <Button
             size="small"
             icon={<DownloadOutlined />}
@@ -507,21 +515,24 @@ const FolderContent: React.FC = () => {
               handleBulkDownload(Array.from(selectedItems));
             }}
           />
-          <Button
-            size="small"
-            icon={<MoreOutlined />}
-            style={{ marginLeft: 'auto' }}
-            onClick={() => {
-              armToolbarInteractionGuard();
-              setIsMobileActionsOpen(true);
-            }}
-          />
+          {canWriteFiles && (
+            <Button
+              size="small"
+              icon={<MoreOutlined />}
+              style={{ marginLeft: 'auto' }}
+              onClick={() => {
+                armToolbarInteractionGuard();
+                setIsMobileActionsOpen(true);
+              }}
+            />
+          )}
         </div>
       ) : (
         <FolderContentToolbar
           breadcrumbItems={breadcrumbItems}
           viewMode={viewMode}
           sortConfig={sortConfig}
+          canUpload={canWriteFiles}
           onUpload={handleUploadClick}
           onViewModeChange={setViewMode}
           onSortChange={setSortConfig}
@@ -532,6 +543,7 @@ const FolderContent: React.FC = () => {
       <FolderContentSelectionBar
         selectedCount={selectedItems.size}
         showRename={selectedItems.size === 1}
+        canWrite={canWriteFiles}
         onDownload={() => handleBulkDownload(Array.from(selectedItems))}
         onCopy={() => openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) })}
         onMove={() => openModal('destination', { mode: 'move', sources: Array.from(selectedItems) })}
@@ -573,7 +585,7 @@ const FolderContent: React.FC = () => {
             onSortChange={setSortConfig}
             isMobile={isMobile}
             isSelectionMode={isMobileSelectionMode}
-            disableDrag={isMobile}
+            disableDrag={isMobile || !canWriteFiles}
           />
         </div>
       ) : (
@@ -598,7 +610,7 @@ const FolderContent: React.FC = () => {
             onFolderDragLeave={handleFolderDragLeave}
             onFolderDrop={handleFolderDrop}
             itemsRef={itemsRef}
-            disableDraggable={isSelecting || isMobile}
+            disableDraggable={isSelecting || isMobile || !canWriteFiles}
             spaceId={selectedSpace?.id}
             spacePath={selectedSpace?.space_path}
           />
@@ -666,7 +678,7 @@ const FolderContent: React.FC = () => {
           <Menu
             selectable={false}
             items={[
-              ...(selectedItems.size === 1
+              ...(canWriteFiles && selectedItems.size === 1
                 ? [{
                     key: 'rename',
                     icon: <EditOutlined />,
@@ -681,22 +693,24 @@ const FolderContent: React.FC = () => {
                     },
                   }]
                 : []),
-              {
-                key: 'delete',
-                icon: <DeleteOutlined />,
-                label: '삭제',
-                danger: true,
-                onClick: () => {
-                  setIsMobileActionsOpen(false);
-                  handleBulkDelete(Array.from(selectedItems));
-                },
-              },
+              ...(canWriteFiles
+                ? [{
+                    key: 'delete',
+                    icon: <DeleteOutlined />,
+                    label: '삭제',
+                    danger: true,
+                    onClick: () => {
+                      setIsMobileActionsOpen(false);
+                      handleBulkDelete(Array.from(selectedItems));
+                    },
+                  }]
+                : []),
             ]}
           />
         </div>
       </Drawer>
 
-      <UploadOverlay visible={isDragging} />
+      <UploadOverlay visible={canWriteFiles && isDragging} />
     </div>
   );
 };

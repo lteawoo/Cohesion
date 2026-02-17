@@ -5,6 +5,7 @@ import { DownloadOutlined, CopyOutlined, EditOutlined, DeleteOutlined } from '@a
 interface FolderContentSelectionBarProps {
   selectedCount: number;
   showRename: boolean;
+  canWrite: boolean;
   onDownload: () => void;
   onCopy: () => void;
   onMove: () => void;
@@ -16,6 +17,7 @@ interface FolderContentSelectionBarProps {
 const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
   selectedCount,
   showRename,
+  canWrite,
   onDownload,
   onCopy,
   onMove,
@@ -55,20 +57,26 @@ const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
         <Button size="small" icon={<DownloadOutlined />} onClick={onDownload}>
           다운로드
         </Button>
-        <Button size="small" icon={<CopyOutlined />} onClick={onCopy}>
-          복사
-        </Button>
-        <Button size="small" icon={moveActionIcon} onClick={onMove}>
-          이동
-        </Button>
-        {showRename && onRename && (
+        {canWrite && (
+          <Button size="small" icon={<CopyOutlined />} onClick={onCopy}>
+            복사
+          </Button>
+        )}
+        {canWrite && (
+          <Button size="small" icon={moveActionIcon} onClick={onMove}>
+            이동
+          </Button>
+        )}
+        {canWrite && showRename && onRename && (
           <Button size="small" icon={<EditOutlined />} onClick={onRename}>
             이름 변경
           </Button>
         )}
-        <Button size="small" icon={<DeleteOutlined />} danger onClick={onDelete}>
-          삭제
-        </Button>
+        {canWrite && (
+          <Button size="small" icon={<DeleteOutlined />} danger onClick={onDelete}>
+            삭제
+          </Button>
+        )}
         <Button size="small" onClick={onClear}>
           선택 해제
         </Button>

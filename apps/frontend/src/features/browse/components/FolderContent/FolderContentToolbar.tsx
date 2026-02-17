@@ -9,6 +9,7 @@ interface FolderContentToolbarProps {
   breadcrumbItems: BreadcrumbItem[];
   viewMode: ViewMode;
   sortConfig: SortConfig;
+  canUpload: boolean;
   onUpload: () => void;
   onViewModeChange: (mode: ViewMode) => void;
   onSortChange: (config: SortConfig) => void;
@@ -18,6 +19,7 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
   breadcrumbItems,
   viewMode,
   sortConfig,
+  canUpload,
   onUpload,
   onViewModeChange,
   onSortChange,
@@ -36,12 +38,14 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
         <Breadcrumb items={breadcrumbItems} />
       </div>
       <AntSpace wrap>
-        <Button
-          icon={<UploadOutlined />}
-          onClick={onUpload}
-          aria-label="업로드"
-          title="업로드"
-        />
+        {canUpload && (
+          <Button
+            icon={<UploadOutlined />}
+            onClick={onUpload}
+            aria-label="업로드"
+            title="업로드"
+          />
+        )}
         {viewMode === 'grid' && (
           <Select
             popupMatchSelectWidth={false}

@@ -20,6 +20,14 @@ type Storer interface {
 	CountAdmins(ctx context.Context) (int, error)
 	GetUserPermissions(ctx context.Context, userID int64) ([]*UserSpacePermission, error)
 	ReplaceUserPermissions(ctx context.Context, userID int64, permissions []*UserSpacePermission) error
+	ListRoles(ctx context.Context) ([]*RoleDefinition, error)
+	GetRoleByName(ctx context.Context, name string) (*RoleDefinition, error)
+	CreateRole(ctx context.Context, name, description string) (*RoleDefinition, error)
+	DeleteRole(ctx context.Context, name string) error
+	CountUsersByRole(ctx context.Context, roleName string) (int, error)
+	ListPermissionDefinitions(ctx context.Context) ([]*PermissionDefinition, error)
+	GetRolePermissionKeys(ctx context.Context, roleName string) ([]string, error)
+	ReplaceRolePermissionKeys(ctx context.Context, roleName string, permissionKeys []string) error
 }
 
 type Service struct {
@@ -83,6 +91,9 @@ func (s *Service) CreateUser(ctx context.Context, req *CreateUserRequest) (*User
 	if err := validateCreateUser(req); err != nil {
 		return nil, err
 	}
+	if _, err := s.store.GetRoleByName(ctx, string(req.Role)); err != nil {
+		return nil, errors.New("Role does not exist")
+	}
 
 	hash, err := hashPassword(req.Password)
 	if err != nil {
@@ -99,8 +110,10 @@ func (s *Service) UpdateUser(ctx context.Context, id int64, req *UpdateUserReque
 		return nil, errors.New("request is required")
 	}
 
-	if req.Role != nil && *req.Role != RoleAdmin && *req.Role != RoleUser {
-		return nil, errors.New("role must be admin or user")
+	if req.Role != nil {
+		if _, err := s.store.GetRoleByName(ctx, string(*req.Role)); err != nil {
+			return nil, errors.New("Role does not exist")
+		}
 	}
 	if req.Nickname != nil {
 		trimmed := strings.TrimSpace(*req.Nickname)
@@ -224,6 +237,113 @@ func (s *Service) IsAdmin(ctx context.Context, username string) (bool, error) {
 	return user.Role == RoleAdmin, nil
 }
 
+func (s *Service) ListRolesWithPermissions(ctx context.Context) ([]*RoleWithPermissions, error) {
+	roles, err := s.store.ListRoles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*RoleWithPermissions, 0, len(roles))
+	for _, role := range roles {
+		keys, err := s.store.GetRolePermissionKeys(ctx, role.Name)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, &RoleWithPermissions{
+			Name:        role.Name,
+			Description: role.Description,
+			IsSystem:    role.IsSystem,
+			Permissions: keys,
+		})
+	}
+	return result, nil
+}
+
+func (s *Service) ListPermissionDefinitions(ctx context.Context) ([]*PermissionDefinition, error) {
+	return s.store.ListPermissionDefinitions(ctx)
+}
+
+func (s *Service) CreateRole(ctx context.Context, name, description string) (*RoleDefinition, error) {
+	normalizedName := strings.TrimSpace(strings.ToLower(name))
+	if normalizedName == "" {
+		return nil, errors.New("Role name is required")
+	}
+	if len(normalizedName) < 2 || len(normalizedName) > 32 {
+		return nil, errors.New("Role name must be between 2 and 32 characters")
+	}
+	for _, ch := range normalizedName {
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-' {
+			continue
+		}
+		return nil, errors.New("Role name can only contain lowercase letters, numbers, '-' and '_'")
+	}
+
+	return s.store.CreateRole(ctx, normalizedName, strings.TrimSpace(description))
+}
+
+func (s *Service) DeleteRole(ctx context.Context, name string) error {
+	role, err := s.store.GetRoleByName(ctx, name)
+	if err != nil {
+		return err
+	}
+	if role.IsSystem {
+		return errors.New("System Role cannot be deleted")
+	}
+	assignedCount, err := s.store.CountUsersByRole(ctx, name)
+	if err != nil {
+		return err
+	}
+	if assignedCount > 0 {
+		return errors.New("Role is assigned to users and cannot be deleted")
+	}
+	return s.store.DeleteRole(ctx, name)
+}
+
+func (s *Service) ReplaceRolePermissions(ctx context.Context, roleName string, permissionKeys []string) error {
+	if _, err := s.store.GetRoleByName(ctx, roleName); err != nil {
+		return errors.New("Role does not exist")
+	}
+	permissionDefs, err := s.store.ListPermissionDefinitions(ctx)
+	if err != nil {
+		return err
+	}
+	allowed := make(map[string]struct{}, len(permissionDefs))
+	for _, definition := range permissionDefs {
+		allowed[definition.Key] = struct{}{}
+	}
+
+	seen := make(map[string]struct{}, len(permissionKeys))
+	normalized := make([]string, 0, len(permissionKeys))
+	for _, key := range permissionKeys {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := allowed[trimmed]; !ok {
+			return errors.New("invalid permission key")
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+
+	role, err := s.store.GetRoleByName(ctx, roleName)
+	if err != nil {
+		return err
+	}
+	if role.IsSystem && len(normalized) == 0 {
+		return errors.New("System Role must keep at least one permission")
+	}
+
+	return s.store.ReplaceRolePermissionKeys(ctx, roleName, normalized)
+}
+
+func (s *Service) GetRolePermissionKeys(ctx context.Context, roleName string) ([]string, error) {
+	return s.store.GetRolePermissionKeys(ctx, roleName)
+}
+
 func hashPassword(password string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -252,9 +372,6 @@ func validateCreateUser(req *CreateUserRequest) error {
 	}
 	if req.Role == "" {
 		req.Role = RoleUser
-	}
-	if req.Role != RoleAdmin && req.Role != RoleUser {
-		return errors.New("role must be admin or user")
 	}
 	return nil
 }

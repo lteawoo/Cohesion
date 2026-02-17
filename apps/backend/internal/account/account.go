@@ -33,6 +33,28 @@ type UserSpacePermission struct {
 	Permission Permission `json:"permission"`
 }
 
+type RoleDefinition struct {
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	IsSystem    bool      `json:"isSystem"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type PermissionDefinition struct {
+	Key         string    `json:"key"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type RoleWithPermissions struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	IsSystem    bool     `json:"isSystem"`
+	Permissions []string `json:"permissions"`
+}
+
 type CreateUserRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`

@@ -185,6 +185,18 @@ func (s *Store) CountAdmins(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+func (s *Store) CountUsersByRole(ctx context.Context, roleName string) (int, error) {
+	query, args, err := s.qb.Select("COUNT(*)").From("users").Where(sq.Eq{"role": roleName}).ToSql()
+	if err != nil {
+		return 0, err
+	}
+	var count int
+	if err := s.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (s *Store) GetUserPermissions(ctx context.Context, userID int64) ([]*account.UserSpacePermission, error) {
 	query, args, err := s.qb.
 		Select("user_id", "space_id", "permission").
@@ -234,6 +246,183 @@ func (s *Store) ReplaceUserPermissions(ctx context.Context, userID int64, permis
 			Insert("user_space_permissions").
 			Columns("user_id", "space_id", "permission", "created_at", "updated_at").
 			Values(permission.UserID, permission.SpaceID, string(permission.Permission), time.Now(), time.Now()).
+			ToSql()
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, insertQuery, insertArgs...); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *Store) ListRoles(ctx context.Context) ([]*account.RoleDefinition, error) {
+	query, args, err := s.qb.
+		Select("name", "description", "is_system", "created_at", "updated_at").
+		From("roles").
+		OrderBy("is_system DESC", "name ASC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := []*account.RoleDefinition{}
+	for rows.Next() {
+		var role account.RoleDefinition
+		var isSystem int
+		if err := rows.Scan(&role.Name, &role.Description, &isSystem, &role.CreatedAt, &role.UpdatedAt); err != nil {
+			return nil, err
+		}
+		role.IsSystem = isSystem == 1
+		result = append(result, &role)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) GetRoleByName(ctx context.Context, name string) (*account.RoleDefinition, error) {
+	query, args, err := s.qb.
+		Select("name", "description", "is_system", "created_at", "updated_at").
+		From("roles").
+		Where(sq.Eq{"name": name}).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var role account.RoleDefinition
+	var isSystem int
+	if err := s.db.QueryRowContext(ctx, query, args...).
+		Scan(&role.Name, &role.Description, &isSystem, &role.CreatedAt, &role.UpdatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("role %q not found", name)
+		}
+		return nil, err
+	}
+	role.IsSystem = isSystem == 1
+	return &role, nil
+}
+
+func (s *Store) CreateRole(ctx context.Context, name, description string) (*account.RoleDefinition, error) {
+	now := time.Now()
+	query, args, err := s.qb.
+		Insert("roles").
+		Columns("name", "description", "is_system", "created_at", "updated_at").
+		Values(name, description, 0, now, now).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return nil, fmt.Errorf("Role already exists")
+		}
+		return nil, err
+	}
+	return s.GetRoleByName(ctx, name)
+}
+
+func (s *Store) DeleteRole(ctx context.Context, name string) error {
+	query, args, err := s.qb.Delete("roles").Where(sq.Eq{"name": name}).ToSql()
+	if err != nil {
+		return err
+	}
+	res, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return fmt.Errorf("role %q not found", name)
+	}
+	return nil
+}
+
+func (s *Store) ListPermissionDefinitions(ctx context.Context) ([]*account.PermissionDefinition, error) {
+	query, args, err := s.qb.
+		Select("key", "description", "created_at", "updated_at").
+		From("permissions").
+		OrderBy("key ASC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := []*account.PermissionDefinition{}
+	for rows.Next() {
+		var item account.PermissionDefinition
+		if err := rows.Scan(&item.Key, &item.Description, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, &item)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) GetRolePermissionKeys(ctx context.Context, roleName string) ([]string, error) {
+	query, args, err := s.qb.
+		Select("permission_key").
+		From("role_permissions").
+		Where(sq.Eq{"role_name": roleName}).
+		OrderBy("permission_key ASC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := []string{}
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		result = append(result, key)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) ReplaceRolePermissionKeys(ctx context.Context, roleName string, permissionKeys []string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	deleteQuery, deleteArgs, err := s.qb.Delete("role_permissions").Where(sq.Eq{"role_name": roleName}).ToSql()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, deleteQuery, deleteArgs...); err != nil {
+		return err
+	}
+
+	for _, key := range permissionKeys {
+		insertQuery, insertArgs, err := s.qb.
+			Insert("role_permissions").
+			Columns("role_name", "permission_key", "created_at", "updated_at").
+			Values(roleName, key, time.Now(), time.Now()).
 			ToSql()
 		if err != nil {
 			return err
