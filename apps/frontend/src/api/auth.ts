@@ -4,7 +4,8 @@ export interface AuthUser {
   id: number;
   username: string;
   nickname: string;
-  role: 'admin' | 'user';
+  role: string;
+  permissions: string[];
 }
 
 export interface LoginRequest {

@@ -11,6 +11,7 @@ import {
   listAccounts,
   updateAccount,
 } from '@/api/accounts';
+import { listRoles } from '@/api/roles';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 
 const { Text } = Typography;
@@ -35,16 +36,6 @@ const defaultCreateForm: CreateAccountForm = {
   role: 'user',
 };
 
-const roleOptions: { value: AccountRole; label: string }[] = [
-  { value: 'admin', label: '관리자' },
-  { value: 'user', label: '사용자' },
-];
-
-const roleLabelMap: Record<AccountRole, string> = {
-  admin: '관리자',
-  user: '사용자',
-};
-
 const AccountSettings = () => {
   const { message } = App.useApp();
   const [users, setUsers] = useState<AccountUser[]>([]);
@@ -60,6 +51,15 @@ const AccountSettings = () => {
     password: '',
     role: 'user',
   });
+  const [roleOptions, setRoleOptions] = useState<{ value: AccountRole; label: string }[]>([
+    { value: 'admin', label: 'admin' },
+    { value: 'user', label: 'user' },
+  ]);
+
+  const roleLabelMap = useCallback((role: AccountRole) => {
+    const found = roleOptions.find((item) => item.value === role);
+    return found?.label ?? role;
+  }, [roleOptions]);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -76,6 +76,22 @@ const AccountSettings = () => {
   useEffect(() => {
     void loadUsers();
   }, [loadUsers]);
+
+  const loadRoles = useCallback(async () => {
+    try {
+      const roles = await listRoles();
+      setRoleOptions(roles.map((role) => ({
+        value: role.name,
+        label: role.name,
+      })));
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Role 목록을 불러오지 못했습니다');
+    }
+  }, [message]);
+
+  useEffect(() => {
+    void loadRoles();
+  }, [loadRoles]);
 
   const validateCreate = (): boolean => {
     if (createForm.username.trim().length < 3) {
@@ -186,13 +202,13 @@ const AccountSettings = () => {
       key: 'nickname',
     },
     {
-      title: '권한',
+      title: 'Role',
       dataIndex: 'role',
       key: 'role',
       width: 110,
       render: (role: AccountRole) => (
         <Tag color={role === 'admin' ? 'gold' : 'default'}>
-          {roleLabelMap[role]}
+          {roleLabelMap(role)}
         </Tag>
       ),
     },
@@ -297,7 +313,7 @@ const AccountSettings = () => {
               setCreateForm((prev) => ({ ...prev, nickname: event.target.value }))
             }
           />
-          <Text strong>권한</Text>
+          <Text strong>Role</Text>
           <Select
             options={roleOptions}
             value={createForm.role}
@@ -337,7 +353,7 @@ const AccountSettings = () => {
               setEditForm((prev) => ({ ...prev, password: event.target.value }))
             }
           />
-          <Text strong>권한</Text>
+          <Text strong>Role</Text>
           <Select
             options={roleOptions}
             value={editForm.role}

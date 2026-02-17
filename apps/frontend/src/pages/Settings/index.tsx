@@ -5,19 +5,22 @@ import {
   BgColorsOutlined,
   FileOutlined,
   GlobalOutlined,
+  SafetyCertificateOutlined,
   ToolOutlined,
   TeamOutlined,
   HomeFilled,
 } from '@ant-design/icons';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { useAuth } from '@/features/auth/useAuth';
 import GeneralSettings from './sections/GeneralSettings';
 import AppearanceSettings from './sections/AppearanceSettings';
 import FileSettings from './sections/FileSettings';
 import ServerSettings from './sections/ServerSettings';
 import AdvancedSettings from './sections/AdvancedSettings';
 import AccountSettings from './sections/AccountSettings';
+import PermissionSettings from './sections/PermissionSettings';
 import ProfileSettings from './sections/ProfileSettings';
 import HeaderBrand from '@/components/common/HeaderBrand';
 import HeaderGroup from '@/components/common/HeaderGroup';
@@ -25,14 +28,19 @@ import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
 
-type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server' | 'accounts' | 'advanced';
+type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server' | 'permissions' | 'accounts' | 'advanced';
 
 const SettingsPage = () => {
   const { token } = theme.useToken();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedSection, setSelectedSection] = useState<SettingsSection>('profile');
 
-  const menuItems = [
+  const permissions = user?.permissions ?? [];
+  const canAccessServerSettings = permissions.includes('server.config.read') || permissions.includes('server.config.write');
+  const canAccessAccountSettings = permissions.includes('account.read') || permissions.includes('account.write');
+
+  const menuItems = useMemo(() => [
     {
       key: 'profile',
       icon: <UserOutlined />,
@@ -53,25 +61,38 @@ const SettingsPage = () => {
       icon: <FileOutlined />,
       label: '파일',
     },
-    {
+    ...(canAccessServerSettings ? [{
       key: 'server',
       icon: <GlobalOutlined />,
       label: '서버',
-    },
-    {
+    }] : []),
+    ...(canAccessAccountSettings ? [{
+      key: 'permissions',
+      icon: <SafetyCertificateOutlined />,
+      label: '권한 관리',
+    }] : []),
+    ...(canAccessAccountSettings ? [{
       key: 'accounts',
       icon: <TeamOutlined />,
       label: '계정 관리',
-    },
+    }] : []),
     {
       key: 'advanced',
       icon: <ToolOutlined />,
       label: '고급',
     },
-  ];
+  ], [canAccessAccountSettings, canAccessServerSettings]);
+
+  const effectiveSection: SettingsSection = (
+    (selectedSection === 'server' && !canAccessServerSettings) ||
+    (selectedSection === 'permissions' && !canAccessAccountSettings) ||
+    (selectedSection === 'accounts' && !canAccessAccountSettings)
+  )
+    ? 'profile'
+    : selectedSection;
 
   const renderContent = () => {
-    switch (selectedSection) {
+    switch (effectiveSection) {
       case 'profile':
         return <ProfileSettings />;
       case 'general':
@@ -81,9 +102,11 @@ const SettingsPage = () => {
       case 'files':
         return <FileSettings />;
       case 'server':
-        return <ServerSettings />;
+        return canAccessServerSettings ? <ServerSettings /> : <ProfileSettings />;
+      case 'permissions':
+        return canAccessAccountSettings ? <PermissionSettings /> : <ProfileSettings />;
       case 'accounts':
-        return <AccountSettings />;
+        return canAccessAccountSettings ? <AccountSettings /> : <ProfileSettings />;
       case 'advanced':
         return <AdvancedSettings />;
       default:
@@ -120,7 +143,7 @@ const SettingsPage = () => {
           <Menu
             className="settings-nav-menu settings-nav-menu-full"
             mode="inline"
-            selectedKeys={[selectedSection]}
+            selectedKeys={[effectiveSection]}
             items={menuItems}
             onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
           />

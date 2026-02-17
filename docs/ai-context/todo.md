@@ -101,3 +101,14 @@
 - [x] Settings `내 프로필` 섹션 추가 (사용자 정보 표시 + 로그아웃)
 - [x] 프론트 API 호출 전역 401 처리(`apiFetch`) 및 인증 만료 시 로그인 리다이렉트
 - [x] 보안 하드닝: 프로덕션 JWT 시크릿 강제 + 프록시 HTTPS Secure 쿠키 처리
+- [x] API 권한 체크를 권한 키 기반으로 1차 전환 (`account.*`, `server.config.*`)
+- [x] `/api/auth/me` 응답에 `permissions` 포함 및 Settings 권한 기반 메뉴 노출 제어
+- [x] 권한 2차: `space/file` API 권한 매핑 및 Space 리소스 권한 체크 미들웨어 연동
+- [x] 권한 2차: 파일 탐색기 쓰기 액션 UI를 `file.write` 권한 기반으로 제한
+- [x] 편집형 RBAC 1차: 역할/권한 DB 스키마(`roles`, `permissions`, `role_permissions`) 및 기본 시드 적용
+- [x] 편집형 RBAC 1차: 역할 CRUD/권한 매핑 API(`GET/POST/DELETE /api/roles`, `PUT /api/roles/{name}/permissions`) 추가
+- [x] 편집형 RBAC 1차: 설정 `권한 관리` 화면에서 역할 추가/삭제/권한 저장 UI 구현
+- [x] 계정 관리 역할 선택 옵션을 서버 역할 목록 조회 기반으로 전환
+- [x] RBAC 하드닝: 사용 중 Role 삭제 차단 + 시스템 Role 빈 권한 저장 차단
+- [x] 권한 변경 즉시 세션 갱신(refreshSession)으로 현재 사용자 권한 반영
+- [x] RBAC 관련 회귀 테스트 추가(`service_rbac_test`, `permissions_test`)
