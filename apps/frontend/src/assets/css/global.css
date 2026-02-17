@@ -121,3 +121,11 @@ html, body {
   font-weight: 600;
   line-height: 1;
 }
+
+.app-drawer .ant-drawer-body {
+  padding: 0;
+}
+
+.app-drawer--no-header .ant-drawer-header {
+  display: none;
+}

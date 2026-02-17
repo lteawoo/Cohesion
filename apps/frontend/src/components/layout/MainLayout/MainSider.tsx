@@ -1,6 +1,6 @@
 import DirectorySetupModal from "@/features/space/components/DirectorySetupModal";
 import FolderTree from "@/features/browse/components/FolderTree";
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, CloseOutlined } from "@ant-design/icons";
 import { Button, Layout, theme, App } from "antd";
 import type { Space } from "@/features/space/types";
 import { useState } from "react";
@@ -12,10 +12,11 @@ const { Sider } = Layout;
 interface MainSiderProps {
   onPathSelect?: (path: string, space?: Space) => void;
   onAfterSelect?: () => void;
+  onClosePanel?: () => void;
   containerType?: "sider" | "panel";
 }
 
-export default function MainSider({ onPathSelect, onAfterSelect, containerType = "sider" }: MainSiderProps) {
+export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, containerType = "sider" }: MainSiderProps) {
   const { token } = theme.useToken();
   const { message, modal } = App.useApp();
   const { user } = useAuth();
@@ -60,15 +61,27 @@ export default function MainSider({ onPathSelect, onAfterSelect, containerType =
         className="layout-sider-header"
         style={{ borderBottom: `1px solid ${token.colorBorder}`, color: token.colorText }}
       >
-        <span className="layout-sider-title">Spaces</span>
-        {canWriteSpaces && (
+        {containerType === "panel" && (
           <Button
             type="text"
-            icon={<PlusOutlined />}
+            icon={<CloseOutlined />}
             size="small"
-            onClick={() => setIsOpen(true)}
+            onClick={onClosePanel}
+            aria-label="탐색 닫기"
+            title="탐색 닫기"
           />
         )}
+        <span className="layout-sider-title">Spaces</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {canWriteSpaces && (
+            <Button
+              type="text"
+              icon={<PlusOutlined />}
+              size="small"
+              onClick={() => setIsOpen(true)}
+            />
+          )}
+        </div>
       </div>
       <div className="layout-sider-body">
         <FolderTree

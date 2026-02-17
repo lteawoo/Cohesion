@@ -91,18 +91,20 @@ const PageLayout = () => {
           )}
 
           <Drawer
+            rootClassName="app-drawer app-drawer--no-header app-drawer--nav"
             title={null}
             placement="left"
             open={isNavOpen}
             onClose={closeNavDrawer}
             size={isMobile ? "default" : "large"}
             closeIcon={null}
-            styles={{ body: { padding: 0 }, header: { display: "none" } }}
             mask={isMobile}
+            maskClosable
           >
             <MainSider
               onPathSelect={handlePathSelect}
               onAfterSelect={closeNavDrawer}
+              onClosePanel={closeNavDrawer}
               containerType="panel"
             />
           </Drawer>
