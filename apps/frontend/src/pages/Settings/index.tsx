@@ -7,8 +7,8 @@ import {
   GlobalOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
-  HomeFilled,
   MenuOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -23,6 +23,7 @@ import PermissionSettings from './sections/PermissionSettings';
 import ProfileSettings from './sections/ProfileSettings';
 import HeaderBrand from '@/components/common/HeaderBrand';
 import HeaderGroup from '@/components/common/HeaderGroup';
+import SidePanelShell from '@/components/common/SidePanelShell';
 import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
@@ -121,18 +122,19 @@ const SettingsPage = () => {
           {isMobile && (
             <Button
               type="text"
-              icon={<MenuOutlined className="settings-icon-lg" />}
+              icon={<MenuOutlined />}
               onClick={() => setIsNavOpen(true)}
               aria-label="설정 메뉴 열기"
               title="설정 메뉴"
             />
           )}
-          <Button
-            type="text"
-            icon={<HomeFilled className="settings-icon-lg" />}
+          <HeaderBrand
+            text="Cohesion"
+            color={token.colorText}
             onClick={() => navigate('/')}
+            ariaLabel="메인으로 이동"
+            title="메인으로 이동"
           />
-          <HeaderBrand text="설정" color={token.colorText} />
         </HeaderGroup>
       </Header>
 
@@ -145,13 +147,15 @@ const SettingsPage = () => {
               background: token.colorBgContainer,
             }}
           >
-            <Menu
-              className="settings-nav-menu settings-nav-menu-full"
-              mode="inline"
-              selectedKeys={[effectiveSection]}
-              items={menuItems}
-              onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
-            />
+            <SidePanelShell title="설정">
+              <Menu
+                className="settings-nav-menu settings-nav-menu-full"
+                mode="inline"
+                selectedKeys={[effectiveSection]}
+                items={menuItems}
+                onClick={({ key }: { key: string }) => setSelectedSection(key as SettingsSection)}
+              />
+            </SidePanelShell>
           </Sider>
         )}
 
@@ -165,23 +169,46 @@ const SettingsPage = () => {
         </Content>
 
         <Drawer
-          rootClassName="app-drawer app-drawer--settings-nav"
+          rootClassName="app-drawer app-drawer--no-header app-drawer--nav app-drawer--settings-nav"
           placement="left"
-          title="설정 메뉴"
           open={isMobile && isNavOpen}
           onClose={() => setIsNavOpen(false)}
           maskClosable
         >
-          <Menu
-            className="settings-nav-menu settings-nav-menu-full"
-            mode="inline"
-            selectedKeys={[effectiveSection]}
-            items={menuItems}
-            onClick={({ key }: { key: string }) => {
-              setSelectedSection(key as SettingsSection);
-              setIsNavOpen(false);
+          <div
+            className="layout-sider layout-sider-panel"
+            style={{
+              height: '100%',
+              width: '100%',
+              background: token.colorBgContainer,
             }}
-          />
+          >
+            <SidePanelShell
+              title="설정"
+              leftAction={(
+                <Button
+                  className="panel-close-btn"
+                  type="text"
+                  icon={<CloseOutlined />}
+                  size="small"
+                  onClick={() => setIsNavOpen(false)}
+                  aria-label="설정 메뉴 닫기"
+                  title="설정 메뉴 닫기"
+                />
+              )}
+            >
+              <Menu
+                className="settings-nav-menu settings-nav-menu-full"
+                mode="inline"
+                selectedKeys={[effectiveSection]}
+                items={menuItems}
+                onClick={({ key }: { key: string }) => {
+                  setSelectedSection(key as SettingsSection);
+                  setIsNavOpen(false);
+                }}
+              />
+            </SidePanelShell>
+          </div>
         </Drawer>
       </Layout>
     </Layout>

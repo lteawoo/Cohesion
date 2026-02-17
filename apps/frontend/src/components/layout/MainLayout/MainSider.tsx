@@ -6,6 +6,7 @@ import type { Space } from "@/features/space/types";
 import { useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
 import { useAuth } from "@/features/auth/useAuth";
+import SidePanelShell from "@/components/common/SidePanelShell";
 
 const { Sider } = Layout;
 
@@ -57,12 +58,11 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
       />
-      <div
-        className="layout-sider-header"
-        style={{ borderBottom: `1px solid ${token.colorBorder}`, color: token.colorText }}
-      >
-        {containerType === "panel" && (
+      <SidePanelShell
+        title="Spaces"
+        leftAction={containerType === "panel" ? (
           <Button
+            className="panel-close-btn"
             type="text"
             icon={<CloseOutlined />}
             size="small"
@@ -70,25 +70,23 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
             aria-label="탐색 닫기"
             title="탐색 닫기"
           />
-        )}
-        <span className="layout-sider-title">Spaces</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {canWriteSpaces && (
-            <Button
-              type="text"
-              icon={<PlusOutlined />}
-              size="small"
-              onClick={() => setIsOpen(true)}
-            />
-          )}
-        </div>
-      </div>
-      <div className="layout-sider-body">
+        ) : null}
+        rightAction={canWriteSpaces ? (
+          <Button
+            type="text"
+            icon={<PlusOutlined />}
+            size="small"
+            onClick={() => setIsOpen(true)}
+            aria-label="Space 추가"
+            title="Space 추가"
+          />
+        ) : null}
+      >
         <FolderTree
           onSelect={handleSelect}
           onSpaceDelete={canWriteSpaces ? handleDeleteSpace : undefined}
         />
-      </div>
+      </SidePanelShell>
     </>
   );
 
