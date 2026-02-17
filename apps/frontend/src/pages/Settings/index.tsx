@@ -6,7 +6,6 @@ import {
   FileOutlined,
   GlobalOutlined,
   SafetyCertificateOutlined,
-  ToolOutlined,
   TeamOutlined,
   HomeFilled,
 } from '@ant-design/icons';
@@ -18,7 +17,6 @@ import GeneralSettings from './sections/GeneralSettings';
 import AppearanceSettings from './sections/AppearanceSettings';
 import FileSettings from './sections/FileSettings';
 import ServerSettings from './sections/ServerSettings';
-import AdvancedSettings from './sections/AdvancedSettings';
 import AccountSettings from './sections/AccountSettings';
 import PermissionSettings from './sections/PermissionSettings';
 import ProfileSettings from './sections/ProfileSettings';
@@ -28,7 +26,7 @@ import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
 
-type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server' | 'permissions' | 'accounts' | 'advanced';
+type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server' | 'permissions' | 'accounts';
 
 const SettingsPage = () => {
   const { token } = theme.useToken();
@@ -76,11 +74,6 @@ const SettingsPage = () => {
       icon: <TeamOutlined />,
       label: '계정 관리',
     }] : []),
-    {
-      key: 'advanced',
-      icon: <ToolOutlined />,
-      label: '고급',
-    },
   ], [canAccessAccountSettings, canAccessServerSettings]);
 
   const effectiveSection: SettingsSection = (
@@ -107,8 +100,6 @@ const SettingsPage = () => {
         return canAccessAccountSettings ? <PermissionSettings /> : <ProfileSettings />;
       case 'accounts':
         return canAccessAccountSettings ? <AccountSettings /> : <ProfileSettings />;
-      case 'advanced':
-        return <AdvancedSettings />;
       default:
         return <ProfileSettings />;
     }
