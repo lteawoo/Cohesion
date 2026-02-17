@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"taeu.kr/cohesion/internal/account"
+	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/browse"
 	"taeu.kr/cohesion/internal/platform/web"
 	"taeu.kr/cohesion/internal/space"
@@ -19,16 +22,22 @@ type BrowseService interface {
 	ListDirectory(onlyDir bool, path string) ([]browse.FileInfo, error)
 }
 
+type SpaceAccessService interface {
+	CanAccessSpaceByID(ctx context.Context, username string, spaceID int64, required account.Permission) (bool, error)
+}
+
 type Handler struct {
 	spaceService  *space.Service
 	browseService BrowseService
+	accountService SpaceAccessService
 }
 
 // 의존성 주입 생성자 생성
-func NewHandler(spaceService *space.Service, browseService BrowseService) *Handler {
+func NewHandler(spaceService *space.Service, browseService BrowseService, accountService SpaceAccessService) *Handler {
 	return &Handler{
-		spaceService:  spaceService,
-		browseService: browseService,
+		spaceService:   spaceService,
+		browseService:  browseService,
+		accountService: accountService,
 	}
 }
 
@@ -55,6 +64,14 @@ func (h *Handler) handleSpaces(w http.ResponseWriter, r *http.Request) *web.Erro
 
 // Space 목록 조회
 func (h *Handler) handleGetSpaces(w http.ResponseWriter, r *http.Request) *web.Error {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		return &web.Error{
+			Code:    http.StatusUnauthorized,
+			Message: "Unauthorized",
+		}
+	}
+
 	spaces, err := h.spaceService.GetAllSpaces(r.Context())
 
 	if err != nil {
@@ -65,9 +82,42 @@ func (h *Handler) handleGetSpaces(w http.ResponseWriter, r *http.Request) *web.E
 		}
 	}
 
+	filteredSpaces := make([]*space.Space, 0, len(spaces))
+	for _, item := range spaces {
+		allowed, err := h.accountService.CanAccessSpaceByID(r.Context(), claims.Username, item.ID, account.PermissionRead)
+		if err != nil {
+			return &web.Error{
+				Code:    http.StatusInternalServerError,
+				Message: "Failed to evaluate space access",
+				Err:     err,
+			}
+		}
+		if allowed {
+			filteredSpaces = append(filteredSpaces, item)
+		}
+	}
+
+	type listSpaceResponse struct {
+		ID            int64      `json:"id"`
+		SpaceName     string     `json:"space_name"`
+		SpaceDesc     *string    `json:"space_desc,omitempty"`
+		Icon          *string    `json:"icon,omitempty"`
+		SpaceCategory *string    `json:"space_category,omitempty"`
+	}
+	response := make([]listSpaceResponse, 0, len(filteredSpaces))
+	for _, item := range filteredSpaces {
+		response = append(response, listSpaceResponse{
+			ID:            item.ID,
+			SpaceName:     item.SpaceName,
+			SpaceDesc:     item.SpaceDesc,
+			Icon:          item.Icon,
+			SpaceCategory: item.SpaceCategory,
+		})
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(spaces)
+	json.NewEncoder(w).Encode(response)
 
 	return nil
 }
@@ -109,7 +159,6 @@ func (h *Handler) handleCreateSpace(w http.ResponseWriter, r *http.Request) *web
 	response := space.CreateSpaceResponse{
 		ID:        createdSpace.ID,
 		SpaceName: createdSpace.SpaceName,
-		SpacePath: createdSpace.SpacePath,
 		Message:   "Space created successfully",
 	}
 
@@ -263,6 +312,18 @@ func (h *Handler) handleSpaceBrowse(w http.ResponseWriter, r *http.Request, spac
 			Message: "Failed to list directory",
 			Err:     err,
 		}
+	}
+
+	for i := range files {
+		relative, relErr := filepath.Rel(spaceData.SpacePath, files[i].Path)
+		if relErr != nil {
+			return &web.Error{
+				Code:    http.StatusInternalServerError,
+				Message: "Failed to normalize browse path",
+				Err:     relErr,
+			}
+		}
+		files[i].Path = filepath.ToSlash(relative)
 	}
 
 	// JSON 응답

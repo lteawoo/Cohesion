@@ -58,7 +58,7 @@ function resolveTargetKey(
     return null;
   }
 
-  if (target.path === space.space_path) {
+  if (!target.path) {
     return `space-${space.id}`;
   }
 
@@ -155,8 +155,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
           if (!space) {
             return;
           }
-          const relativePath = path ? path.replace(space.space_path, '').replace(/^\//, '') : '';
-          contents = await fetchSpaceDirectoryContents(spaceId, relativePath);
+          contents = await fetchSpaceDirectoryContents(spaceId, path);
         } else {
           path = keyStr;
           contents = await fetchDirectoryContents(path, showBaseDirectories);
@@ -338,8 +337,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
         } else {
           // Space 루트 노드 선택
           if (space) {
-            if (!isSameSelection(space.space_path, space)) {
-              onSelect(space.space_path, space);
+            if (!isSameSelection('', space)) {
+              onSelect('', space);
             }
           }
         }

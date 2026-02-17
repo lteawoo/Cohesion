@@ -66,7 +66,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	spaceStore := spaceStore.NewStore(db)
 	spaceService := space.NewService(spaceStore)
 	browseService := browse.NewService()
-	spaceHandler := spaceHandler.NewHandler(spaceService, browseService)
+	spaceHandler := spaceHandler.NewHandler(spaceService, browseService, accountService)
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	webDavService := webdav.NewService(spaceService)
 	webDavHandler := webdavHandler.NewHandler(webDavService)

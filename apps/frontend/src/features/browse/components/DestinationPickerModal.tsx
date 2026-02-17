@@ -73,11 +73,13 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   // 선택된 경로를 Space 상대 경로로 표시
   const displayPath = useMemo(() => {
     if (!selectedDestination) return '';
-    if (selectedDestinationSpace && selectedDestination.startsWith(selectedDestinationSpace.space_path)) {
-      const relativePath = selectedDestination.slice(selectedDestinationSpace.space_path.length);
-      return selectedDestinationSpace.space_name + (relativePath || '');
+    if (selectedDestinationSpace) {
+      return selectedDestination
+        ? `${selectedDestinationSpace.space_name}/${selectedDestination}`
+        : selectedDestinationSpace.space_name;
     }
-    return selectedDestination;
+    const leafName = selectedDestination.split('/').filter(Boolean).pop();
+    return leafName ?? '선택됨';
   }, [selectedDestination, selectedDestinationSpace]);
 
   return (

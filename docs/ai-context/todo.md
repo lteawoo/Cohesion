@@ -112,3 +112,5 @@
 - [x] RBAC 하드닝: 사용 중 Role 삭제 차단 + 시스템 Role 빈 권한 저장 차단
 - [x] 권한 변경 즉시 세션 갱신(refreshSession)으로 현재 사용자 권한 반영
 - [x] RBAC 관련 회귀 테스트 추가(`service_rbac_test`, `permissions_test`)
+- [x] Space 절대경로 비노출 1차: `/api/spaces`에서 `space_path` 제거 + Space browse `path` 상대경로화
+- [x] 탐색기 경로 모델을 Space 상대경로 기반으로 정리(트리/브레드크럼/파일작업)
