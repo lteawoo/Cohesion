@@ -15,6 +15,11 @@ html, body {
   -webkit-font-smoothing: antialiased; /* 폰트 부드럽게 */
 }
 
+#root {
+  width: 100%;
+  height: 100%;
+}
+
 /* Lightweight native scrollbar styling (WebKit + Firefox) */
 * {
   scrollbar-width: thin;
@@ -43,6 +48,7 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -50,6 +56,7 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  height: 56px;
   gap: 8px;
   padding: 0 16px;
 }
@@ -127,6 +134,7 @@ html, body {
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .layout-content-scroll-hidden {
@@ -217,4 +225,15 @@ html, body {
   max-height: calc(100% - 20px);
   overflow: auto;
   padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+
+.move-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  font-size: 18px;
+  line-height: 1;
+  vertical-align: -0.125em;
 }

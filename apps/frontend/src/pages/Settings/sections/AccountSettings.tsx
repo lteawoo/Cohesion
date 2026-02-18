@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { App, Button, Card, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
+import { App, Button, Card, Grid, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { ChangeEvent } from 'react';
@@ -43,6 +43,8 @@ const defaultCreateForm: CreateAccountForm = {
 };
 
 const AccountSettings = () => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.lg;
   const { message } = App.useApp();
   const [users, setUsers] = useState<AccountUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -253,12 +255,16 @@ const AccountSettings = () => {
       title: '아이디',
       dataIndex: 'username',
       key: 'username',
+      width: isMobile ? 120 : 180,
+      ellipsis: true,
       render: (value: string) => <Text code>{value}</Text>,
     },
     {
       title: '닉네임',
       dataIndex: 'nickname',
       key: 'nickname',
+      width: isMobile ? 120 : 180,
+      ellipsis: true,
     },
     {
       title: 'Role',
@@ -274,9 +280,9 @@ const AccountSettings = () => {
     {
       title: '작업',
       key: 'actions',
-      width: 280,
+      width: isMobile ? 220 : 280,
       render: (_: unknown, record: AccountUser) => (
-        <Space size="small">
+        <Space size="small" wrap>
           <Button
             size="small"
             onClick={() => void loadAccountPermissions(record)}
@@ -337,6 +343,7 @@ const AccountSettings = () => {
           columns={columns}
           dataSource={users}
           pagination={false}
+          scroll={{ x: isMobile ? 580 : undefined }}
           locale={{ emptyText: '등록된 계정이 없습니다' }}
         />
       </Card>

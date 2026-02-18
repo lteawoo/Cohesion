@@ -117,6 +117,7 @@
 - [x] BottomSheet 터치 드래그 중 passive 이벤트 `preventDefault` 경고 수정
 - [x] BottomSheet 본문 스크롤 top 도달 후 시트 하강 드래그 전환 UX 적용
 - [x] BottomSheet 테스트용 임시 메뉴 30개 추가 (모바일 액션시트)
+- [x] BottomSheet 테스트용 임시 메뉴 제거 (운영 UI 정리)
 - [x] BottomSheet `snapPoints=1` 허용 및 모바일 액션시트 최대 높이 `1` 적용
 - [x] BottomSheet 한 제스처 내 `스크롤 소모 -> 시트 하강` 연속 전환 보강
 - [x] BottomSheet 터치 입력 native listener(`touchmove passive:false`) 전환 + 포인터 터치 경로 분리
@@ -126,3 +127,8 @@
 - [x] BottomSheet top 도달 첫 프레임 잔여 이동량 전달 보정 (`fromContentScroll`, `lastTouchY`)
 - [x] BottomSheet 드래그 렌더링을 `height` 기반에서 `translateY` 기반으로 전환
 - [x] BottomSheet 하강 후 상향 드래그 시 복귀 불가 버그 수정 (`dragOffset > 0`일 때 drag 모드 유지)
+- [x] 설정 > 계정관리 테이블 모바일 UI 보정 (`scroll.x`, 컬럼 축약, 액션 wrap)
+- [x] 모바일 공통 하단 잘림 완화 (`layout 100dvh`, safe-area 하단 패딩, FileExplorer 높이 보정)
+- [x] 폴더콘텐츠 테이블 멀티선택 안정화 (`useFileSelection` 앵커 ref 추적)
+- [x] BottomSheet/컨텍스트 메뉴 `이동` 아이콘 정렬 보정 (`move-action-icon` 공통화)
+- [x] 공통 헤더 높이 소폭 축소 (`layout-header: 56px`)

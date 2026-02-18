@@ -215,10 +215,8 @@ const FolderContent: React.FC = () => {
     isMobile && selectedItems.size > 0;
   const moveActionIcon = (
     <span
-      className="material-symbols-rounded"
+      className="material-symbols-rounded move-action-icon"
       style={{
-        fontSize: 18,
-        lineHeight: 1,
         fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20',
       }}
       aria-hidden="true"
@@ -732,13 +730,6 @@ const FolderContent: React.FC = () => {
                     },
                   }]
                 : []),
-              ...Array.from({ length: 20 }, (_, index) => ({
-                key: `temp-item-${index + 1}`,
-                label: `임시 항목 ${index + 1}`,
-                onClick: () => {
-                  armToolbarInteractionGuard();
-                },
-              })),
             ]}
           />
         </div>
