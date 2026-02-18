@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { BreadcrumbProps } from 'antd';
+import { FolderFilled } from '@ant-design/icons';
 import type { Space } from '@/features/space/types';
 
 export type BreadcrumbItem = NonNullable<BreadcrumbProps['items']>[number];
@@ -17,7 +18,12 @@ export function useBreadcrumb({ selectedPath, selectedSpace, onNavigate }: UseBr
     const segments = selectedPath.split('/').filter(Boolean);
     const items: BreadcrumbItem[] = [
       {
-        title: <a style={{ color: 'inherit' }} onClick={() => onNavigate('', selectedSpace)}>{selectedSpace.space_name}</a>,
+        title: (
+          <a style={{ color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => onNavigate('', selectedSpace)}>
+            <FolderFilled aria-hidden style={{ fontSize: 12 }} />
+            <span>{selectedSpace.space_name}</span>
+          </a>
+        ),
         key: `space-${selectedSpace.id}`,
       },
     ];
@@ -25,7 +31,12 @@ export function useBreadcrumb({ selectedPath, selectedSpace, onNavigate }: UseBr
     segments.forEach((curr, idx) => {
       const path = segments.slice(0, idx + 1).join('/');
       items.push({
-        title: <a style={{ color: 'inherit' }} onClick={() => onNavigate(path, selectedSpace)}>{curr}</a>,
+        title: (
+          <a style={{ color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => onNavigate(path, selectedSpace)}>
+            <FolderFilled aria-hidden style={{ fontSize: 12 }} />
+            <span>{curr}</span>
+          </a>
+        ),
         key: `${selectedSpace.id}:${path}`,
       });
     });

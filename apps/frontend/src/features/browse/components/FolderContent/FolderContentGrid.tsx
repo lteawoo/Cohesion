@@ -140,9 +140,12 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                   )}
                 </div>
                 <div
+                  title={item.name}
                   style={{
                     fontSize: '12px',
-                    wordBreak: 'break-word',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                     marginBottom: '4px',
                   }}
                 >

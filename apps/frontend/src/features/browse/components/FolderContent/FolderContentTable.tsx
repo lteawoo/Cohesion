@@ -58,6 +58,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
     {
       key: 'entry',
       dataIndex: 'name',
+      width: '100%',
       render: (_: string, record: FileNode) => {
         const menuItems: MenuProps['items'] = [
           {
@@ -99,10 +100,10 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
 
         return (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
               {record.isDir ? <FolderFilled style={{ color: '#ffca28', fontSize: 18 }} /> : <FileOutlined style={{ fontSize: 18 }} />}
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 500, color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div title={record.name} style={{ fontWeight: 500, color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {record.name}
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.72 }}>
@@ -145,6 +146,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
     <Table<FileNode>
       dataSource={dataSource}
       columns={columns}
+      tableLayout="fixed"
       loading={loading}
       rowKey="path"
       pagination={false}
