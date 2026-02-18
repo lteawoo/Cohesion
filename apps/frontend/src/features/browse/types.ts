@@ -1,4 +1,6 @@
 
+import type { ReactNode } from 'react';
+
 // browse 기능과 관련된 타입들을 정의합니다.
 export interface FileNode {
   name: string;
@@ -9,7 +11,7 @@ export interface FileNode {
 }
 
 export type TreeDataNode = {
-  title: string;
+  title: ReactNode;
   key: string;
   isLeaf: boolean;
   children?: TreeDataNode[];

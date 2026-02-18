@@ -27,7 +27,7 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
     <div
       style={{
         display: 'flex',
-        justifyContent: 'flex-end',
+        justifyContent: 'flex-start',
         alignItems: 'center',
         height: compact ? '100%' : undefined,
         overflowX: compact ? 'hidden' : undefined,

@@ -730,7 +730,7 @@ const FolderContent: React.FC = () => {
           overflowY: 'hidden',
         }}
       >
-        <div style={{ minWidth: 0, width: '100%' }}>
+        <div style={{ minWidth: 0, width: '100%', color: token.colorText }}>
           <Breadcrumb items={breadcrumbItems} />
         </div>
       </div>
