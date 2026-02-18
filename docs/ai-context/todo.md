@@ -139,3 +139,5 @@
 - [x] 박스선택 시작영역 확장 옵션(`startAreaOutsetPx`) 호출부 누락 연결 (`FolderContent`)
 - [x] 박스선택 오버레이를 루트 레이어로 이동해 컨테이너 경계 클리핑 제거
 - [x] 프론트 빌드 타입 에러 정리 (`FolderContentTable`, `useContextMenu`)
+- [x] 기본 브레드크럼/툴바 로우 드래그 허용 + 선택 툴바만 드래그 제외
+- [x] PC 테이블 선택 반응/멀티선택 UX 보정 (row drag off, Shift/Ctrl+Shift 동작 정리, sortedContent 인덱스 정합)

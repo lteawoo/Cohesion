@@ -149,7 +149,15 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
       rowKey="path"
       pagination={false}
       showHeader={false}
-      rowClassName={(record: FileNode) => (selectedItems.has(record.path) ? 'folder-content-row-selected' : '')}
+      rowClassName={(record: FileNode) => {
+        if (dragOverFolder === record.path) {
+          return 'folder-content-row folder-content-row-dragover';
+        }
+        if (selectedItems.has(record.path)) {
+          return 'folder-content-row folder-content-row-selected';
+        }
+        return 'folder-content-row';
+      }}
       onRow={(record: FileNode, index?: number) => ({
         onClick: (e: React.MouseEvent<HTMLElement>) => onItemClick(e, record, index ?? 0),
         onDoubleClick: () => record.isDir && onItemDoubleClick(record.path),
@@ -164,15 +172,6 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
         onDragOver: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDragOver(e, record),
         onDragLeave: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDragLeave(e),
         onDrop: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDrop(e, record),
-        style: {
-          backgroundColor: dragOverFolder === record.path
-            ? 'rgba(24, 144, 255, 0.1)'
-            : selectedItems.has(record.path)
-              ? 'rgba(24, 144, 255, 0.08)'
-              : undefined,
-          userSelect: 'none',
-          cursor: 'default',
-        } as React.CSSProperties,
       })}
       locale={{ emptyText: '이 폴더는 비어 있습니다.' }}
     />

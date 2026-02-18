@@ -1,5 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:FILL@0..1');
 
+:root {
+  --browse-selection-border-color: #1890ff;
+  --browse-selection-bg: rgba(24, 144, 255, 0.1);
+  --browse-dragover-bg: rgba(24, 144, 255, 0.05);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -159,6 +165,19 @@ html, body {
 .app-drawer--nav .ant-drawer-content,
 .app-drawer--nav .ant-drawer-body {
   background: var(--ant-colorBgContainer);
+}
+
+.folder-content-row {
+  user-select: none;
+  cursor: default;
+}
+
+.folder-content-row-selected > td {
+  background-color: var(--browse-selection-bg) !important;
+}
+
+.folder-content-row-dragover > td {
+  background-color: var(--browse-dragover-bg) !important;
 }
 
 .panel-close-btn.ant-btn-text,
