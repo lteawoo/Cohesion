@@ -41,6 +41,7 @@ const FolderContent: React.FC = () => {
   const setPath = useBrowseStore((state) => state.setPath);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rootContainerRef = useRef<HTMLDivElement>(null);
   const selectionContainerRef = useRef<HTMLDivElement>(null);
   const itemsRef = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -164,6 +165,8 @@ const FolderContent: React.FC = () => {
   // Box selection (Grid 뷰 전용)
   const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
     enabled: viewMode === 'grid' && !isMobile && !isAnyModalOpen,
+    startAreaRef: rootContainerRef,
+    startAreaOutsetPx: 16,
     containerRef: selectionContainerRef,
     itemsRef,
     selectedItems,
@@ -214,6 +217,16 @@ const FolderContent: React.FC = () => {
     isMobile && selectedItems.size > 0;
   const showDesktopSelectionBar = !isMobile && selectedItems.size > 0;
   const topRowHeight = isMobile ? 44 : 52;
+  const rootRect = rootContainerRef.current?.getBoundingClientRect();
+  const selectionRect = selectionContainerRef.current?.getBoundingClientRect();
+  const selectionScrollLeft = selectionContainerRef.current?.scrollLeft ?? 0;
+  const selectionScrollTop = selectionContainerRef.current?.scrollTop ?? 0;
+  const overlayOffsetX = rootRect && selectionRect
+    ? (selectionRect.left - rootRect.left) - selectionScrollLeft
+    : 0;
+  const overlayOffsetY = rootRect && selectionRect
+    ? (selectionRect.top - rootRect.top) - selectionScrollTop
+    : 0;
   const moveActionIcon = (
     <span
       className="material-symbols-rounded move-action-icon"
@@ -417,6 +430,7 @@ const FolderContent: React.FC = () => {
 
   return (
     <div
+      ref={rootContainerRef}
       style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', height: '100%', minHeight: 0 }}
       onDragEnter={canWriteFiles ? handleDragEnter : undefined}
       onDragLeave={canWriteFiles ? handleDragLeave : undefined}
@@ -432,7 +446,7 @@ const FolderContent: React.FC = () => {
         onChange={handleFileSelect}
       />
 
-      <div style={{ height: topRowHeight, marginTop: 8 }}>
+      <div data-selection-exclude="true" style={{ height: topRowHeight, marginTop: 8 }}>
         {showMobileSelectionBar ? (
           <div
             data-mobile-selection-bar="true"
@@ -606,14 +620,6 @@ const FolderContent: React.FC = () => {
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
-          marginTop: -16,
-          marginLeft: -16,
-          marginRight: -16,
-          marginBottom: -16,
-          paddingTop: 16,
-          paddingLeft: 16,
-          paddingRight: 16,
-          paddingBottom: 16,
         }}
       >
         {viewMode === 'table' ? (
@@ -665,14 +671,17 @@ const FolderContent: React.FC = () => {
             />
           </>
         )}
-        <BoxSelectionOverlay
-          visible={isSelecting && selectionBox !== null}
-          startX={selectionBox?.startX ?? 0}
-          startY={selectionBox?.startY ?? 0}
-          currentX={selectionBox?.currentX ?? 0}
-          currentY={selectionBox?.currentY ?? 0}
-        />
       </div>
+
+      <BoxSelectionOverlay
+        visible={isSelecting && selectionBox !== null}
+        startX={selectionBox?.startX ?? 0}
+        startY={selectionBox?.startY ?? 0}
+        currentX={selectionBox?.currentX ?? 0}
+        currentY={selectionBox?.currentY ?? 0}
+        offsetX={overlayOffsetX}
+        offsetY={overlayOffsetY}
+      />
 
       <RenameModal
         visible={modals.rename.visible}

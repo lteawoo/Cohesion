@@ -1752,3 +1752,37 @@
 - **검증**:
   - `go test ./...` (apps/backend) 통과.
   - `pnpm -C apps/frontend build` 통과.
+
+## 2026-02-18: 파일 익스플로러 외곽 여백 박스선택 시작 경계 확장 연결
+- **상황**:
+  - `useBoxSelection` 훅에 시작 경계 확장(`startAreaOutsetPx`)을 추가했지만 `FolderContent`에서 값을 주입하지 않아 외곽 여백 시작 드래그가 여전히 차단됨.
+- **결정**:
+  - `FolderContent`에서 `startAreaOutsetPx: 16`을 명시적으로 전달해 `FileExplorer` 패딩(16px) 영역까지 시작 판정을 확장.
+- **이유**:
+  - 레이아웃 패딩은 유지하면서 드래그 시작 인식 범위만 안전하게 넓히는 최소 변경.
+- **적용 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+
+## 2026-02-18: 박스선택 오버레이 렌더 레이어 상향
+- **상황**:
+  - 시작 영역은 외곽까지 확장됐지만, 선택 박스 DOM이 `overflow:auto` 컨테이너 내부에 있어 파일 익스플로러 바깥에서 시각적으로 잘림.
+- **결정**:
+  - 오버레이를 `FolderContent` 루트 레이어(상위)에서 렌더링.
+  - 선택 좌표(콘텐츠 기준)는 유지하고, 렌더 시 `selectionContainer`의 위치/스크롤 오프셋을 더해 표시 좌표를 보정.
+- **이유**:
+  - 선택 교차 판정 로직은 그대로 유지하면서 시각적 클리핑만 분리 해결 가능한 최소 리스크 수정.
+- **적용 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+  - `apps/frontend/src/features/browse/components/FolderContent/BoxSelectionOverlay.tsx`
+
+## 2026-02-18: PR 마무리용 프론트 타입 안정화 정리
+- **상황**:
+  - `pnpm -C apps/frontend build` 시 암시적 any/nullable 관련 타입 에러로 빌드 실패.
+- **결정**:
+  - 테이블 메뉴 클릭 핸들러에 명시 타입을 부여하고, 테이블 제네릭을 `FileNode`로 고정.
+  - 컨텍스트 메뉴 빈영역 메뉴 구성 결과에 null/undefined 가드 추가.
+- **이유**:
+  - 기능 변경 없이 타입 안정성을 높여 PR 검증(빌드) 기준 충족.
+- **적용 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent/FolderContentTable.tsx`
+  - `apps/frontend/src/features/browse/hooks/useContextMenu.ts`

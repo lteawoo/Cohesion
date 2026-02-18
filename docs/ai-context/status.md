@@ -895,3 +895,26 @@
     - 실행 환경 문서를 `docs/AGENTS.md`에서 루트 `AGENTS.md`로 이동.
     - `CLAUDE.md`, `GEMINI.md`가 루트 `AGENTS.md` 내용을 직접 포함하도록 동기화.
     - `master_rule_v2.md`의 시각 검증 규칙을 `chrome-extention` 기준으로 정리.
+
+- **파일 익스플로러 외곽 여백 드래그 미동작 원인 확인 및 보강** (2026-02-18):
+    - 원인: `useBoxSelection`에 추가된 시작영역 확장 옵션(`startAreaOutsetPx`)이 `FolderContent` 호출부에 연결되지 않아 실제 동작은 기존 경계(루트 컨테이너 내부)로 고정.
+    - 조치: `useBoxSelection` 호출에 `startAreaOutsetPx: 16` 연결.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 검증:
+        - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+
+- **박스선택 오버레이 클리핑 해소** (2026-02-18):
+    - 원인: 오버레이가 `selectionContainer` 내부(overflow auto)에서 렌더링되어 컨테이너 경계 밖에서 시각적으로 잘림.
+    - 조치: 오버레이를 `FolderContent` 루트 레이어로 이동하고, `selectionContainer` 위치/스크롤 기준 오프셋 보정값(`offsetX/offsetY`) 적용.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent/BoxSelectionOverlay.tsx`
+    - 검증:
+        - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+
+- **프론트 빌드 타입 에러 정리** (2026-02-18):
+    - `FolderContentTable` 메뉴 클릭 핸들러 타입 명시 및 `Table<FileNode>` 제네릭 지정.
+    - `useContextMenu` 빈영역 메뉴 아이템 null/undefined 가드 추가.
+    - 검증:
+        - `pnpm -C apps/frontend build` 통과.

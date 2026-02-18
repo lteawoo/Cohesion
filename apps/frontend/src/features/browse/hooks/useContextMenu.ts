@@ -70,7 +70,7 @@ export function useContextMenu({
       // 카드나 테이블 행을 클릭하지 않은 경우 빈 영역 메뉴 표시
       if (!isCard && !isTableRow) {
         const emptyAreaMenuItems = buildEmptyAreaMenu(callbacks.onCreateFolder, { canWriteFiles });
-        if (emptyAreaMenuItems.length === 0) {
+        if (!emptyAreaMenuItems || emptyAreaMenuItems.length === 0) {
           return;
         }
         openContextMenu(e.clientX, e.clientY, emptyAreaMenuItems);

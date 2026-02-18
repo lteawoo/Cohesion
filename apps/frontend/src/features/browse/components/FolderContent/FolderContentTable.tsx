@@ -115,7 +115,8 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
               placement="bottomRight"
               menu={{
                 items: menuItems,
-                onClick: ({ key, domEvent }) => {
+                onClick: (info: Parameters<NonNullable<MenuProps['onClick']>>[0]) => {
+                  const { key, domEvent } = info;
                   domEvent.stopPropagation();
                   if (key === 'download') onItemDownload(record);
                   if (key === 'copy') onItemCopy(record);
@@ -141,14 +142,14 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
   ];
 
   return (
-    <Table
+    <Table<FileNode>
       dataSource={dataSource}
       columns={columns}
       loading={loading}
       rowKey="path"
       pagination={false}
       showHeader={false}
-      rowClassName={(record) => (selectedItems.has(record.path) ? 'folder-content-row-selected' : '')}
+      rowClassName={(record: FileNode) => (selectedItems.has(record.path) ? 'folder-content-row-selected' : '')}
       onRow={(record: FileNode, index?: number) => ({
         onClick: (e: React.MouseEvent<HTMLElement>) => onItemClick(e, record, index ?? 0),
         onDoubleClick: () => record.isDir && onItemDoubleClick(record.path),
