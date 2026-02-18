@@ -1,6 +1,31 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **공통 헤더 높이 소폭 축소 완료** (2026-02-18):
+    - 프론트:
+      - 전역 레이아웃 헤더 클래스(`layout-header`) 높이를 `56px`로 조정해 메인/설정 상단 밀도를 통일.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **BottomSheet 액션 메뉴 아이콘/텍스트 행 정렬 보정 완료** (2026-02-18):
+    - 프론트:
+      - `drive_file_move` Material 아이콘에 공통 클래스(`move-action-icon`)를 적용해 아이콘 박스 폭/베이스라인을 Ant 아이콘과 일치시킴.
+      - 모바일 BottomSheet 메뉴와 테이블 컨텍스트 메뉴에서 `이동` 항목의 텍스트 시작점이 다른 줄과 맞도록 정렬 보정.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **모바일 하단 잘림/설정 계정관리 테이블/테이블 멀티선택 보정 완료** (2026-02-18):
+    - 프론트:
+      - `AccountSettings` 테이블에 모바일 대응(`scroll.x`, 컬럼 `ellipsis`, 액션 버튼 `wrap`)을 적용해 작은 화면에서 UI 깨짐을 완화.
+      - 공통 레이아웃을 `100dvh` 기반으로 보정하고 `layout-content-scroll`에 safe-area 하단 패딩을 추가해 모바일 하단 잘림을 완화.
+      - `FileExplorer` 높이 계산을 `100vh` 고정값에서 부모 레이아웃 종속(`height: 100%`, `minHeight: 0`)으로 전환.
+      - `useFileSelection`을 ref 기반 앵커 추적으로 보강해 테이블 뷰의 연속/범위 멀티선택 안정성을 개선.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **BottomSheet 테스트용 임시 메뉴 제거 완료** (2026-02-18):
+    - 프론트:
+      - 모바일 선택 액션 BottomSheet에서 UX 재현용 임시 메뉴 항목(`임시 항목`)을 제거.
+      - 실제 액션 메뉴만 남겨 운영 UI를 정리.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
 - **BottomSheet 상향 복귀 드래그 불가 버그 수정 완료** (2026-02-18):
     - 프론트:
       - 본문 영역 터치 시작 후 시트를 아래로 내린 상태(`dragOffset > 0`)에서 위로 드래그할 때, 제스처 모드를 즉시 `scroll`로 전환하지 않도록 조건 보정.

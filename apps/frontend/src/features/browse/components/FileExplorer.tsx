@@ -8,7 +8,8 @@ const FileExplorer: React.FC = () => {
 
   return (
     <div style={{
-      height: 'calc(100vh - 64px)',
+      height: '100%',
+      minHeight: 0,
       overflow: 'hidden',
       padding: '16px',
       background: token.colorBgLayout

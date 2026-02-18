@@ -75,7 +75,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
                 {
                   key: 'move',
                   icon: (
-                    <span className="material-symbols-rounded" style={{ fontSize: 18, lineHeight: 1, fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20' }}>
+                    <span className="material-symbols-rounded move-action-icon" style={{ fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20' }}>
                       drive_file_move
                     </span>
                   ),
