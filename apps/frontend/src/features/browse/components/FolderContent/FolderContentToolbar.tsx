@@ -1,12 +1,10 @@
 import React from 'react';
-import { Breadcrumb, Space as AntSpace, Button, Select } from 'antd';
+import { Space as AntSpace, Button, Select } from 'antd';
 import { UploadOutlined, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
-import type { BreadcrumbItem } from '../../hooks/useBreadcrumb';
 import type { ViewMode, SortConfig } from '../../types';
 import { SORT_OPTIONS } from '../../constants';
 
 interface FolderContentToolbarProps {
-  breadcrumbItems: BreadcrumbItem[];
   viewMode: ViewMode;
   sortConfig: SortConfig;
   canUpload: boolean;
@@ -17,7 +15,6 @@ interface FolderContentToolbarProps {
 }
 
 const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
-  breadcrumbItems,
   viewMode,
   sortConfig,
   canUpload,
@@ -30,18 +27,15 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
     <div
       style={{
         display: 'flex',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         alignItems: 'center',
         height: compact ? '100%' : undefined,
-        overflowX: compact ? 'auto' : undefined,
+        overflowX: compact ? 'hidden' : undefined,
         overflowY: compact ? 'hidden' : undefined,
         flexWrap: compact ? 'nowrap' : 'wrap',
         gap: compact ? '8px' : '8px 16px',
       }}
     >
-      <div style={{ flex: '1 1 320px', minWidth: 0, overflow: 'hidden' }}>
-        <Breadcrumb items={breadcrumbItems} />
-      </div>
       <AntSpace wrap={!compact}>
         {canUpload && (
           <Button

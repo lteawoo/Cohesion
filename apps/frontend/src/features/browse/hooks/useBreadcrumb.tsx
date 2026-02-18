@@ -17,7 +17,7 @@ export function useBreadcrumb({ selectedPath, selectedSpace, onNavigate }: UseBr
     const segments = selectedPath.split('/').filter(Boolean);
     const items: BreadcrumbItem[] = [
       {
-        title: <a onClick={() => onNavigate('', selectedSpace)}>{selectedSpace.space_name}</a>,
+        title: <a style={{ color: 'inherit' }} onClick={() => onNavigate('', selectedSpace)}>{selectedSpace.space_name}</a>,
         key: `space-${selectedSpace.id}`,
       },
     ];
@@ -25,7 +25,7 @@ export function useBreadcrumb({ selectedPath, selectedSpace, onNavigate }: UseBr
     segments.forEach((curr, idx) => {
       const path = segments.slice(0, idx + 1).join('/');
       items.push({
-        title: <a onClick={() => onNavigate(path, selectedSpace)}>{curr}</a>,
+        title: <a style={{ color: 'inherit' }} onClick={() => onNavigate(path, selectedSpace)}>{curr}</a>,
         key: `${selectedSpace.id}:${path}`,
       });
     });
