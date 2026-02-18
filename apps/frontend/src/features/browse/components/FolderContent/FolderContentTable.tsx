@@ -3,7 +3,7 @@ import { Table, Dropdown, Button } from 'antd';
 import type { MenuProps } from 'antd';
 import { FolderFilled, FileOutlined, MoreOutlined, EditOutlined, DeleteOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { FileNode } from '../../types';
-import { formatDate } from '../../constants';
+import { formatDate, formatSize } from '../../constants';
 
 interface FolderContentTableProps {
   dataSource: FileNode[];
@@ -106,7 +106,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
                   {record.name}
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.72 }}>
-                  {formatDate(record.modTime)}
+                  {record.isDir ? '-' : formatSize(record.size)} | {formatDate(record.modTime)}
                 </div>
               </div>
             </div>

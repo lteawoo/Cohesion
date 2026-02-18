@@ -93,11 +93,6 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                 style={{
                   textAlign: 'center',
                   cursor: 'pointer',
-                  border: isSelected
-                    ? '2px solid var(--browse-selection-border-color)'
-                    : dragOverFolder === item.path
-                      ? '2px dashed var(--browse-selection-border-color)'
-                      : undefined,
                   backgroundColor: isSelected
                     ? 'var(--browse-selection-bg)'
                     : dragOverFolder === item.path

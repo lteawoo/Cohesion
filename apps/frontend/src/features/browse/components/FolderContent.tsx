@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Empty, App, Grid, Button, Menu, theme } from 'antd';
+import { Empty, App, Grid, Button, Menu, theme, Breadcrumb } from 'antd';
 import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
@@ -23,6 +23,8 @@ import { useAuth } from '@/features/auth/useAuth';
 import BottomSheet from '@/components/common/BottomSheet';
 
 const LONG_PRESS_DURATION_MS = 420;
+const PATH_BAR_HEIGHT = 36;
+const EXPLORER_SIDE_PADDING = 16;
 
 const FolderContent: React.FC = () => {
   const { message } = App.useApp();
@@ -113,6 +115,7 @@ const FolderContent: React.FC = () => {
     selectedSpace,
     onNavigate: setPath,
   });
+
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useSortedContent(content, sortConfig);
 
@@ -217,6 +220,8 @@ const FolderContent: React.FC = () => {
     isMobile && selectedItems.size > 0;
   const showDesktopSelectionBar = !isMobile && selectedItems.size > 0;
   const topRowHeight = isMobile ? 44 : 52;
+  const topRowOffset = 8;
+  const topRowSlotHeight = topRowHeight + topRowOffset;
   const rootRect = rootContainerRef.current?.getBoundingClientRect();
   const selectionRect = selectionContainerRef.current?.getBoundingClientRect();
   const selectionScrollLeft = selectionContainerRef.current?.scrollLeft ?? 0;
@@ -403,6 +408,7 @@ const FolderContent: React.FC = () => {
     const isModalContent = target.closest('.ant-modal');
     const isSelectionToolbar = target.closest('[data-selection-toolbar="true"]');
     const isMobileSelectionBar = target.closest('[data-mobile-selection-bar="true"]');
+    const isPathBar = target.closest('[data-path-bar="true"]');
 
     // 모달 내부 클릭은 React portal 이벤트 버블링으로 들어오므로 선택 해제 대상에서 제외
     if (isModalContent) {
@@ -414,6 +420,10 @@ const FolderContent: React.FC = () => {
     }
 
     if (isMobileSelectionBar) {
+      return;
+    }
+
+    if (isPathBar) {
       return;
     }
 
@@ -451,7 +461,7 @@ const FolderContent: React.FC = () => {
         onChange={handleFileSelect}
       />
 
-      <div style={{ height: topRowHeight, marginTop: 8 }}>
+      <div style={{ height: topRowSlotHeight }}>
         {showMobileSelectionBar ? (
           <div
             data-selection-toolbar="true"
@@ -489,6 +499,7 @@ const FolderContent: React.FC = () => {
               gap: 8,
               width: '100%',
               height: topRowHeight,
+              marginTop: topRowOffset,
               padding: '0 12px',
               background: token.colorBgElevated,
               border: `1px solid ${token.colorBorder}`,
@@ -560,6 +571,7 @@ const FolderContent: React.FC = () => {
               gap: 8,
               width: '100%',
               height: topRowHeight,
+              marginTop: topRowOffset,
               padding: '0 12px',
               background: token.colorBgElevated,
               border: `1px solid ${token.colorBorder}`,
@@ -607,16 +619,17 @@ const FolderContent: React.FC = () => {
             )}
           </div>
         ) : (
-          <FolderContentToolbar
-            breadcrumbItems={breadcrumbItems}
-            viewMode={viewMode}
-            sortConfig={sortConfig}
-            canUpload={canWriteFiles}
-            compact
-            onUpload={handleUploadClick}
-            onViewModeChange={setViewMode}
-            onSortChange={setSortConfig}
-          />
+          <div style={{ height: topRowHeight }}>
+              <FolderContentToolbar
+                viewMode={viewMode}
+                sortConfig={sortConfig}
+                canUpload={canWriteFiles}
+              compact
+              onUpload={handleUploadClick}
+              onViewModeChange={setViewMode}
+              onSortChange={setSortConfig}
+            />
+          </div>
         )}
       </div>
 
@@ -629,6 +642,7 @@ const FolderContent: React.FC = () => {
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
+          paddingBottom: PATH_BAR_HEIGHT + 6,
         }}
       >
         {viewMode === 'table' ? (
@@ -691,6 +705,35 @@ const FolderContent: React.FC = () => {
         offsetX={overlayOffsetX}
         offsetY={overlayOffsetY}
       />
+
+      <div
+        data-path-bar="true"
+        data-selection-exclude="true"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          left: -EXPLORER_SIDE_PADDING,
+          right: -EXPLORER_SIDE_PADDING,
+          bottom: -EXPLORER_SIDE_PADDING,
+          zIndex: 4,
+          height: PATH_BAR_HEIGHT,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          borderTop: `1px solid ${token.colorBorder}`,
+          background: token.colorBgContainer,
+          color: token.colorText,
+          fontSize: 12,
+          lineHeight: 1,
+          overflowX: 'auto',
+          overflowY: 'hidden',
+        }}
+      >
+        <div style={{ minWidth: 0, width: '100%' }}>
+          <Breadcrumb items={breadcrumbItems} />
+        </div>
+      </div>
 
       <RenameModal
         visible={modals.rename.visible}
