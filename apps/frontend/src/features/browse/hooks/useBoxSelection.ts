@@ -4,6 +4,8 @@ import type { SelectionBox } from '../types';
 
 interface UseBoxSelectionParams {
   enabled: boolean;
+  startAreaRef?: { current: HTMLElement | null };
+  startAreaOutsetPx?: number;
   containerRef: { current: HTMLElement | null };
   itemsRef: RefObject<Map<string, HTMLElement>>;
   selectedItems: Set<string>;
@@ -18,6 +20,8 @@ interface UseBoxSelectionReturn {
 
 export function useBoxSelection({
   enabled,
+  startAreaRef,
+  startAreaOutsetPx = 0,
   containerRef,
   itemsRef,
   selectedItems,
@@ -147,24 +151,32 @@ export function useBoxSelection({
     (e: MouseEvent) => {
       if (!enabled) return;
 
-      // 컨테이너 범위 체크
+      // 시작 가능 영역 범위 체크 (없으면 컨테이너 기준)
+      const startArea = startAreaRef?.current ?? containerRef.current;
+      if (!startArea) {
+        return;
+      }
+      const startAreaRect = startArea.getBoundingClientRect();
+      const inBounds =
+        e.clientX >= (startAreaRect.left - startAreaOutsetPx) &&
+        e.clientX <= (startAreaRect.right + startAreaOutsetPx) &&
+        e.clientY >= (startAreaRect.top - startAreaOutsetPx) &&
+        e.clientY <= (startAreaRect.bottom + startAreaOutsetPx);
+
+      if (!inBounds) {
+        return; // 시작 영역 밖 클릭
+      }
+
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-selection-exclude="true"]')) {
+        return;
+      }
+
+      // 좌표/스크롤 계산용 컨테이너 체크
       const container = containerRef.current;
       if (!container) {
         return;
       }
-
-      const containerRect = container.getBoundingClientRect();
-      const inBounds =
-        e.clientX >= containerRect.left &&
-        e.clientX <= containerRect.right &&
-        e.clientY >= containerRect.top &&
-        e.clientY <= containerRect.bottom;
-
-      if (!inBounds) {
-        return; // 컨테이너 밖에서 클릭
-      }
-
-      const target = e.target as HTMLElement;
       const isModalLayer = target.closest('.ant-modal-root, .ant-modal-mask, .ant-modal-wrap, .ant-modal');
       if (isModalLayer) {
         return;
@@ -199,7 +211,7 @@ export function useBoxSelection({
       // 초기 선택 상태 저장 (Ctrl/Shift 처리용)
       initialSelection.current = new Set(selectedItems);
     },
-    [enabled, selectedItems, containerRef, toContentPoint]
+    [enabled, selectedItems, startAreaRef, startAreaOutsetPx, containerRef, toContentPoint]
   );
 
   // 마우스 무브: requestAnimationFrame으로 최적화

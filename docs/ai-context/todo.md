@@ -132,3 +132,10 @@
 - [x] 폴더콘텐츠 테이블 멀티선택 안정화 (`useFileSelection` 앵커 ref 추적)
 - [x] BottomSheet/컨텍스트 메뉴 `이동` 아이콘 정렬 보정 (`move-action-icon` 공통화)
 - [x] 공통 헤더 높이 소폭 축소 (`layout-header: 56px`)
+- [x] 파일 익스플로러 좌우 여백에서도 박스선택 드래그 시작 가능하도록 컨테이너 범위 보정
+- [x] 외곽 패딩 유지 상태에서 selection 컨테이너 음수마진/패딩으로 여백 드래그 가능 영역 편입
+- [x] 모바일/PC 선택모드 상단 로우를 고정 높이 슬롯 교체로 전환하여 본문 점프 제거
+- [x] 상단 고정 툴바 위 간격 보정 (`top row marginTop: 8px`, content `paddingTop: 16px` 유지)
+- [x] 박스선택 시작영역 확장 옵션(`startAreaOutsetPx`) 호출부 누락 연결 (`FolderContent`)
+- [x] 박스선택 오버레이를 루트 레이어로 이동해 컨테이너 경계 클리핑 제거
+- [x] 프론트 빌드 타입 에러 정리 (`FolderContentTable`, `useContextMenu`)

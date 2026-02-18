@@ -10,6 +10,7 @@ interface FolderContentToolbarProps {
   viewMode: ViewMode;
   sortConfig: SortConfig;
   canUpload: boolean;
+  compact?: boolean;
   onUpload: () => void;
   onViewModeChange: (mode: ViewMode) => void;
   onSortChange: (config: SortConfig) => void;
@@ -20,6 +21,7 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
   viewMode,
   sortConfig,
   canUpload,
+  compact = false,
   onUpload,
   onViewModeChange,
   onSortChange,
@@ -30,14 +32,17 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: '8px 16px',
+        height: compact ? '100%' : undefined,
+        overflowX: compact ? 'auto' : undefined,
+        overflowY: compact ? 'hidden' : undefined,
+        flexWrap: compact ? 'nowrap' : 'wrap',
+        gap: compact ? '8px' : '8px 16px',
       }}
     >
       <div style={{ flex: '1 1 320px', minWidth: 0, overflow: 'hidden' }}>
         <Breadcrumb items={breadcrumbItems} />
       </div>
-      <AntSpace wrap>
+      <AntSpace wrap={!compact}>
         {canUpload && (
           <Button
             icon={<UploadOutlined />}

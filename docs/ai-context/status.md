@@ -1,6 +1,30 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **상단 고정 툴바 위 간격 보정 완료** (2026-02-18):
+    - 프론트:
+      - `툴바 아래 여백` 변경은 되돌리고, 상단 툴바 슬롯에 `marginTop: 8px`를 적용해 상단 고정 상태에서 헤더와의 시각 간격을 확보.
+      - 파일 목록 컨테이너 상단 패딩은 기존 `16px` 유지.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **모바일/PC 선택모드 상단 로우 고정 높이 전환 완료** (2026-02-18):
+    - 프론트:
+      - 모바일/PC 공통으로 상단 로우를 단일 슬롯 교체 구조로 정리.
+      - 모바일은 `X개 항목` 선택바, PC는 데스크톱 선택 액션바를 기존 툴바 자리에 동일 높이 슬롯에서 교체 렌더링.
+      - 상단 슬롯 높이를 모바일 `44px`, PC `52px`로 고정.
+      - PC 선택바의 `선택 해제` 텍스트 버튼을 `X` 아이콘 버튼으로 변경.
+      - 모바일 선택바 아이콘 순서를 PC와 동일 기준(다운로드 → 복사 → 이동)으로 정렬.
+      - 선택 상태 진입/해제 시 본문 영역 높이 점프를 제거.
+      - `FolderContentToolbar`의 `compact` 모드에 수평 오버플로우 처리를 추가해 한 줄 슬롯 레이아웃 유지.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **파일 익스플로러 외곽 여백(좌우상하) 드래그 시작 개선 완료** (2026-02-18):
+    - 프론트:
+      - 박스선택 컨테이너를 그리드 전용 래퍼에서 공통 콘텐츠 스크롤 래퍼로 상향(`selectionContainerRef`)해 외곽 여백에서 드래그 시작 가능하도록 보정.
+      - `FileExplorer` 외곽 패딩은 유지한 채, 선택 컨테이너에 음수 마진/내부 패딩(`top/right/bottom/left`)을 적용해 외곽 여백을 드래그 가능한 컨테이너 영역으로 편입.
+      - 박스선택은 기존 정책대로 PC 그리드에서만 활성화 유지.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
 - **공통 헤더 높이 소폭 축소 완료** (2026-02-18):
     - 프론트:
       - 전역 레이아웃 헤더 클래스(`layout-header`) 높이를 `56px`로 조정해 메인/설정 상단 밀도를 통일.
@@ -871,3 +895,26 @@
     - 실행 환경 문서를 `docs/AGENTS.md`에서 루트 `AGENTS.md`로 이동.
     - `CLAUDE.md`, `GEMINI.md`가 루트 `AGENTS.md` 내용을 직접 포함하도록 동기화.
     - `master_rule_v2.md`의 시각 검증 규칙을 `chrome-extention` 기준으로 정리.
+
+- **파일 익스플로러 외곽 여백 드래그 미동작 원인 확인 및 보강** (2026-02-18):
+    - 원인: `useBoxSelection`에 추가된 시작영역 확장 옵션(`startAreaOutsetPx`)이 `FolderContent` 호출부에 연결되지 않아 실제 동작은 기존 경계(루트 컨테이너 내부)로 고정.
+    - 조치: `useBoxSelection` 호출에 `startAreaOutsetPx: 16` 연결.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 검증:
+        - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+
+- **박스선택 오버레이 클리핑 해소** (2026-02-18):
+    - 원인: 오버레이가 `selectionContainer` 내부(overflow auto)에서 렌더링되어 컨테이너 경계 밖에서 시각적으로 잘림.
+    - 조치: 오버레이를 `FolderContent` 루트 레이어로 이동하고, `selectionContainer` 위치/스크롤 기준 오프셋 보정값(`offsetX/offsetY`) 적용.
+    - 수정 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent/BoxSelectionOverlay.tsx`
+    - 검증:
+        - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+
+- **프론트 빌드 타입 에러 정리** (2026-02-18):
+    - `FolderContentTable` 메뉴 클릭 핸들러 타입 명시 및 `Table<FileNode>` 제네릭 지정.
+    - `useContextMenu` 빈영역 메뉴 아이템 null/undefined 가드 추가.
+    - 검증:
+        - `pnpm -C apps/frontend build` 통과.

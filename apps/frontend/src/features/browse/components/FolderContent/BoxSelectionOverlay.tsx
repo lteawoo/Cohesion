@@ -3,6 +3,8 @@ import type { SelectionBox } from '../../types';
 
 interface BoxSelectionOverlayProps extends SelectionBox {
   visible: boolean;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 const BoxSelectionOverlay: React.FC<BoxSelectionOverlayProps> = ({
@@ -11,11 +13,13 @@ const BoxSelectionOverlay: React.FC<BoxSelectionOverlayProps> = ({
   startY,
   currentX,
   currentY,
+  offsetX = 0,
+  offsetY = 0,
 }) => {
   if (!visible) return null;
 
-  const left = Math.min(startX, currentX);
-  const top = Math.min(startY, currentY);
+  const left = Math.min(startX, currentX) + offsetX;
+  const top = Math.min(startY, currentY) + offsetY;
   const width = Math.abs(currentX - startX);
   const height = Math.abs(currentY - startY);
 
