@@ -918,3 +918,14 @@
     - `useContextMenu` 빈영역 메뉴 아이템 null/undefined 가드 추가.
     - 검증:
         - `pnpm -C apps/frontend build` 통과.
+
+- **상단 로우 드래그 시작 정책 조정** (2026-02-18):
+    - 기본 브레드크럼/툴바 로우는 박스선택 드래그 시작 허용.
+    - 선택 툴바(선택 N개 표시) 상태에서는 드래그 시작 제외 유지.
+    - 인터랙티브 요소(버튼/입력/셀렉트/링크)에서는 드래그 시작 차단해 버튼 동작 보존.
+
+- **PC 테이블 선택 반응/멀티선택 보정** (2026-02-18):
+    - 테이블 row drag를 비활성화해 클릭 선택 반응 지연 체감 완화.
+    - `useFileSelection`의 Shift 범위선택을 앵커 기반 표준 동작으로 정리(Shift: 범위 치환, Ctrl/Cmd+Shift: 범위 추가).
+    - 컨텍스트 메뉴 선택 기준 배열을 `content`에서 `sortedContent`로 교정해 인덱스/앵커 불일치 보정.
+    - 검증: `pnpm -C apps/frontend exec tsc --noEmit`, `pnpm -C apps/frontend build` 통과.

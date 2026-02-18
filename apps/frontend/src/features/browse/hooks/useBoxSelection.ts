@@ -171,6 +171,9 @@ export function useBoxSelection({
       if (target.closest('[data-selection-exclude="true"]')) {
         return;
       }
+      if (target.closest('button, input, select, textarea, a, [role="button"], .ant-btn, .ant-select, .ant-select-dropdown')) {
+        return;
+      }
 
       // 좌표/스크롤 계산용 컨테이너 체크
       const container = containerRef.current;

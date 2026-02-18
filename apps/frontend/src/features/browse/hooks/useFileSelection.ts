@@ -3,22 +3,46 @@ import type { FileNode } from '../types';
 
 interface UseFileSelectionReturn {
   selectedItems: Set<string>;
-  lastSelectedIndex: number;
   handleItemClick: (e: React.MouseEvent, record: FileNode, index: number, sortedContent: FileNode[]) => void;
   handleContainerClick: (e: React.MouseEvent) => void;
   clearSelection: () => void;
-  setSelection: (items: Set<string>) => void;
+  setSelection: (items: Set<string>, index?: number) => void;
 }
 
 export function useFileSelection(): UseFileSelectionReturn {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [lastSelectedIndex, setLastSelectedIndex] = useState<number>(-1);
   const lastSelectedIndexRef = useRef<number>(-1);
 
   const handleItemClick = useCallback(
     (e: React.MouseEvent, record: FileNode, index: number, sortedContent: FileNode[]) => {
+      const isToggle = e.ctrlKey || e.metaKey;
+      const isRange = e.shiftKey;
+
+      // Shift + 클릭: 앵커 기준 범위 선택 (기본은 범위로 치환, Ctrl/Cmd+Shift는 범위 추가)
+      if (isRange) {
+        e.preventDefault();
+        const anchor = lastSelectedIndexRef.current >= 0 ? lastSelectedIndexRef.current : index;
+        const start = Math.min(anchor, index);
+        const end = Math.max(anchor, index);
+        const rangeItems = new Set<string>();
+        for (let i = start; i <= end; i++) {
+          if (sortedContent[i]) {
+            rangeItems.add(sortedContent[i].path);
+          }
+        }
+
+        if (isToggle) {
+          setSelectedItems((prev) => new Set([...prev, ...rangeItems]));
+        } else {
+          setSelectedItems(rangeItems);
+        }
+
+        // Shift 확장 시 anchor는 유지하고, 마지막 포커스 위치만 업데이트
+        return;
+      }
+
       // Ctrl/Cmd + 클릭: 토글
-      if (e.ctrlKey || e.metaKey) {
+      if (isToggle) {
         e.preventDefault();
         setSelectedItems((prev) => {
           const next = new Set(prev);
@@ -30,31 +54,13 @@ export function useFileSelection(): UseFileSelectionReturn {
           return next;
         });
         lastSelectedIndexRef.current = index;
-        setLastSelectedIndex(index);
+        return;
       }
-      // Shift + 클릭: 범위 선택
-      else if (e.shiftKey && lastSelectedIndexRef.current >= 0) {
-        e.preventDefault();
-        const anchor = lastSelectedIndexRef.current;
-        const start = Math.min(anchor, index);
-        const end = Math.max(anchor, index);
-        setSelectedItems((prev) => {
-          const next = new Set(prev);
-          for (let i = start; i <= end; i++) {
-            if (sortedContent[i]) {
-              next.add(sortedContent[i].path);
-            }
-          }
-          return next;
-        });
-        lastSelectedIndexRef.current = index;
-        setLastSelectedIndex(index);
-      }
+
       // 일반 클릭: 단일 선택
-      else {
+      {
         setSelectedItems(new Set([record.path]));
         lastSelectedIndexRef.current = index;
-        setLastSelectedIndex(index);
       }
     },
     []
@@ -68,27 +74,28 @@ export function useFileSelection(): UseFileSelectionReturn {
     if (!isCard && !isTableRow) {
       setSelectedItems(new Set());
       lastSelectedIndexRef.current = -1;
-      setLastSelectedIndex(-1);
     }
   }, []);
 
   const clearSelection = useCallback(() => {
     setSelectedItems(new Set());
     lastSelectedIndexRef.current = -1;
-    setLastSelectedIndex(-1);
   }, []);
 
-  const setSelection = useCallback((items: Set<string>) => {
+  const setSelection = useCallback((items: Set<string>, index?: number) => {
     setSelectedItems(items);
+    if (typeof index === 'number' && index >= 0) {
+      lastSelectedIndexRef.current = index;
+      return;
+    }
+
     if (items.size === 0) {
       lastSelectedIndexRef.current = -1;
-      setLastSelectedIndex(-1);
     }
   }, []);
 
   return {
     selectedItems,
-    lastSelectedIndex,
     handleItemClick,
     handleContainerClick,
     clearSelection,

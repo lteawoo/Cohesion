@@ -113,10 +113,12 @@ const FolderContent: React.FC = () => {
     selectedSpace,
     onNavigate: setPath,
   });
+  // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
+  const sortedContent = useSortedContent(content, sortConfig);
 
   const { handleContextMenu, handleEmptyAreaContextMenu } = useContextMenu({
     selectedItems,
-    sortedContent: content,
+    sortedContent,
     canWriteFiles,
     onSetSelection: setSelection,
     callbacks: {
@@ -157,8 +159,6 @@ const FolderContent: React.FC = () => {
     prevNavRef.current = currentNav;
   }, [selectedPath, selectedSpace, handleClearSelection, modals.destination.visible]);
 
-  // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
-  const sortedContent = useSortedContent(content, sortConfig);
   const isAnyModalOpen =
     modals.destination.visible || modals.rename.visible || modals.createFolder.visible;
 
@@ -401,10 +401,15 @@ const FolderContent: React.FC = () => {
     const isButton = target.closest('button');
     const isInput = target.closest('input');
     const isModalContent = target.closest('.ant-modal');
+    const isSelectionToolbar = target.closest('[data-selection-toolbar="true"]');
     const isMobileSelectionBar = target.closest('[data-mobile-selection-bar="true"]');
 
     // 모달 내부 클릭은 React portal 이벤트 버블링으로 들어오므로 선택 해제 대상에서 제외
     if (isModalContent) {
+      return;
+    }
+
+    if (isSelectionToolbar) {
       return;
     }
 
@@ -446,9 +451,11 @@ const FolderContent: React.FC = () => {
         onChange={handleFileSelect}
       />
 
-      <div data-selection-exclude="true" style={{ height: topRowHeight, marginTop: 8 }}>
+      <div style={{ height: topRowHeight, marginTop: 8 }}>
         {showMobileSelectionBar ? (
           <div
+            data-selection-toolbar="true"
+            data-selection-exclude="true"
             data-mobile-selection-bar="true"
             onClick={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
@@ -543,6 +550,8 @@ const FolderContent: React.FC = () => {
           </div>
         ) : showDesktopSelectionBar ? (
           <div
+            data-selection-toolbar="true"
+            data-selection-exclude="true"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -639,7 +648,7 @@ const FolderContent: React.FC = () => {
             onFolderDragOver={handleFolderDragOver}
             onFolderDragLeave={handleFolderDragLeave}
             onFolderDrop={handleFolderDrop}
-            disableDrag={isMobile || !canWriteFiles}
+            disableDrag
             canWriteFiles={canWriteFiles}
             onItemDownload={(record) => handleBulkDownload([record.path])}
             onItemCopy={(record) => openModal('destination', { mode: 'copy', sources: [record.path] })}

@@ -1786,3 +1786,22 @@
 - **적용 파일**:
   - `apps/frontend/src/features/browse/components/FolderContent/FolderContentTable.tsx`
   - `apps/frontend/src/features/browse/hooks/useContextMenu.ts`
+
+## 2026-02-18: 테이블 선택 UX 및 선택색상 공통화
+- **상황**:
+  - PC 테이블에서 단일 선택 반응이 둔하게 느껴지고, 멀티선택(Shift/Ctrl) 체감이 불안정함.
+  - 그리드/테이블 선택 하이라이트 색상값이 분산되어 미세 불일치가 발생.
+- **결정**:
+  - 테이블 row drag를 비활성화하고, 선택 로직을 앵커 기반으로 정리(Shift=범위 치환, Ctrl/Cmd+Shift=범위 추가).
+  - 컨텍스트 메뉴 선택 인덱스 기준을 `sortedContent`로 통일.
+  - 선택/드래그오버 색상을 CSS 변수(`--browse-selection-*`)로 공통화하고 그리드/테이블이 동일 값 참조.
+- **이유**:
+  - 입력 방식(클릭/터치)은 유지하면서 렌더/상태 갱신 부담과 인덱스 불일치에서 오는 UX 흔들림을 최소화.
+  - 향후 톤 조정을 단일 지점에서 제어 가능.
+- **적용 파일**:
+  - `apps/frontend/src/features/browse/hooks/useFileSelection.ts`
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+  - `apps/frontend/src/features/browse/components/FolderContent/FolderContentTable.tsx`
+  - `apps/frontend/src/features/browse/components/FolderContent/FolderContentGrid.tsx`
+  - `apps/frontend/src/features/browse/hooks/useBoxSelection.ts`
+  - `apps/frontend/src/assets/css/global.css`
