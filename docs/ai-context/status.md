@@ -1,6 +1,38 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **BottomSheet 상향 복귀 드래그 불가 버그 수정 완료** (2026-02-18):
+    - 프론트:
+      - 본문 영역 터치 시작 후 시트를 아래로 내린 상태(`dragOffset > 0`)에서 위로 드래그할 때, 제스처 모드를 즉시 `scroll`로 전환하지 않도록 조건 보정.
+      - 이로써 하강 후 같은 제스처/후속 제스처에서 시트가 다시 위로 복귀 가능하도록 동작 복원.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **BottomSheet 최대 높이 정책 조정 완료** (2026-02-17):
+    - 프론트:
+      - 모바일 선택 액션 BottomSheet의 `snapPoints`를 `0.56`에서 `1`로 상향.
+      - `BottomSheet` 컴포넌트가 `snapPoints=1`을 유효값으로 인식하도록 상한 필터를 조정.
+      - 콘텐츠 스크롤은 시트가 충분히 확장된 이후(실질적 최대 높이 근접) 발생하도록 UX 보정.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **BottomSheet 테스트용 임시 메뉴 30개 추가** (2026-02-17):
+    - 프론트:
+      - 모바일 선택 액션 BottomSheet 메뉴 하단에 `임시 항목 1~30`을 추가해 스크롤/드래그 UX를 재현하기 쉽게 구성.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **BottomSheet 터치 드래그 passive 이벤트 경고 수정 완료** (2026-02-17):
+    - 프론트:
+      - `BottomSheet`의 `onTouchMove`에서 `preventDefault()` 호출을 제거(React passive touch listener 경고 회피).
+      - 본문 영역에서 아래로 당길 때, `scrollTop > 0`이면 본문 스크롤을 우선 소모하고 `scrollTop === 0`부터 시트 하강 드래그가 시작되도록 전환.
+      - 본문 드래그 이동량을 먼저 스크롤 감소에 소비하고, 남은 이동량으로 시트 하강을 이어받도록 보강(한 제스처 연속 전환).
+      - 터치 입력은 패널 native listener(`touchmove: passive:false`)로 처리하고, 포인터 터치 경로는 분리해 드래그 움찔 현상 완화.
+      - `shouldRender` 조기 반환 위치를 Hook 선언 이후로 이동해 Hook 호출 순서 변경 오류를 해소.
+      - 본문 영역에서는 네이티브 스크롤을 우선 유지하고, `scrollTop === 0`에서 아래 방향 드래그일 때만 시트 드래그가 시작되도록 모드 분리.
+      - 스크롤 상단 도달 직후 드래그 끊김 완화를 위해 터치 계산을 `ref` 기반 연속 상태로 전환하고, 리스너 재등록 빈도를 감소.
+      - `fromContentScroll`/`lastTouchY` 상태를 도입해 top 도달 첫 프레임의 잔여 이동량을 시트 드래그로 즉시 전달하도록 전환 지연 보정.
+      - 시트 리사이즈를 `height` 변경에서 `translateY` 오프셋 드래그로 전환해 스크롤↔드래그 경계 레이아웃 부하를 완화.
+      - Chrome 경고(`Unable to preventDefault inside passive event listener invocation`) 발생 경로 제거.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
 - **Space 절대경로 비노출 구조 1차 적용 완료** (2026-02-17):
     - 백엔드:
       - `GET /api/spaces` 응답에서 `space_path` 제거(클라이언트 노출 차단).

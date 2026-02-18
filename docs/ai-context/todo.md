@@ -114,3 +114,15 @@
 - [x] RBAC 관련 회귀 테스트 추가(`service_rbac_test`, `permissions_test`)
 - [x] Space 절대경로 비노출 1차: `/api/spaces`에서 `space_path` 제거 + Space browse `path` 상대경로화
 - [x] 탐색기 경로 모델을 Space 상대경로 기반으로 정리(트리/브레드크럼/파일작업)
+- [x] BottomSheet 터치 드래그 중 passive 이벤트 `preventDefault` 경고 수정
+- [x] BottomSheet 본문 스크롤 top 도달 후 시트 하강 드래그 전환 UX 적용
+- [x] BottomSheet 테스트용 임시 메뉴 30개 추가 (모바일 액션시트)
+- [x] BottomSheet `snapPoints=1` 허용 및 모바일 액션시트 최대 높이 `1` 적용
+- [x] BottomSheet 한 제스처 내 `스크롤 소모 -> 시트 하강` 연속 전환 보강
+- [x] BottomSheet 터치 입력 native listener(`touchmove passive:false`) 전환 + 포인터 터치 경로 분리
+- [x] BottomSheet Hook 순서 오류 수정 (`shouldRender` 조기 반환 위치 이동)
+- [x] BottomSheet 본문 스크롤 우선/Top-down 시트 드래그 모드 분리 적용
+- [x] BottomSheet 전환 끊김 완화 (ref 기반 연속 계산 + touch listener 재등록 최소화)
+- [x] BottomSheet top 도달 첫 프레임 잔여 이동량 전달 보정 (`fromContentScroll`, `lastTouchY`)
+- [x] BottomSheet 드래그 렌더링을 `height` 기반에서 `translateY` 기반으로 전환
+- [x] BottomSheet 하강 후 상향 드래그 시 복귀 불가 버그 수정 (`dragOffset > 0`일 때 drag 모드 유지)

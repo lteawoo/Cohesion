@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Empty, App, Grid, Button, Drawer, Menu, theme } from 'antd';
+import { Empty, App, Grid, Button, Menu, theme } from 'antd';
 import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
@@ -21,6 +21,7 @@ import CreateFolderModal from './FolderContent/CreateFolderModal';
 import UploadOverlay from './FolderContent/UploadOverlay';
 import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
 import { useAuth } from '@/features/auth/useAuth';
+import BottomSheet from '@/components/common/BottomSheet';
 
 const LONG_PRESS_DURATION_MS = 420;
 
@@ -648,46 +649,67 @@ const FolderContent: React.FC = () => {
         onCancel={handleDestinationCancel}
       />
 
-      <Drawer
-        rootClassName="app-drawer app-drawer--no-header app-drawer--bottom-actions"
-        placement="bottom"
-        title={null}
+      <BottomSheet
         open={showMobileSelectionBar && isMobileActionsOpen}
         onClose={() => setIsMobileActionsOpen(false)}
-        closable={false}
-        size="default"
-        maskClosable
+        snapPoints={[1]}
+        initialSnapIndex={0}
       >
         <div style={{ padding: '8px 0 4px' }}>
-          <div style={{ position: 'relative', height: 28, marginBottom: 4 }}>
-            <div
-              style={{
-                width: 36,
-                height: 4,
-                borderRadius: 999,
-                background: token.colorBorderSecondary,
-                margin: '0 auto',
-              }}
-            />
-            <Button
-              type="text"
-              size="small"
-              icon={<CloseOutlined />}
-              onClick={() => setIsMobileActionsOpen(false)}
-              aria-label="닫기"
-              title="닫기"
-              style={{ position: 'absolute', right: 8, top: -8 }}
-            />
+          <div
+            style={{
+              padding: '0 12px 10px',
+              fontSize: 13,
+              fontWeight: 600,
+              color: token.colorTextSecondary,
+            }}
+          >
+            {selectedItems.size}개 선택됨
           </div>
           <Menu
             selectable={false}
             items={[
+              {
+                key: 'download',
+                icon: <DownloadOutlined />,
+                label: '다운로드',
+                onClick: () => {
+                  armToolbarInteractionGuard();
+                  setIsMobileActionsOpen(false);
+                  handleBulkDownload(Array.from(selectedItems));
+                },
+              },
+              ...(canWriteFiles
+                ? [{
+                    key: 'copy',
+                    icon: <CopyOutlined />,
+                    label: '복사',
+                    onClick: () => {
+                      armToolbarInteractionGuard();
+                      setIsMobileActionsOpen(false);
+                      openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) });
+                    },
+                  }]
+                : []),
+              ...(canWriteFiles
+                ? [{
+                    key: 'move',
+                    icon: moveActionIcon,
+                    label: '이동',
+                    onClick: () => {
+                      armToolbarInteractionGuard();
+                      setIsMobileActionsOpen(false);
+                      openModal('destination', { mode: 'move', sources: Array.from(selectedItems) });
+                    },
+                  }]
+                : []),
               ...(canWriteFiles && selectedItems.size === 1
                 ? [{
                     key: 'rename',
                     icon: <EditOutlined />,
                     label: '이름 변경',
                     onClick: () => {
+                      armToolbarInteractionGuard();
                       const path = Array.from(selectedItems)[0];
                       const record = sortedContent.find(item => item.path === path);
                       if (record) {
@@ -704,15 +726,23 @@ const FolderContent: React.FC = () => {
                     label: '삭제',
                     danger: true,
                     onClick: () => {
+                      armToolbarInteractionGuard();
                       setIsMobileActionsOpen(false);
                       handleBulkDelete(Array.from(selectedItems));
                     },
                   }]
                 : []),
+              ...Array.from({ length: 20 }, (_, index) => ({
+                key: `temp-item-${index + 1}`,
+                label: `임시 항목 ${index + 1}`,
+                onClick: () => {
+                  armToolbarInteractionGuard();
+                },
+              })),
             ]}
           />
         </div>
-      </Drawer>
+      </BottomSheet>
 
       <UploadOverlay visible={canWriteFiles && isDragging} />
     </div>
