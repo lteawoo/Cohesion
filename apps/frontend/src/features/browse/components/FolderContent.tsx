@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
 import { Empty, App, Grid, Button, Menu, theme, Breadcrumb } from 'antd';
 import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
@@ -25,6 +25,7 @@ import BottomSheet from '@/components/common/BottomSheet';
 const LONG_PRESS_DURATION_MS = 420;
 const PATH_BAR_HEIGHT = 36;
 const EXPLORER_SIDE_PADDING = 16;
+type NavigationState = { entries: string[]; index: number };
 
 const FolderContent: React.FC = () => {
   const { message } = App.useApp();
@@ -45,6 +46,8 @@ const FolderContent: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rootContainerRef = useRef<HTMLDivElement>(null);
   const selectionContainerRef = useRef<HTMLDivElement>(null);
+  const pathBarViewportRef = useRef<HTMLDivElement>(null);
+  const pathBarMeasureRef = useRef<HTMLDivElement>(null);
   const itemsRef = useRef<Map<string, HTMLElement>>(new Map());
 
   // Local state
@@ -55,10 +58,14 @@ const FolderContent: React.FC = () => {
   });
   const [isMobileSelectionMode, setIsMobileSelectionMode] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
+  const [isPathOverflow, setIsPathOverflow] = useState(false);
+  const [navigationState, setNavigationState] = useState<NavigationState>({ entries: [], index: -1 });
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
   const suppressTapUntilRef = useRef(0);
   const selectedItemsRef = useRef<Set<string>>(new Set());
+  const historySpaceIdRef = useRef<number | undefined>(undefined);
+  const isHistoryTraversalRef = useRef(false);
 
   // Modal management
   const { modals, openModal, closeModal, updateModalData } = useModalManager();
@@ -110,11 +117,29 @@ const FolderContent: React.FC = () => {
     currentPath: selectedPath,
   });
 
+  const handleNavigate = useCallback((path: string, space = selectedSpace) => {
+    setPath(path, space);
+  }, [selectedSpace, setPath]);
+
   const { breadcrumbItems } = useBreadcrumb({
     selectedPath,
     selectedSpace,
-    onNavigate: setPath,
+    onNavigate: handleNavigate,
   });
+
+  const compactBreadcrumbItems = useMemo(() => {
+    if (!isPathOverflow || breadcrumbItems.length <= 3) {
+      return breadcrumbItems;
+    }
+
+    const first = breadcrumbItems[0];
+    const tail = breadcrumbItems.slice(-2);
+    return [
+      first,
+      { key: 'collapsed-ellipsis', title: <span style={{ opacity: 0.72 }}>...</span> },
+      ...tail,
+    ];
+  }, [breadcrumbItems, isPathOverflow]);
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useSortedContent(content, sortConfig);
@@ -162,6 +187,58 @@ const FolderContent: React.FC = () => {
     prevNavRef.current = currentNav;
   }, [selectedPath, selectedSpace, handleClearSelection, modals.destination.visible]);
 
+  useEffect(() => {
+    if (!selectedSpace) {
+      setNavigationState({ entries: [], index: -1 });
+      historySpaceIdRef.current = undefined;
+      return;
+    }
+
+    if (historySpaceIdRef.current !== selectedSpace.id) {
+      historySpaceIdRef.current = selectedSpace.id;
+      setNavigationState({ entries: [selectedPath], index: 0 });
+      isHistoryTraversalRef.current = false;
+      return;
+    }
+
+    if (isHistoryTraversalRef.current) {
+      isHistoryTraversalRef.current = false;
+      return;
+    }
+
+    setNavigationState((prev) => {
+      if (prev.index >= 0 && prev.entries[prev.index] === selectedPath) {
+        return prev;
+      }
+      const entries = prev.index >= 0
+        ? [...prev.entries.slice(0, prev.index + 1), selectedPath]
+        : [selectedPath];
+      return { entries, index: entries.length - 1 };
+    });
+  }, [selectedPath, selectedSpace]);
+
+  const handleGoBack = useCallback(() => {
+    if (navigationState.index <= 0) {
+      return;
+    }
+    const nextIndex = navigationState.index - 1;
+    const targetPath = navigationState.entries[nextIndex];
+    isHistoryTraversalRef.current = true;
+    setNavigationState((prev) => ({ ...prev, index: nextIndex }));
+    handleNavigate(targetPath);
+  }, [navigationState, handleNavigate]);
+
+  const handleGoForward = useCallback(() => {
+    if (navigationState.index < 0 || navigationState.index >= navigationState.entries.length - 1) {
+      return;
+    }
+    const nextIndex = navigationState.index + 1;
+    const targetPath = navigationState.entries[nextIndex];
+    isHistoryTraversalRef.current = true;
+    setNavigationState((prev) => ({ ...prev, index: nextIndex }));
+    handleNavigate(targetPath);
+  }, [navigationState, handleNavigate]);
+
   const isAnyModalOpen =
     modals.destination.visible || modals.rename.visible || modals.createFolder.visible;
 
@@ -198,6 +275,33 @@ const FolderContent: React.FC = () => {
       clearLongPressTimer();
     };
   }, [clearLongPressTimer]);
+
+  useLayoutEffect(() => {
+    const viewport = pathBarViewportRef.current;
+    const measure = pathBarMeasureRef.current;
+    if (!viewport || !measure) {
+      return;
+    }
+
+    const checkOverflow = () => {
+      const hasOverflow = measure.scrollWidth > viewport.clientWidth;
+      setIsPathOverflow(prev => (prev === hasOverflow ? prev : hasOverflow));
+    };
+
+    checkOverflow();
+
+    const ro = new ResizeObserver(() => {
+      checkOverflow();
+    });
+    ro.observe(viewport);
+    ro.observe(measure);
+    window.addEventListener('resize', checkOverflow);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', checkOverflow);
+    };
+  }, [breadcrumbItems]);
 
   const toggleMobileSelection = useCallback((path: string) => {
     const next = new Set(selectedItemsRef.current);
@@ -299,11 +403,11 @@ const FolderContent: React.FC = () => {
     }
 
     if (record.isDir) {
-      setPath(record.path);
+      handleNavigate(record.path);
       handleClearSelection();
       return;
     }
-  }, [isAnyModalOpen, isMobile, handleItemClick, sortedContent, isMobileSelectionMode, toggleMobileSelection, setPath, handleClearSelection]);
+  }, [isAnyModalOpen, isMobile, handleItemClick, sortedContent, isMobileSelectionMode, toggleMobileSelection, handleNavigate, handleClearSelection]);
 
   const handleItemContextMenu = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode) => {
     if (isMobile || isAnyModalOpen) {
@@ -624,11 +728,15 @@ const FolderContent: React.FC = () => {
                 viewMode={viewMode}
                 sortConfig={sortConfig}
                 canUpload={canWriteFiles}
-              compact
-              onUpload={handleUploadClick}
-              onViewModeChange={setViewMode}
-              onSortChange={setSortConfig}
-            />
+                canGoBack={navigationState.index > 0}
+                canGoForward={navigationState.index >= 0 && navigationState.index < navigationState.entries.length - 1}
+                compact
+                onGoBack={handleGoBack}
+                onGoForward={handleGoForward}
+                onUpload={handleUploadClick}
+                onViewModeChange={setViewMode}
+                onSortChange={setSortConfig}
+              />
           </div>
         )}
       </div>
@@ -652,7 +760,7 @@ const FolderContent: React.FC = () => {
             selectedItems={selectedItems}
             dragOverFolder={dragOverFolder}
             onItemClick={handleItemTap}
-            onItemDoubleClick={setPath}
+            onItemDoubleClick={handleNavigate}
             onItemTouchStart={(record) => handleMobileLongPressStart(record)}
             onItemTouchEnd={handleMobileLongPressEnd}
             onItemTouchCancel={handleMobileLongPressEnd}
@@ -678,7 +786,7 @@ const FolderContent: React.FC = () => {
               selectedItems={selectedItems}
               dragOverFolder={dragOverFolder}
               onItemClick={handleItemTap}
-              onItemDoubleClick={setPath}
+              onItemDoubleClick={handleNavigate}
               onItemTouchStart={(record) => handleMobileLongPressStart(record)}
               onItemTouchEnd={handleMobileLongPressEnd}
               onItemTouchCancel={handleMobileLongPressEnd}
@@ -730,7 +838,21 @@ const FolderContent: React.FC = () => {
           overflowY: 'hidden',
         }}
       >
-        <div style={{ minWidth: 0, width: '100%', color: token.colorText }}>
+        <div ref={pathBarViewportRef} style={{ minWidth: 0, width: '100%', color: token.colorText, overflow: 'hidden' }}>
+          <Breadcrumb items={compactBreadcrumbItems} />
+        </div>
+        <div
+          ref={pathBarMeasureRef}
+          style={{
+            position: 'absolute',
+            visibility: 'hidden',
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            height: 0,
+            overflow: 'hidden',
+          }}
+          aria-hidden="true"
+        >
           <Breadcrumb items={breadcrumbItems} />
         </div>
       </div>

@@ -1,9 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:FILL@0..1');
 
 :root {
-  --browse-selection-border-color: #1890ff;
-  --browse-selection-bg: rgba(24, 144, 255, 0.1);
-  --browse-dragover-bg: rgba(24, 144, 255, 0.05);
+  --browse-selection-border-color: var(--ant-colorPrimaryBorder, #69b1ff);
+  --browse-selection-bg: var(--ant-colorPrimaryBgHover, rgba(24, 144, 255, 0.18));
+  --browse-dragover-bg: var(--ant-colorPrimaryBg, rgba(24, 144, 255, 0.12));
 }
 
 *, *::before, *::after {
