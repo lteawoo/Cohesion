@@ -55,6 +55,19 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### SFTP 서버 1차 확장 방식 확정 (2026-02-19)
+- **문제**:
+  - FTP는 구현돼 있지만 SFTP는 설정/UI만 존재해 실제 운영 프로토콜 선택지가 제한됨.
+  - 로컬/단일 실행 환경에서는 루트 권한 없이 동작 가능한 기본 포트 정책이 필요함.
+- **결정**:
+  - `internal/sftp` 모듈을 신설하고 `gliderlabs/ssh + pkg/sftp` 조합으로 구현한다.
+  - 인증은 기존 계정 서비스(`account.Authenticate`)를 재사용하고, 파일 접근은 Space 권한(`read/write`) 정책을 동일 적용한다.
+  - 가상 루트는 FTP와 동일하게 `/{spaceName}/...` 구조를 유지해 Space 경계를 강제한다.
+  - host key는 자동 생성/재사용하며, 운영 오버라이드는 `COHESION_SFTP_HOST_KEY_FILE`로 허용한다.
+  - 기본 SFTP 포트는 `22`가 아닌 비특권 포트 `2222`로 통일한다.
+- **이유**:
+  - 기존 계정/권한 도메인을 그대로 재사용해 인증 정책 일관성을 확보할 수 있고, macOS/Windows 일반 사용자 실행에서도 추가 권한 없이 안정적으로 동작하기 때문.
+
 ### React Hooks lint 규칙 대응 방식 확정 (2026-02-19)
 - **문제**:
   - `react-hooks/set-state-in-effect`, `react-hooks/refs` 규칙으로 `BottomSheet`, `FolderContent`가 lint 실패.

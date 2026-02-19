@@ -6,6 +6,7 @@ const PROTOCOL_LABELS: Record<string, string> = {
   http: 'WEB',
   webdav: 'WebDAV',
   ftp: 'FTP',
+  sftp: 'SFTP',
 };
 
 function StatusDot({ color, size = 8 }: { color: string; size?: number }) {

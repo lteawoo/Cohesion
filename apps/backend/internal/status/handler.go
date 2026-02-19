@@ -62,6 +62,7 @@ func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) *web.Erro
 	protocols["webdav"] = h.checkWebDAV()
 
 	protocols["ftp"] = h.checkFTP()
+	protocols["sftp"] = h.checkSFTP()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(StatusResponse{
@@ -139,6 +140,40 @@ func (h *Handler) checkFTP() ProtocolStatus {
 	}
 
 	port := strconv.Itoa(config.Conf.Server.FtpPort)
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", port), 1500*time.Millisecond)
+	if err != nil {
+		return ProtocolStatus{
+			Status:  "unhealthy",
+			Message: "연결 실패",
+			Port:    port,
+		}
+	}
+	_ = conn.Close()
+
+	return ProtocolStatus{
+		Status:  "healthy",
+		Message: "정상",
+		Port:    port,
+	}
+}
+
+func (h *Handler) checkSFTP() ProtocolStatus {
+	if !config.Conf.Server.SftpEnabled {
+		return ProtocolStatus{
+			Status:  "unavailable",
+			Message: "비활성화",
+			Port:    strconv.Itoa(config.Conf.Server.SftpPort),
+		}
+	}
+
+	if config.Conf.Server.SftpPort <= 0 {
+		return ProtocolStatus{
+			Status:  "unhealthy",
+			Message: "포트 설정 오류",
+		}
+	}
+
+	port := strconv.Itoa(config.Conf.Server.SftpPort)
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", port), 1500*time.Millisecond)
 	if err != nil {
 		return ProtocolStatus{

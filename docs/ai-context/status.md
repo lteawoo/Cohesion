@@ -1,6 +1,22 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **SFTP 서버 1차 확장 및 릴리즈 실행 검증 완료** (2026-02-19):
+    - 백엔드:
+      - `internal/sftp` 모듈 신설 (`gliderlabs/ssh`, `pkg/sftp`).
+      - 계정 인증(`account.Authenticate`) 및 Space 권한(`read/write`) 기반 파일 접근 제어 연동.
+      - 서버 lifecycle(`main`)에 SFTP start/stop 연동, 상태 API(`/api/status`)에 `sftp` 헬스체크 추가.
+      - SFTP host key 자동 생성/재사용 정책 적용 (`COHESION_SFTP_HOST_KEY_FILE` override 지원).
+      - 기본 SFTP 포트를 `2222`로 통일 (`default config`, `config.dev.yaml`, `config.prod.yaml`).
+    - 프론트:
+      - 서버 상태 팝오버에 `SFTP` 라벨 추가.
+      - Settings의 SFTP 섹션 `(구현 예정)` 문구 제거.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+      - `pnpm build` 통과.
+      - `pnpm release:snapshot` 후 산출물 실행 시 `config.prod.yaml` 자동 생성 확인
+        (`dist/release/backend_darwin_arm64_v8.0/config/config.prod.yaml`).
 - **초기 관리자 보안 부팅 전환 완료** (2026-02-19):
     - 백엔드:
       - 기본 관리자 fallback(`admin/admin1234`) 제거.
