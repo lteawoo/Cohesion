@@ -73,31 +73,71 @@
   - WebDAV 루트 목록은 인증 사용자 기준 접근 가능한 Space만 노출한다.
   - `webdav_enabled`는 설정값 표시용이 아니라 실제 라우트 등록/상태판정에 반영한다.
   - `/api/config`는 `server`만 반환/갱신하고 datasource는 API 변경 범위에서 제외한다.
-  - 프로덕션 초기 관리자 계정은 fallback 없이 환경변수 필수로 강제한다.
+  - 기본 관리자 fallback은 제거하고, 초기 관리자 생성은 최초 실행 setup 또는 운영자 환경변수 주입으로 처리한다.
   - 프론트/백엔드 의존성은 즉시 패치(`react-router`, Go toolchain) 후 재스캔한다.
 - **이유**:
   - 외부 노출 프로토콜(WebDAV)과 운영 민감정보(API config)는 공격 표면 우선순위가 가장 높아 1차 릴리즈에서 즉시 차단/축소가 필요하다.
 
-### 클릭 실행 UX 기준 초기 관리자 부팅 정책 단순화 (2026-02-19)
+### 클릭 실행 UX 기준 초기 관리자 보안 부팅 정책 개정 (2026-02-19)
 - **문제**:
-  - `EnsureDefaultAdmin`가 `ENV=production`에서 `COHESION_ADMIN_USER`/`COHESION_ADMIN_PASSWORD`를 필수로 강제해, 일반 소비자 대상 더블클릭 실행 환경에서 첫 구동이 실패할 수 있음.
+  - 고정 기본 자격증명(`admin/admin1234`)은 범용 배포 환경에서 계정 탈취 리스크를 높임.
+  - 반대로 환경변수만 강제하면 일반 소비자 대상 더블클릭 실행에서 첫 구동 UX가 저하됨.
 - **결정**:
-  - 초기 관리자 생성 로직에서 `ENV` 기반 프로덕션 강제 분기를 제거한다.
-  - 환경변수가 비어 있으면 모든 환경에서 `admin/admin1234` + 닉네임 `Administrator`로 fallback 생성한다.
-  - 환경변수(`COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`, `COHESION_ADMIN_NICKNAME`)가 있으면 기존처럼 override한다.
+  - 기본 관리자 fallback(`admin/admin1234`)을 완전히 제거한다.
+  - 관리자 계정이 없으면 인증 전에 setup 상태를 반환하고(`428 Precondition Required`), 최초 실행 공개 API로 관리자 1회 생성을 처리한다.
+    - `GET /api/setup/status`
+    - `POST /api/setup/admin`
+  - 운영자 자동 부팅이 필요한 경우에만 `COHESION_ADMIN_USER` + `COHESION_ADMIN_PASSWORD`를 함께 지정해 1회 계정 생성한다.
 - **이유**:
-  - 설치 직후 무설정으로도 즉시 구동 가능한 UX가 제품 요구사항에 더 부합한다.
+  - "기본 취약 계정 제거"와 "클릭 실행 UX 유지"를 동시에 만족하는 최소 운영 정책이기 때문.
+
+### JWT 시크릿/SQLite 파일 보관 정책 하드닝 (2026-02-19)
+- **문제**:
+  - 배포 환경에서 JWT 시크릿이 미설정되면 고정값 사용 위험이 있고, SQLite 파일이 넓은 권한으로 생성되면 로컬 노출 면적이 커짐.
+- **결정**:
+  - `COHESION_JWT_SECRET` 미지정 시 암호학적 난수 기반 시크릿을 파일에 자동 생성/보관한다.
+    - 기본 경로: 사용자 설정 디렉토리 하위 `Cohesion/secrets/jwt_secret`
+    - 커스텀 경로: `COHESION_JWT_SECRET_FILE`
+  - 시크릿 파일/디렉토리 권한은 각각 `0600`/`0700`으로 제한한다.
+  - SQLite 디렉토리/DB 파일 권한도 각각 `0700`/`0600`으로 강제한다(Windows 제외).
+- **이유**:
+  - SQLite 자체 계정/비밀번호 모델이 없는 구조에서 현실적인 1차 방어선은 파일 시스템 권한 최소화이기 때문.
 
 ### 실행 문서 환경변수 안내 정합화 (2026-02-19)
 - **문제**:
   - 실행 문서(`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`)가 `ENV`, `DB_PATH`, `PORT`를 백엔드 환경변수로 안내하고 있었지만, 실제 코드는 해당 키를 사용하지 않음.
 - **결정**:
   - 문서의 환경변수 항목을 코드 기준으로 정리:
-    - 사용 중: `COHESION_JWT_SECRET`, `COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`, `COHESION_ADMIN_NICKNAME`
+    - 사용 중: `COHESION_JWT_SECRET`, `COHESION_JWT_SECRET_FILE`, `COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`, `COHESION_ADMIN_NICKNAME`
     - 미사용: `ENV`, `DB_PATH`, `PORT`
   - DB 기본 경로도 `config.dev/prod.yaml`의 `database.url` 기준으로 명시.
 - **이유**:
   - 설치/운영 시 문서-코드 불일치로 인한 오설정을 방지하고, 실행 절차를 단순화하기 위함.
+
+### GoReleaser 도입 및 멀티플랫폼 릴리즈 파이프라인 구성 (2026-02-19)
+- **문제**:
+  - 운영 빌드가 단일 `build.js` 기반으로만 관리되어 macOS/Windows 대상 릴리즈 산출물을 일관된 규칙으로 생성/배포하기 어려웠음.
+  - 프론트 정적 리소스 임베드 준비가 백엔드 빌드 스크립트에만 묶여 있어 릴리즈 자동화 경로에서 재사용이 어려웠음.
+- **결정**:
+  - 루트에 `.goreleaser.yaml`을 추가해 `darwin(amd64/arm64)`, `windows(amd64)` 대상 빌드/아카이브/체크섬 생성을 표준화한다.
+  - Go 빌드 플래그는 `-tags=production`, `-X main.goEnv=production`을 고정해 운영 모드 산출물을 생성한다.
+  - 프론트 빌드 산출물 복사를 `apps/backend/scripts/prepare-web-dist.js`로 분리해 `build.js`와 GoReleaser `before` hook에서 공통 사용한다.
+- **이유**:
+  - 릴리즈 품질(반복 가능성/재현성)과 배포 속도를 높이고, 플랫폼별 수동 빌드 실수를 줄이기 위함.
+
+### 설정 파일 탐색 기준을 실행파일 위치 기반으로 전환 (2026-02-19)
+- **문제**:
+  - 기존 `SetConfig`는 `viper.AddConfigPath(\"config\")`만 사용해, 실행 위치(CWD)에 따라 `config.dev/prod.yaml` 탐색 경로가 달라짐.
+  - 이로 인해 바이너리를 다른 디렉토리(예: 사용자 홈)에서 실행하면 설정 파일을 찾지 못해 부팅이 실패함.
+- **결정**:
+  - `SetConfig`에서 config 탐색 경로를 실행파일 기준으로 우선 적용:
+    - `<exe>/config`
+    - `<exe>/../config`
+  - 개발 편의를 위해 `cwd/config`를 fallback으로 유지.
+  - 설정 파일이 없는 경우, 우선 탐색 경로에 기본 `config.dev.yaml`/`config.prod.yaml`을 자동 생성 후 로딩한다.
+  - 설정 로더는 `viper.Reset()` 후 경로를 다시 구성해 재시작 시점에도 일관된 탐색을 보장.
+- **이유**:
+  - 사용자 실행 위치와 무관하게 설치된 바이너리가 안정적으로 설정 파일을 찾도록 만들기 위함.
 
 ### 전체 보안점검 기준 및 후속 우선순위 확정 (2026-02-19)
 - **문제**:

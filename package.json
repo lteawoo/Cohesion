@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "release:check": "go run github.com/goreleaser/goreleaser/v2@v2.13.3 check --config .goreleaser.yaml",
+    "release:snapshot": "go run github.com/goreleaser/goreleaser/v2@v2.13.3 release --snapshot --clean --config .goreleaser.yaml",
     "lint": "turbo lint",
     "clean": "rimraf --glob **/dist **/build **/.turbo **/tmp",
     "clean-all": "rimraf --glob **/dist **/build **/.turbo **/tmp node_modules **/node_modules"

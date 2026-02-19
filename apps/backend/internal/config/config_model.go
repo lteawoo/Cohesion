@@ -18,8 +18,5 @@ type Server struct {
 }
 
 type Datasource struct {
-	URL      string `mapstructure:"url" json:"url" yaml:"url"`
-	User     string `mapstructure:"user" json:"user" yaml:"user"`
-	Password string `mapstructure:"password" json:"password" yaml:"password"`
-	DBName   string `mapstructure:"dbname" json:"dbname" yaml:"dbname"`
+	URL string `mapstructure:"url" json:"url" yaml:"url"`
 }

@@ -8,6 +8,3 @@ server:
   sftp_port: 22
 database:
   url: dist/data/cohesion_dev.db
-  user: test
-  password: test
-  dbname: cohesion

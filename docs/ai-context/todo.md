@@ -9,8 +9,12 @@
 - [x] 전체 보안점검 수행 (코드/설정/의존성 점검 및 취약점 우선순위 도출)
 - [x] WebDAV 보안 하드닝 (Basic Auth 강제 + Space 권한 체크 + `webdav_enabled` 플래그 적용)
 - [x] 기본 관리자 초기값 하드닝 (프로덕션 기본 계정/비밀번호 fallback 금지)
-- [x] 클릭 실행 UX 단순화: 초기 admin 생성의 `ENV` 의존 제거 및 기본 fallback 통합
+- [x] 초기 관리자 보안 부팅 전환 (기본 fallback 제거 + 최초 실행 setup API/화면 도입)
+- [x] JWT/SQLite 로컬 비밀값 하드닝 (JWT 랜덤 시크릿 파일 생성, DB 파일 권한 제한)
 - [x] 실행 문서 환경변수 안내 정합화 (`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`)
+- [x] GoReleaser 도입 (멀티플랫폼 릴리즈 설정)
+- [x] 설정 파일 탐색 기준 보강 (실행파일 위치 우선 + `cwd/config` fallback)
+- [x] 설정 파일 미존재 시 기본 config 자동 생성 (실행파일 기준)
 - [x] 프론트 의존성 보안 패치 (`react-router` `^7.13.0`)
 - [x] Go 런타임/툴체인 보안 패치 (`go 1.25.7`, `govulncheck` 재검증)
 - [x] `/api/config` 민감정보 비노출 (`server`만 응답/갱신)

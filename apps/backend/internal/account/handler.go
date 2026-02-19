@@ -2,6 +2,7 @@ package account
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,6 +24,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/roles", web.Handler(h.handleRoles))
 	mux.Handle("/api/roles/", web.Handler(h.handleRoleByName))
 	mux.Handle("/api/permissions", web.Handler(h.handlePermissionDefinitions))
+	mux.Handle("GET /api/setup/status", web.Handler(h.handleSetupStatus))
+	mux.Handle("POST /api/setup/admin", web.Handler(h.handleSetupAdmin))
 }
 
 func (h *Handler) handleAccounts(w http.ResponseWriter, r *http.Request) *web.Error {
@@ -198,5 +201,37 @@ func (h *Handler) handlePermissionDefinitions(w http.ResponseWriter, r *http.Req
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(definitions)
+	return nil
+}
+
+func (h *Handler) handleSetupStatus(w http.ResponseWriter, r *http.Request) *web.Error {
+	needsSetup, err := h.service.NeedsBootstrap(r.Context())
+	if err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to check setup status", Err: err}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]bool{
+		"requiresSetup": needsSetup,
+	})
+	return nil
+}
+
+func (h *Handler) handleSetupAdmin(w http.ResponseWriter, r *http.Request) *web.Error {
+	var req CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid request body", Err: err}
+	}
+
+	user, err := h.service.BootstrapInitialAdmin(r.Context(), &req)
+	if err != nil {
+		if errors.Is(err, ErrInitialSetupCompleted) {
+			return &web.Error{Code: http.StatusConflict, Message: "Initial setup already completed", Err: err}
+		}
+		return &web.Error{Code: http.StatusBadRequest, Message: "Failed to setup admin account", Err: err}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(user)
 	return nil
 }

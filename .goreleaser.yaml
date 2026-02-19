@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: cohesion
+dist: dist/release
+
+before:
+  hooks:
+    - pnpm -C apps/frontend build
+    - node apps/backend/scripts/prepare-web-dist.js
+
+builds:
+  - id: backend
+    dir: ./apps/backend
+    main: .
+    binary: cohesion
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -tags=production
+    ldflags:
+      - -s -w -X main.goEnv=production
+    goos:
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: backend
+    ids:
+      - backend
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - src: apps/backend/config/config.prod.yaml
+        dst: config/config.prod.yaml
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"

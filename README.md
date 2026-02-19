@@ -34,6 +34,16 @@ Cohesion은 **누구나 쉽게 구축하고 사용할 수 있는** Self-Host 파
 - iOS, Android 웹 브라우저
 - 네이티브 파일 앱 연동 (WebDAV)
 
+## 릴리즈 (GoReleaser)
+
+멀티플랫폼(예: macOS/Windows) 백엔드 릴리즈 빌드는 GoReleaser로 관리합니다.
+
+- 설정 파일: `.goreleaser.yaml`
+- 로컬 설정 검증:
+  - `pnpm release:check`
+- 로컬 스냅샷 릴리즈 아티팩트 생성:
+  - `pnpm release:snapshot`
+
 ## 라이선스
 
 MIT License
