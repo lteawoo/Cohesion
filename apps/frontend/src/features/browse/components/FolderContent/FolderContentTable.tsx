@@ -101,7 +101,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
         return (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-              {record.isDir ? <FolderFilled style={{ color: '#ffca28', fontSize: 18 }} /> : <FileOutlined style={{ fontSize: 18 }} />}
+              {record.isDir ? <FolderFilled style={{ color: 'var(--app-folder-icon-color, #415a77)', fontSize: 18 }} /> : <FileOutlined style={{ fontSize: 18 }} />}
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div title={record.name} style={{ fontWeight: 500, color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {record.name}
@@ -166,7 +166,6 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
         onTouchStart: () => onItemTouchStart?.(record, index ?? 0),
         onTouchEnd: () => onItemTouchEnd?.(),
         onTouchCancel: () => onItemTouchCancel?.(),
-        onTouchMove: () => onItemTouchCancel?.(),
         onContextMenu: (e: React.MouseEvent<HTMLElement>) => onContextMenu(e, record),
         draggable: !disableDrag,
         onDragStart: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => onItemDragStart(e, record),

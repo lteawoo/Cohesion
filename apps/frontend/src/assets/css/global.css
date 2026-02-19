@@ -1,9 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:FILL@0..1');
 
 :root {
-  --browse-selection-border-color: var(--ant-colorPrimaryBorder, #69b1ff);
-  --browse-selection-bg: var(--ant-colorPrimaryBgHover, rgba(24, 144, 255, 0.18));
-  --browse-dragover-bg: var(--ant-colorPrimaryBg, rgba(24, 144, 255, 0.12));
+  --app-folder-icon-color: var(--ant-color-primary, #415a77);
+  --app-muted-icon-color: var(--ant-color-text-tertiary, #778da9);
+  --browse-selection-border-color: var(--ant-color-primary-border-hover, #819bb9);
+  --browse-selection-bg: var(--ant-control-item-bg-active, rgba(65, 90, 119, 0.32));
+  --browse-selection-overlay-bg: rgba(65, 90, 119, 0.14);
+  --browse-dragover-bg: var(--ant-control-item-bg-hover, rgba(65, 90, 119, 0.18));
+}
+
+.ant-app {
+  --browse-selection-bg: var(--ant-control-item-bg-active, rgba(65, 90, 119, 0.32));
+  --browse-selection-overlay-bg: color-mix(in srgb, var(--ant-control-item-bg-active, #415a77) 28%, transparent);
+  --browse-dragover-bg: var(--ant-control-item-bg-hover, rgba(65, 90, 119, 0.18));
+}
+
+.ant-app.app-theme-dark {
+  --browse-selection-overlay-bg: color-mix(in srgb, var(--ant-control-item-bg-active, #273647) 40%, transparent);
 }
 
 *, *::before, *::after {
@@ -29,7 +42,7 @@ html, body {
 /* Lightweight native scrollbar styling (WebKit + Firefox) */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(140, 140, 140, 0.35) transparent;
+  scrollbar-color: rgba(119, 141, 169, 0.35) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -42,12 +55,12 @@ html, body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(140, 140, 140, 0.35);
+  background: rgba(119, 141, 169, 0.35);
   border-radius: 999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(140, 140, 140, 0.5);
+  background: rgba(119, 141, 169, 0.5);
 }
 
 .layout-page {
@@ -105,8 +118,8 @@ html, body {
   justify-content: space-between;
   padding: 16px;
   min-height: 56px;
-  border-bottom: 1px solid var(--ant-colorBorder);
-  color: var(--ant-colorText);
+  border-bottom: 1px solid var(--ant-color-border);
+  color: var(--ant-color-text);
 }
 
 .layout-sider-header-main {
@@ -164,7 +177,7 @@ html, body {
 
 .app-drawer--nav .ant-drawer-content,
 .app-drawer--nav .ant-drawer-body {
-  background: var(--ant-colorBgContainer);
+  background: var(--ant-color-bg-container);
 }
 
 .folder-content-row {
@@ -178,6 +191,32 @@ html, body {
 
 .folder-content-row-dragover > td {
   background-color: var(--browse-dragover-bg) !important;
+}
+
+.folder-tree .ant-tree-switcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 24px;
+  line-height: 1;
+}
+
+.folder-tree .folder-tree-switcher-icon,
+.folder-tree .ant-tree-switcher .folder-tree-switcher-icon.ant-tree-switcher-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 20px !important;
+  line-height: 1 !important;
+}
+
+.folder-tree .folder-tree-switcher-placeholder {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
 }
 
 .panel-close-btn.ant-btn-text,

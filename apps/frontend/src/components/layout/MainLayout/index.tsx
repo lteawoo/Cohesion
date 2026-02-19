@@ -1,11 +1,10 @@
-import { ConfigProvider, Layout, Button, theme, App, Drawer, Grid } from "antd";
+import { Layout, Button, theme, Drawer, Grid } from "antd";
 import { Outlet, useNavigate } from "react-router";
 import { SettingOutlined, MenuOutlined } from "@ant-design/icons";
 import MainSider from "./MainSider";
 import ServerStatus from "./ServerStatus";
 import { useCallback, useEffect, useState } from "react";
 import type { Space } from "@/features/space/types";
-import { useSettingsStore } from "@/stores/settingsStore";
 import { useSpaceStore } from "@/stores/spaceStore";
 import { useBrowseStore } from "@/stores/browseStore";
 import ContextMenu from "@/components/ContextMenu";
@@ -120,18 +119,10 @@ const PageLayout = () => {
 }
 
 export default function MainLayout() {
-    const currentTheme = useSettingsStore((state) => state.theme);
-
-    const isDarkMode = currentTheme === 'dark';
-
-    const currentAlgorithm = isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm;
-
     return (
-        <ConfigProvider theme={{ algorithm: currentAlgorithm }}>
-          <App>
-            <PageLayout />
-            <ContextMenu />
-          </App>
-        </ConfigProvider>
+      <>
+        <PageLayout />
+        <ContextMenu />
+      </>
     )
 }

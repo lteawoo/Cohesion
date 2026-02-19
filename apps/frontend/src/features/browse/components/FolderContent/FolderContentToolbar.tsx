@@ -1,5 +1,5 @@
 import React from 'react';
-import { Space as AntSpace, Button, Select } from 'antd';
+import { Space as AntSpace, Button, Select, theme } from 'antd';
 import { UploadOutlined, UnorderedListOutlined, AppstoreOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import type { ViewMode, SortConfig } from '../../types';
 import { SORT_OPTIONS } from '../../constants';
@@ -31,6 +31,21 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
   onViewModeChange,
   onSortChange,
 }) => {
+  const { token } = theme.useToken();
+  const getViewModeStyle = (active: boolean) => (
+    active
+      ? {
+          background: token.colorPrimary,
+          borderColor: token.colorPrimary,
+          color: token.colorTextLightSolid,
+        }
+      : {
+          background: token.colorBgContainer,
+          borderColor: token.colorBorder,
+          color: token.colorText,
+        }
+  );
+
   return (
     <div
       style={{
@@ -87,12 +102,18 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
             <Button
               icon={<UnorderedListOutlined />}
               onClick={() => onViewModeChange('table')}
-              type={viewMode === 'table' ? 'primary' : 'default'}
+              type="default"
+              style={getViewModeStyle(viewMode === 'table')}
+              aria-label="테이블 뷰"
+              title="테이블 뷰"
             />
             <Button
               icon={<AppstoreOutlined />}
               onClick={() => onViewModeChange('grid')}
-              type={viewMode === 'grid' ? 'primary' : 'default'}
+              type="default"
+              style={getViewModeStyle(viewMode === 'grid')}
+              aria-label="그리드 뷰"
+              title="그리드 뷰"
             />
           </AntSpace.Compact>
         </AntSpace>
