@@ -27,7 +27,7 @@ Cohesion은 **누구나 쉽게 구축하고 사용할 수 있는** Self-Host 파
 **네이티브 연결**
 - SMB (Windows 파일 탐색기)
 - NFS (Linux 마운트)
-- FTP/SFTP (모든 OS)
+- SFTP (모든 OS)
 - WebDAV (모바일 앱 연동)
 
 **모바일**

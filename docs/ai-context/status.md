@@ -1,6 +1,54 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Status 팝오버 섹션 재배치 완료** (2026-02-20):
+    - 프론트:
+      - `Status` 팝오버를 `Hosts`(상단) → `Protocols`(하단) 순서로 재배치.
+      - 기존 `접속 URL` 목록은 `Hosts` 섹션으로 통합.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 팝오버 실측: `Hosts` 헤더가 `Protocols`보다 상단에 렌더됨
+- **Status 프로토콜 경로 표기 슬래시 정리 완료** (2026-02-20):
+    - 프론트:
+      - `Status` 팝오버에서 프로토콜 경로 끝의 `/`를 제거하도록 표기 정규화 적용.
+      - `WEB`은 `:포트`만 표시하고, `WebDAV`는 `:포트/dav`로 표시되도록 정리.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 팝오버 실측: `:5176` / `:3000/dav` 확인
+- **FTP 기능 완전 제거 완료** (2026-02-20):
+    - 백엔드:
+      - `internal/ftp` 패키지 및 서버 lifecycle 연동(`main`) 제거.
+      - 설정 모델에서 `ftp_enabled`, `ftp_port` 제거.
+      - 상태 API(`/api/status`) FTP 항목 제거.
+      - 기본 설정 파일(`config.dev.yaml`, `config.prod.yaml`)의 FTP 키 제거.
+    - 프론트:
+      - 서버 설정 화면에서 FTP 카드 제거.
+      - 상태 팝오버 프로토콜 목록에서 FTP 제거.
+      - 설정 API 타입 및 계정관리 보조문구에서 FTP 참조 제거.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `pnpm -C apps/frontend build` 통과
+- **Status 프로토콜 표시 순서 고정 완료** (2026-02-19):
+    - 프론트:
+      - `ServerStatus`의 `protocols` 렌더 순서를 `WEB -> WebDAV -> SFTP`로 고정.
+      - 정의되지 않은 신규 프로토콜 키는 기존처럼 후순위에 표시되도록 유지.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **데스크톱 휠 스크롤 경로 재분석 및 보정 완료** (2026-02-20):
+    - 원인:
+      - `FolderContent` 구조상 상단 툴바/하단 경로바가 스크롤 컨테이너(`selectionContainer`)와 형제 레이어라, 해당 영역에서 발생한 wheel이 리스트 스크롤에 자연 전달되지 않음.
+    - 조치:
+      - `FolderContent` 루트에 `onWheelCapture`를 추가해 데스크톱 wheel 입력을 단일 경로로 정규화 처리.
+      - 리스트 컨테이너를 직접 스크롤하고, 외부 dropdown/modal/bottom-sheet 및 별도 스크롤 영역은 예외 처리.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `pnpm -C apps/frontend build` 통과
 - **SFTP 서버 1차 확장 및 릴리즈 실행 검증 완료** (2026-02-19):
     - 백엔드:
       - `internal/sftp` 모듈 신설 (`gliderlabs/ssh`, `pkg/sftp`).
@@ -1155,3 +1203,23 @@
     - 상단 툴바 좌측에 `이전(<) / 다음(>)` 버튼 추가.
     - 같은 스페이스 내 폴더 이동 시 경로 히스토리를 저장하고 버튼으로 탐색 가능하도록 연결.
     - 상단 툴바 우측에는 업로드/정렬/뷰모드 전환을 `margin-left: auto`로 우측 정렬.
+
+- **모바일 파일 익스플로러 스크롤 입력 안정화** (2026-02-20):
+    - 대상: 파일 익스플로러 `table/grid` 공통 컨테이너(`FolderContent`).
+    - 조치:
+        - 터치 pan 감지(`8px`) 시 롱프레스 타이머 취소.
+        - pan 종료 후 짧은 탭 억제로 스크롤 직후 오탭 선택 방지.
+        - 모바일 선택 바 캡처 이벤트의 `preventDefault` 제거(비버튼 대상 전파만 차단).
+        - 루트 휠 라우팅을 모바일 브레이크포인트에서도 동작하도록 조정.
+    - 검증:
+        - `pnpm -C apps/frontend lint`
+        - `pnpm -C apps/frontend exec tsc --noEmit`
+        - `pnpm -C apps/frontend build`
+        - Chrome DevTools 모바일 에뮬레이션에서 table/grid 모두 `touchmove` 시 롱프레스 비발동, 롱프레스 유지 시 선택바 발동 확인.
+
+- **파일 익스플로러 휠 처리 단순화** (2026-02-20):
+    - `FolderContent` 루트 `onWheelCapture` 커스텀 보정 제거.
+    - `selectionContainer` 네이티브 스크롤 경로만 사용하도록 복귀.
+    - 검증:
+        - `pnpm -C apps/frontend lint`
+        - `pnpm -C apps/frontend exec tsc --noEmit`

@@ -4,8 +4,6 @@ export interface ServerConfig {
   port: string;
   httpEnabled: boolean;
   webdavEnabled: boolean;
-  ftpEnabled: boolean;
-  ftpPort: number;
   sftpEnabled: boolean;
   sftpPort: number;
 }

@@ -260,39 +260,6 @@ const ServerSettings = () => {
         </Space>
       </Card>
 
-      <Card title="FTP 서버" size="small">
-        <Space vertical size="small" className="settings-stack-full">
-          <SettingRow
-            left={<Text strong>활성화</Text>}
-            right={(
-              <Switch
-                checked={server.ftpEnabled}
-                onChange={(checked: boolean) => updateServerConfig('ftpEnabled', checked)}
-              />
-            )}
-          />
-
-          {server.ftpEnabled && (
-            <>
-              <Divider className="settings-divider-compact" />
-              <SettingRow
-                left={<Text strong>포트</Text>}
-                right={(
-                  <InputNumber
-                    size="small"
-                    min={1}
-                    max={65535}
-                    value={server.ftpPort}
-                    onChange={(value: number | null) => value && updateServerConfig('ftpPort', value)}
-                    className="settings-port-input"
-                  />
-                )}
-              />
-            </>
-          )}
-        </Space>
-      </Card>
-
       <Card title="SFTP 서버" size="small">
         <Space vertical size="small" className="settings-stack-full">
           <SettingRow

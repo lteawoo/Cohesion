@@ -24,7 +24,6 @@ import (
 	"taeu.kr/cohesion/internal/browse"
 	browseHandler "taeu.kr/cohesion/internal/browse/handler"
 	"taeu.kr/cohesion/internal/config"
-	"taeu.kr/cohesion/internal/ftp"
 	"taeu.kr/cohesion/internal/platform/database"
 	"taeu.kr/cohesion/internal/platform/web"
 	sftpserver "taeu.kr/cohesion/internal/sftp"
@@ -48,16 +47,16 @@ func init() {
 }
 
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
-func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service, *sftpserver.Service, error) {
+func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *sftpserver.Service, error) {
 	// 의존성 주입
 	accountRepo := accountStore.NewStore(db)
 	accountService := account.NewService(accountRepo)
 	if err := accountService.EnsureDefaultAdmin(context.Background()); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	authSecret, err := resolveJWTSecret()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	accountHandler := account.NewHandler(accountService)
 	authService := auth.NewService(accountService, auth.Config{
@@ -75,7 +74,6 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	webDavService := webdav.NewService(spaceService, accountService)
 	webDavHandler := webdavHandler.NewHandler(webDavService, accountService)
-	ftpService := ftp.NewService(spaceService, accountService, config.Conf.Server.FtpEnabled, config.Conf.Server.FtpPort)
 	sftpService := sftpserver.NewService(spaceService, accountService, config.Conf.Server.SftpEnabled, config.Conf.Server.SftpPort)
 	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 	configHandler := config.NewHandler()
@@ -110,7 +108,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	if goEnv == "production" {
 		spaHandler, err := spa.NewSPAHandler(WebDist, "dist/web")
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		mux.HandleFunc("/", spaHandler)
 	}
@@ -137,7 +135,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 		Handler: finalLogHandler,
 	}
 
-	return server, ftpService, sftpService, nil
+	return server, sftpService, nil
 }
 
 func main() {
@@ -171,17 +169,11 @@ func main() {
 	// 서버 시작/재시작 루프
 	for {
 		// 서버 생성
-		server, ftpService, sftpService, err := createServer(db, restartChan)
+		server, sftpService, err := createServer(db, restartChan)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to create server")
 		}
-		if err := ftpService.Start(); err != nil {
-			log.Fatal().Err(err).Msg("Failed to start FTP server")
-		}
 		if err := sftpService.Start(); err != nil {
-			if stopErr := ftpService.Stop(); stopErr != nil {
-				log.Error().Err(stopErr).Msg("FTP server shutdown error")
-			}
 			log.Fatal().Err(err).Msg("Failed to start SFTP server")
 		}
 
@@ -204,9 +196,6 @@ func main() {
 			if err := sftpService.Stop(); err != nil {
 				log.Error().Err(err).Msg("SFTP server shutdown error")
 			}
-			if err := ftpService.Stop(); err != nil {
-				log.Error().Err(err).Msg("FTP server shutdown error")
-			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := server.Shutdown(ctx); err != nil {
@@ -220,9 +209,6 @@ func main() {
 			if err := sftpService.Stop(); err != nil {
 				log.Error().Err(err).Msg("SFTP server shutdown error")
 			}
-			if err := ftpService.Stop(); err != nil {
-				log.Error().Err(err).Msg("FTP server shutdown error")
-			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			if err := server.Shutdown(ctx); err != nil {
 				log.Error().Err(err).Msg("Server shutdown error")
@@ -233,14 +219,11 @@ func main() {
 			log.Info().Msg("[Main] Reloading configuration...")
 			config.SetConfig(goEnv)
 			log.Info().Msgf("[Main] Restarting with new port: %s", config.Conf.Server.Port)
-			// 루프 계속 (재시작)
+		// 루프 계속 (재시작)
 
 		case err := <-serverErr:
 			if stopErr := sftpService.Stop(); stopErr != nil {
 				log.Error().Err(stopErr).Msg("SFTP server shutdown error")
-			}
-			if stopErr := ftpService.Stop(); stopErr != nil {
-				log.Error().Err(stopErr).Msg("FTP server shutdown error")
 			}
 			log.Fatal().Err(err).Msg("Server error")
 			return

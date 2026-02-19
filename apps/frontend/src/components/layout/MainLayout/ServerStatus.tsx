@@ -5,9 +5,9 @@ import type { ProtocolStatus } from '@/features/status/types';
 const PROTOCOL_LABELS: Record<string, string> = {
   http: 'WEB',
   webdav: 'WebDAV',
-  ftp: 'FTP',
   sftp: 'SFTP',
 };
+const PROTOCOL_ORDER = ['http', 'webdav', 'sftp'] as const;
 
 function StatusDot({ color, size = 8 }: { color: string; size?: number }) {
   return (
@@ -52,8 +52,25 @@ function getStatusLabel(status: ProtocolStatus['status']) {
   }
 }
 
+function normalizeProtocolPath(path?: string) {
+  if (!path) {
+    return '';
+  }
+
+  const trimmed = path.trim();
+  if (trimmed === '' || trimmed === '/') {
+    return '';
+  }
+
+  return trimmed.replace(/\/+$/, '');
+}
+
 function PopoverContent({ protocols, hosts }: { protocols: Record<string, ProtocolStatus>; hosts?: string[] }) {
   const { token } = theme.useToken();
+  const orderedProtocolEntries = [
+    ...PROTOCOL_ORDER.filter((key) => protocols[key] !== undefined).map((key) => [key, protocols[key]] as const),
+    ...Object.entries(protocols).filter(([key]) => !PROTOCOL_ORDER.includes(key as (typeof PROTOCOL_ORDER)[number])),
+  ];
   const statusColors = {
     healthy: token.colorSuccess,
     unhealthy: token.colorError,
@@ -79,41 +96,43 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
   return (
     <div style={{ minWidth: 180 }}>
       <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8 }}>
-        Protocols
-      </div>
-      {Object.entries(protocols).map(([key, proto]) => (
-        <div
-          key={key}
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '4px 0',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <StatusDot color={getStatusColor(proto.status, statusColors)} />
-            <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
-            {key !== 'http' && proto.port && (
-              <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{proto.port}{proto.path}</span>
-            )}
-            {key === 'http' && proto.path && (
-              <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{webPort}{proto.path}</span>
-            )}
-          </div>
-          <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
-            {getStatusLabel(proto.status)}
-          </span>
-        </div>
-      ))}
-      <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 12, marginBottom: 8 }}>
-        웹 접근 주소
+        Hosts
       </div>
       {webUrls.map((url) => (
         <div key={url} style={{ padding: '2px 0' }}>
           <span style={{ fontSize: 12, color: token.colorTextSecondary }}>{url}</span>
         </div>
       ))}
+      <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 12, marginBottom: 8 }}>
+        Protocols
+      </div>
+      {orderedProtocolEntries.map(([key, proto]) => {
+        const displayPort = key === 'http' ? webPort : proto.port;
+        const displayPath = normalizeProtocolPath(proto.path);
+
+        return (
+          <div
+            key={key}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '4px 0',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <StatusDot color={getStatusColor(proto.status, statusColors)} />
+              <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
+              {displayPort && (
+                <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{displayPort}{displayPath}</span>
+              )}
+            </div>
+            <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
+              {getStatusLabel(proto.status)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
