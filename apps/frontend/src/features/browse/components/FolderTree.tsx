@@ -384,7 +384,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
   if (!rootPath && !showBaseDirectories && (!spaces || spaces.length === 0)) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center', color: '#888', fontSize: '12px' }}>
+      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ant-color-text-secondary, #778da9)', fontSize: '12px' }}>
         Space를 선택하세요
       </div>
     );
@@ -400,6 +400,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
   return (
     <Tree.DirectoryTree
+      className="folder-tree"
       onSelect={handleSelect}
       onExpand={handleExpand}
       onRightClick={handleRightClick}
@@ -409,19 +410,12 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
       showIcon={false}
       switcherIcon={({ expanded, isLeaf }) => {
         if (isLeaf) {
-          return <span style={{ display: 'inline-block', width: 14 }} />;
+          return <span className="folder-tree-switcher-placeholder" aria-hidden="true" />;
         }
         return (
           <span
-            className="material-symbols-rounded"
+            className="material-symbols-rounded folder-tree-switcher-icon"
             style={{
-              fontSize: 18,
-              lineHeight: 1,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 18,
-              height: 18,
               fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20',
             }}
             aria-hidden="true"

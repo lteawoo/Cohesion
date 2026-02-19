@@ -83,7 +83,6 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                 onTouchStart={() => onItemTouchStart?.(item, index)}
                 onTouchEnd={() => onItemTouchEnd?.()}
                 onTouchCancel={() => onItemTouchCancel?.()}
-                onTouchMove={() => onItemTouchCancel?.()}
                 onContextMenu={(e) => onContextMenu(e, item)}
                 onDragStart={(e) => onItemDragStart(e, item)}
                 onDragEnd={(e) => onItemDragEnd(e)}
@@ -111,10 +110,10 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         borderRadius: '6px',
-                        backgroundColor: 'rgba(140, 140, 140, 0.08)',
+                        backgroundColor: 'var(--ant-color-fill-tertiary, rgba(119, 141, 169, 0.12))',
                       }}
                     >
-                      <FolderFilled style={{ fontSize: '48px', color: '#ffca28' }} />
+                      <FolderFilled style={{ fontSize: '48px', color: 'var(--app-folder-icon-color, #415a77)' }} />
                     </div>
                   ) : isImageFile(item.name) && spaceId ? (
                     <ImageThumbnail
@@ -132,10 +131,10 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         borderRadius: '6px',
-                        backgroundColor: 'rgba(140, 140, 140, 0.08)',
+                        backgroundColor: 'var(--ant-color-fill-tertiary, rgba(119, 141, 169, 0.12))',
                       }}
                     >
-                      <FileOutlined style={{ fontSize: '48px', color: '#8c8c8c' }} />
+                      <FileOutlined style={{ fontSize: '48px', color: 'var(--app-muted-icon-color, #778da9)' }} />
                     </div>
                   )}
                 </div>
@@ -152,7 +151,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                   {item.name}
                 </div>
                 {!item.isDir && (
-                  <div style={{ fontSize: '11px', color: '#8c8c8c' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--ant-color-text-secondary, #778da9)' }}>
                     {formatSize(item.size)}
                   </div>
                 )}

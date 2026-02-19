@@ -1,4 +1,4 @@
-import { ConfigProvider, Layout, Menu, Button, theme, App, Grid, Drawer } from 'antd';
+import { Layout, Menu, Button, theme, Grid, Drawer } from 'antd';
 import {
   UserOutlined,
   AppstoreOutlined,
@@ -12,7 +12,6 @@ import {
 } from '@ant-design/icons';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useSettingsStore } from '@/stores/settingsStore';
 import { useAuth } from '@/features/auth/useAuth';
 import GeneralSettings from './sections/GeneralSettings';
 import AppearanceSettings from './sections/AppearanceSettings';
@@ -215,18 +214,4 @@ const SettingsPage = () => {
   );
 };
 
-const Settings = () => {
-  const currentTheme = useSettingsStore((state) => state.theme);
-  const isDarkMode = currentTheme === 'dark';
-  const currentAlgorithm = isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm;
-
-  return (
-    <ConfigProvider theme={{ algorithm: currentAlgorithm }}>
-      <App>
-        <SettingsPage />
-      </App>
-    </ConfigProvider>
-  );
-};
-
-export default Settings;
+export default SettingsPage;

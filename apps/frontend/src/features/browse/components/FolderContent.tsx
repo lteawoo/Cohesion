@@ -743,6 +743,7 @@ const FolderContent: React.FC = () => {
 
       <div
         ref={selectionContainerRef}
+        onScroll={isMobile ? handleMobileLongPressEnd : undefined}
         style={{
           position: 'relative',
           flex: 1,
@@ -750,6 +751,8 @@ const FolderContent: React.FC = () => {
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
+          touchAction: isMobile ? 'pan-y' : undefined,
+          WebkitOverflowScrolling: 'touch',
           paddingBottom: PATH_BAR_HEIGHT + 6,
         }}
       >

@@ -32,10 +32,10 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: '6px',
-          backgroundColor: 'rgba(140, 140, 140, 0.08)',
+          backgroundColor: 'var(--ant-color-fill-tertiary, rgba(119, 141, 169, 0.12))',
         }}
       >
-        <FileOutlined style={{ fontSize: '48px', color: '#8c8c8c' }} />
+        <FileOutlined style={{ fontSize: '48px', color: 'var(--app-muted-icon-color, #778da9)' }} />
       </div>
     );
   }
@@ -51,7 +51,7 @@ export const ImageThumbnail: React.FC<ImageThumbnailProps> = ({
         position: 'relative',
         overflow: 'hidden',
         borderRadius: '6px',
-        backgroundColor: 'rgba(140, 140, 140, 0.08)',
+        backgroundColor: 'var(--ant-color-fill-tertiary, rgba(119, 141, 169, 0.12))',
       }}
     >
       {loading && (

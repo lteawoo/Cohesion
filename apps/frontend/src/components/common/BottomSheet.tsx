@@ -312,7 +312,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       <div
         className={`bottom-sheet-mask${isOpenVisual ? ' open' : ''}`}
         onClick={onClose}
-        style={{ background: 'rgba(0, 0, 0, 0.55)' }}
+        style={{ background: token.colorBgMask }}
       />
       <div
         className={`bottom-sheet-panel${isDragging ? ' dragging' : ''}${isOpenVisual ? ' open' : ''}`}

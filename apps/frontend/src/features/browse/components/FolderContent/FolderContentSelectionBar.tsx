@@ -44,7 +44,8 @@ const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
     <div
       style={{
         padding: '8px 16px',
-        backgroundColor: 'rgba(24, 144, 255, 0.1)',
+        backgroundColor: 'var(--browse-selection-bg)',
+        border: '1px solid var(--browse-selection-border-color)',
         borderRadius: '4px',
         display: 'flex',
         alignItems: 'center',
@@ -52,7 +53,7 @@ const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
         gap: '16px',
       }}
     >
-      <span style={{ fontWeight: 'bold', color: '#1890ff' }}>✓ {selectedCount}개 선택됨</span>
+      <span style={{ fontWeight: 'bold', color: 'var(--ant-color-primary, #415a77)' }}>✓ {selectedCount}개 선택됨</span>
       <AntSpace size="small" wrap>
         <Button size="small" icon={<DownloadOutlined />} onClick={onDownload}>
           다운로드

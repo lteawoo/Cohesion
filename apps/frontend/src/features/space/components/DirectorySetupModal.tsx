@@ -1,4 +1,4 @@
-import { Modal, Input, App } from "antd";
+import { Modal, Input, App, theme } from "antd";
 import FolderTree from "../../browse/components/FolderTree";
 import { useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
@@ -18,6 +18,7 @@ export default function DirectorySetupModal({
   const [spaceDesc, setSpaceDesc] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
   const createSpace = useSpaceStore((state) => state.createSpace);
+  const { token } = theme.useToken();
 
   const handleClose = () => {
     if (isCreating) {
@@ -82,7 +83,7 @@ export default function DirectorySetupModal({
     >
       <div style={{ marginBottom: 16 }}>
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-          Space 이름 <span style={{ color: 'red' }}>*</span>
+          Space 이름 <span style={{ color: token.colorError }}>*</span>
         </label>
         <Input
           placeholder="Space 이름을 입력하세요"
@@ -108,7 +109,7 @@ export default function DirectorySetupModal({
 
       <div style={{ marginBottom: 16 }}>
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-          폴더 선택 <span style={{ color: 'red' }}>*</span>
+          폴더 선택 <span style={{ color: token.colorError }}>*</span>
         </label>
         <div style={{ fontStyle: 'italic', marginBottom: 8, fontSize: 12 }}>
           선택된 폴더: {selectedPath || '없음'}
@@ -117,7 +118,7 @@ export default function DirectorySetupModal({
           style={{
             height: '40vh',
             overflow: 'auto',
-            border: '1px solid #d9d9d9',
+            border: `1px solid ${token.colorBorder}`,
             borderRadius: 4,
             padding: 8,
           }}

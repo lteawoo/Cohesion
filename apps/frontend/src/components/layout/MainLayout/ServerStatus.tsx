@@ -22,14 +22,21 @@ function StatusDot({ color, size = 8 }: { color: string; size?: number }) {
   );
 }
 
-function getStatusColor(status: ProtocolStatus['status']) {
+function getStatusColor(
+  status: ProtocolStatus['status'],
+  colors: {
+    healthy: string;
+    unhealthy: string;
+    unavailable: string;
+  }
+) {
   switch (status) {
     case 'healthy':
-      return '#52c41a';
+      return colors.healthy;
     case 'unhealthy':
-      return '#ff4d4f';
+      return colors.unhealthy;
     case 'unavailable':
-      return '#8c8c8c';
+      return colors.unavailable;
   }
 }
 
@@ -46,6 +53,11 @@ function getStatusLabel(status: ProtocolStatus['status']) {
 
 function PopoverContent({ protocols, hosts }: { protocols: Record<string, ProtocolStatus>; hosts?: string[] }) {
   const { token } = theme.useToken();
+  const statusColors = {
+    healthy: token.colorSuccess,
+    unhealthy: token.colorError,
+    unavailable: token.colorTextTertiary,
+  };
   const webUrl = `${window.location.origin}/`;
   const webPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
   const protocol = window.location.protocol;
@@ -79,7 +91,7 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <StatusDot color={getStatusColor(proto.status)} />
+            <StatusDot color={getStatusColor(proto.status, statusColors)} />
             <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
             {key !== 'http' && proto.port && (
               <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{proto.port}{proto.path}</span>
@@ -109,7 +121,7 @@ export default function ServerStatus() {
   const { token } = theme.useToken();
   const { status, isServerUp } = useServerStatus();
 
-  const dotColor = isServerUp ? '#52c41a' : '#ff4d4f';
+  const dotColor = isServerUp ? token.colorSuccess : token.colorError;
 
   return (
     <Popover

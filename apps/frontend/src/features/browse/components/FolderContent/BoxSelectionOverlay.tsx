@@ -31,8 +31,8 @@ const BoxSelectionOverlay: React.FC<BoxSelectionOverlayProps> = ({
         top: `${top}px`,
         width: `${width}px`,
         height: `${height}px`,
-        border: '2px solid #1890ff',
-        backgroundColor: 'rgba(24, 144, 255, 0.1)',
+        border: '2px solid var(--browse-selection-border-color)',
+        backgroundColor: 'var(--browse-selection-overlay-bg, rgba(65, 90, 119, 0.14))',
         pointerEvents: 'none',
         zIndex: 1000,
       }}

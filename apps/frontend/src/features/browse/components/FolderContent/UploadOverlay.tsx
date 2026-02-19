@@ -16,8 +16,8 @@ const UploadOverlay: React.FC<UploadOverlayProps> = ({ visible }) => {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(24, 144, 255, 0.1)',
-        border: '2px dashed #1890ff',
+        backgroundColor: 'var(--browse-dragover-bg)',
+        border: '2px dashed var(--browse-selection-border-color)',
         borderRadius: '8px',
         display: 'flex',
         alignItems: 'center',
@@ -27,8 +27,8 @@ const UploadOverlay: React.FC<UploadOverlayProps> = ({ visible }) => {
       }}
     >
       <div style={{ textAlign: 'center' }}>
-        <InboxOutlined style={{ fontSize: '64px', color: '#1890ff', marginBottom: '16px' }} />
-        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1890ff' }}>
+        <InboxOutlined style={{ fontSize: '64px', color: 'var(--ant-color-primary, #415a77)', marginBottom: '16px' }} />
+        <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--ant-color-primary, #415a77)' }}>
           파일을 놓아 업로드
         </div>
       </div>

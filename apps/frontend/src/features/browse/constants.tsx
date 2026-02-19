@@ -41,7 +41,7 @@ export function buildTableColumns(
       sortOrder: sortConfig.sortBy === 'name' ? sortConfig.sortOrder : null,
       render: (text: string, record: FileNode) => (
         <AntSpace>
-          {record.isDir ? <FolderFilled style={{ color: '#ffca28' }} /> : <FileOutlined />}
+          {record.isDir ? <FolderFilled style={{ color: 'var(--app-folder-icon-color, #415a77)' }} /> : <FileOutlined />}
           {record.isDir ? (
             <a onClick={() => onNavigate(record.path)}>{text}</a>
           ) : (

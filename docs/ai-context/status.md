@@ -1,6 +1,87 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **다크모드 드래그 선택영역 농도 상향 완료** (2026-02-19):
+    - 프론트:
+      - `AntdApp`에 테마 클래스(`app-theme-dark`/`app-theme-light`)를 부여.
+      - 다크 테마에서만 오버레이 농도를 `40%`로 상향(`--browse-selection-overlay-bg`).
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 계산 스타일: `color-mix(in srgb, #273647 40%, transparent)`
+- **파일 익스플로러 드래그 선택영역 다크/라이트 적응 완료** (2026-02-19):
+    - 프론트:
+      - 드래그 오버레이 배경 변수(`--browse-selection-overlay-bg`)를 고정 RGBA에서 Ant 선택 토큰(`--ant-control-item-bg-active`) 기반 `color-mix`로 전환.
+      - 다크/라이트 테마에서 선택 오버레이 농도가 자동으로 현재 선택 색 축을 따르도록 보정.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **파일 익스플로러 드래그 선택영역 반투명 적용 완료** (2026-02-19):
+    - 프론트:
+      - 박스 선택 오버레이(`BoxSelectionOverlay`) 배경을 약한 반투명(`--browse-selection-overlay-bg`)으로 조정.
+      - 선택 테두리 스타일은 기존과 동일하게 유지.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **파일 익스플로러 드래그 선택영역 투명화 완료** (2026-02-19):
+    - 프론트:
+      - 박스 선택 오버레이(`BoxSelectionOverlay`)의 배경색을 제거하고 테두리만 유지하도록 변경.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **트리 폴더 아이콘/텍스트 수직 정렬 보정 완료** (2026-02-19):
+    - 프론트:
+      - `FolderTree`에 공통 클래스(`folder-tree`)를 부여하고 스위처 아이콘 마크업을 정렬 전용 클래스(`folder-tree-switcher-icon`)로 분리.
+      - 트리 스위처를 flex 정렬로 고정(`.folder-tree .ant-tree-switcher`)해 폴더 아이콘과 노드 텍스트 중심선이 일치하도록 보정.
+      - placeholder 영역(`folder-tree-switcher-placeholder`)도 동일 규격으로 맞춰 트리 밀림을 방지.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 실측: 아이콘/텍스트 중심선 오차 `-2.75px -> 0.25px`로 개선
+- **선택 상태 색상 공통화 완료** (2026-02-19):
+    - 프론트:
+      - 테마 설정에 라이트/다크 공통 선택 토큰(`selection bg/hover/text`)을 추가.
+      - 전역 토큰(`controlItemBgActive`, `controlItemBgHover`)과 Ant 컴포넌트 토큰(`Menu`, `Tree`)을 동일 선택 토큰으로 일원화.
+      - 브라우즈 선택 변수(`--browse-selection-bg`, `--browse-dragover-bg`)를 `.ant-app` 레벨에서 Ant 토큰 변수와 연결해 파일 선택/트리 선택/설정 메뉴 선택이 동일 색상 축을 사용하도록 정리.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 계산 스타일 확인:
+        - Space 트리 선택 배경: `rgb(39, 54, 71)`
+        - Settings 메뉴 선택 배경: `rgb(39, 54, 71)`
+        - 브라우즈 선택 카드 배경: `rgb(39, 54, 71)`
+- **선택 외곽선/그림자 강조 제거 완료** (2026-02-19):
+    - 프론트:
+      - 테이블 선택 행에 추가했던 inset 외곽선(box-shadow) 제거.
+      - 그리드 선택 카드에 추가했던 경계선(`borderColor`) 및 그림자(`boxShadow`) 제거.
+      - 선택 강조는 배경색(`--browse-selection-bg`) 중심으로 유지.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **모바일 파일익스플로러 터치 스크롤 및 다크모드 선택 가시성 보정 완료** (2026-02-19):
+    - 프론트:
+      - 파일 목록 스크롤 컨테이너(`selectionContainerRef`)에 모바일 터치 스크롤 최적화(`touchAction: pan-y`, `WebkitOverflowScrolling: touch`)를 적용.
+      - 모바일에서 아이템 카드/행의 `onTouchMove` 핸들러를 제거해 터치 스크롤 제스처 간섭을 완화.
+      - 스크롤 중 롱프레스 오동작 방지를 위해 컨테이너 `onScroll` 시 롱프레스 타이머를 즉시 해제.
+      - 다크모드에서 선택 강조 대비를 높이기 위해 선택 색상 변수(`--browse-selection-*`)를 상향 조정하고, 테이블 선택 행에 경계선(inset) 강조를 추가.
+      - 그리드/테이블 뷰 전환 버튼의 활성 상태를 토큰 기반 고대비 스타일로 변경해 선택된 뷰가 즉시 식별되도록 보강.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 모바일 에뮬레이션(iPhone viewport)에서 파일 목록 컨테이너 스크롤 가능 상태 확인(`clientHeight 688`, `scrollHeight 1268`, `touchAction pan-y`)
+      - 다크모드에서 뷰 전환 버튼 활성 대비 확인(활성 `rgb(58, 80, 104)` / 비활성 `rgb(22, 31, 48)`)
+      - 스크린샷: `/tmp/cohesion-mobile-dark-view-toggle-table.png`, `/tmp/cohesion-mobile-dark-view-toggle-grid.png`
+- **블루-그레이 팔레트 전역 테마 적용 완료** (2026-02-19):
+    - 프론트:
+      - Ant Design 전역 테마를 루트 `ConfigProvider`로 통합해 로그인/메인/설정 전체 라우트에 동일 테마 컨텍스트를 적용.
+      - 제공된 팔레트(`ink_black`, `prussian_blue`, `dusk_blue`, `dusty_denim`, `alabaster_grey`)를 기반으로 라이트/다크 토큰 시드를 구성(`buildCohesionThemeConfig`).
+      - `MainLayout`, `Settings`의 개별 `ConfigProvider` 중복 래핑을 제거하고 루트 프로바이더 단일화.
+      - 브라우즈/업로드/선택 오버레이/아이콘/트리/모달 등 하드코딩 색상을 토큰/커스텀 CSS 변수(`--app-*`, `--browse-*`) 기반으로 치환.
+      - Ant CSS 변수 참조를 kebab-case(`--ant-color-primary` 등)로 정정해 fallback 의존 없이 토큰값이 실제 반영되도록 보정.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `http://localhost:5173/login` 계산 스타일 확인:
+        - 다크: `--ant-color-bg-layout = #08111a`, 배경 `rgb(8, 17, 26)`
+        - 라이트: `--ant-color-bg-layout = #f2f3f1`, 배경 `rgb(242, 243, 241)`
+      - 스크린샷: `/tmp/cohesion-theme-login-dark.png`, `/tmp/cohesion-theme-login-light.png`
+- **로그인 화면 배경 회색 처리 완료** (2026-02-19):
+    - 프론트:
+      - 로그인 페이지 래퍼(`.login-page`) 배경을 공통 Ant 토큰(`--ant-color-bg-layout`, fallback `#f2f3f1`)으로 적용.
+    - 검증:
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `http://localhost:5173/login` 화면 스크린샷 및 계산 스타일(`rgb(242, 243, 241)`) 확인
 - **상단 고정 툴바 위 간격 보정 완료** (2026-02-18):
     - 프론트:
       - `툴바 아래 여백` 변경은 되돌리고, 상단 툴바 슬롯에 `marginTop: 8px`를 적용해 상단 고정 상태에서 헤더와의 시각 간격을 확보.

@@ -94,10 +94,10 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
       cancelText="취소"
       width={600}
     >
-      <div style={{ marginBottom: '16px', color: '#8c8c8c', fontSize: '14px' }}>
+      <div style={{ marginBottom: '16px', color: token.colorTextSecondary, fontSize: '14px' }}>
         {mode === 'move' ? '이동할' : '복사할'} 대상 폴더를 선택하세요
       </div>
-      <div style={{ border: '1px solid #d9d9d9', borderRadius: '4px', padding: '8px', maxHeight: '400px', overflow: 'auto' }}>
+      <div style={{ border: `1px solid ${token.colorBorder}`, borderRadius: '4px', padding: '8px', maxHeight: '400px', overflow: 'auto' }}>
         <FolderTree
           onSelect={handleSelect}
         />

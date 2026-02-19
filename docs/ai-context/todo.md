@@ -6,6 +6,17 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] 다크모드 드래그 선택영역 농도 상향 (테마 클래스 도입 + 다크 오버레이 `40%` 적용)
+- [x] 파일 익스플로러 드래그 선택영역 다크/라이트 적응 (overlay를 `--ant-control-item-bg-active` 기반 `color-mix`로 전환)
+- [x] 파일 익스플로러 드래그 선택영역 반투명 적용 (`--browse-selection-overlay-bg` 도입, 경계선 유지)
+- [x] 파일 익스플로러 드래그 선택영역 투명화 (박스 선택 오버레이 배경 제거, border만 유지)
+- [x] 트리 폴더 아이콘/텍스트 수직 정렬 보정 (`FolderTree` switcher flex 정렬 + 공통 아이콘/placeholder 규격화)
+- [x] 선택 상태 색상 공통화 (Space 트리/Settings 메뉴/파일 선택을 동일 selection 토큰으로 통일)
+- [x] 선택 외곽선/그림자 강조 제거 (테이블 inset box-shadow, 그리드 선택 border/shadow 삭제)
+- [x] 모바일 파일익스플로러 터치 스크롤 보정 (`selectionContainer`에 `touchAction: pan-y`, `WebkitOverflowScrolling: touch`, 카드/행 `onTouchMove` 제거)
+- [x] 다크모드 그리드/테이블 선택 가시성 강화 (선택 배경/경계 대비 상향 + 뷰 전환 버튼 활성 고대비 스타일)
+- [x] 블루-그레이 팔레트 기반 전역 테마 적용 (루트 `ConfigProvider` + 라이트/다크 토큰 시드 + 하드코딩 색상 치환)
+- [x] 로그인 화면 배경 회색 처리 (`.login-page` 배경 `--ant-color-bg-layout`, fallback `#f2f3f1`)
 - [x] 디렉토리 트리 중복 노출 및 `/dev` 무한 증식 버그 수정
 - [x] 디렉토리 트리 확장(`>`) 불능 버그 수정
 - [x] Google Drive 스타일 파일 탐색 GUI 구현
