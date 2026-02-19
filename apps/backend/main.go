@@ -68,8 +68,8 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	browseService := browse.NewService()
 	spaceHandler := spaceHandler.NewHandler(spaceService, browseService, accountService)
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
-	webDavService := webdav.NewService(spaceService)
-	webDavHandler := webdavHandler.NewHandler(webDavService)
+	webDavService := webdav.NewService(spaceService, accountService)
+	webDavHandler := webdavHandler.NewHandler(webDavService, accountService)
 	ftpService := ftp.NewService(spaceService, accountService, config.Conf.Server.FtpEnabled, config.Conf.Server.FtpPort)
 	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 	configHandler := config.NewHandler()
@@ -95,9 +95,11 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *ftp.Service
 	authHandler.RegisterRoutes(mux)
 
 	// WebDAV 핸들러 등록
-	mux.Handle("/dav/", web.Handler(func(w http.ResponseWriter, r *http.Request) *web.Error {
-		return webDavHandler.ServeHTTP(w, r)
-	}))
+	if config.Conf.Server.WebdavEnabled {
+		mux.Handle("/dav/", web.Handler(func(w http.ResponseWriter, r *http.Request) *web.Error {
+			return webDavHandler.ServeHTTP(w, r)
+		}))
+	}
 
 	if goEnv == "production" {
 		spaHandler, err := spa.NewSPAHandler(WebDist, "dist/web")

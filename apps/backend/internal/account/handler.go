@@ -42,7 +42,7 @@ func (h *Handler) handleAccounts(w http.ResponseWriter, r *http.Request) *web.Er
 		}
 		user, err := h.service.CreateUser(r.Context(), &req)
 		if err != nil {
-			return &web.Error{Code: http.StatusBadRequest, Message: err.Error(), Err: err}
+			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to create user", Err: err}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -76,14 +76,14 @@ func (h *Handler) handleAccountByID(w http.ResponseWriter, r *http.Request) *web
 		}
 		user, err := h.service.UpdateUser(r.Context(), id, &req)
 		if err != nil {
-			return &web.Error{Code: http.StatusBadRequest, Message: err.Error(), Err: err}
+			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to update user", Err: err}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(user)
 		return nil
 	case http.MethodDelete:
 		if err := h.service.DeleteUser(r.Context(), id); err != nil {
-			return &web.Error{Code: http.StatusBadRequest, Message: err.Error(), Err: err}
+			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to delete user", Err: err}
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return nil
@@ -97,7 +97,7 @@ func (h *Handler) handlePermissions(w http.ResponseWriter, r *http.Request, user
 	case http.MethodGet:
 		permissions, err := h.service.GetUserPermissions(r.Context(), userID)
 		if err != nil {
-			return &web.Error{Code: http.StatusBadRequest, Message: err.Error(), Err: err}
+			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to get permissions", Err: err}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(permissions)
@@ -113,7 +113,7 @@ func (h *Handler) handlePermissions(w http.ResponseWriter, r *http.Request, user
 			permission.UserID = userID
 		}
 		if err := h.service.ReplaceUserPermissions(r.Context(), userID, req.Permissions); err != nil {
-			return &web.Error{Code: http.StatusBadRequest, Message: err.Error(), Err: err}
+			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to update permissions", Err: err}
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return nil
@@ -142,7 +142,7 @@ func (h *Handler) handleRoles(w http.ResponseWriter, r *http.Request) *web.Error
 		}
 		role, err := h.service.CreateRole(r.Context(), req.Name, req.Description)
 		if err != nil {
-			return &web.Error{Code: http.StatusBadRequest, Message: err.Error(), Err: err}
+			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to create Role", Err: err}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -172,7 +172,7 @@ func (h *Handler) handleRoleByName(w http.ResponseWriter, r *http.Request) *web.
 			return &web.Error{Code: http.StatusBadRequest, Message: "Invalid request body", Err: err}
 		}
 		if err := h.service.ReplaceRolePermissions(r.Context(), roleName, req.Permissions); err != nil {
-			return &web.Error{Code: http.StatusBadRequest, Message: err.Error(), Err: err}
+			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to update Role permissions", Err: err}
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return nil
@@ -182,7 +182,7 @@ func (h *Handler) handleRoleByName(w http.ResponseWriter, r *http.Request) *web.
 		return &web.Error{Code: http.StatusMethodNotAllowed, Message: "Method not allowed"}
 	}
 	if err := h.service.DeleteRole(r.Context(), roleName); err != nil {
-		return &web.Error{Code: http.StatusBadRequest, Message: err.Error(), Err: err}
+		return &web.Error{Code: http.StatusBadRequest, Message: "Failed to delete Role", Err: err}
 	}
 	w.WriteHeader(http.StatusNoContent)
 	return nil

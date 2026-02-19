@@ -55,6 +55,43 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### React Hooks lint 규칙 대응 방식 확정 (2026-02-19)
+- **문제**:
+  - `react-hooks/set-state-in-effect`, `react-hooks/refs` 규칙으로 `BottomSheet`, `FolderContent`가 lint 실패.
+- **결정**:
+  - effect 본문의 동기 `setState`는 프레임 스케줄(`requestAnimationFrame`)로 전환한다.
+  - 렌더 단계의 `ref.current` 측정은 금지하고, DOM 측정은 `useLayoutEffect`로 이동한다.
+  - 오버레이 위치 계산은 `ResizeObserver + scroll/resize listener` 기반으로 유지한다.
+- **이유**:
+  - React Hooks 규칙을 만족하면서 기존 UX(드래그/오버레이 위치/히스토리 동작)를 최대한 보존하는 최소 변경 경로이기 때문.
+
+### 보안 하드닝 1차 구현 정책 확정 (#95, 2026-02-19)
+- **문제**:
+  - 보안 점검에서 WebDAV 인증 경계 부재, 설정 API 민감정보 노출, 초기 관리자 fallback, 의존성 취약점이 확인됨.
+- **결정**:
+  - WebDAV는 API 쿠키 세션 대신 **Basic Auth + Space 권한 검증**으로 보호한다.
+  - WebDAV 루트 목록은 인증 사용자 기준 접근 가능한 Space만 노출한다.
+  - `webdav_enabled`는 설정값 표시용이 아니라 실제 라우트 등록/상태판정에 반영한다.
+  - `/api/config`는 `server`만 반환/갱신하고 datasource는 API 변경 범위에서 제외한다.
+  - 프로덕션 초기 관리자 계정은 fallback 없이 환경변수 필수로 강제한다.
+  - 프론트/백엔드 의존성은 즉시 패치(`react-router`, Go toolchain) 후 재스캔한다.
+- **이유**:
+  - 외부 노출 프로토콜(WebDAV)과 운영 민감정보(API config)는 공격 표면 우선순위가 가장 높아 1차 릴리즈에서 즉시 차단/축소가 필요하다.
+
+### 전체 보안점검 기준 및 후속 우선순위 확정 (2026-02-19)
+- **문제**:
+  - 최근 기능 추가 이후 인증/권한/파일처리 경계와 의존성 취약점 누적 여부를 한 번에 검증할 필요가 있음.
+- **결정**:
+  - 점검 범위를 `코드(인증/인가/경로검증) + 설정(노출/활성화 플래그) + 의존성 스캔`으로 통합한다.
+  - 실행 기준 명령은 `pnpm audit --prod`, `govulncheck ./...`, `rg` 패턴 점검으로 고정한다.
+  - 후속 조치 우선순위를 다음과 같이 확정한다:
+    1) WebDAV 인증 강제 및 `webdav_enabled` 플래그 적용
+    2) 기본 관리자 초기값 하드닝 (fallback 제거)
+    3) `react-router`/Go 런타임 보안 패치
+    4) `/api/config` 민감정보 비노출 및 에러 응답 하드닝
+- **이유**:
+  - 외부 노출 경로(`HTTP/WebDAV/FTP`)와 파일 I/O 경계를 우선 차단하는 것이 실제 침해 가능성을 가장 빠르게 낮춘다.
+
 ### 다크모드 드래그 선택영역 농도 상향 (2026-02-19)
 - **문제**:
   - 다크모드에서 드래그 오버레이가 다소 연해 선택 영역이 약하게 느껴진다는 피드백이 있음.

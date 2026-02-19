@@ -1,6 +1,48 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **프론트 lint 하드닝 완료 (`react-hooks/set-state-in-effect`, `react-hooks/refs`)** (2026-02-19):
+    - 프론트:
+      - `BottomSheet`에서 effect 본문의 동기 `setState`를 `requestAnimationFrame` 기반 반영으로 전환.
+      - 시트 높이 계산 로직을 `recalculateSheetLayout` 콜백으로 정리하고 effect/observer/resize에서 공통 사용.
+      - `FolderContent`에서 렌더 중 `ref.current` DOM 측정 코드를 제거.
+      - 오버레이 오프셋 계산을 `useLayoutEffect + ResizeObserver + scroll/resize listener`로 이동.
+      - 내비게이션 히스토리 effect의 동기 `setNavigationState`를 프레임 스케줄 방식으로 전환.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과 (경고: baseline-browser-mapping 데이터 갱신 안내 1건)
+      - `pnpm -C apps/frontend build` 통과
+- **보안 하드닝 1차 적용 완료 (#95)** (2026-02-19):
+    - 백엔드:
+      - WebDAV 경로(`/dav/`)에 Basic Auth 인증을 강제하고, Space 접근 시 사용자별 권한(`read`/`write`) 체크를 적용.
+      - WebDAV 루트 목록을 사용자 접근 가능한 Space만 노출하도록 제한.
+      - `webdav_enabled` 설정이 실제 라우트 등록/상태값에 반영되도록 보정.
+      - `/api/config` 응답을 `server` 섹션만 반환하도록 축소(민감정보 비노출).
+      - 설정 업데이트 API는 `server`만 갱신하도록 변경.
+      - 프로덕션 초기 관리자 fallback 제거 (`COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD` 필수, 비밀번호 최소 길이 적용).
+      - 계정/Role/Space 일부 API의 `err.Error()` 직접 노출 제거(일반화된 메시지 반환).
+      - Go toolchain 기준을 `go 1.25.7`로 상향.
+    - 프론트:
+      - `react-router`를 보안 패치 버전(`^7.13.0`)으로 업데이트.
+      - 서버 설정 API 타입을 `server` 전용으로 정리.
+      - Ant theme `cssVar` 타입 변경(`true -> {}`)으로 빌드 타입 안정화.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `pnpm -C apps/frontend build` 통과
+      - `pnpm audit --prod` 결과 취약점 없음
+      - `cd apps/backend && govulncheck ./...` 결과 취약점 없음
+- **전체 보안점검 실시 완료** (2026-02-19):
+    - 범위:
+      - `apps/backend`, `apps/frontend` 코드/설정/의존성 전수 점검.
+    - 주요 결과:
+      - Critical: WebDAV 인증 부재 및 `webdav_enabled` 설정 미적용으로 `/dav/`가 항상 노출됨.
+      - High: 기본 관리자 계정 fallback(`admin`/`admin1234`) 존재.
+      - High: `react-router@7.10.0` 취약점 3건 확인(`pnpm audit --prod`).
+      - High: Go 표준 라이브러리 취약점 3건 확인(`govulncheck`, `go1.25.5` 영향).
+      - Medium: `/api/config` 응답의 DB 비밀번호 노출, `err.Error()` 직접 노출, 보안 헤더 부재.
+    - 검증:
+      - `pnpm audit --prod`
+      - `govulncheck ./...`
+      - `rg` 기반 정적 패턴 점검
 - **다크모드 드래그 선택영역 농도 상향 완료** (2026-02-19):
     - 프론트:
       - `AntdApp`에 테마 클래스(`app-theme-dark`/`app-theme-light`)를 부여.

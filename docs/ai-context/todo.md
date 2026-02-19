@@ -6,6 +6,14 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] 전체 보안점검 수행 (코드/설정/의존성 점검 및 취약점 우선순위 도출)
+- [x] WebDAV 보안 하드닝 (Basic Auth 강제 + Space 권한 체크 + `webdav_enabled` 플래그 적용)
+- [x] 기본 관리자 초기값 하드닝 (프로덕션 기본 계정/비밀번호 fallback 금지)
+- [x] 프론트 의존성 보안 패치 (`react-router` `^7.13.0`)
+- [x] Go 런타임/툴체인 보안 패치 (`go 1.25.7`, `govulncheck` 재검증)
+- [x] `/api/config` 민감정보 비노출 (`server`만 응답/갱신)
+- [x] 공통 에러 응답 하드닝 (계정/Role/Space API의 `err.Error()` 직접 노출 제거)
+- [x] 프론트 React Hooks lint 하드닝 (`set-state-in-effect`, `refs` 규칙 대응)
 - [x] 다크모드 드래그 선택영역 농도 상향 (테마 클래스 도입 + 다크 오버레이 `40%` 적용)
 - [x] 파일 익스플로러 드래그 선택영역 다크/라이트 적응 (overlay를 `--ant-control-item-bg-active` 기반 `color-mix`로 전환)
 - [x] 파일 익스플로러 드래그 선택영역 반투명 적용 (`--browse-selection-overlay-bg` 도입, 경계선 유지)

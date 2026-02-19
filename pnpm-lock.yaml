@@ -42,8 +42,8 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0(react@19.2.0)
       react-router:
-        specifier: ^7.10.0
-        version: 7.10.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: ^7.13.0
+        version: 7.13.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       zustand:
         specifier: ^5.0.11
         version: 5.0.11(@types/react@19.2.7)(react@19.2.0)
@@ -1423,8 +1423,8 @@ packages:
   react-is@18.3.1:
     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
 
-  react-router@7.10.0:
-    resolution: {integrity: sha512-FVyCOH4IZ0eDDRycODfUqoN8ZSR2LbTvtx6RPsBgzvJ8xAXlMZNCrOFpu+jb8QbtZnpAd/cEki2pwE848pNGxw==}
+  react-router@7.13.0:
+    resolution: {integrity: sha512-PZgus8ETambRT17BUm/LL8lX3Of+oiLaPuVTRH3l1eLvSPpKO3AvhAEb5N7ihAFZQrYDqkvvWfFh9p0z9VsjLw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
@@ -3039,7 +3039,7 @@ snapshots:
 
   react-is@18.3.1: {}
 
-  react-router@7.10.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+  react-router@7.13.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     dependencies:
       cookie: 1.1.1
       react: 19.2.0

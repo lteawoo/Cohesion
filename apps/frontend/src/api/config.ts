@@ -10,16 +10,8 @@ export interface ServerConfig {
   sftpPort: number;
 }
 
-export interface DatabaseConfig {
-  url: string;
-  user: string;
-  password: string;
-  dbname: string;
-}
-
 export interface Config {
   server: ServerConfig;
-  database: DatabaseConfig;
 }
 
 /**

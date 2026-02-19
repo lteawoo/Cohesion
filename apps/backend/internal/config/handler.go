@@ -60,6 +60,14 @@ func SaveConfig() error {
 // Handler는 config API 핸들러입니다
 type Handler struct{}
 
+type PublicConfigResponse struct {
+	Server Server `json:"server"`
+}
+
+type UpdateConfigRequest struct {
+	Server Server `json:"server"`
+}
+
 func NewHandler() *Handler {
 	return &Handler{}
 }
@@ -73,7 +81,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 // GetConfig는 현재 설정을 반환합니다
 func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) *web.Error {
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(Conf); err != nil {
+	response := PublicConfigResponse{
+		Server: Conf.Server,
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to encode config"}
 	}
 	return nil
@@ -81,13 +92,17 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) *web.Error {
 
 // UpdateConfig는 설정을 업데이트합니다
 func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Error {
-	var newConfig Config
-	if err := json.NewDecoder(r.Body).Decode(&newConfig); err != nil {
+	var req UpdateConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return &web.Error{Err: err, Code: http.StatusBadRequest, Message: "Invalid config format"}
 	}
 
-	// 설정 업데이트
-	Conf = newConfig
+	if req.Server.Port == "" {
+		return &web.Error{Code: http.StatusBadRequest, Message: "server.port is required"}
+	}
+
+	// 설정 업데이트 (민감정보를 포함하는 datasource는 API로 변경하지 않음)
+	Conf.Server = req.Server
 
 	// 파일에 저장
 	if err := SaveConfig(); err != nil {
