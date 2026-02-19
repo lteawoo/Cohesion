@@ -47,29 +47,17 @@ func (s *Service) EnsureDefaultAdmin(ctx context.Context) error {
 		return nil
 	}
 
-	isProduction := strings.EqualFold(strings.TrimSpace(os.Getenv("ENV")), "production")
-
-	username := os.Getenv("COHESION_ADMIN_USER")
+	username := strings.TrimSpace(os.Getenv("COHESION_ADMIN_USER"))
 	if username == "" {
-		if isProduction {
-			return errors.New("COHESION_ADMIN_USER is required in production")
-		}
 		username = "admin"
 	}
 	password := os.Getenv("COHESION_ADMIN_PASSWORD")
-	if password == "" {
-		if isProduction {
-			return errors.New("COHESION_ADMIN_PASSWORD is required in production")
-		}
+	if strings.TrimSpace(password) == "" {
 		password = "admin1234"
 	}
-	nickname := os.Getenv("COHESION_ADMIN_NICKNAME")
+	nickname := strings.TrimSpace(os.Getenv("COHESION_ADMIN_NICKNAME"))
 	if nickname == "" {
 		nickname = "Administrator"
-	}
-
-	if isProduction && len(password) < 12 {
-		return errors.New("COHESION_ADMIN_PASSWORD must be at least 12 characters in production")
 	}
 
 	if existing, err := s.store.GetUserByUsername(ctx, username); err == nil {

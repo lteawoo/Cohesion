@@ -78,6 +78,27 @@
 - **이유**:
   - 외부 노출 프로토콜(WebDAV)과 운영 민감정보(API config)는 공격 표면 우선순위가 가장 높아 1차 릴리즈에서 즉시 차단/축소가 필요하다.
 
+### 클릭 실행 UX 기준 초기 관리자 부팅 정책 단순화 (2026-02-19)
+- **문제**:
+  - `EnsureDefaultAdmin`가 `ENV=production`에서 `COHESION_ADMIN_USER`/`COHESION_ADMIN_PASSWORD`를 필수로 강제해, 일반 소비자 대상 더블클릭 실행 환경에서 첫 구동이 실패할 수 있음.
+- **결정**:
+  - 초기 관리자 생성 로직에서 `ENV` 기반 프로덕션 강제 분기를 제거한다.
+  - 환경변수가 비어 있으면 모든 환경에서 `admin/admin1234` + 닉네임 `Administrator`로 fallback 생성한다.
+  - 환경변수(`COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`, `COHESION_ADMIN_NICKNAME`)가 있으면 기존처럼 override한다.
+- **이유**:
+  - 설치 직후 무설정으로도 즉시 구동 가능한 UX가 제품 요구사항에 더 부합한다.
+
+### 실행 문서 환경변수 안내 정합화 (2026-02-19)
+- **문제**:
+  - 실행 문서(`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`)가 `ENV`, `DB_PATH`, `PORT`를 백엔드 환경변수로 안내하고 있었지만, 실제 코드는 해당 키를 사용하지 않음.
+- **결정**:
+  - 문서의 환경변수 항목을 코드 기준으로 정리:
+    - 사용 중: `COHESION_JWT_SECRET`, `COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`, `COHESION_ADMIN_NICKNAME`
+    - 미사용: `ENV`, `DB_PATH`, `PORT`
+  - DB 기본 경로도 `config.dev/prod.yaml`의 `database.url` 기준으로 명시.
+- **이유**:
+  - 설치/운영 시 문서-코드 불일치로 인한 오설정을 방지하고, 실행 절차를 단순화하기 위함.
+
 ### 전체 보안점검 기준 및 후속 우선순위 확정 (2026-02-19)
 - **문제**:
   - 최근 기능 추가 이후 인증/권한/파일처리 경계와 의존성 취약점 누적 여부를 한 번에 검증할 필요가 있음.

@@ -87,17 +87,25 @@ go build -o cohesion
 ## 데이터베이스
 
 - **SQLite** (로컬 파일)
-- 위치: `apps/backend/cohesion.db`
+- 위치(기본값):
+  - 개발: `apps/backend/dist/data/cohesion_dev.db`
+  - 프로덕션: `apps/backend/data/cohesion.db`
+- 경로 변경: `apps/backend/config/config.dev.yaml`, `apps/backend/config/config.prod.yaml`의 `database.url` 수정
 - 자동 생성 및 마이그레이션
 
 ## 환경 변수
 
-### 백엔드 (apps/backend/.env)
-```
-ENV=development
-DB_PATH=./cohesion.db
-PORT=3000
-```
+### 백엔드
+- `.env` 자동 로딩 없음 (실행 환경 변수만 사용)
+- 현재 코드에서 `ENV`, `DB_PATH`, `PORT`는 사용하지 않음
+- 사용 중인 환경변수:
+  - `COHESION_JWT_SECRET`
+    - 개발: 미지정 시 기본값 사용
+    - 프로덕션: 필수, 32자 이상
+  - `COHESION_ADMIN_USER` (선택)
+  - `COHESION_ADMIN_PASSWORD` (선택)
+  - `COHESION_ADMIN_NICKNAME` (선택)
+- 초기 admin 기본값(환경변수 미지정 시): `admin` / `admin1234` / `Administrator`
 
 ### 프론트엔드
 - 환경 변수 불필요 (개발 시)
