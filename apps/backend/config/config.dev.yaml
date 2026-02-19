@@ -5,6 +5,6 @@ server:
   ftp_enabled: true
   ftp_port: 2121
   sftp_enabled: false
-  sftp_port: 22
+  sftp_port: 2222
 database:
   url: dist/data/cohesion_dev.db

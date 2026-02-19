@@ -100,7 +100,7 @@ func defaultConfigForEnv(goEnv string) Config {
 			FtpEnabled:    false,
 			FtpPort:       2121,
 			SftpEnabled:   false,
-			SftpPort:      22,
+			SftpPort:      2222,
 		},
 		Datasource: Datasource{
 			URL: "data/cohesion.db",

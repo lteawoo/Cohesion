@@ -21,13 +21,11 @@ const Login = () => {
   const [setupNickname, setSetupNickname] = useState('');
   const [setupPasswordConfirm, setSetupPasswordConfirm] = useState('');
 
-  if (!isLoading && user) {
-    const state = location.state as { from?: string } | null;
-    const to = state?.from ?? '/';
-    return <Navigate to={to} replace />;
-  }
-
   useEffect(() => {
+    if (!isLoading && user) {
+      return;
+    }
+
     (async () => {
       try {
         const status = await getSetupStatus();
@@ -38,7 +36,13 @@ const Login = () => {
         setSetupChecked(true);
       }
     })();
-  }, [message]);
+  }, [isLoading, message, user]);
+
+  if (!isLoading && user) {
+    const state = location.state as { from?: string } | null;
+    const to = state?.from ?? '/';
+    return <Navigate to={to} replace />;
+  }
 
   if (isLoading || !setupChecked) {
     return (
