@@ -1,6 +1,16 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **실행 문서 환경변수 섹션 정합화 완료** (2026-02-19):
+    - 문서:
+      - `AGENTS.md`, `GEMINI.md`, `CLAUDE.md`의 환경변수 안내를 실제 코드 동작 기준으로 수정.
+      - `ENV`, `DB_PATH`, `PORT` 사용 안내 제거.
+      - `COHESION_JWT_SECRET`, `COHESION_ADMIN_*` 및 DB 경로(`config.dev/prod.yaml`의 `database.url`) 기준으로 정리.
+- **클릭 실행 UX용 초기 admin 부팅 단순화 완료** (2026-02-19):
+    - 백엔드:
+      - `EnsureDefaultAdmin`에서 `ENV` 기반 production 강제 분기를 제거.
+      - `COHESION_ADMIN_*` 미지정 시 모든 환경에서 `admin/admin1234` + `Administrator` fallback 생성으로 통일.
+      - 환경변수가 주어지면 기존처럼 값 override 유지.
 - **프론트 lint 하드닝 완료 (`react-hooks/set-state-in-effect`, `react-hooks/refs`)** (2026-02-19):
     - 프론트:
       - `BottomSheet`에서 effect 본문의 동기 `setState`를 `requestAnimationFrame` 기반 반영으로 전환.
