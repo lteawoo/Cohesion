@@ -34,46 +34,77 @@ type Service struct {
 	store Storer
 }
 
+var ErrInitialSetupCompleted = errors.New("initial setup already completed")
+
 func NewService(store Storer) *Service {
 	return &Service{store: store}
 }
 
 func (s *Service) EnsureDefaultAdmin(ctx context.Context) error {
-	adminCount, err := s.store.CountAdmins(ctx)
+	needsBootstrap, err := s.NeedsBootstrap(ctx)
 	if err != nil {
 		return err
 	}
-	if adminCount > 0 {
+	if !needsBootstrap {
 		return nil
 	}
 
 	username := strings.TrimSpace(os.Getenv("COHESION_ADMIN_USER"))
-	if username == "" {
-		username = "admin"
-	}
-	password := os.Getenv("COHESION_ADMIN_PASSWORD")
-	if strings.TrimSpace(password) == "" {
-		password = "admin1234"
-	}
+	password := strings.TrimSpace(os.Getenv("COHESION_ADMIN_PASSWORD"))
 	nickname := strings.TrimSpace(os.Getenv("COHESION_ADMIN_NICKNAME"))
+
+	// For consumer UX, do not create weak default credentials automatically.
+	// Bootstrap remains possible via one-time setup API or explicit env vars.
+	if username == "" && password == "" {
+		return nil
+	}
+	if username == "" || password == "" {
+		return errors.New("COHESION_ADMIN_USER and COHESION_ADMIN_PASSWORD must be set together")
+	}
+
+	_, err = s.BootstrapInitialAdmin(ctx, &CreateUserRequest{
+		Username: username,
+		Password: password,
+		Nickname: nickname,
+	})
+	if errors.Is(err, ErrInitialSetupCompleted) {
+		return nil
+	}
+	return err
+}
+
+func (s *Service) NeedsBootstrap(ctx context.Context) (bool, error) {
+	adminCount, err := s.store.CountAdmins(ctx)
+	if err != nil {
+		return false, err
+	}
+	return adminCount == 0, nil
+}
+
+func (s *Service) BootstrapInitialAdmin(ctx context.Context, req *CreateUserRequest) (*User, error) {
+	if req == nil {
+		return nil, errors.New("request is required")
+	}
+
+	needsBootstrap, err := s.NeedsBootstrap(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !needsBootstrap {
+		return nil, ErrInitialSetupCompleted
+	}
+
+	nickname := strings.TrimSpace(req.Nickname)
 	if nickname == "" {
 		nickname = "Administrator"
 	}
 
-	if existing, err := s.store.GetUserByUsername(ctx, username); err == nil {
-		if existing.Role == RoleAdmin {
-			return nil
-		}
-		return errors.New("initial admin username already exists with non-admin role")
-	}
-
-	_, err = s.CreateUser(ctx, &CreateUserRequest{
-		Username: username,
-		Password: password,
+	return s.CreateUser(ctx, &CreateUserRequest{
+		Username: strings.TrimSpace(req.Username),
+		Password: strings.TrimSpace(req.Password),
 		Nickname: nickname,
 		Role:     RoleAdmin,
 	})
-	return err
 }
 
 func (s *Service) ListUsers(ctx context.Context) ([]*User, error) {

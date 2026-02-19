@@ -48,6 +48,9 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) *web.Error
 		if err == ErrInvalidCredentials {
 			return &web.Error{Code: http.StatusUnauthorized, Message: "Invalid credentials", Err: err}
 		}
+		if err == ErrSetupRequired {
+			return &web.Error{Code: http.StatusPreconditionRequired, Message: "Initial setup required", Err: err}
+		}
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to login", Err: err}
 	}
 

@@ -31,6 +31,14 @@ func NewService(accountService *account.Service, config Config) *Service {
 }
 
 func (s *Service) Login(ctx context.Context, username, password string) (*TokenPair, *account.User, error) {
+	needsSetup, err := s.accountService.NeedsBootstrap(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if needsSetup {
+		return nil, nil, ErrSetupRequired
+	}
+
 	authed, err := s.accountService.Authenticate(ctx, username, password)
 	if err != nil {
 		return nil, nil, err

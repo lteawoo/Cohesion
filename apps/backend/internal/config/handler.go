@@ -2,8 +2,11 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -17,8 +20,13 @@ var configFilePath string
 func SetConfig(goEnv string) {
 	log.Info().Msgf("Loading configuration for environment: %s", goEnv)
 
-	viper.AddConfigPath("config")
+	viper.Reset()
 	viper.SetConfigType("yaml")
+
+	configSearchPaths := resolveConfigSearchPaths()
+	for _, path := range configSearchPaths {
+		viper.AddConfigPath(path)
+	}
 
 	if goEnv == "production" {
 		configFileName = "config.prod"
@@ -29,7 +37,19 @@ func SetConfig(goEnv string) {
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to read config file")
+		var notFound viper.ConfigFileNotFoundError
+		if errors.As(err, &notFound) {
+			createdPath, createErr := createDefaultConfigFile(configSearchPaths, configFileName, goEnv)
+			if createErr != nil {
+				log.Fatal().Err(createErr).Strs("search_paths", configSearchPaths).Msg("Failed to create default config file")
+			}
+			log.Info().Str("path", createdPath).Msg("Config file not found. Created default config file")
+			if err = viper.ReadInConfig(); err != nil {
+				log.Fatal().Err(err).Strs("search_paths", configSearchPaths).Msg("Failed to read config file")
+			}
+		} else {
+			log.Fatal().Err(err).Strs("search_paths", configSearchPaths).Msg("Failed to read config file")
+		}
 	}
 
 	configFilePath = viper.ConfigFileUsed()
@@ -39,6 +59,95 @@ func SetConfig(goEnv string) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to unmarshal config")
 	}
+}
+
+func createDefaultConfigFile(searchPaths []string, fileName, goEnv string) (string, error) {
+	if len(searchPaths) == 0 {
+		return "", errors.New("no config search paths available")
+	}
+
+	targetDir := searchPaths[0]
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return "", fmt.Errorf("create config directory: %w", err)
+	}
+
+	targetPath := filepath.Join(targetDir, fileName+".yaml")
+	if _, err := os.Stat(targetPath); err == nil {
+		return targetPath, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("check config file: %w", err)
+	}
+
+	defaultConf := defaultConfigForEnv(goEnv)
+	data, err := yaml.Marshal(defaultConf)
+	if err != nil {
+		return "", fmt.Errorf("marshal default config: %w", err)
+	}
+
+	if err := os.WriteFile(targetPath, data, 0644); err != nil {
+		return "", fmt.Errorf("write default config: %w", err)
+	}
+
+	return targetPath, nil
+}
+
+func defaultConfigForEnv(goEnv string) Config {
+	config := Config{
+		Server: Server{
+			Port:          "3000",
+			HttpEnabled:   true,
+			WebdavEnabled: true,
+			FtpEnabled:    false,
+			FtpPort:       2121,
+			SftpEnabled:   false,
+			SftpPort:      22,
+		},
+		Datasource: Datasource{
+			URL: "data/cohesion.db",
+		},
+	}
+
+	if goEnv != "production" {
+		config.Datasource.URL = "dist/data/cohesion_dev.db"
+	}
+
+	return config
+}
+
+func resolveConfigSearchPaths() []string {
+	paths := make([]string, 0, 3)
+	seen := make(map[string]struct{})
+
+	addPath := func(path string) {
+		clean := filepath.Clean(path)
+		if _, ok := seen[clean]; ok {
+			return
+		}
+		seen[clean] = struct{}{}
+		paths = append(paths, clean)
+	}
+
+	if exePath, err := os.Executable(); err == nil {
+		if resolved, err := filepath.EvalSymlinks(exePath); err == nil {
+			exePath = resolved
+		}
+		exeDir := filepath.Dir(exePath)
+		addPath(filepath.Join(exeDir, "config"))
+		addPath(filepath.Join(exeDir, "..", "config"))
+	}
+
+	if cwd, err := os.Getwd(); err == nil {
+		addPath(filepath.Join(cwd, "config"))
+	}
+
+	return paths
+}
+
+func ConfigDir() string {
+	if configFilePath == "" {
+		return ""
+	}
+	return filepath.Dir(configFilePath)
 }
 
 // SaveConfig는 설정을 YAML 파일에 저장합니다

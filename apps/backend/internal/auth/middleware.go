@@ -11,6 +11,8 @@ var publicAPIPaths = map[string]struct{}{
 	"/api/auth/login":   {},
 	"/api/auth/refresh": {},
 	"/api/auth/logout":  {},
+	"/api/setup/status": {},
+	"/api/setup/admin":  {},
 }
 
 func (s *Service) Middleware(next http.Handler) http.Handler {

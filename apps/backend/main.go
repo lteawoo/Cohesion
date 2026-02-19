@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -237,14 +241,83 @@ func readEnv(key, fallback string) string {
 
 func resolveJWTSecret() (string, error) {
 	secret := strings.TrimSpace(os.Getenv("COHESION_JWT_SECRET"))
-	if secret == "" {
-		if goEnv == "production" {
-			return "", errors.New("COHESION_JWT_SECRET is required in production")
+	if secret != "" {
+		if goEnv == "production" && len(secret) < 32 {
+			return "", errors.New("COHESION_JWT_SECRET must be at least 32 characters in production")
 		}
-		return "cohesion-dev-jwt-secret-change-me", nil
+		return secret, nil
 	}
+
+	secretFilePath, err := resolveJWTSecretPath()
+	if err != nil {
+		return "", err
+	}
+
+	secret, err = loadOrCreateJWTSecret(secretFilePath)
+	if err != nil {
+		return "", err
+	}
+
 	if goEnv == "production" && len(secret) < 32 {
 		return "", errors.New("COHESION_JWT_SECRET must be at least 32 characters in production")
 	}
+
+	log.Info().Str("path", secretFilePath).Msg("JWT secret loaded from file")
 	return secret, nil
+}
+
+func resolveJWTSecretPath() (string, error) {
+	if customPath := strings.TrimSpace(os.Getenv("COHESION_JWT_SECRET_FILE")); customPath != "" {
+		return customPath, nil
+	}
+
+	userConfigDir, err := os.UserConfigDir()
+	if err == nil && strings.TrimSpace(userConfigDir) != "" {
+		return filepath.Join(userConfigDir, "Cohesion", "secrets", "jwt_secret"), nil
+	}
+
+	executablePath, err := os.Executable()
+	if err != nil {
+		return "", errors.New("failed to resolve jwt secret path")
+	}
+	return filepath.Join(filepath.Dir(executablePath), "data", "jwt_secret"), nil
+}
+
+func loadOrCreateJWTSecret(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err == nil {
+		secret := strings.TrimSpace(string(content))
+		if secret != "" {
+			return secret, nil
+		}
+	}
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+
+	secret, err := generateRandomSecret(48)
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(secret+"\n"), 0600); err != nil {
+		return "", err
+	}
+
+	return secret, nil
+}
+
+func generateRandomSecret(size int) (string, error) {
+	if size < 32 {
+		return "", errors.New("secret size must be at least 32 bytes")
+	}
+
+	buffer := make([]byte, size)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buffer), nil
 }

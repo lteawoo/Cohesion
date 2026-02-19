@@ -1,16 +1,40 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **초기 관리자 보안 부팅 전환 완료** (2026-02-19):
+    - 백엔드:
+      - 기본 관리자 fallback(`admin/admin1234`) 제거.
+      - 관리자 계정이 없으면 로그인 대신 초기 설정이 필요하도록 전환(`428 Precondition Required`).
+      - 최초 실행 공개 API 추가:
+        - `GET /api/setup/status`
+        - `POST /api/setup/admin`
+      - 운영자가 `COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`를 함께 주입하면 1회 초기 부팅 계정 생성 가능.
+    - 프론트:
+      - 로그인 화면이 setup 상태를 감지해 초기 관리자 생성 폼으로 전환.
+- **JWT/로컬 DB 시크릿 하드닝 완료** (2026-02-19):
+    - 백엔드:
+      - `COHESION_JWT_SECRET` 미지정 시 랜덤 JWT 시크릿을 자동 생성해 파일에 저장(`0600`).
+      - 시크릿 디렉토리 권한을 owner-only(`0700`)로 강제.
+      - SQLite 데이터 파일 디렉토리/파일 권한을 owner-only(`0700`/`0600`)로 강제.
+- **설정 파일 탐색을 실행파일 기준으로 보강 완료** (2026-02-19):
+    - 백엔드:
+      - `SetConfig`가 `config`를 CWD만 보지 않고 실행파일 기준 경로(`exe/config`, `exe/../config`)를 우선 탐색하도록 변경.
+      - 설정 파일이 없으면 실행파일 기준 경로에 기본 `config.dev/prod.yaml`을 자동 생성하도록 보강.
+      - 개발/직접 실행 호환을 위해 `cwd/config` fallback 유지.
+      - 설정 재로딩 시 `viper.Reset()` 적용으로 탐색 경로 중복/누적 방지.
+- **GoReleaser 멀티플랫폼 릴리즈 파이프라인 도입 완료** (2026-02-19):
+    - 백엔드/배포:
+      - 루트 `.goreleaser.yaml` 추가 (darwin amd64/arm64, windows amd64 빌드 + archive/checksum).
+      - GoReleaser `before` hook에서 프론트 빌드(`pnpm -C apps/frontend build`) 및 웹 에셋 복사 스크립트 실행.
+      - `apps/backend/scripts/prepare-web-dist.js` 추가 및 `apps/backend/build.js`에서 동일 스크립트 재사용.
+      - 루트 스크립트 `release:check`, `release:snapshot` 추가.
+    - 문서:
+      - `README.md`에 GoReleaser 사용법 추가.
 - **실행 문서 환경변수 섹션 정합화 완료** (2026-02-19):
     - 문서:
       - `AGENTS.md`, `GEMINI.md`, `CLAUDE.md`의 환경변수 안내를 실제 코드 동작 기준으로 수정.
       - `ENV`, `DB_PATH`, `PORT` 사용 안내 제거.
       - `COHESION_JWT_SECRET`, `COHESION_ADMIN_*` 및 DB 경로(`config.dev/prod.yaml`의 `database.url`) 기준으로 정리.
-- **클릭 실행 UX용 초기 admin 부팅 단순화 완료** (2026-02-19):
-    - 백엔드:
-      - `EnsureDefaultAdmin`에서 `ENV` 기반 production 강제 분기를 제거.
-      - `COHESION_ADMIN_*` 미지정 시 모든 환경에서 `admin/admin1234` + `Administrator` fallback 생성으로 통일.
-      - 환경변수가 주어지면 기존처럼 값 override 유지.
 - **프론트 lint 하드닝 완료 (`react-hooks/set-state-in-effect`, `react-hooks/refs`)** (2026-02-19):
     - 프론트:
       - `BottomSheet`에서 effect 본문의 동기 `setState`를 `requestAnimationFrame` 기반 반영으로 전환.
@@ -28,7 +52,7 @@
       - `webdav_enabled` 설정이 실제 라우트 등록/상태값에 반영되도록 보정.
       - `/api/config` 응답을 `server` 섹션만 반환하도록 축소(민감정보 비노출).
       - 설정 업데이트 API는 `server`만 갱신하도록 변경.
-      - 프로덕션 초기 관리자 fallback 제거 (`COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD` 필수, 비밀번호 최소 길이 적용).
+      - 기본 관리자 fallback 제거 + 최초 실행 설정 플로우 도입(`COHESION_ADMIN_*`는 선택적 초기 부팅 수단으로 유지).
       - 계정/Role/Space 일부 API의 `err.Error()` 직접 노출 제거(일반화된 메시지 반환).
       - Go toolchain 기준을 `go 1.25.7`로 상향.
     - 프론트:
