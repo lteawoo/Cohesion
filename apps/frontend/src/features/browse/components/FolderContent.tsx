@@ -23,8 +23,10 @@ import { useAuth } from '@/features/auth/useAuth';
 import BottomSheet from '@/components/common/BottomSheet';
 
 const LONG_PRESS_DURATION_MS = 420;
+const TOUCH_PAN_THRESHOLD_PX = 8;
 const PATH_BAR_HEIGHT = 36;
 const EXPLORER_SIDE_PADDING = 16;
+const PATH_BAR_CONTENT_OVERLAY_HEIGHT = PATH_BAR_HEIGHT - EXPLORER_SIDE_PADDING;
 type NavigationState = { entries: string[]; index: number };
 
 const FolderContent: React.FC = () => {
@@ -64,6 +66,8 @@ const FolderContent: React.FC = () => {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
   const suppressTapUntilRef = useRef(0);
+  const touchStartPointRef = useRef<{ x: number; y: number } | null>(null);
+  const isTouchPanningRef = useRef(false);
   const selectedItemsRef = useRef<Set<string>>(new Set());
   const historySpaceIdRef = useRef<number | undefined>(undefined);
   const isHistoryTraversalRef = useRef(false);
@@ -426,6 +430,47 @@ const FolderContent: React.FC = () => {
     clearLongPressTimer();
   }, [clearLongPressTimer]);
 
+  const handleSelectionTouchStartCapture = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMobile) {
+      return;
+    }
+    const touch = event.touches[0];
+    if (!touch) {
+      return;
+    }
+    touchStartPointRef.current = { x: touch.clientX, y: touch.clientY };
+    isTouchPanningRef.current = false;
+  }, [isMobile]);
+
+  const handleSelectionTouchMoveCapture = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMobile) {
+      return;
+    }
+    const touch = event.touches[0];
+    const startPoint = touchStartPointRef.current;
+    if (!touch || !startPoint) {
+      return;
+    }
+    const deltaX = Math.abs(touch.clientX - startPoint.x);
+    const deltaY = Math.abs(touch.clientY - startPoint.y);
+    if (deltaX > TOUCH_PAN_THRESHOLD_PX || deltaY > TOUCH_PAN_THRESHOLD_PX) {
+      isTouchPanningRef.current = true;
+      clearLongPressTimer();
+    }
+  }, [isMobile, clearLongPressTimer]);
+
+  const handleSelectionTouchEndCapture = useCallback(() => {
+    if (!isMobile) {
+      return;
+    }
+    clearLongPressTimer();
+    if (isTouchPanningRef.current) {
+      suppressTapUntilRef.current = Math.max(suppressTapUntilRef.current, Date.now() + 250);
+    }
+    isTouchPanningRef.current = false;
+    touchStartPointRef.current = null;
+  }, [isMobile, clearLongPressTimer]);
+
   const handleItemTap = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode, index: number) => {
     if (Date.now() < suppressTapUntilRef.current) {
       e.preventDefault();
@@ -636,20 +681,22 @@ const FolderContent: React.FC = () => {
               const target = e.target as HTMLElement;
               const isButtonTarget = Boolean(target.closest('button'));
               if (!isButtonTarget) {
-                e.preventDefault();
+                e.stopPropagation();
+                suppressTapUntilRef.current = Date.now() + 700;
               }
-              e.stopPropagation();
-              suppressTapUntilRef.current = Date.now() + 700;
             }}
             onTouchStartCapture={(e) => {
-              e.stopPropagation();
-              suppressTapUntilRef.current = Date.now() + 700;
+              const target = e.target as HTMLElement;
+              const isButtonTarget = Boolean(target.closest('button'));
+              if (!isButtonTarget) {
+                e.stopPropagation();
+                suppressTapUntilRef.current = Date.now() + 700;
+              }
             }}
             onClickCapture={(e) => {
               const target = e.target as HTMLElement;
               const isButtonTarget = Boolean(target.closest('button'));
               if (!isButtonTarget) {
-                e.preventDefault();
                 e.stopPropagation();
                 suppressTapUntilRef.current = Date.now() + 700;
               }
@@ -803,6 +850,10 @@ const FolderContent: React.FC = () => {
       <div
         ref={selectionContainerRef}
         onScroll={isMobile ? handleMobileLongPressEnd : undefined}
+        onTouchStartCapture={isMobile ? handleSelectionTouchStartCapture : undefined}
+        onTouchMoveCapture={isMobile ? handleSelectionTouchMoveCapture : undefined}
+        onTouchEndCapture={isMobile ? handleSelectionTouchEndCapture : undefined}
+        onTouchCancelCapture={isMobile ? handleSelectionTouchEndCapture : undefined}
         style={{
           position: 'relative',
           flex: 1,
@@ -812,7 +863,7 @@ const FolderContent: React.FC = () => {
           overflowX: 'hidden',
           touchAction: isMobile ? 'pan-y' : undefined,
           WebkitOverflowScrolling: 'touch',
-          paddingBottom: PATH_BAR_HEIGHT + 6,
+          paddingBottom: PATH_BAR_CONTENT_OVERLAY_HEIGHT + 6,
         }}
       >
         {viewMode === 'table' ? (

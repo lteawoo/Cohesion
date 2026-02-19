@@ -15,10 +15,6 @@ interface ServerSettings {
   webdavEnabled: boolean;
   webdavPort: number;
 
-  // FTP
-  ftpEnabled: boolean;
-  ftpPort: number;
-
   // SFTP
   sftpEnabled: boolean;
   sftpPort: number;
@@ -52,8 +48,6 @@ interface SettingsStore extends UISettings, ServerSettings {
   setHttpPort: (port: number) => void;
   setWebdavEnabled: (enabled: boolean) => void;
   setWebdavPort: (port: number) => void;
-  setFtpEnabled: (enabled: boolean) => void;
-  setFtpPort: (port: number) => void;
   setSftpEnabled: (enabled: boolean) => void;
   setSftpPort: (port: number) => void;
 
@@ -65,8 +59,6 @@ const defaultServerSettings: ServerSettings = {
   httpPort: 3000,
   webdavEnabled: true,
   webdavPort: 3000, // WebDAV uses same port as HTTP (path: /dav/)
-  ftpEnabled: false,
-  ftpPort: 21,
   sftpEnabled: false,
   sftpPort: 22,
 };
@@ -109,8 +101,6 @@ export const useSettingsStore = create<SettingsStore>()(
       setHttpPort: (port) => set({ httpPort: port }),
       setWebdavEnabled: (enabled) => set({ webdavEnabled: enabled }),
       setWebdavPort: (port) => set({ webdavPort: port }),
-      setFtpEnabled: (enabled) => set({ ftpEnabled: enabled }),
-      setFtpPort: (port) => set({ ftpPort: port }),
       setSftpEnabled: (enabled) => set({ sftpEnabled: enabled }),
       setSftpPort: (port) => set({ sftpPort: port }),
 

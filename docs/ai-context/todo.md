@@ -18,6 +18,7 @@
 - [x] SFTP 서버 1차 구현 (계정 인증/Space 권한 연동 + 상태 API/설정 UI 반영)
 - [x] SFTP 기본 포트 정책 정리 (`22` -> `2222`)
 - [x] 릴리즈 산출물 실행 시 config 자동 생성 검증 (`pnpm release:snapshot`, `config.prod.yaml`)
+- [x] 데스크톱 wheel 스크롤 경로 보정 (`FolderContent` 루트 `onWheelCapture` 기반 단일 처리)
 - [x] 프론트 의존성 보안 패치 (`react-router` `^7.13.0`)
 - [x] Go 런타임/툴체인 보안 패치 (`go 1.25.7`, `govulncheck` 재검증)
 - [x] `/api/config` 민감정보 비노출 (`server`만 응답/갱신)
@@ -102,6 +103,10 @@
 - [x] Status WEB 접근 주소 계산 책임 분리 (백엔드 하드코딩 제거, 프론트 origin 기준)
 - [x] Status WEB 포트 표시 복원 (프론트 origin 기반 포트 표기)
 - [x] Status 웹 접근 주소 다중 노출 복원 (localhost + LAN IP, 웹 포트 기준)
+- [x] Status 프로토콜 순서 고정 (`WEB -> WebDAV -> SFTP`)
+- [x] Status 팝오버 섹션 재배치 (`Hosts` 상단, `Protocols` 하단)
+- [x] Status 프로토콜 경로 표기 정리 (끝 슬래시 제거: `:5176`, `:3000/dav`)
+- [x] FTP 기능 제거 (백엔드 모듈/설정/API + 프론트 설정 UI/상태 팝오버)
 - [x] Main 네비게이션 Drawer 도입 (모바일 기본 + 데스크톱 병행)
 - [x] 모바일 Grid(앨범) 2열 기본화 + 헤더 테마 토글 제거(설정으로 단일화)
 - [x] 모바일 폴더 단일 탭 진입 적용 (더블클릭 의존 제거)
@@ -180,3 +185,5 @@
 - [x] 다크모드에서 약한 선택색 문제 해결을 위해 브라우즈 선택/드래그오버 색상을 Ant 테마 토큰 기반으로 통일
 - [x] 하단 경로바 breadcrumb가 실제 overflow일 때만 중간 축약(`...`)되도록 동적 처리
 - [x] 상단 툴바 좌측에 이전/다음 히스토리 버튼 추가 및 우측에 업로드/정렬/뷰모드 전환 정렬
+- [x] 모바일 파일 익스플로러(table/grid) 스크롤 입력 경로 보정 (touch pan 시 롱프레스 취소, 선택바 capture preventDefault 제거, 모바일 브레이크포인트 휠 라우팅 활성화)
+- [x] 파일 익스플로러 루트 `onWheelCapture` 휠 보정 제거 및 네이티브 스크롤 경로로 단순화

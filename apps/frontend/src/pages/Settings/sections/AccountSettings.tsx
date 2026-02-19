@@ -319,7 +319,7 @@ const AccountSettings = () => {
 
   return (
     <Space vertical size="small" className="settings-section">
-      <SettingSectionHeader title="계정 관리" subtitle="FTP/서비스 접근 계정을 관리합니다" />
+      <SettingSectionHeader title="계정 관리" subtitle="서비스 접근 계정을 관리합니다" />
 
       <Space size="small">
         <Button icon={<ReloadOutlined />} onClick={() => void loadUsers()} size="small">

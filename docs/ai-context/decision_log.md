@@ -55,6 +55,50 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### Status 팝오버 섹션 순서 재구성 (2026-02-20)
+- **문제**:
+  - 접속 URL(로컬/LAN)과 프로토콜 상태가 한 흐름으로 섞여 보여 정보 그룹이 직관적이지 않음.
+- **결정**:
+  - `Status` 팝오버를 `Hosts` 섹션(상단)과 `Protocols` 섹션(하단)으로 분리한다.
+- **이유**:
+  - “어디로 접속할지(Host)”와 “어떤 프로토콜이 정상인지(Status)”를 분리해 스캔 속도를 높이기 위함.
+
+### Status 프로토콜 경로 표기 슬래시 정리 (2026-02-20)
+- **문제**:
+  - 상태 팝오버에서 `WEB`의 `:포트/`, `WebDAV`의 `:포트/dav/`처럼 끝 슬래시가 표시되어 정보 대비 시각 노이즈가 있었음.
+- **결정**:
+  - 프로토콜 경로 표기를 정규화해 루트(`/`)는 숨기고, 비루트 경로는 끝 슬래시를 제거해 표시한다.
+- **이유**:
+  - 정보량은 유지하면서 표기 밀도를 줄여 가독성을 높이기 위함.
+
+### FTP 기능 제거 및 SFTP 단일화 (2026-02-20)
+- **문제**:
+  - 일반 사용자 대상 실행 환경에서 FTP(평문) 노출은 보안/운영 복잡도를 높이며, SFTP가 동일 목적을 충족함.
+- **결정**:
+  - 백엔드 FTP 모듈(`internal/ftp`)과 서버 lifecycle 연동을 제거한다.
+  - 설정 모델/기본 설정 파일에서 `ftp_enabled`, `ftp_port`를 제거한다.
+  - 상태 API 및 프론트 서버 설정/상태 팝오버에서 FTP 항목을 제거한다.
+- **이유**:
+  - 프로토콜 표면을 줄여 보안 리스크를 낮추고, 사용자 안내를 SFTP 중심으로 단순화하기 위함.
+
+### Status 프로토콜 렌더 순서 고정 (2026-02-19)
+- **문제**:
+  - 서버 상태 팝오버가 `Object.entries(protocols)` 순회에 의존해 프로토콜 표시 순서가 의도와 다르게 보일 수 있음.
+- **결정**:
+  - 프론트 `ServerStatus`에 고정 순서 배열(`http`, `webdav`, `sftp`)을 두고, 해당 순서로 먼저 렌더한다.
+  - 고정 배열에 없는 프로토콜 키는 뒤에 이어서 표시한다.
+- **이유**:
+  - 사용자 인지 순서(`WEB -> WebDAV -> SFTP`)를 항상 동일하게 유지하면서, 추후 프로토콜 추가 시에도 확장성을 보존하기 위함.
+
+### 데스크톱 wheel 스크롤 입력 경로 단일화 (2026-02-20)
+- **문제**:
+  - 파일 리스트 스크롤 컨테이너와 툴바/경로바가 형제 레이어로 분리돼 있어, wheel 입력 위치에 따라 리스트가 스크롤되지 않는 체감이 발생.
+- **결정**:
+  - `FolderContent` 루트 `onWheelCapture`에서 데스크톱 wheel을 정규화해 `selectionContainer.scrollTop`을 직접 갱신한다.
+  - 모달/드롭다운/BottomSheet, 독립 스크롤 영역은 예외 처리해 기존 컴포넌트 스크롤 동작을 보존한다.
+- **이유**:
+  - 브라우저 기본 버블링/스크롤 체인에 의존하면 레이어 구조에 따라 입력 누락이 발생하므로, 파일 탐색 영역은 단일 스크롤 경로를 명시적으로 보장하는 편이 안정적이다.
+
 ### SFTP 서버 1차 확장 방식 확정 (2026-02-19)
 - **문제**:
   - FTP는 구현돼 있지만 SFTP는 설정/UI만 존재해 실제 운영 프로토콜 선택지가 제한됨.
@@ -2013,3 +2057,40 @@
   - `apps/frontend/src/features/browse/components/FolderContent/FolderContentGrid.tsx`
   - `apps/frontend/src/features/browse/hooks/useBoxSelection.ts`
   - `apps/frontend/src/assets/css/global.css`
+
+## 2026-02-20: 모바일 파일 익스플로러 스크롤 입력 경로 보정
+- **상황**:
+  - 파일 익스플로러에서 모바일 화면 기준(table/grid 공통) 스크롤 입력이 불안정했고, 스와이프 중 롱프레스 선택 전환이 간헐적으로 겹칠 수 있는 구조였음.
+  - 모바일 선택 바 캡처 이벤트에 `preventDefault`가 포함되어 있어 상단 영역 제스처를 불필요하게 차단할 여지가 있었음.
+  - 모바일 브레이크포인트에서는 루트 휠 라우팅이 비활성화되어 좁은 화면의 휠 입력 경로가 일관되지 않았음.
+- **결정**:
+  - `selectionContainer`에 터치 캡처 핸들러를 추가해 pan 임계치(`8px`) 이동 시 롱프레스 타이머를 즉시 취소.
+  - pan 종료 직후 짧은 탭 억제(`suppressTapUntil`)를 적용해 스크롤 후 오탭 선택을 방지.
+  - 모바일 선택 바의 `onPointerDownCapture/onTouchStartCapture/onClickCapture`에서 `preventDefault`를 제거하고 비버튼 대상만 전파 차단.
+  - `handleRootWheelCapture`를 모바일 브레이크포인트에서도 동작하도록 조정(모달 오픈 시만 차단).
+- **이유**:
+  - table/grid 공통 부모(`FolderContent`)에서 입력 경로를 일원화하면 뷰별 분기 없이 동일하게 문제를 해결할 수 있음.
+  - 롱프레스 선택 UX는 유지하면서 스크롤 제스처와 충돌 가능성만 최소화할 수 있음.
+- **적용 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+- **검증**:
+  - `pnpm -C apps/frontend lint` 통과.
+  - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+  - `pnpm -C apps/frontend build` 통과.
+  - Chrome DevTools 모바일 에뮬레이션에서 table/grid 각각:
+    - `touchstart + touchmove` 시 선택 바 미노출(롱프레스 취소 확인).
+    - `touchstart` 유지(롱프레스) 시 선택 바 노출(기존 UX 유지 확인).
+
+## 2026-02-20: 파일 익스플로러 휠 보정 제거(네이티브 스크롤 복귀)
+- **상황**:
+  - 파일 익스플로러 루트의 `onWheelCapture` 보정 경로가 디버깅 포인트를 늘리고, 모바일/좁은 뷰포트 조건과 결합해 동작 해석을 복잡하게 만듦.
+- **결정**:
+  - `FolderContent`의 `handleRootWheelCapture`와 `onWheelCapture` 연결을 제거하고 브라우저 기본 스크롤 경로만 사용.
+- **이유**:
+  - 스크롤 입력을 표준 동작으로 단순화해 회귀 원인을 줄이고 유지보수성을 높이기 위함.
+  - 현재 구조에서 실제 스크롤 컨테이너(`selectionContainer`)가 명확해 네이티브 경로로 충분히 동작 가능.
+- **적용 파일**:
+  - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+- **검증**:
+  - `pnpm -C apps/frontend lint` 통과.
+  - `pnpm -C apps/frontend exec tsc --noEmit` 통과.

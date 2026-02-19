@@ -97,8 +97,6 @@ func defaultConfigForEnv(goEnv string) Config {
 			Port:          "3000",
 			HttpEnabled:   true,
 			WebdavEnabled: true,
-			FtpEnabled:    false,
-			FtpPort:       2121,
 			SftpEnabled:   false,
 			SftpPort:      2222,
 		},

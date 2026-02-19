@@ -27,8 +27,8 @@ apps/backend/
 │   ├── webdav/             # WebDAV 서버
 │   │   └── server.go       #    - WebDAV 요청을 받아 핵심 서비스 호출
 │   │
-│   ├── ftp/                # FTP 서버
-│   │   └── server.go       #    - FTP 명령어를 받아 핵심 서비스 호출
+│   ├── sftp/               # SFTP 서버
+│   │   └── service.go      #    - SFTP 요청을 받아 핵심 서비스 호출
 │   │
 │   ├── file/               # 파일 도메인 로직
 │   │   ├── api.go
