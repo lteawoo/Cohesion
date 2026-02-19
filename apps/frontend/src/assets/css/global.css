@@ -227,6 +227,20 @@ html, body {
   background: transparent !important;
 }
 
+.ant-btn,
+.ant-btn:hover,
+.ant-btn:active,
+.ant-btn:focus,
+.ant-btn:focus-visible,
+.ant-btn.ant-btn-default,
+.ant-btn.ant-btn-default:hover,
+.ant-btn.ant-btn-default:active,
+.ant-btn.ant-btn-primary,
+.ant-btn.ant-btn-primary:hover,
+.ant-btn.ant-btn-primary:active {
+  box-shadow: none !important;
+}
+
 .bottom-sheet-root {
   position: fixed;
   inset: 0;
