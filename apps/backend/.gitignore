@@ -45,3 +45,6 @@ Thumbs.db
 # Build output
 dist/
 build/
+
+# Runtime-generated secrets
+config/secrets/
