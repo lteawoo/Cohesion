@@ -11,23 +11,26 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"golang.org/x/net/webdav"
+	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/space"
 )
 
 type Service struct {
-	spaceService *space.Service
-	lockSystems  map[string]webdav.LockSystem
-	mu           sync.Mutex
-	rootHandler  http.Handler
+	spaceService   *space.Service
+	accountService *account.Service
+	lockSystems    map[string]webdav.LockSystem
+	mu             sync.Mutex
+	rootHandler    http.Handler
 }
 
-func NewService(spaceService *space.Service) *Service {
+func NewService(spaceService *space.Service, accountService *account.Service) *Service {
 	return &Service{
-		spaceService: spaceService,
-		lockSystems:  make(map[string]webdav.LockSystem),
+		spaceService:   spaceService,
+		accountService: accountService,
+		lockSystems:    make(map[string]webdav.LockSystem),
 		rootHandler: &webdav.Handler{
 			Prefix:     "/dav",
-			FileSystem: NewSpaceFS(spaceService),
+			FileSystem: NewSpaceFS(spaceService, accountService),
 			LockSystem: webdav.NewMemLS(),
 			Logger: func(r *http.Request, err error) {
 				if err != nil {
@@ -42,10 +45,14 @@ func (s *Service) GetRootHandler() http.Handler {
 	return s.rootHandler
 }
 
+func (s *Service) GetSpaceByName(ctx context.Context, spaceName string) (*space.Space, error) {
+	return s.spaceService.GetSpaceByName(ctx, spaceName)
+}
+
 func (s *Service) GetWebDAVHandler(ctx context.Context, spaceName string) (http.Handler, error) {
 
 	// 해당 이름의 Space 조회
-	spaceObj, err := s.spaceService.GetSpaceByName(ctx, spaceName)
+	spaceObj, err := s.GetSpaceByName(ctx, spaceName)
 	if err != nil {
 		return nil, err
 	}

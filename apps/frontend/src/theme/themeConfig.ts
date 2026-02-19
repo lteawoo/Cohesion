@@ -117,7 +117,7 @@ export function buildCohesionThemeConfig(isDarkMode: boolean): ThemeConfig {
   const selectionToken = isDarkMode ? darkSelectionToken : lightSelectionToken;
 
   return {
-    cssVar: true,
+    cssVar: {},
     algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
     token: {
       ...sharedToken,

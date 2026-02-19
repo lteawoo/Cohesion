@@ -59,6 +59,7 @@ const FolderContent: React.FC = () => {
   const [isMobileSelectionMode, setIsMobileSelectionMode] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const [isPathOverflow, setIsPathOverflow] = useState(false);
+  const [overlayOffset, setOverlayOffset] = useState({ x: 0, y: 0 });
   const [navigationState, setNavigationState] = useState<NavigationState>({ entries: [], index: -1 });
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
@@ -188,25 +189,44 @@ const FolderContent: React.FC = () => {
   }, [selectedPath, selectedSpace, handleClearSelection, modals.destination.visible]);
 
   useEffect(() => {
+    let frame: number | null = null;
+    const scheduleNavigationUpdate = (updater: React.SetStateAction<NavigationState>) => {
+      frame = window.requestAnimationFrame(() => {
+        setNavigationState(updater);
+      });
+    };
+
     if (!selectedSpace) {
-      setNavigationState({ entries: [], index: -1 });
+      scheduleNavigationUpdate({ entries: [], index: -1 });
       historySpaceIdRef.current = undefined;
-      return;
+      return () => {
+        if (frame !== null) {
+          window.cancelAnimationFrame(frame);
+        }
+      };
     }
 
     if (historySpaceIdRef.current !== selectedSpace.id) {
       historySpaceIdRef.current = selectedSpace.id;
-      setNavigationState({ entries: [selectedPath], index: 0 });
+      scheduleNavigationUpdate({ entries: [selectedPath], index: 0 });
       isHistoryTraversalRef.current = false;
-      return;
+      return () => {
+        if (frame !== null) {
+          window.cancelAnimationFrame(frame);
+        }
+      };
     }
 
     if (isHistoryTraversalRef.current) {
       isHistoryTraversalRef.current = false;
-      return;
+      return () => {
+        if (frame !== null) {
+          window.cancelAnimationFrame(frame);
+        }
+      };
     }
 
-    setNavigationState((prev) => {
+    scheduleNavigationUpdate((prev) => {
       if (prev.index >= 0 && prev.entries[prev.index] === selectedPath) {
         return prev;
       }
@@ -215,6 +235,12 @@ const FolderContent: React.FC = () => {
         : [selectedPath];
       return { entries, index: entries.length - 1 };
     });
+
+    return () => {
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
   }, [selectedPath, selectedSpace]);
 
   const handleGoBack = useCallback(() => {
@@ -303,6 +329,49 @@ const FolderContent: React.FC = () => {
     };
   }, [breadcrumbItems]);
 
+  useLayoutEffect(() => {
+    const rootElement = rootContainerRef.current;
+    const selectionElement = selectionContainerRef.current;
+    if (!rootElement || !selectionElement) {
+      const resetFrame = window.requestAnimationFrame(() => {
+        setOverlayOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }));
+      });
+      return () => {
+        window.cancelAnimationFrame(resetFrame);
+      };
+    }
+
+    const updateOffsets = () => {
+      const rootRect = rootElement.getBoundingClientRect();
+      const selectionRect = selectionElement.getBoundingClientRect();
+      const nextX = (selectionRect.left - rootRect.left) - selectionElement.scrollLeft;
+      const nextY = (selectionRect.top - rootRect.top) - selectionElement.scrollTop;
+      setOverlayOffset((prev) => (
+        prev.x === nextX && prev.y === nextY ? prev : { x: nextX, y: nextY }
+      ));
+    };
+
+    const frame = window.requestAnimationFrame(() => {
+      updateOffsets();
+    });
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateOffsets();
+    });
+    resizeObserver.observe(rootElement);
+    resizeObserver.observe(selectionElement);
+
+    selectionElement.addEventListener('scroll', updateOffsets, { passive: true });
+    window.addEventListener('resize', updateOffsets);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+      selectionElement.removeEventListener('scroll', updateOffsets);
+      window.removeEventListener('resize', updateOffsets);
+    };
+  }, [selectedSpace]);
+
   const toggleMobileSelection = useCallback((path: string) => {
     const next = new Set(selectedItemsRef.current);
     if (next.has(path)) {
@@ -326,16 +395,6 @@ const FolderContent: React.FC = () => {
   const topRowHeight = isMobile ? 44 : 52;
   const topRowOffset = 8;
   const topRowSlotHeight = topRowHeight + topRowOffset;
-  const rootRect = rootContainerRef.current?.getBoundingClientRect();
-  const selectionRect = selectionContainerRef.current?.getBoundingClientRect();
-  const selectionScrollLeft = selectionContainerRef.current?.scrollLeft ?? 0;
-  const selectionScrollTop = selectionContainerRef.current?.scrollTop ?? 0;
-  const overlayOffsetX = rootRect && selectionRect
-    ? (selectionRect.left - rootRect.left) - selectionScrollLeft
-    : 0;
-  const overlayOffsetY = rootRect && selectionRect
-    ? (selectionRect.top - rootRect.top) - selectionScrollTop
-    : 0;
   const moveActionIcon = (
     <span
       className="material-symbols-rounded move-action-icon"
@@ -813,8 +872,8 @@ const FolderContent: React.FC = () => {
         startY={selectionBox?.startY ?? 0}
         currentX={selectionBox?.currentX ?? 0}
         currentY={selectionBox?.currentY ?? 0}
-        offsetX={overlayOffsetX}
-        offsetY={overlayOffsetY}
+        offsetX={overlayOffset.x}
+        offsetY={overlayOffset.y}
       />
 
       <div

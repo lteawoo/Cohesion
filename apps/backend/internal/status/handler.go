@@ -92,6 +92,15 @@ func (h *Handler) checkHTTP() ProtocolStatus {
 }
 
 func (h *Handler) checkWebDAV() ProtocolStatus {
+	if !config.Conf.Server.WebdavEnabled {
+		return ProtocolStatus{
+			Status:  "unavailable",
+			Message: "비활성화",
+			Port:    h.port,
+			Path:    "/dav/",
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 

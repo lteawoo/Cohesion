@@ -27,8 +27,8 @@ type SpaceAccessService interface {
 }
 
 type Handler struct {
-	spaceService  *space.Service
-	browseService BrowseService
+	spaceService   *space.Service
+	browseService  BrowseService
 	accountService SpaceAccessService
 }
 
@@ -98,11 +98,11 @@ func (h *Handler) handleGetSpaces(w http.ResponseWriter, r *http.Request) *web.E
 	}
 
 	type listSpaceResponse struct {
-		ID            int64      `json:"id"`
-		SpaceName     string     `json:"space_name"`
-		SpaceDesc     *string    `json:"space_desc,omitempty"`
-		Icon          *string    `json:"icon,omitempty"`
-		SpaceCategory *string    `json:"space_category,omitempty"`
+		ID            int64   `json:"id"`
+		SpaceName     string  `json:"space_name"`
+		SpaceDesc     *string `json:"space_desc,omitempty"`
+		Icon          *string `json:"icon,omitempty"`
+		SpaceCategory *string `json:"space_category,omitempty"`
 	}
 	response := make([]listSpaceResponse, 0, len(filteredSpaces))
 	for _, item := range filteredSpaces {
@@ -140,17 +140,21 @@ func (h *Handler) handleCreateSpace(w http.ResponseWriter, r *http.Request) *web
 	if err != nil {
 		// 에러 타입에 따라 상태 코드 결정
 		statusCode := http.StatusInternalServerError
+		message := "Failed to create Space"
 		if strings.Contains(err.Error(), "validation failed") {
 			statusCode = http.StatusBadRequest
+			message = "Invalid Space request"
 		} else if strings.Contains(err.Error(), "already exists") {
 			statusCode = http.StatusConflict
+			message = "Space already exists"
 		} else if strings.Contains(err.Error(), "does not exist") {
 			statusCode = http.StatusBadRequest
+			message = "Space path does not exist"
 		}
 
 		return &web.Error{
 			Code:    statusCode,
-			Message: err.Error(),
+			Message: message,
 			Err:     err,
 		}
 	}
@@ -226,15 +230,18 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 func (h *Handler) handleDeleteSpace(w http.ResponseWriter, r *http.Request, id int64) *web.Error {
 	if err := h.spaceService.DeleteSpace(r.Context(), id); err != nil {
 		statusCode := http.StatusInternalServerError
+		message := "Failed to delete Space"
 		if strings.Contains(err.Error(), "not found") {
 			statusCode = http.StatusNotFound
+			message = "Space not found"
 		} else if strings.Contains(err.Error(), "invalid") {
 			statusCode = http.StatusBadRequest
+			message = "Invalid Space request"
 		}
 
 		return &web.Error{
 			Code:    statusCode,
-			Message: err.Error(),
+			Message: message,
 			Err:     err,
 		}
 	}

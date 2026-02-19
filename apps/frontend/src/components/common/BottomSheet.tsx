@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { theme } from 'antd';
 
@@ -56,26 +56,25 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   useEffect(() => {
     if (open) {
       dragOffsetRef.current = 0;
-      setDragOffsetPx(0);
-      setShouldRender(true);
-      requestAnimationFrame(() => setIsOpenVisual(true));
-      return;
+      const openFrame = window.requestAnimationFrame(() => {
+        setDragOffsetPx(0);
+        setShouldRender(true);
+        window.requestAnimationFrame(() => setIsOpenVisual(true));
+      });
+      return () => window.cancelAnimationFrame(openFrame);
     }
-    setIsOpenVisual(false);
+
+    const closeFrame = window.requestAnimationFrame(() => {
+      setIsOpenVisual(false);
+    });
     const timer = window.setTimeout(() => setShouldRender(false), SHEET_ANIMATION_MS);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.cancelAnimationFrame(closeFrame);
+      window.clearTimeout(timer);
+    };
   }, [open]);
 
-  useEffect(() => {
-    if (typeof initialSnapIndex === 'number' && sortedSnapPoints.length > 0) {
-      activeSnapRef.current = clamp(initialSnapIndex, 0, Math.max(sortedSnapPoints.length - 1, 0));
-    }
-  }, [initialSnapIndex, sortedSnapPoints.length]);
-
-  useEffect(() => {
-    if (!shouldRender) {
-      return;
-    }
+  const recalculateSheetLayout = useCallback(() => {
     const maxRatio = sortedSnapPoints.length > 0
       ? sortedSnapPoints[sortedSnapPoints.length - 1]
       : DEFAULT_MAX_HEIGHT_RATIO;
@@ -87,7 +86,24 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
     setBaseHeightPx(nextBaseHeight);
     setIsContentScrollable(overflow);
-  }, [shouldRender, sortedSnapPoints, children, isDragging]);
+  }, [sortedSnapPoints]);
+
+  useEffect(() => {
+    if (!shouldRender) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      recalculateSheetLayout();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [shouldRender, recalculateSheetLayout, children, isDragging]);
+
+  useEffect(() => {
+    if (typeof initialSnapIndex === 'number' && sortedSnapPoints.length > 0) {
+      activeSnapRef.current = clamp(initialSnapIndex, 0, Math.max(sortedSnapPoints.length - 1, 0));
+    }
+  }, [initialSnapIndex, sortedSnapPoints.length]);
 
   useEffect(() => {
     baseHeightRef.current = baseHeightPx;
@@ -130,20 +146,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       return;
     }
     const onResize = () => {
-      const maxRatio = sortedSnapPoints.length > 0
-        ? sortedSnapPoints[sortedSnapPoints.length - 1]
-        : DEFAULT_MAX_HEIGHT_RATIO;
-      const nextMaxHeight = window.innerHeight * maxRatio;
-      const contentHeight = contentRef.current?.scrollHeight ?? 0;
-      const naturalHeight = HANDLE_ZONE_HEIGHT_PX + contentHeight;
-      const nextBaseHeight = Math.min(naturalHeight, nextMaxHeight);
-      const overflow = naturalHeight > nextMaxHeight;
-      setBaseHeightPx(nextBaseHeight);
-      setIsContentScrollable(overflow);
+      recalculateSheetLayout();
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [shouldRender, sortedSnapPoints, isDragging]);
+  }, [shouldRender, recalculateSheetLayout]);
 
   useEffect(() => {
     if (!shouldRender || !contentRef.current) {
@@ -151,20 +158,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
     const target = contentRef.current;
     const observer = new ResizeObserver(() => {
-      const maxRatio = sortedSnapPoints.length > 0
-        ? sortedSnapPoints[sortedSnapPoints.length - 1]
-        : DEFAULT_MAX_HEIGHT_RATIO;
-      const nextMaxHeight = window.innerHeight * maxRatio;
-      const contentHeight = target.scrollHeight;
-      const naturalHeight = HANDLE_ZONE_HEIGHT_PX + contentHeight;
-      const nextBaseHeight = Math.min(naturalHeight, nextMaxHeight);
-      const overflow = naturalHeight > nextMaxHeight;
-      setBaseHeightPx(nextBaseHeight);
-      setIsContentScrollable(overflow);
+      recalculateSheetLayout();
     });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [shouldRender, sortedSnapPoints, isDragging]);
+  }, [shouldRender, recalculateSheetLayout]);
 
   const beginDrag = (startY: number, startedInContent = false) => {
     dragStateRef.current = {

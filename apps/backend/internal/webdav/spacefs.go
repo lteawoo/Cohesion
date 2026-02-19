@@ -10,17 +10,22 @@ import (
 	"time"
 
 	"golang.org/x/net/webdav"
+	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/space"
 )
 
 // SpaceFS는 WebDAV FileSystem 인터페이스를 구현하여
 // 루트에서 모든 Space를 가상 디렉토리로 노출한다.
 type SpaceFS struct {
-	spaceService *space.Service
+	spaceService   *space.Service
+	accountService *account.Service
 }
 
-func NewSpaceFS(spaceService *space.Service) webdav.FileSystem {
-	return &SpaceFS{spaceService: spaceService}
+func NewSpaceFS(spaceService *space.Service, accountService *account.Service) webdav.FileSystem {
+	return &SpaceFS{
+		spaceService:   spaceService,
+		accountService: accountService,
+	}
 }
 
 // parsePath는 WebDAV 경로에서 spaceName과 나머지 경로를 분리한다.
@@ -54,7 +59,7 @@ func (sfs *SpaceFS) resolveRealPath(ctx context.Context, spaceName, remainder st
 	realPath = filepath.Clean(realPath)
 
 	// Space 경로 밖으로 나가는 것 방지
-	if !strings.HasPrefix(realPath, sp.SpacePath) {
+	if !isPathWithinSpace(realPath, sp.SpacePath) {
 		return "", os.ErrPermission
 	}
 
@@ -83,7 +88,11 @@ func (sfs *SpaceFS) OpenFile(ctx context.Context, name string, flag int, perm os
 		if flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_TRUNC) != 0 {
 			return nil, os.ErrPermission
 		}
-		return &spaceRootDir{spaceService: sfs.spaceService, ctx: ctx}, nil
+		return &spaceRootDir{
+			spaceService:   sfs.spaceService,
+			accountService: sfs.accountService,
+			ctx:            ctx,
+		}, nil
 	}
 
 	// Space 루트: 실제 디렉토리를 열되, 이름은 Space 이름으로 표시
@@ -169,10 +178,11 @@ func (sfs *SpaceFS) Stat(ctx context.Context, name string) (os.FileInfo, error) 
 // --- 가상 루트 디렉토리 (Space 목록을 반환하는 File) ---
 
 type spaceRootDir struct {
-	spaceService *space.Service
-	ctx          context.Context
-	entries      []os.FileInfo
-	pos          int
+	spaceService   *space.Service
+	accountService *account.Service
+	ctx            context.Context
+	entries        []os.FileInfo
+	pos            int
 }
 
 func (d *spaceRootDir) Read([]byte) (int, error) {
@@ -197,6 +207,11 @@ func (d *spaceRootDir) Stat() (fs.FileInfo, error) {
 
 func (d *spaceRootDir) Readdir(count int) ([]fs.FileInfo, error) {
 	if d.entries == nil {
+		username, ok := UsernameFromContext(d.ctx)
+		if !ok {
+			return nil, os.ErrPermission
+		}
+
 		spaces, err := d.spaceService.GetAllSpaces(d.ctx)
 		if err != nil {
 			return nil, err
@@ -204,6 +219,14 @@ func (d *spaceRootDir) Readdir(count int) ([]fs.FileInfo, error) {
 
 		d.entries = make([]os.FileInfo, 0, len(spaces))
 		for _, sp := range spaces {
+			allowed, err := d.accountService.CanAccessSpaceByID(d.ctx, username, sp.ID, account.PermissionRead)
+			if err != nil {
+				return nil, err
+			}
+			if !allowed {
+				continue
+			}
+
 			d.entries = append(d.entries, &virtualDirInfo{
 				name:    sp.SpaceName,
 				modTime: sp.CreatedAt,
@@ -256,9 +279,21 @@ type virtualDirInfo struct {
 	modTime time.Time
 }
 
-func (i *virtualDirInfo) Name() string      { return i.name }
+func (i *virtualDirInfo) Name() string       { return i.name }
 func (i *virtualDirInfo) Size() int64        { return 0 }
 func (i *virtualDirInfo) Mode() fs.FileMode  { return os.ModeDir | 0555 }
 func (i *virtualDirInfo) ModTime() time.Time { return i.modTime }
 func (i *virtualDirInfo) IsDir() bool        { return true }
 func (i *virtualDirInfo) Sys() interface{}   { return nil }
+
+func isPathWithinSpace(pathValue, spacePath string) bool {
+	cleanPath := filepath.Clean(pathValue)
+	cleanSpace := filepath.Clean(spacePath)
+
+	rel, err := filepath.Rel(cleanSpace, cleanPath)
+	if err != nil {
+		return false
+	}
+
+	return rel == "." || !strings.HasPrefix(rel, "..")
+}
