@@ -1,9 +1,10 @@
 import React from 'react';
 import { Table, Dropdown, Button } from 'antd';
 import type { MenuProps } from 'antd';
-import { FolderFilled, FileOutlined, MoreOutlined, EditOutlined, DeleteOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/icons';
+import { FolderFilled, MoreOutlined, EditOutlined, DeleteOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { FileNode } from '../../types';
 import { formatDate, formatSize } from '../../constants';
+import { FileTypeIcon } from '../FileTypeIcon';
 
 interface FolderContentTableProps {
   dataSource: FileNode[];
@@ -101,7 +102,11 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
         return (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-              {record.isDir ? <FolderFilled style={{ color: 'var(--app-folder-icon-color, #415a77)', fontSize: 18 }} /> : <FileOutlined style={{ fontSize: 18 }} />}
+              {record.isDir ? (
+                <FolderFilled style={{ color: 'var(--app-folder-icon-color, #415a77)', fontSize: 18 }} />
+              ) : (
+                <FileTypeIcon filename={record.name} size={18} />
+              )}
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div title={record.name} style={{ fontWeight: 500, color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {record.name}

@@ -1,6 +1,16 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **파일 확장자별 아이콘 썸네일 1차 적용 완료** (2026-02-20):
+    - 프론트:
+      - 파일 확장자 카테고리 유틸 추가(`pdf/word/excel/ppt/archive/audio/video/code/text/default`).
+      - 공통 파일 아이콘 컴포넌트(`FileTypeIcon`) 추가.
+      - Folder Grid/Table에서 이미지 외 파일 아이콘을 확장자 기반 아이콘으로 표시하도록 전환.
+      - 미분류(unknown) 확장자는 `?` 아이콘 대신 일반 파일 아이콘(`FileOutlined`)으로 표시하도록 정책 조정.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `pnpm -C apps/frontend build` 통과
 - **`http_enabled` 설정 필드 제거 완료** (2026-02-20):
     - 백엔드:
       - 설정 모델 `server.http_enabled` 제거.

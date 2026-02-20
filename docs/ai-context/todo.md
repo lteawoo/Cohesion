@@ -6,6 +6,7 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] 파일 확장자별 아이콘 썸네일 1차 적용 (Grid/Table 파일 아이콘을 확장자 카테고리 기반으로 분기)
 - [x] `http_enabled/httpEnabled` 설정 필드 제거 (백엔드 설정 모델/기본 YAML + 프론트 설정 타입/UI/스토어 정리)
 - [x] 모노레포 전역 `config/secrets` Git ignore 보강 (`.gitignore`에 `**/config/secrets/` 추가)
 - [x] 전체 보안점검 수행 (코드/설정/의존성 점검 및 취약점 우선순위 도출)

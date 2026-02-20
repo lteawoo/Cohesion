@@ -1,10 +1,11 @@
 import React from 'react';
 import { Card, Empty, Grid } from 'antd';
-import { FolderFilled, FileOutlined } from '@ant-design/icons';
+import { FolderFilled } from '@ant-design/icons';
 import type { FileNode } from '../../types';
 import { formatSize } from '../../constants';
 import { isImageFile } from '../../utils/fileTypeUtils';
 import { ImageThumbnail } from '../ImageThumbnail';
+import { FileTypeIcon } from '../FileTypeIcon';
 
 interface FolderContentGridProps {
   dataSource: FileNode[];
@@ -134,7 +135,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                         backgroundColor: 'var(--ant-color-fill-tertiary, rgba(119, 141, 169, 0.12))',
                       }}
                     >
-                      <FileOutlined style={{ fontSize: '48px', color: 'var(--app-muted-icon-color, #778da9)' }} />
+                      <FileTypeIcon filename={item.name} size={48} />
                     </div>
                   )}
                 </div>
