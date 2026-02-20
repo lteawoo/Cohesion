@@ -55,6 +55,24 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### `http_enabled` 설정 필드 제거 (2026-02-20)
+- **문제**:
+  - HTTP 서버는 현재 아키텍처에서 필수 경로(API/SPA/WebDAV 베이스)인데, `http_enabled` 토글은 실제 런타임 제어에 사용되지 않아 설정 의미가 불명확함.
+- **결정**:
+  - 백엔드 설정 모델/기본 config YAML/API 응답 모델에서 `http_enabled`를 제거한다.
+  - 프론트 서버 설정 화면에서도 HTTP 활성화 토글을 제거하고 포트 설정만 유지한다.
+  - WebDAV UI의 `httpEnabled` 의존 조건을 제거한다.
+- **이유**:
+  - 실제 동작과 불일치한 데드 설정을 제거해 운영 혼선을 줄이고, 서버 설정을 `port + webdav + sftp`의 유효 제어 항목으로 단순화하기 위함.
+
+### 모노레포 `config/secrets` Git 제외 범위 확장 (2026-02-20)
+- **문제**:
+  - 백엔드 하위(`apps/backend/config/secrets`)는 개별 `.gitignore`로 제외되지만, 모노레포 루트 기준의 `config/secrets` 생성 경로는 전역 제외 규칙이 없어 실수로 추적될 여지가 있음.
+- **결정**:
+  - 루트 `.gitignore`에 `**/config/secrets/` 패턴을 추가해 모든 워크스페이스의 `config/secrets`를 일괄 제외한다.
+- **이유**:
+  - SFTP host key/JWT secret 같은 런타임 생성 비밀키 파일의 Git 유출 위험을 경로 편차와 무관하게 차단하기 위함.
+
 ### Status 팝오버 섹션 순서 재구성 (2026-02-20)
 - **문제**:
   - 접속 URL(로컬/LAN)과 프로토콜 상태가 한 흐름으로 섞여 보여 정보 그룹이 직관적이지 않음.

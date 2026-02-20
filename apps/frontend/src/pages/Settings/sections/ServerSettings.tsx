@@ -199,36 +199,21 @@ const ServerSettings = () => {
         </Button>
       </Space>
 
-      <Card title="HTTP 서버" size="small">
+      <Card title="WEB 서버" size="small">
         <Space vertical size="small" className="settings-stack-full">
           <SettingRow
-            left={<Text strong>활성화</Text>}
+            left={<Text strong>포트</Text>}
             right={(
-              <Switch
-                checked={server.httpEnabled}
-                onChange={(checked: boolean) => updateServerConfig('httpEnabled', checked)}
+              <InputNumber
+                size="small"
+                min={1}
+                max={65535}
+                value={parseInt(server.port)}
+                onChange={(value: number | null) => value && updateServerConfig('port', value.toString())}
+                className="settings-port-input"
               />
             )}
           />
-
-          {server.httpEnabled && (
-            <>
-              <Divider className="settings-divider-compact" />
-              <SettingRow
-                left={<Text strong>포트</Text>}
-                right={(
-                  <InputNumber
-                    size="small"
-                    min={1}
-                    max={65535}
-                    value={parseInt(server.port)}
-                    onChange={(value: number | null) => value && updateServerConfig('port', value.toString())}
-                    className="settings-port-input"
-                  />
-                )}
-              />
-            </>
-          )}
         </Space>
       </Card>
 
@@ -240,12 +225,11 @@ const ServerSettings = () => {
               <Switch
                 checked={server.webdavEnabled}
                 onChange={(checked: boolean) => updateServerConfig('webdavEnabled', checked)}
-                disabled={!server.httpEnabled}
               />
             )}
           />
 
-          {server.webdavEnabled && server.httpEnabled && (
+          {server.webdavEnabled && (
             <>
               <Divider className="settings-divider-compact" />
               <SettingRow

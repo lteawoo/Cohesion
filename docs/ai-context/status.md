@@ -1,6 +1,27 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **`http_enabled` 설정 필드 제거 완료** (2026-02-20):
+    - 백엔드:
+      - 설정 모델 `server.http_enabled` 제거.
+      - 기본 설정 생성값(`defaultConfigForEnv`)에서 `http_enabled` 제거.
+      - 기본 설정 파일(`config.dev.yaml`, `config.prod.yaml`)에서 `http_enabled` 키 제거.
+    - 프론트:
+      - 설정 API 타입(`ServerConfig`)에서 `httpEnabled` 제거.
+      - 서버 설정 UI에서 HTTP 활성화 토글 제거, WEB 포트 설정만 유지.
+      - WebDAV 섹션의 `httpEnabled` 의존 조건/비활성화 로직 제거.
+      - 설정 스토어에서 `httpEnabled`, `setHttpEnabled` 제거.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `pnpm -C apps/frontend build` 통과
+- **외부 접근 프로토콜 도입 우선순위 분석 및 시크릿 ignore 정리 완료** (2026-02-20):
+    - 분석:
+      - 현재 동작 프로토콜은 `WEB + WebDAV + SFTP`이며, 외부 노출 기준 우선순위를 `HTTPS 종단(필수) -> SFTP 운영 -> WebDAV HTTPS 한정`으로 정리.
+      - `SMB/NFS`는 현재 구현 부재 상태로 확인되어 즉시 도입보다 2차 로드맵(특히 LAN 전용)으로 분류.
+    - 설정/보안:
+      - 루트 `.gitignore`에 `**/config/secrets/`를 추가해 모노레포 전역 `config/secrets` 하위 런타임 시크릿이 Git 추적되지 않도록 보강.
 - **Status 팝오버 섹션 재배치 완료** (2026-02-20):
     - 프론트:
       - `Status` 팝오버를 `Hosts`(상단) → `Protocols`(하단) 순서로 재배치.
