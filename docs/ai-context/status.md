@@ -1,6 +1,24 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **탐색 앱 쉘 우클릭 정책 적용 완료** (2026-02-20):
+    - 프론트:
+      - `MainLayout` 루트(`layout-page-browse-shell`)에 `onContextMenuCapture`를 추가해 탐색 화면의 브라우저 기본 우클릭 메뉴를 차단.
+      - 커스텀 컨텍스트 메뉴가 있는 지점(파일/폴더/트리/빈 영역)은 기존 이벤트 경로로 그대로 동작.
+      - 편집 가능 요소(`input`, `textarea`, `[contenteditable]`, `.allow-native-context-menu`)는 기본 우클릭 허용.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 실측(DevTools 이벤트): 일반 영역 `defaultPrevented=true`, 입력 요소 `defaultPrevented=false`
+- **Google Drive 스타일 텍스트 선택 차단(탐색 앱 쉘 범위) 적용 완료** (2026-02-20):
+    - 프론트:
+      - `MainLayout` 루트에 전용 클래스(`layout-page-browse-shell`)를 부여해 탐색 화면(헤더/트리/파일영역) 범위를 명시.
+      - 해당 범위에서 `user-select: none`을 적용해 드래그 중 텍스트 하이라이트 간섭을 차단.
+      - 편집 가능 입력 컴포넌트(`input`, `textarea`, `[contenteditable]`)는 `user-select: text`로 예외 처리.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 실측(DevTools): `shell/tree user-select=none`, `input user-select=text` 확인
 - **라이선스 AGPL-3.0 적용 완료** (2026-02-20):
     - 문서/정책:
       - 루트 `LICENSE` 파일을 `GNU Affero General Public License v3.0` 전문으로 추가.
