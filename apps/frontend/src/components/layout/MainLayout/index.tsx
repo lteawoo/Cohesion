@@ -4,6 +4,7 @@ import { SettingOutlined, MenuOutlined } from "@ant-design/icons";
 import MainSider from "./MainSider";
 import ServerStatus from "./ServerStatus";
 import { useCallback, useEffect, useState } from "react";
+import type { MouseEvent } from "react";
 import type { Space } from "@/features/space/types";
 import { useSpaceStore } from "@/stores/spaceStore";
 import { useBrowseStore } from "@/stores/browseStore";
@@ -53,8 +54,28 @@ const PageLayout = () => {
     setIsNavOpen(false);
   }, []);
 
+  const handleContextMenuCapture = useCallback((event: MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) {
+      event.preventDefault();
+      return;
+    }
+
+    const isEditableElement = Boolean(
+      target.closest('input, textarea, [contenteditable="true"], [contenteditable=""], .allow-native-context-menu')
+    );
+
+    if (isEditableElement) {
+      return;
+    }
+
+    // 탐색 앱 쉘에서는 브라우저 기본 우클릭 메뉴를 막고,
+    // 허용된 위치에서는 각 컴포넌트의 커스텀 컨텍스트 메뉴를 사용합니다.
+    event.preventDefault();
+  }, []);
+
   return (
-    <Layout className="layout-page">
+    <Layout className="layout-page layout-page-browse-shell" onContextMenuCapture={handleContextMenuCapture}>
       <Header
         className="layout-header"
         style={{

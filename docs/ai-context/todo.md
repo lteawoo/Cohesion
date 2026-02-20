@@ -6,6 +6,8 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] 탐색 앱 쉘 우클릭 차단 적용 (MainLayout `onContextMenuCapture` + 입력 요소 예외 허용)
+- [x] Google Drive 스타일 텍스트 선택 차단 적용 (MainLayout 탐색 앱 쉘 범위 `user-select: none` + 입력 요소 예외 처리)
 - [x] 프로젝트 라이선스 `AGPL-3.0-only` 확정 및 루트 `LICENSE` 추가
 - [x] README 2차 정리 (미지원 항목/프로젝트 구조/운영 메모 제거, 서비스 목표 문구 재정의, 라이선스 문구 간소화)
 - [x] README를 현재 서비스 범위 기준으로 오픈소스 스타일 개편 (이모티콘 제거, Build 중심 재작성, 설정파일 예시 제거)

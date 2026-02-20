@@ -71,6 +71,21 @@ html, body {
   overflow: hidden;
 }
 
+.layout-page.layout-page-browse-shell,
+.layout-page.layout-page-browse-shell * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.layout-page.layout-page-browse-shell input,
+.layout-page.layout-page-browse-shell textarea,
+.layout-page.layout-page-browse-shell [contenteditable],
+.layout-page.layout-page-browse-shell .allow-text-select,
+.layout-page.layout-page-browse-shell .allow-text-select * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .layout-header {
   display: flex;
   justify-content: space-between;
