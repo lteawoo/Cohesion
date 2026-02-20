@@ -6,6 +6,7 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] 다운로드 진행률 UI 적용 (스트림 기반 바이트/퍼센트 계산 + `FolderContent` 우측 하단 플로팅 카드 + 다운로드 응답 `Content-Length` 보강)
 - [x] 탐색 앱 쉘 우클릭 차단 적용 (MainLayout `onContextMenuCapture` + 입력 요소 예외 허용)
 - [x] Google Drive 스타일 텍스트 선택 차단 적용 (MainLayout 탐색 앱 쉘 범위 `user-select: none` + 입력 요소 예외 처리)
 - [x] 프로젝트 라이선스 `AGPL-3.0-only` 확정 및 루트 `LICENSE` 추가

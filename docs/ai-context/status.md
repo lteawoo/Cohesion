@@ -1,6 +1,21 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **다운로드 진행률 UI 적용 완료** (2026-02-20):
+    - 프론트:
+      - `useFileOperations` 다운로드 경로를 스트림 기반으로 전환하여 `loaded/total/percent` 상태를 계산.
+      - `FolderContent` 진행 UI를 본문 인라인에서 `우측 하단 플로팅 카드`로 전환하고, 경로바 상단에 고정 배치.
+      - 플로팅 카드 클릭 시 선택 해제 핸들러와 충돌하지 않도록 이벤트 전파 차단 적용.
+      - 파일 우클릭 메뉴의 단일 다운로드도 동일 진행률 경로를 사용하도록 통일.
+    - 백엔드:
+      - 단일 파일 다운로드 응답에 `Content-Length` 헤더를 명시.
+      - 폴더 ZIP/다중 다운로드 ZIP을 임시 파일 생성 후 전송하도록 변경하고 `Content-Length`를 함께 제공.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `pnpm -C apps/frontend build` 통과
+      - `cd apps/backend && go test ./...` 통과
+      - 브라우저 실측(네트워크 Slow 3G): 다운로드 진행 바/퍼센트/바이트 표기 확인
 - **탐색 앱 쉘 우클릭 정책 적용 완료** (2026-02-20):
     - 프론트:
       - `MainLayout` 루트(`layout-page-browse-shell`)에 `onContextMenuCapture`를 추가해 탐색 화면의 브라우저 기본 우클릭 메뉴를 차단.
