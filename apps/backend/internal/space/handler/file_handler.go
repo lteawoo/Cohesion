@@ -104,9 +104,15 @@ func (h *Handler) streamFileDownload(w http.ResponseWriter, absPath string) *web
 	}
 	defer file.Close()
 
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect file", Err: err}
+	}
+
 	fileName := filepath.Base(absPath)
 	w.Header().Set("Content-Disposition", `attachment; filename="`+fileName+`"`)
 	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 
 	if _, err := io.Copy(w, file); err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to send file", Err: err}
@@ -672,74 +678,107 @@ func (h *Handler) handleFileDownloadMultiple(w http.ResponseWriter, r *http.Requ
 	}
 
 	zipFileName := fmt.Sprintf("download-%d.zip", os.Getpid())
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipFileName))
-
-	zipWriter := zip.NewWriter(w)
-	defer zipWriter.Close()
-
-	for i, absPath := range absPaths {
-		if err := addToZip(zipWriter, absPath, filepath.Base(req.Paths[i])); err != nil {
-			log.Printf("Failed to add %s to ZIP: %v", absPath, err)
+	return h.streamZipDownload(w, zipFileName, func(zipWriter *zip.Writer) *web.Error {
+		for i, absPath := range absPaths {
+			if err := addToZip(zipWriter, absPath, filepath.Base(req.Paths[i])); err != nil {
+				log.Printf("Failed to add %s to ZIP: %v", absPath, err)
+			}
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // downloadFolderAsZip은 폴더를 zip으로 압축하여 스트리밍합니다.
 func (h *Handler) downloadFolderAsZip(w http.ResponseWriter, folderPath string, folderName string) *web.Error {
 	zipFileName := folderName + ".zip"
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipFileName))
+	return h.streamZipDownload(w, zipFileName, func(zipWriter *zip.Writer) *web.Error {
+		err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				log.Printf("Skipping file due to error: %s - %v", path, err)
+				return nil
+			}
+			if info.Mode()&os.ModeSymlink != 0 {
+				return nil
+			}
+			relPath, err := filepath.Rel(folderPath, path)
+			if err != nil {
+				return nil
+			}
+			if relPath == "." {
+				return nil
+			}
 
-	zipWriter := zip.NewWriter(w)
-	defer zipWriter.Close()
+			header, err := zip.FileInfoHeader(info)
+			if err != nil {
+				return nil
+			}
+			header.Name = filepath.ToSlash(relPath)
+			header.Method = zip.Deflate
 
-	err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Printf("Skipping file due to error: %s - %v", path, err)
-			return nil
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return nil
-		}
-		relPath, err := filepath.Rel(folderPath, path)
-		if err != nil {
-			return nil
-		}
-		if relPath == "." {
-			return nil
-		}
+			if info.IsDir() {
+				header.Name += "/"
+				zipWriter.CreateHeader(header) //nolint:errcheck
+				return nil
+			}
 
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
+			writer, err := zipWriter.CreateHeader(header)
+			if err != nil {
+				return nil
+			}
+			file, err := os.Open(path)
+			if err != nil {
+				return nil
+			}
+			defer file.Close()
+			io.Copy(writer, file) //nolint:errcheck
 			return nil
-		}
-		header.Name = filepath.ToSlash(relPath)
-		header.Method = zip.Deflate
+		})
 
-		if info.IsDir() {
-			header.Name += "/"
-			zipWriter.CreateHeader(header) //nolint:errcheck
-			return nil
-		}
-
-		writer, err := zipWriter.CreateHeader(header)
 		if err != nil {
-			return nil
+			return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to create zip archive", Err: err}
 		}
-		file, err := os.Open(path)
-		if err != nil {
-			return nil
-		}
-		defer file.Close()
-		io.Copy(writer, file) //nolint:errcheck
 		return nil
 	})
+}
 
+func (h *Handler) streamZipDownload(
+	w http.ResponseWriter,
+	zipFileName string,
+	writeZip func(zipWriter *zip.Writer) *web.Error,
+) *web.Error {
+	tempFile, err := os.CreateTemp("", "cohesion-download-*.zip")
 	if err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to create zip archive", Err: err}
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to prepare zip archive", Err: err}
+	}
+	tempFilePath := tempFile.Name()
+	defer func() {
+		tempFile.Close() //nolint:errcheck
+		os.Remove(tempFilePath)
+	}()
+
+	zipWriter := zip.NewWriter(tempFile)
+	if webErr := writeZip(zipWriter); webErr != nil {
+		zipWriter.Close() //nolint:errcheck
+		return webErr
+	}
+	if err := zipWriter.Close(); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to finalize zip archive", Err: err}
+	}
+
+	zipInfo, err := tempFile.Stat()
+	if err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect zip archive", Err: err}
+	}
+	if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to rewind zip archive", Err: err}
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipFileName))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", zipInfo.Size()))
+
+	if _, err := io.Copy(w, tempFile); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to send zip archive", Err: err}
 	}
 	return nil
 }
