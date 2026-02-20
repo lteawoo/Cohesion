@@ -2,7 +2,6 @@ import { apiFetch } from './client';
 
 export interface ServerConfig {
   port: string;
-  httpEnabled: boolean;
   webdavEnabled: boolean;
   sftpEnabled: boolean;
   sftpPort: number;

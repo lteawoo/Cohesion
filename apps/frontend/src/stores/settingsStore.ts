@@ -7,8 +7,6 @@ export type SortOrder = 'ascend' | 'descend';
 export type Language = 'ko' | 'en';
 
 interface ServerSettings {
-  // HTTP Server
-  httpEnabled: boolean;
   httpPort: number;
 
   // WebDAV
@@ -44,7 +42,6 @@ interface SettingsStore extends UISettings, ServerSettings {
   setLanguage: (lang: Language) => void;
 
   // Server Actions
-  setHttpEnabled: (enabled: boolean) => void;
   setHttpPort: (port: number) => void;
   setWebdavEnabled: (enabled: boolean) => void;
   setWebdavPort: (port: number) => void;
@@ -55,7 +52,6 @@ interface SettingsStore extends UISettings, ServerSettings {
 }
 
 const defaultServerSettings: ServerSettings = {
-  httpEnabled: true,
   httpPort: 3000,
   webdavEnabled: true,
   webdavPort: 3000, // WebDAV uses same port as HTTP (path: /dav/)
@@ -97,7 +93,6 @@ export const useSettingsStore = create<SettingsStore>()(
       setLanguage: (lang) => set({ language: lang }),
 
       // Server actions
-      setHttpEnabled: (enabled) => set({ httpEnabled: enabled }),
       setHttpPort: (port) => set({ httpPort: port }),
       setWebdavEnabled: (enabled) => set({ webdavEnabled: enabled }),
       setWebdavPort: (port) => set({ webdavPort: port }),

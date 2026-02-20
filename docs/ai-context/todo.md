@@ -6,6 +6,8 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] `http_enabled/httpEnabled` 설정 필드 제거 (백엔드 설정 모델/기본 YAML + 프론트 설정 타입/UI/스토어 정리)
+- [x] 모노레포 전역 `config/secrets` Git ignore 보강 (`.gitignore`에 `**/config/secrets/` 추가)
 - [x] 전체 보안점검 수행 (코드/설정/의존성 점검 및 취약점 우선순위 도출)
 - [x] WebDAV 보안 하드닝 (Basic Auth 강제 + Space 권한 체크 + `webdav_enabled` 플래그 적용)
 - [x] 기본 관리자 초기값 하드닝 (프로덕션 기본 계정/비밀번호 fallback 금지)
