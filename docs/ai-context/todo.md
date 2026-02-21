@@ -6,6 +6,10 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] 데스크톱 다중선택 우클릭 카운트 표기 정렬 (항목별 `N개` 제거 + 메뉴 상단 `N개 선택됨` 요약 추가)
+- [x] 다운로드 완료 토스트 제거 (`handleBulkDownload` 성공 토스트 제거, 실패 토스트 유지)
+- [x] 다운로드 진행률 UI 제거 (`useFileOperations` 진행률 상태/계산 제거 + `FolderContent` 우측 하단 플로팅 카드 제거)
+- [x] Status Hosts 주소 클릭 복사 지원 (`ServerStatus` Hosts 항목 버튼화 + 클립보드 복사/fallback + 성공/실패 토스트)
 - [x] 다운로드 진행률 UI 적용 (스트림 기반 바이트/퍼센트 계산 + `FolderContent` 우측 하단 플로팅 카드 + 다운로드 응답 `Content-Length` 보강)
 - [x] 탐색 오버레이 선택 정책 보강 (드롭다운/팝오버/셀렉트 오버레이 `user-select: none` + 경로바/다운로드 카드 우클릭 전파 차단)
 - [x] 탐색 앱 쉘 우클릭 차단 적용 (MainLayout `onContextMenuCapture` + 입력 요소 예외 허용)
