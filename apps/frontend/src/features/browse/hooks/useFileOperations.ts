@@ -1,16 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { App } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { TreeInvalidationTarget } from '@/stores/browseStore';
 import type { Space } from '@/features/space/types';
 import { apiFetch } from '@/api/client';
-
-export interface DownloadProgressState {
-  fileName: string;
-  loadedBytes: number;
-  totalBytes: number;
-  percent: number;
-}
 
 interface UseFileOperationsReturn {
   handleRename: (oldPath: string, newName: string) => Promise<void>;
@@ -21,7 +14,6 @@ interface UseFileOperationsReturn {
   handleCopy: (sources: string[], destination: string, destinationSpace?: Space) => Promise<void>;
   handleBulkDownload: (paths: string[]) => Promise<void>;
   handleFileUpload: (file: File, targetPath: string) => Promise<void>;
-  downloadProgress: DownloadProgressState | null;
 }
 
 function normalizeRelativePath(path: string): string {
@@ -82,29 +74,6 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
   const { message, modal } = App.useApp();
   const fetchSpaceContents = useBrowseStore((state) => state.fetchSpaceContents);
   const invalidateTree = useBrowseStore((state) => state.invalidateTree);
-  const [downloadProgress, setDownloadProgress] = useState<DownloadProgressState | null>(null);
-  const hideDownloadProgressTimerRef = useRef<number | null>(null);
-
-  const clearDownloadProgressHideTimer = useCallback(() => {
-    if (hideDownloadProgressTimerRef.current !== null) {
-      window.clearTimeout(hideDownloadProgressTimerRef.current);
-      hideDownloadProgressTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleDownloadProgressHide = useCallback(() => {
-    clearDownloadProgressHideTimer();
-    hideDownloadProgressTimerRef.current = window.setTimeout(() => {
-      setDownloadProgress(null);
-      hideDownloadProgressTimerRef.current = null;
-    }, 1200);
-  }, [clearDownloadProgressHideTimer]);
-
-  useEffect(() => {
-    return () => {
-      clearDownloadProgressHideTimer();
-    };
-  }, [clearDownloadProgressHideTimer]);
 
   // 현재 경로로 목록 새로고침 (Space 필수)
   const refreshContents = useCallback(async () => {
@@ -132,76 +101,10 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       }
 
       const resolvedFileName = resolveDownloadFileName(response.headers.get('Content-Disposition'), fallbackFileName);
-      const totalBytesHeader = response.headers.get('Content-Length');
-      const totalBytesCandidate = totalBytesHeader ? Number.parseInt(totalBytesHeader, 10) : NaN;
-      const hasTotalBytes = Number.isFinite(totalBytesCandidate) && totalBytesCandidate > 0;
-      const totalBytes = hasTotalBytes ? totalBytesCandidate : 0;
-
-      clearDownloadProgressHideTimer();
-      setDownloadProgress({
-        fileName: resolvedFileName,
-        loadedBytes: 0,
-        totalBytes: hasTotalBytes ? totalBytes : 1,
-        percent: 0,
-      });
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        const blob = await response.blob();
-        triggerBrowserDownload(blob, resolvedFileName);
-        setDownloadProgress({
-          fileName: resolvedFileName,
-          loadedBytes: blob.size,
-          totalBytes: blob.size,
-          percent: 100,
-        });
-        scheduleDownloadProgressHide();
-        return;
-      }
-
-      const chunks: ArrayBuffer[] = [];
-      let loadedBytes = 0;
-      let lastPercent = -1;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-        if (!value) {
-          continue;
-        }
-
-        const chunkBuffer = new ArrayBuffer(value.byteLength);
-        new Uint8Array(chunkBuffer).set(value);
-        chunks.push(chunkBuffer);
-        loadedBytes += value.byteLength;
-
-        const percent = hasTotalBytes
-          ? Math.min(99, Math.floor((loadedBytes / totalBytes) * 100))
-          : Math.min(99, Math.floor((loadedBytes / (1024 * 1024)) * 8) + 5);
-
-        if (percent !== lastPercent) {
-          lastPercent = percent;
-          setDownloadProgress({
-            fileName: resolvedFileName,
-            loadedBytes,
-            totalBytes: hasTotalBytes ? totalBytes : Math.max(loadedBytes, 1),
-            percent,
-          });
-        }
-      }
-
-      const blob = new Blob(chunks);
+      const blob = await response.blob();
       triggerBrowserDownload(blob, resolvedFileName);
-      setDownloadProgress({
-        fileName: resolvedFileName,
-        loadedBytes: hasTotalBytes ? totalBytes : blob.size,
-        totalBytes: hasTotalBytes ? totalBytes : blob.size,
-        percent: 100,
-      });
-      scheduleDownloadProgressHide();
     },
-    [clearDownloadProgressHideTimer, readErrorMessage, scheduleDownloadProgressHide]
+    [readErrorMessage]
   );
 
   // 파일 업로드 실행 함수
@@ -359,7 +262,6 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
             `/api/spaces/${selectedSpace.id}/files/download?path=${encodeURIComponent(relativePaths[0])}`
           );
           await downloadResponse(response, relativePaths[0].split('/').pop() || 'download.bin');
-          message.success('다운로드가 완료되었습니다');
           return;
         }
 
@@ -369,14 +271,11 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           body: JSON.stringify({ paths: relativePaths }),
         });
         await downloadResponse(response, `download-${Date.now()}.zip`);
-        message.success('ZIP 다운로드가 완료되었습니다');
       } catch (error) {
-        clearDownloadProgressHideTimer();
-        setDownloadProgress(null);
         message.error(error instanceof Error ? error.message : '다운로드 실패');
       }
     },
-    [selectedSpace, message, downloadResponse, clearDownloadProgressHideTimer]
+    [selectedSpace, message, downloadResponse]
   );
 
   // 다중 삭제 처리
@@ -583,6 +482,5 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     handleCopy,
     handleBulkDownload,
     handleFileUpload,
-    downloadProgress,
   };
 }

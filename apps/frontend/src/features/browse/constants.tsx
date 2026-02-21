@@ -137,9 +137,15 @@ export function buildMultiItemMenu(
   const canWriteFiles = options?.canWriteFiles ?? true;
   return [
     {
+      key: 'selection-summary',
+      label: `${count}개 선택됨`,
+      disabled: true,
+    },
+    { type: 'divider' as const },
+    {
       key: 'download',
       icon: <DownloadOutlined />,
-      label: `다운로드 (${count}개)`,
+      label: '다운로드',
       onClick: callbacks.onBulkDownload,
     },
     ...(canWriteFiles
@@ -147,20 +153,20 @@ export function buildMultiItemMenu(
           {
             key: 'copy',
             icon: <CopyOutlined />,
-            label: `복사 (${count}개)`,
+            label: '복사',
             onClick: callbacks.onCopy,
           },
           {
             key: 'move',
             icon: <ScissorOutlined />,
-            label: `이동 (${count}개)`,
+            label: '이동',
             onClick: callbacks.onMove,
           },
           { type: 'divider' as const },
           {
             key: 'delete',
             icon: <DeleteOutlined />,
-            label: `삭제 (${count}개)`,
+            label: '삭제',
             danger: true,
             onClick: callbacks.onBulkDelete,
           },

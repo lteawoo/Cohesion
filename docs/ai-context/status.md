@@ -1,6 +1,36 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **다중선택 우클릭 메뉴 카운트 표기 정렬 완료** (2026-02-21):
+    - 프론트:
+      - 데스크톱 다중선택 우클릭 메뉴에서 항목별 `N개` 표기를 제거.
+      - 메뉴 상단에 비활성 요약 항목 `N개 선택됨`을 추가해 모바일 선택 UI와 정렬.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **다운로드 완료 토스트 제거 완료** (2026-02-21):
+    - 프론트:
+      - `handleBulkDownload`의 성공 토스트(`다운로드가 완료되었습니다`, `ZIP 다운로드가 완료되었습니다`)를 제거.
+      - 다운로드 실패 토스트는 유지.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **다운로드 진행률 UI 제거 완료** (2026-02-21):
+    - 프론트:
+      - `useFileOperations`의 다운로드 진행률 상태/스트림 퍼센트 계산 로직 제거.
+      - `FolderContent` 우측 하단 다운로드 진행 플로팅 카드 제거.
+      - 다운로드는 브라우저 기본 다운로드 UI에 위임하는 방식으로 단순화.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **Status Hosts 주소 클릭 복사 지원 완료** (2026-02-21):
+    - 프론트:
+      - `ServerStatus`의 `Hosts` 항목을 클릭 가능한 버튼으로 전환.
+      - 클릭 시 주소를 클립보드에 복사하고 성공/실패 토스트를 표시.
+      - `navigator.clipboard.writeText` 실패 시 `execCommand('copy')` fallback 적용.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
 - **다운로드 진행률 UI 적용 완료** (2026-02-20):
     - 프론트:
       - `useFileOperations` 다운로드 경로를 스트림 기반으로 전환하여 `loaded/total/percent` 상태를 계산.

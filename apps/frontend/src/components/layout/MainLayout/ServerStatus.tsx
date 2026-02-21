@@ -1,4 +1,4 @@
-import { Popover, theme } from 'antd';
+import { App, Popover, theme } from 'antd';
 import { useServerStatus } from '@/features/status/hooks/useServerStatus';
 import type { ProtocolStatus } from '@/features/status/types';
 
@@ -65,8 +65,35 @@ function normalizeProtocolPath(path?: string) {
   return trimmed.replace(/\/+$/, '');
 }
 
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // continue to fallback
+  }
+
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
 function PopoverContent({ protocols, hosts }: { protocols: Record<string, ProtocolStatus>; hosts?: string[] }) {
   const { token } = theme.useToken();
+  const { message } = App.useApp();
   const orderedProtocolEntries = [
     ...PROTOCOL_ORDER.filter((key) => protocols[key] !== undefined).map((key) => [key, protocols[key]] as const),
     ...Object.entries(protocols).filter(([key]) => !PROTOCOL_ORDER.includes(key as (typeof PROTOCOL_ORDER)[number])),
@@ -100,7 +127,30 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
       </div>
       {webUrls.map((url) => (
         <div key={url} style={{ padding: '2px 0' }}>
-          <span style={{ fontSize: 12, color: token.colorTextSecondary }}>{url}</span>
+          <button
+            type="button"
+            className="allow-native-context-menu"
+            onClick={async () => {
+              const copied = await copyTextToClipboard(url);
+              if (copied) {
+                message.success('호스트 주소를 복사했습니다');
+                return;
+              }
+              message.error('주소 복사에 실패했습니다');
+            }}
+            title="클릭하여 주소 복사"
+            style={{
+              padding: 0,
+              border: 0,
+              background: 'transparent',
+              fontSize: 12,
+              color: token.colorTextSecondary,
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            {url}
+          </button>
         </div>
       ))}
       <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 12, marginBottom: 8 }}>

@@ -1,12 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
-import { Empty, App, Grid, Button, Menu, theme, Breadcrumb, Progress } from 'antd';
+import { Empty, App, Grid, Button, Menu, theme, Breadcrumb } from 'antd';
 import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { useBreadcrumb } from '../hooks/useBreadcrumb';
 import { useFileOperations } from '../hooks/useFileOperations';
-import type { DownloadProgressState } from '../hooks/useFileOperations';
 import { useDragAndDrop } from '../hooks/useDragAndDrop';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useBoxSelection } from '../hooks/useBoxSelection';
@@ -29,17 +28,6 @@ const PATH_BAR_HEIGHT = 36;
 const EXPLORER_SIDE_PADDING = 16;
 const PATH_BAR_CONTENT_OVERLAY_HEIGHT = PATH_BAR_HEIGHT - EXPLORER_SIDE_PADDING;
 type NavigationState = { entries: string[]; index: number };
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
-
-function getDownloadProgressText(progress: DownloadProgressState): string {
-  return `${formatBytes(progress.loadedBytes)} / ${formatBytes(progress.totalBytes)} (${progress.percent}%)`;
-}
 
 const FolderContent: React.FC = () => {
   const { message } = App.useApp();
@@ -113,7 +101,6 @@ const FolderContent: React.FC = () => {
     handleCopy,
     handleBulkDownload,
     handleFileUpload,
-    downloadProgress,
   } = useFileOperations(selectedPath, selectedSpace);
 
   const {
@@ -857,66 +844,6 @@ const FolderContent: React.FC = () => {
           </div>
         )}
       </div>
-
-      {downloadProgress && (
-        <div
-          data-selection-exclude="true"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-          style={{
-            position: 'absolute',
-            right: isMobile ? 8 : 12,
-            left: isMobile ? 8 : 'auto',
-            bottom: PATH_BAR_HEIGHT + 12,
-            zIndex: 5,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            width: isMobile ? 'auto' : 420,
-            maxWidth: isMobile ? 'none' : 'min(420px, calc(100% - 24px))',
-            padding: '8px 12px',
-            borderRadius: 8,
-            border: `1px solid ${token.colorBorder}`,
-            background: token.colorBgElevated,
-            boxShadow: token.boxShadowSecondary,
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-              fontSize: 12,
-              color: token.colorTextSecondary,
-            }}
-          >
-            <span
-              style={{
-                color: token.colorText,
-                minWidth: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-              title={downloadProgress.fileName}
-            >
-              다운로드 중: {downloadProgress.fileName}
-            </span>
-            <span>{getDownloadProgressText(downloadProgress)}</span>
-          </div>
-          <Progress
-            percent={downloadProgress.percent}
-            showInfo={false}
-            size="small"
-            status={downloadProgress.percent >= 100 ? 'success' : 'active'}
-          />
-        </div>
-      )}
 
       <div
         ref={selectionContainerRef}
