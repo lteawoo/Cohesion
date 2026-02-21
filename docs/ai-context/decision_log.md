@@ -55,6 +55,14 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### GoReleaser changelog 생성 모드 전환 (2026-02-21)
+- **문제**:
+  - `v0.1.0` 릴리즈 본문이 `.github/release.yml` 카테고리 대신 git 커밋 목록(`## Changelog`) 형태로 생성됨.
+- **결정**:
+  - `.goreleaser.yaml`의 `changelog`를 `use: github-native`로 전환한다.
+- **이유**:
+  - GitHub native release notes API를 사용해야 `.github/release.yml` 카테고리 규칙이 적용되며, 사람이 기대한 섹션형 릴리즈 노트를 자동 생성할 수 있다.
+
 ### GitHub Actions 태그 기반 자동 릴리즈 파이프라인 확정 (2026-02-21)
 - **문제**:
   - 태그를 푸시해도 릴리즈가 자동 실행되지 않아 운영자가 수동으로 GoReleaser를 실행해야 했다.
