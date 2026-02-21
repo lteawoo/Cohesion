@@ -6,6 +6,7 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] README 영문화 (섹션 구조/명령어 유지, 설명 문구 영어 전환)
 - [x] GoReleaser changelog 생성 방식 전환 (`.goreleaser.yaml`: `changelog.use=github-native`, `.github/release.yml` 카테고리 반영)
 - [x] GitHub Actions 자동 릴리즈 워크플로 추가 (`.github/workflows/release.yml`, 태그 `v*` 트리거 + GoReleaser 실행)
 - [x] GitHub Release Notes 카테고리 템플릿 추가 (`.github/release.yml`: New Features/Bug Fixes/Maintenance(Chore)/Other Changes)

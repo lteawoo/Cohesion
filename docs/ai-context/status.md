@@ -1,6 +1,10 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **README 영문화 완료** (2026-02-21):
+    - 문서:
+      - `README.md` 전 섹션(개요/기능/프로토콜/빌드/환경변수/보안/라이선스)을 영어 문구로 전환.
+      - 기존 구조와 명령어는 유지하고 설명 텍스트만 영문화.
 - **GoReleaser 릴리즈 노트 생성 방식을 GitHub Native로 전환 완료** (2026-02-21):
     - 배포:
       - `.goreleaser.yaml`의 `changelog`를 `use: github-native`로 변경.
