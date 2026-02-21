@@ -6,6 +6,9 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] GitHub Actions 자동 릴리즈 워크플로 추가 (`.github/workflows/release.yml`, 태그 `v*` 트리거 + GoReleaser 실행)
+- [x] GitHub Release Notes 카테고리 템플릿 추가 (`.github/release.yml`: New Features/Bug Fixes/Maintenance(Chore)/Other Changes)
+- [x] GoReleaser 대상 OS 확장 (`darwin/windows` -> `darwin/linux/windows`, 아키텍처 `amd64/arm64` 유지)
 - [x] cross-space 이동/복사 destination Space 권한 검증 보완 (`handleFileMove`/`handleFileCopy`에 destination `write` 권한 체크 + 단위 테스트 추가) (#117)
 - [x] 다운로드 티켓 경로 2차 적용 (단일 다운로드 `download-ticket` API + 단일/다중 네이티브 다운로드 통일)
 - [x] 다중/ZIP 다운로드 티켓 기반 네이티브 경로 1차 도입 (`download-multiple-ticket` + `/api/downloads/{ticket}` + 프론트 다중 다운로드 네이티브 전환)

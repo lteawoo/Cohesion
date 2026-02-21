@@ -1,6 +1,25 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **GitHub Actions 태그 기반 자동 릴리즈 워크플로 추가 완료** (2026-02-21):
+    - 배포/CI:
+      - `.github/workflows/release.yml` 추가 (`push tags: v*`, `workflow_dispatch`).
+      - `ubuntu-latest`에서 `Go 1.25.7`, `Node 24`, `pnpm 10.24.0` 환경 구성 후 릴리즈 실행.
+      - 순서: `pnpm install` -> `pnpm release:check` -> `apps/backend go test ./...` -> `goreleaser release --clean`.
+      - GitHub 릴리즈/아티팩트 업로드를 위해 `permissions.contents: write` 설정.
+    - 검증:
+      - 로컬 `pnpm release:check` 통과 (`.goreleaser.yaml` 유효성 확인).
+- **GitHub Release Notes 카테고리 템플릿 적용 완료** (2026-02-21):
+    - 배포/문서:
+      - `.github/release.yml` 추가.
+      - 릴리즈 노트 자동 분류 카테고리를 `New Features / Bug Fixes / Maintenance (Chore) / Other Changes`로 구성.
+      - PR 라벨(`feat|feature|enhancement`, `fix|bug|bugfix`, `chore|dependencies|ci|build|refactor`) 기반 섹션 분류 정책 반영.
+- **GoReleaser 배포 대상 OS 확장 완료 (linux 추가)** (2026-02-21):
+    - 배포:
+      - `.goreleaser.yaml`의 `goos`에 `linux` 추가 (`darwin/linux/windows` 대상).
+      - 기존 `goarch`(`amd64`, `arm64`) 조합으로 Linux 아티팩트도 함께 생성되도록 확장.
+    - 검증:
+      - `pnpm release:check` 통과 (`.goreleaser.yaml` 유효성 확인)
 - **cross-space 이동/복사 목적지 Space 권한 검증 보완 완료** (2026-02-21, #117):
     - 백엔드:
       - `handleFileMove`/`handleFileCopy`에서 `destination.spaceId` 기준 `write` 권한 검증을 추가.

@@ -55,6 +55,33 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### GitHub Actions 태그 기반 자동 릴리즈 파이프라인 확정 (2026-02-21)
+- **문제**:
+  - 태그를 푸시해도 릴리즈가 자동 실행되지 않아 운영자가 수동으로 GoReleaser를 실행해야 했다.
+- **결정**:
+  - `.github/workflows/release.yml`을 추가해 `v*` 태그 푸시 시 자동 릴리즈를 실행한다.
+  - 워크플로에서 `pnpm install`, `pnpm release:check`, 백엔드 테스트 후 `goreleaser release --clean`을 수행한다.
+- **이유**:
+  - 릴리즈 실행 경로를 태그 이벤트에 고정하면 배포 재현성과 운영 일관성을 높일 수 있고, 수동 실행 누락 리스크를 줄일 수 있다.
+
+### GitHub Release Notes 카테고리 구성 확정 (2026-02-21)
+- **문제**:
+  - 릴리즈 노트에 어떤 내용을 어떤 기준으로 쓸지 팀 기준이 없어서 버전별 메시지 품질 편차가 생길 수 있었다.
+- **결정**:
+  - `.github/release.yml`을 추가해 GitHub `Generate release notes` 기준 카테고리를 고정한다.
+  - 카테고리: `New Features`, `Bug Fixes`, `Maintenance (Chore)`, `Other Changes`.
+- **이유**:
+  - 과도한 장문 대신 사용자 관점 핵심 섹션으로 일관되게 요약하고, PR 라벨 기반 자동 분류로 릴리즈 작성 비용을 낮추기 위함.
+
+### GoReleaser 대상 플랫폼 표기/구성 확장 (2026-02-21)
+- **문제**:
+  - 기존 릴리즈 설정이 `darwin/windows`만 포함하여 Linux 사용자 대상 바이너리가 자동 생성되지 않았다.
+- **결정**:
+  - `.goreleaser.yaml`의 `goos`를 `darwin/linux/windows`로 확장하고, `goarch`는 기존 `amd64/arm64`를 유지한다.
+- **이유**:
+  - 배포 대상은 OS와 아키텍처를 함께 정의해야 실제 실행 호환성이 명확해진다.
+  - macOS/Linux/Windows 사용자군을 공통 커버하면서 현대 환경의 주력 아키텍처(`amd64`, `arm64`)를 동시에 지원하기 위함.
+
 ### cross-space 이동/복사 목적지 권한 검증 보완 정책 확정 (2026-02-21, #117)
 - **문제**:
   - 인증 미들웨어의 Space 권한 검증은 URL의 source `spaceId` 기준으로만 동작한다.
