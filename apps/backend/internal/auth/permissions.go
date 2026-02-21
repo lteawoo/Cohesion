@@ -78,11 +78,14 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	if strings.HasPrefix(path, "/api/spaces/") {
 		action, ok := extractSpaceFileAction(path)
 		if ok {
-			if action == "download" || action == "download-multiple" {
+			if action == "download" || action == "download-ticket" || action == "download-multiple" || action == "download-multiple-ticket" {
 				return PermissionFileRead, true
 			}
 			return PermissionFileWrite, true
 		}
+	}
+	if strings.HasPrefix(path, "/api/downloads/") {
+		return PermissionFileRead, true
 	}
 
 	if strings.HasPrefix(path, "/api/accounts") {
@@ -136,7 +139,7 @@ func requiredSpacePermissionForRequest(r *http.Request) (*spacePermissionRequire
 	action, hasAction := extractSpaceFileAction(path)
 	if hasAction {
 		required := account.PermissionWrite
-		if action == "download" || action == "download-multiple" {
+		if action == "download" || action == "download-ticket" || action == "download-multiple" || action == "download-multiple-ticket" {
 			required = account.PermissionRead
 		}
 		return &spacePermissionRequirement{

@@ -16,6 +16,11 @@ interface UseFileOperationsReturn {
   handleFileUpload: (file: File, targetPath: string) => Promise<void>;
 }
 
+interface DownloadTicketResponse {
+  downloadUrl?: string;
+  fileName?: string;
+}
+
 function normalizeRelativePath(path: string): string {
   return path.replace(/^\/+/, '').replace(/\/+$/, '');
 }
@@ -36,37 +41,14 @@ function createInvalidationTarget(path: string, space?: Space): TreeInvalidation
   };
 }
 
-function resolveDownloadFileName(contentDisposition: string | null, fallbackFileName: string): string {
-  if (!contentDisposition) {
-    return fallbackFileName;
-  }
-
-  const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
-  if (utf8Match?.[1]) {
-    try {
-      return decodeURIComponent(utf8Match[1].trim());
-    } catch {
-      return utf8Match[1].trim();
-    }
-  }
-
-  const fileNameMatch = contentDisposition.match(/filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i);
-  const matched = fileNameMatch?.[1] ?? fileNameMatch?.[2];
-  if (matched) {
-    return matched.trim();
-  }
-
-  return fallbackFileName;
-}
-
-function triggerBrowserDownload(blob: Blob, fileName: string): void {
-  const url = window.URL.createObjectURL(blob);
+function triggerBrowserDownloadFromUrl(url: string, fileName?: string): void {
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = fileName;
+  if (fileName) {
+    anchor.download = fileName;
+  }
   document.body.appendChild(anchor);
   anchor.click();
-  window.URL.revokeObjectURL(url);
   document.body.removeChild(anchor);
 }
 
@@ -92,20 +74,6 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     }
     return fallback;
   }, []);
-
-  const downloadResponse = useCallback(
-    async (response: Response, fallbackFileName: string) => {
-      if (!response.ok) {
-        const errorMessage = await readErrorMessage(response, '다운로드 실패');
-        throw new Error(errorMessage);
-      }
-
-      const resolvedFileName = resolveDownloadFileName(response.headers.get('Content-Disposition'), fallbackFileName);
-      const blob = await response.blob();
-      triggerBrowserDownload(blob, resolvedFileName);
-    },
-    [readErrorMessage]
-  );
 
   // 파일 업로드 실행 함수
   const performUpload = useCallback(
@@ -258,24 +226,46 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         const relativePaths = paths.map(p => normalizeRelativePath(p));
 
         if (relativePaths.length === 1) {
-          const response = await apiFetch(
-            `/api/spaces/${selectedSpace.id}/files/download?path=${encodeURIComponent(relativePaths[0])}`
-          );
-          await downloadResponse(response, relativePaths[0].split('/').pop() || 'download.bin');
+          const ticketResponse = await apiFetch(`/api/spaces/${selectedSpace.id}/files/download-ticket`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: relativePaths[0] }),
+          });
+
+          if (!ticketResponse.ok) {
+            const errorMessage = await readErrorMessage(ticketResponse, '다운로드 준비 실패');
+            throw new Error(errorMessage);
+          }
+
+          const payload = (await ticketResponse.json()) as DownloadTicketResponse;
+          if (!payload.downloadUrl || typeof payload.downloadUrl !== 'string') {
+            throw new Error('다운로드 URL 생성 실패');
+          }
+          triggerBrowserDownloadFromUrl(payload.downloadUrl, payload.fileName);
           return;
         }
 
-        const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/download-multiple`, {
+        const ticketResponse = await apiFetch(`/api/spaces/${selectedSpace.id}/files/download-multiple-ticket`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paths: relativePaths }),
         });
-        await downloadResponse(response, `download-${Date.now()}.zip`);
+
+        if (!ticketResponse.ok) {
+          const errorMessage = await readErrorMessage(ticketResponse, '다운로드 준비 실패');
+          throw new Error(errorMessage);
+        }
+
+        const payload = (await ticketResponse.json()) as DownloadTicketResponse;
+        if (!payload.downloadUrl || typeof payload.downloadUrl !== 'string') {
+          throw new Error('다운로드 URL 생성 실패');
+        }
+        triggerBrowserDownloadFromUrl(payload.downloadUrl, payload.fileName);
       } catch (error) {
         message.error(error instanceof Error ? error.message : '다운로드 실패');
       }
     },
-    [selectedSpace, message, downloadResponse]
+    [selectedSpace, message, readErrorMessage]
   );
 
   // 다중 삭제 처리
