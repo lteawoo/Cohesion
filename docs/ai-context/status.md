@@ -1,6 +1,12 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **GoReleaser 릴리즈 노트 생성 방식을 GitHub Native로 전환 완료** (2026-02-21):
+    - 배포:
+      - `.goreleaser.yaml`의 `changelog`를 `use: github-native`로 변경.
+      - 이후 태그 릴리즈부터 `.github/release.yml` 카테고리(`New Features/Bug Fixes/Maintenance/Other`)를 사용해 본문 생성.
+    - 검증:
+      - `pnpm release:check` 통과 (`.goreleaser.yaml` 유효성 확인)
 - **GitHub Actions 태그 기반 자동 릴리즈 워크플로 추가 완료** (2026-02-21):
     - 배포/CI:
       - `.github/workflows/release.yml` 추가 (`push tags: v*`, `workflow_dispatch`).
