@@ -1,6 +1,15 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **cross-space 이동/복사 목적지 Space 권한 검증 보완 완료** (2026-02-21, #117):
+    - 백엔드:
+      - `handleFileMove`/`handleFileCopy`에서 `destination.spaceId` 기준 `write` 권한 검증을 추가.
+      - 공통 헬퍼 `ensureSpacePermission`를 도입해 `claims` 기반 `CanAccessSpaceByID` 검증을 재사용.
+      - 권한 부족 시 `403 Forbidden`으로 차단하고, 권한 평가 실패 시 `500`을 반환.
+    - 테스트:
+      - `file_handler_permission_test.go` 추가 (`401/403/500/성공` 케이스 검증).
+    - 검증:
+      - `cd apps/backend && go test ./internal/space/handler ./internal/auth` 통과
 - **다운로드 티켓 경로 2차 적용 완료 (단일 다운로드 통일)** (2026-02-21):
     - 백엔드:
       - 단일 다운로드 티켓 액션 추가 (`POST /api/spaces/{id}/files/download-ticket`).
