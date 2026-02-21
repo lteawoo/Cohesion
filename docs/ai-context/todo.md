@@ -6,6 +6,8 @@
 - [ ] 프론트엔드 빌드 및 백엔드 임베딩 동작 확인
 
 ## 기능 구현 / 버그 수정
+- [x] 다운로드 티켓 경로 2차 적용 (단일 다운로드 `download-ticket` API + 단일/다중 네이티브 다운로드 통일)
+- [x] 다중/ZIP 다운로드 티켓 기반 네이티브 경로 1차 도입 (`download-multiple-ticket` + `/api/downloads/{ticket}` + 프론트 다중 다운로드 네이티브 전환)
 - [x] 데스크톱 다중선택 우클릭 카운트 표기 정렬 (항목별 `N개` 제거 + 메뉴 상단 `N개 선택됨` 요약 추가)
 - [x] 다운로드 완료 토스트 제거 (`handleBulkDownload` 성공 토스트 제거, 실패 토스트 유지)
 - [x] 다운로드 진행률 UI 제거 (`useFileOperations` 진행률 상태/계산 제거 + `FolderContent` 우측 하단 플로팅 카드 제거)

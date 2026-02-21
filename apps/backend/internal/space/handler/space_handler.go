@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/auth"
@@ -27,23 +29,29 @@ type SpaceAccessService interface {
 }
 
 type Handler struct {
-	spaceService   *space.Service
-	browseService  BrowseService
-	accountService SpaceAccessService
+	spaceService      *space.Service
+	browseService     BrowseService
+	accountService    SpaceAccessService
+	ticketMu          sync.Mutex
+	downloadTickets   map[string]downloadTicket
+	downloadTicketTTL time.Duration
 }
 
 // 의존성 주입 생성자 생성
 func NewHandler(spaceService *space.Service, browseService BrowseService, accountService SpaceAccessService) *Handler {
 	return &Handler{
-		spaceService:   spaceService,
-		browseService:  browseService,
-		accountService: accountService,
+		spaceService:      spaceService,
+		browseService:     browseService,
+		accountService:    accountService,
+		downloadTickets:   make(map[string]downloadTicket),
+		downloadTicketTTL: 5 * time.Minute,
 	}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/spaces", web.Handler(h.handleSpaces))
 	mux.Handle("/api/spaces/", web.Handler(h.handleSpaceByID))
+	mux.Handle("/api/downloads/", web.Handler(h.handleDownloadByTicket))
 }
 
 // handleSpaces는 HTTP 메서드에 따라 요청을 라우팅합니다

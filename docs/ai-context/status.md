@@ -1,6 +1,34 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **다운로드 티켓 경로 2차 적용 완료 (단일 다운로드 통일)** (2026-02-21):
+    - 백엔드:
+      - 단일 다운로드 티켓 액션 추가 (`POST /api/spaces/{id}/files/download-ticket`).
+      - 단일 파일은 원본 파일 경로를 티켓으로 전달하고, 폴더는 ZIP 임시파일을 생성해 티켓으로 전달.
+      - 티켓 모델에 `RemoveAfterUse` 플래그를 추가해 원본 파일 삭제를 방지하고 임시 ZIP만 사용 후 정리.
+      - 폴더 ZIP 작성 로직을 `writeFolderToZip`으로 분리해 기존 스트리밍/티켓 경로에서 재사용.
+      - 권한 매핑에 `download-ticket`을 `file.read`로 반영.
+    - 프론트:
+      - 단일 다운로드(`paths.length === 1`)도 티켓 API 호출 후 네이티브 다운로드 URL 실행으로 전환.
+      - 결과적으로 단일/다중 모두 `blob` 메모리 적재 경로를 제거.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `cd apps/backend && go test ./...` 통과
+- **다중/ZIP 다운로드 티켓 기반 네이티브 경로 1차 도입 완료** (2026-02-21):
+    - 백엔드:
+      - `download-multiple-ticket` 액션 추가 (`POST /api/spaces/{id}/files/download-multiple-ticket`).
+      - 티켓 다운로드 엔드포인트 추가 (`GET /api/downloads/{ticket}`).
+      - in-memory 티켓 저장소(만료 TTL, 1회성 소비, 만료 시 임시파일 정리) 도입.
+      - ZIP 임시파일 생성 로직을 `buildZipTempArchive`로 분리해 기존 스트리밍/티켓 발급 경로에서 공용 사용.
+      - 권한 매핑에 `download-multiple-ticket`, `/api/downloads/`를 `file.read`로 반영.
+    - 프론트:
+      - 다중 선택 다운로드(`paths.length > 1`)를 티켓 발급 API 호출 후 브라우저 네이티브 다운로드 URL 실행으로 전환.
+      - 단일 파일 다운로드 경로(`fetch -> blob`)는 기존 동작 유지.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `cd apps/backend && go test ./...` 통과
 - **다중선택 우클릭 메뉴 카운트 표기 정렬 완료** (2026-02-21):
     - 프론트:
       - 데스크톱 다중선택 우클릭 메뉴에서 항목별 `N개` 표기를 제거.

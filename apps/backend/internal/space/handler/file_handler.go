@@ -10,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/platform/web"
 	"taeu.kr/cohesion/internal/space"
 )
@@ -29,6 +31,8 @@ func (h *Handler) handleSpaceFiles(w http.ResponseWriter, r *http.Request, space
 	switch action {
 	case "download":
 		return h.handleFileDownload(w, r, spaceID)
+	case "download-ticket":
+		return h.handleFileDownloadTicket(w, r, spaceID)
 	case "rename":
 		return h.handleFileRename(w, r, spaceID)
 	case "delete":
@@ -45,6 +49,8 @@ func (h *Handler) handleSpaceFiles(w http.ResponseWriter, r *http.Request, space
 		return h.handleFileCopy(w, r, spaceID)
 	case "download-multiple":
 		return h.handleFileDownloadMultiple(w, r, spaceID)
+	case "download-multiple-ticket":
+		return h.handleFileDownloadMultipleTicket(w, r, spaceID)
 	default:
 		return &web.Error{
 			Code:    http.StatusNotFound,
@@ -117,6 +123,101 @@ func (h *Handler) streamFileDownload(w http.ResponseWriter, absPath string) *web
 	if _, err := io.Copy(w, file); err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to send file", Err: err}
 	}
+	return nil
+}
+
+// handleFileDownloadTicket: POST /api/spaces/{id}/files/download-ticket
+// body: { path: string }
+func (h *Handler) handleFileDownloadTicket(w http.ResponseWriter, r *http.Request, spaceID int64) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{Code: http.StatusMethodNotAllowed, Message: "Method not allowed"}
+	}
+
+	spaceData, webErr := h.getSpace(r, spaceID)
+	if webErr != nil {
+		return webErr
+	}
+
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		return &web.Error{Code: http.StatusUnauthorized, Message: "Unauthorized"}
+	}
+
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid request body", Err: err}
+	}
+	if strings.TrimSpace(req.Path) == "" {
+		return &web.Error{Code: http.StatusBadRequest, Message: "path is required"}
+	}
+
+	absPath, err := resolveAbsPath(spaceData.SpacePath, req.Path)
+	if err != nil {
+		return &web.Error{Code: http.StatusForbidden, Message: "Access denied: invalid path"}
+	}
+
+	fileInfo, err := os.Stat(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &web.Error{Code: http.StatusNotFound, Message: "File not found", Err: err}
+		}
+		if os.IsPermission(err) {
+			return &web.Error{Code: http.StatusForbidden, Message: "Permission denied", Err: err}
+		}
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to access file", Err: err}
+	}
+
+	downloadFilePath := absPath
+	downloadFileName := fileInfo.Name()
+	contentType := "application/octet-stream"
+	contentSize := fileInfo.Size()
+	removeAfterUse := false
+
+	if fileInfo.IsDir() {
+		zipFileName := fileInfo.Name() + ".zip"
+		zipTempPath, zipSize, zipErr := h.buildZipTempArchive(func(zipWriter *zip.Writer) *web.Error {
+			return h.writeFolderToZip(absPath, zipWriter)
+		})
+		if zipErr != nil {
+			return zipErr
+		}
+		downloadFilePath = zipTempPath
+		downloadFileName = zipFileName
+		contentType = "application/zip"
+		contentSize = zipSize
+		removeAfterUse = true
+	}
+
+	ticket, err := h.issueDownloadTicket(
+		claims.Username,
+		downloadFilePath,
+		downloadFileName,
+		contentType,
+		contentSize,
+		removeAfterUse,
+	)
+	if err != nil {
+		if removeAfterUse {
+			os.Remove(downloadFilePath) //nolint:errcheck
+		}
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to issue download ticket", Err: err}
+	}
+
+	type downloadTicketResponse struct {
+		DownloadURL string `json:"downloadUrl"`
+		FileName    string `json:"fileName"`
+		ExpiresAt   string `json:"expiresAt"`
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(downloadTicketResponse{
+		DownloadURL: fmt.Sprintf("/api/downloads/%s", ticket.Token),
+		FileName:    ticket.FileName,
+		ExpiresAt:   ticket.ExpiresAt.Format(time.RFC3339),
+	})
 	return nil
 }
 
@@ -688,57 +789,138 @@ func (h *Handler) handleFileDownloadMultiple(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+// handleFileDownloadMultipleTicket: POST /api/spaces/{id}/files/download-multiple-ticket
+// body: { paths: []string }
+func (h *Handler) handleFileDownloadMultipleTicket(w http.ResponseWriter, r *http.Request, spaceID int64) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{Code: http.StatusMethodNotAllowed, Message: "Method not allowed"}
+	}
+
+	spaceData, webErr := h.getSpace(r, spaceID)
+	if webErr != nil {
+		return webErr
+	}
+
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		return &web.Error{Code: http.StatusUnauthorized, Message: "Unauthorized"}
+	}
+
+	var req struct {
+		Paths []string `json:"paths"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid request body", Err: err}
+	}
+	if len(req.Paths) < 2 {
+		return &web.Error{Code: http.StatusBadRequest, Message: "at least 2 paths are required"}
+	}
+
+	absPaths := make([]string, 0, len(req.Paths))
+	for _, relPath := range req.Paths {
+		absPath, err := resolveAbsPath(spaceData.SpacePath, relPath)
+		if err != nil {
+			return &web.Error{Code: http.StatusForbidden, Message: fmt.Sprintf("Access denied: invalid path %s", relPath)}
+		}
+		if _, err := os.Stat(absPath); err != nil {
+			if os.IsNotExist(err) {
+				return &web.Error{Code: http.StatusNotFound, Message: fmt.Sprintf("Path not found: %s", relPath), Err: err}
+			}
+			return &web.Error{Code: http.StatusInternalServerError, Message: fmt.Sprintf("Failed to access path: %s", relPath), Err: err}
+		}
+		absPaths = append(absPaths, absPath)
+	}
+
+	zipFileName := fmt.Sprintf("download-%d.zip", os.Getpid())
+	zipTempPath, zipSize, zipErr := h.buildZipTempArchive(func(zipWriter *zip.Writer) *web.Error {
+		for i, absPath := range absPaths {
+			if err := addToZip(zipWriter, absPath, filepath.Base(req.Paths[i])); err != nil {
+				log.Printf("Failed to add %s to ZIP: %v", absPath, err)
+			}
+		}
+		return nil
+	})
+	if zipErr != nil {
+		return zipErr
+	}
+
+	ticket, err := h.issueDownloadTicket(claims.Username, zipTempPath, zipFileName, "application/zip", zipSize, true)
+	if err != nil {
+		os.Remove(zipTempPath) //nolint:errcheck
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to issue download ticket", Err: err}
+	}
+
+	type downloadTicketResponse struct {
+		DownloadURL string `json:"downloadUrl"`
+		FileName    string `json:"fileName"`
+		ExpiresAt   string `json:"expiresAt"`
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(downloadTicketResponse{
+		DownloadURL: fmt.Sprintf("/api/downloads/%s", ticket.Token),
+		FileName:    ticket.FileName,
+		ExpiresAt:   ticket.ExpiresAt.Format(time.RFC3339),
+	})
+	return nil
+}
+
 // downloadFolderAsZip은 폴더를 zip으로 압축하여 스트리밍합니다.
 func (h *Handler) downloadFolderAsZip(w http.ResponseWriter, folderPath string, folderName string) *web.Error {
 	zipFileName := folderName + ".zip"
 	return h.streamZipDownload(w, zipFileName, func(zipWriter *zip.Writer) *web.Error {
-		err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				log.Printf("Skipping file due to error: %s - %v", path, err)
-				return nil
-			}
-			if info.Mode()&os.ModeSymlink != 0 {
-				return nil
-			}
-			relPath, err := filepath.Rel(folderPath, path)
-			if err != nil {
-				return nil
-			}
-			if relPath == "." {
-				return nil
-			}
+		return h.writeFolderToZip(folderPath, zipWriter)
+	})
+}
 
-			header, err := zip.FileInfoHeader(info)
-			if err != nil {
-				return nil
-			}
-			header.Name = filepath.ToSlash(relPath)
-			header.Method = zip.Deflate
-
-			if info.IsDir() {
-				header.Name += "/"
-				zipWriter.CreateHeader(header) //nolint:errcheck
-				return nil
-			}
-
-			writer, err := zipWriter.CreateHeader(header)
-			if err != nil {
-				return nil
-			}
-			file, err := os.Open(path)
-			if err != nil {
-				return nil
-			}
-			defer file.Close()
-			io.Copy(writer, file) //nolint:errcheck
-			return nil
-		})
-
+func (h *Handler) writeFolderToZip(folderPath string, zipWriter *zip.Writer) *web.Error {
+	err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to create zip archive", Err: err}
+			log.Printf("Skipping file due to error: %s - %v", path, err)
+			return nil
 		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+		relPath, err := filepath.Rel(folderPath, path)
+		if err != nil {
+			return nil
+		}
+		if relPath == "." {
+			return nil
+		}
+
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return nil
+		}
+		header.Name = filepath.ToSlash(relPath)
+		header.Method = zip.Deflate
+
+		if info.IsDir() {
+			header.Name += "/"
+			zipWriter.CreateHeader(header) //nolint:errcheck
+			return nil
+		}
+
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return nil
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer file.Close()
+		io.Copy(writer, file) //nolint:errcheck
 		return nil
 	})
+
+	if err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to create zip archive", Err: err}
+	}
+	return nil
 }
 
 func (h *Handler) streamZipDownload(
@@ -746,41 +928,57 @@ func (h *Handler) streamZipDownload(
 	zipFileName string,
 	writeZip func(zipWriter *zip.Writer) *web.Error,
 ) *web.Error {
+	zipTempPath, zipSize, zipErr := h.buildZipTempArchive(writeZip)
+	if zipErr != nil {
+		return zipErr
+	}
+	defer os.Remove(zipTempPath) //nolint:errcheck
+
+	zipFile, err := os.Open(zipTempPath)
+	if err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to open zip archive", Err: err}
+	}
+	defer zipFile.Close()
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipFileName))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", zipSize))
+
+	if _, err := io.Copy(w, zipFile); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to send zip archive", Err: err}
+	}
+	return nil
+}
+
+func (h *Handler) buildZipTempArchive(writeZip func(zipWriter *zip.Writer) *web.Error) (string, int64, *web.Error) {
 	tempFile, err := os.CreateTemp("", "cohesion-download-*.zip")
 	if err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to prepare zip archive", Err: err}
+		return "", 0, &web.Error{Code: http.StatusInternalServerError, Message: "Failed to prepare zip archive", Err: err}
 	}
 	tempFilePath := tempFile.Name()
+	cleanup := true
 	defer func() {
 		tempFile.Close() //nolint:errcheck
-		os.Remove(tempFilePath)
+		if cleanup {
+			os.Remove(tempFilePath) //nolint:errcheck
+		}
 	}()
 
 	zipWriter := zip.NewWriter(tempFile)
 	if webErr := writeZip(zipWriter); webErr != nil {
 		zipWriter.Close() //nolint:errcheck
-		return webErr
+		return "", 0, webErr
 	}
 	if err := zipWriter.Close(); err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to finalize zip archive", Err: err}
+		return "", 0, &web.Error{Code: http.StatusInternalServerError, Message: "Failed to finalize zip archive", Err: err}
 	}
 
 	zipInfo, err := tempFile.Stat()
 	if err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect zip archive", Err: err}
+		return "", 0, &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect zip archive", Err: err}
 	}
-	if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to rewind zip archive", Err: err}
-	}
-
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipFileName))
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", zipInfo.Size()))
-
-	if _, err := io.Copy(w, tempFile); err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to send zip archive", Err: err}
-	}
-	return nil
+	cleanup = false
+	return tempFilePath, zipInfo.Size(), nil
 }
 
 // addToZip은 파일 또는 디렉토리를 zip에 추가합니다.
