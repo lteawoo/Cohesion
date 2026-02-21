@@ -55,6 +55,16 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### cross-space 이동/복사 목적지 권한 검증 보완 정책 확정 (2026-02-21, #117)
+- **문제**:
+  - 인증 미들웨어의 Space 권한 검증은 URL의 source `spaceId` 기준으로만 동작한다.
+  - `move/copy`는 body의 `destination.spaceId`를 허용하지만, 기존 구현은 destination Space 쓰기 권한을 별도로 검증하지 않았다.
+- **결정**:
+  - `handleFileMove`/`handleFileCopy`에서 destination Space에 대한 `write` 권한 검증을 핸들러 레벨에서 추가한다.
+  - 공통 헬퍼(`ensureSpacePermission`)로 `claims` + `CanAccessSpaceByID` 검증 로직을 재사용한다.
+- **이유**:
+  - cross-space 쓰기 경로는 URL 기반 미들웨어만으로 완전하게 커버되지 않으므로, 목적지 리소스 권한을 액션 처리 지점에서 명시적으로 강제해야 보안 경계가 닫힌다.
+
 ### 다운로드 티켓 경로 2차(단일 다운로드 통일) 정책 확정 (2026-02-21)
 - **문제**:
   - 1차 도입 후에도 단일 다운로드는 여전히 `fetch -> blob` 경로를 사용해 메모리 피크 리스크가 남아 있었음.

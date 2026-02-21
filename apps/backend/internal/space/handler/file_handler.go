@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/platform/web"
 	"taeu.kr/cohesion/internal/space"
@@ -70,6 +71,23 @@ func (h *Handler) getSpace(r *http.Request, spaceID int64) (*space.Space, *web.E
 		}
 	}
 	return spaceData, nil
+}
+
+func (h *Handler) ensureSpacePermission(r *http.Request, spaceID int64, required account.Permission) *web.Error {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		return &web.Error{Code: http.StatusUnauthorized, Message: "Unauthorized"}
+	}
+
+	allowed, err := h.accountService.CanAccessSpaceByID(r.Context(), claims.Username, spaceID, required)
+	if err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to evaluate space access", Err: err}
+	}
+	if !allowed {
+		return &web.Error{Code: http.StatusForbidden, Message: "Access denied: insufficient destination space permission"}
+	}
+
+	return nil
 }
 
 // handleFileDownload: GET /api/spaces/{id}/files/download?path={relativePath}
@@ -544,6 +562,9 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 	if dstSpaceID == 0 {
 		dstSpaceID = spaceID
 	}
+	if webErr := h.ensureSpacePermission(r, dstSpaceID, account.PermissionWrite); webErr != nil {
+		return webErr
+	}
 	dstSpace, webErr := h.getSpace(r, dstSpaceID)
 	if webErr != nil {
 		return webErr
@@ -643,6 +664,9 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 	dstSpaceID := req.Destination.SpaceID
 	if dstSpaceID == 0 {
 		dstSpaceID = spaceID
+	}
+	if webErr := h.ensureSpacePermission(r, dstSpaceID, account.PermissionWrite); webErr != nil {
+		return webErr
 	}
 	dstSpace, webErr := h.getSpace(r, dstSpaceID)
 	if webErr != nil {
