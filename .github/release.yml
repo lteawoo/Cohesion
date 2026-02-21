@@ -1,0 +1,22 @@
+changelog:
+  categories:
+    - title: "New Features"
+      labels:
+        - "feat"
+        - "feature"
+        - "enhancement"
+    - title: "Bug Fixes"
+      labels:
+        - "fix"
+        - "bug"
+        - "bugfix"
+    - title: "Maintenance (Chore)"
+      labels:
+        - "chore"
+        - "dependencies"
+        - "ci"
+        - "build"
+        - "refactor"
+    - title: "Other Changes"
+      labels:
+        - "*"

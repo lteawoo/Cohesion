@@ -22,6 +22,7 @@ builds:
       - -s -w -X main.goEnv=production
     goos:
       - darwin
+      - linux
       - windows
     goarch:
       - amd64
