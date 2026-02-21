@@ -86,6 +86,29 @@ html, body {
   -webkit-user-select: text;
 }
 
+body.browse-shell-active .ant-dropdown,
+body.browse-shell-active .ant-dropdown *,
+body.browse-shell-active .ant-popover,
+body.browse-shell-active .ant-popover *,
+body.browse-shell-active .ant-select-dropdown,
+body.browse-shell-active .ant-select-dropdown * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.browse-shell-active .ant-dropdown input,
+body.browse-shell-active .ant-dropdown textarea,
+body.browse-shell-active .ant-dropdown [contenteditable],
+body.browse-shell-active .ant-popover input,
+body.browse-shell-active .ant-popover textarea,
+body.browse-shell-active .ant-popover [contenteditable],
+body.browse-shell-active .ant-select-dropdown input,
+body.browse-shell-active .ant-select-dropdown textarea,
+body.browse-shell-active .ant-select-dropdown [contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .layout-header {
   display: flex;
   justify-content: space-between;

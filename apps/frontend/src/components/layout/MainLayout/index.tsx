@@ -30,6 +30,13 @@ const PageLayout = () => {
     fetchSpaces();
   }, [fetchSpaces]);
 
+  useEffect(() => {
+    document.body.classList.add('browse-shell-active');
+    return () => {
+      document.body.classList.remove('browse-shell-active');
+    };
+  }, []);
+
   const handlePathSelect = useCallback((path: string, space?: Space) => {
     if (space) {
       setPath(path, space);

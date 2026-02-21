@@ -863,6 +863,10 @@ const FolderContent: React.FC = () => {
           data-selection-exclude="true"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
           style={{
             position: 'absolute',
             right: isMobile ? 8 : 12,
@@ -999,6 +1003,10 @@ const FolderContent: React.FC = () => {
         data-selection-exclude="true"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         style={{
           position: 'absolute',
           left: -EXPLORER_SIDE_PADDING,
