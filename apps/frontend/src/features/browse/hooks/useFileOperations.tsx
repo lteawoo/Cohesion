@@ -1,11 +1,13 @@
 import { useCallback } from 'react';
-import { App, Radio, Space as AntSpace, Typography } from 'antd';
+import { App, Checkbox, Radio, Space as AntSpace, Typography } from 'antd';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { TreeInvalidationTarget } from '@/stores/browseStore';
 import type { Space } from '@/features/space/types';
 import { apiFetch } from '@/api/client';
 
 type UploadConflictPolicy = 'overwrite' | 'rename' | 'skip';
+type TransferMode = 'move' | 'copy';
+type TransferConflictPolicy = 'overwrite' | 'rename' | 'skip';
 type UploadSource = File | File[] | FileList;
 type UploadStatus = 'uploaded' | 'skipped';
 
@@ -40,6 +42,36 @@ interface UploadSummary {
   uploaded: number;
   skipped: number;
   failed: number;
+}
+
+interface TransferFailurePayload {
+  path?: string;
+  reason?: string;
+  code?: string;
+}
+
+interface TransferResponsePayload {
+  succeeded?: string[];
+  skipped?: string[];
+  failed?: TransferFailurePayload[];
+}
+
+interface TransferSummary {
+  succeeded: number;
+  skipped: number;
+  failed: number;
+}
+
+interface TransferOperationResult {
+  summary: TransferSummary;
+  succeededSources: string[];
+  failedReasons: string[];
+  abortedByUser: boolean;
+}
+
+interface TransferConflictSelection {
+  policy: TransferConflictPolicy;
+  applyToRemaining: boolean;
 }
 
 function normalizeRelativePath(path: string): string {
@@ -83,6 +115,14 @@ function normalizeUploadSource(files: UploadSource): File[] {
   return Array.from(files);
 }
 
+function getTransferVerb(mode: TransferMode): string {
+  return mode === 'move' ? '이동' : '복사';
+}
+
+function isDestinationConflictFailure(item: TransferFailurePayload): boolean {
+  return item.code === 'destination_exists';
+}
+
 export function useFileOperations(selectedPath: string, selectedSpace?: Space): UseFileOperationsReturn {
   const { message, modal } = App.useApp();
   const fetchSpaceContents = useBrowseStore((state) => state.fetchSpaceContents);
@@ -105,6 +145,230 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     }
     return fallback;
   }, []);
+
+  const performTransferRequest = useCallback(
+    async (
+      mode: TransferMode,
+      sources: string[],
+      destination: string,
+      destinationSpace?: Space,
+      conflictPolicy?: TransferConflictPolicy
+    ): Promise<TransferResponsePayload> => {
+      if (!selectedSpace) {
+        throw new Error('Space가 선택되지 않았습니다');
+      }
+
+      const dstSpace = destinationSpace ?? selectedSpace;
+      const relativeSources = sources.map((source) => normalizeRelativePath(source));
+      const relativeDestination = normalizeRelativePath(destination);
+      const payload: {
+        sources: string[];
+        destination: { spaceId: number; path: string };
+        conflictPolicy?: TransferConflictPolicy;
+      } = {
+        sources: relativeSources,
+        destination: {
+          spaceId: dstSpace.id,
+          path: relativeDestination,
+        },
+      };
+
+      if (conflictPolicy) {
+        payload.conflictPolicy = conflictPolicy;
+      }
+
+      const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorMessage = await readErrorMessage(response, `${getTransferVerb(mode)} 실패`);
+        throw new Error(errorMessage);
+      }
+
+      return (await response.json()) as TransferResponsePayload;
+    },
+    [selectedSpace, readErrorMessage]
+  );
+
+  const promptTransferConflictSelection = useCallback((
+    mode: TransferMode,
+    sourcePath: string,
+    remainingConflictCount: number
+  ): Promise<TransferConflictSelection | null> => {
+    return new Promise((resolve) => {
+      let selectedPolicy: TransferConflictPolicy = 'overwrite';
+      let applyToRemaining = remainingConflictCount > 0;
+      let settled = false;
+      const settle = (value: TransferConflictSelection | null) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve(value);
+      };
+      const fileName = sourcePath.split('/').filter(Boolean).pop() ?? sourcePath;
+      const transferVerb = getTransferVerb(mode);
+
+      modal.confirm({
+        title: '충돌 항목 처리',
+        content: (
+          <AntSpace direction="vertical" size={12} style={{ width: '100%' }}>
+            <Typography.Text>
+              "{fileName}" 항목이 대상 위치에 이미 있습니다.
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              처리 방법을 선택하세요.
+            </Typography.Text>
+            <Radio.Group
+              defaultValue="overwrite"
+              onChange={(event) => {
+                selectedPolicy = event.target.value as TransferConflictPolicy;
+              }}
+            >
+              <AntSpace direction="vertical" size={8}>
+                <Radio value="overwrite">덮어쓰기</Radio>
+                <Radio value="rename">이름 변경</Radio>
+                <Radio value="skip">건너뛰기</Radio>
+              </AntSpace>
+            </Radio.Group>
+            <Typography.Text type="secondary">
+              {transferVerb} 충돌 항목 {remainingConflictCount + 1}개 중 현재 항목을 처리합니다.
+            </Typography.Text>
+            {remainingConflictCount > 0 ? (
+              <Checkbox
+                defaultChecked
+                onChange={(event) => {
+                  applyToRemaining = event.target.checked;
+                }}
+              >
+                남은 충돌 항목 {remainingConflictCount}개에 동일하게 적용
+              </Checkbox>
+            ) : null}
+          </AntSpace>
+        ),
+        okText: '적용',
+        cancelText: `${transferVerb} 중단`,
+        onOk: () => {
+          settle({ policy: selectedPolicy, applyToRemaining });
+        },
+        onCancel: () => {
+          settle(null);
+        },
+      });
+    });
+  }, [modal]);
+
+  const executeTransfer = useCallback(async (
+    mode: TransferMode,
+    sources: string[],
+    destination: string,
+    destinationSpace?: Space
+  ): Promise<TransferOperationResult> => {
+    const relativeSources = sources.map((source) => normalizeRelativePath(source));
+    const summary: TransferSummary = { succeeded: 0, skipped: 0, failed: 0 };
+    const succeededSources: string[] = [];
+    const failedReasons: string[] = [];
+
+    if (relativeSources.length === 0) {
+      return { summary, succeededSources, failedReasons, abortedByUser: false };
+    }
+
+    const initialResult = await performTransferRequest(mode, relativeSources, destination, destinationSpace);
+    const initialSucceeded = initialResult.succeeded ?? [];
+    const initialSkipped = initialResult.skipped ?? [];
+    const initialFailed = initialResult.failed ?? [];
+
+    summary.succeeded += initialSucceeded.length;
+    summary.skipped += initialSkipped.length;
+    summary.failed += initialFailed.filter((item) => !isDestinationConflictFailure(item)).length;
+    succeededSources.push(...initialSucceeded);
+
+    initialFailed
+      .filter((item) => !isDestinationConflictFailure(item))
+      .forEach((item) => {
+        const failurePath = item.path ?? '(unknown)';
+        failedReasons.push(`${failurePath}: ${item.reason ?? `${getTransferVerb(mode)} 실패`}`);
+      });
+
+    const conflictQueue = initialFailed
+      .filter(isDestinationConflictFailure)
+      .map((item) => item.path)
+      .filter((path): path is string => typeof path === 'string' && path.length > 0);
+
+    let abortedByUser = false;
+    while (conflictQueue.length > 0) {
+      const currentSource = conflictQueue.shift();
+      if (!currentSource) {
+        continue;
+      }
+
+      const conflictSelection = await promptTransferConflictSelection(mode, currentSource, conflictQueue.length);
+      if (!conflictSelection) {
+        const unresolvedSources = [currentSource, ...conflictQueue];
+        summary.failed += unresolvedSources.length;
+        unresolvedSources.forEach((sourcePath) => {
+          failedReasons.push(`${sourcePath}: 사용자 중단으로 미처리`);
+        });
+        conflictQueue.length = 0;
+        abortedByUser = true;
+        break;
+      }
+
+      if (conflictSelection.applyToRemaining) {
+        const batchSources = [currentSource, ...conflictQueue];
+        conflictQueue.length = 0;
+
+        const retriedBatch = await performTransferRequest(
+          mode,
+          batchSources,
+          destination,
+          destinationSpace,
+          conflictSelection.policy
+        );
+
+        const retriedSucceeded = retriedBatch.succeeded ?? [];
+        const retriedSkipped = retriedBatch.skipped ?? [];
+        const retriedFailed = retriedBatch.failed ?? [];
+
+        summary.succeeded += retriedSucceeded.length;
+        summary.skipped += retriedSkipped.length;
+        summary.failed += retriedFailed.length;
+        succeededSources.push(...retriedSucceeded);
+
+        retriedFailed.forEach((item) => {
+          const failurePath = item.path ?? '(unknown)';
+          failedReasons.push(`${failurePath}: ${item.reason ?? `${getTransferVerb(mode)} 실패`}`);
+        });
+        continue;
+      }
+
+      const retriedSingle = await performTransferRequest(
+        mode,
+        [currentSource],
+        destination,
+        destinationSpace,
+        conflictSelection.policy
+      );
+      const retriedSucceeded = retriedSingle.succeeded ?? [];
+      const retriedSkipped = retriedSingle.skipped ?? [];
+      const retriedFailed = retriedSingle.failed ?? [];
+
+      summary.succeeded += retriedSucceeded.length;
+      summary.skipped += retriedSkipped.length;
+      summary.failed += retriedFailed.length;
+      succeededSources.push(...retriedSucceeded);
+
+      retriedFailed.forEach((item) => {
+        const failurePath = item.path ?? '(unknown)';
+        failedReasons.push(`${failurePath}: ${item.reason ?? `${getTransferVerb(mode)} 실패`}`);
+      });
+    }
+
+    return { summary, succeededSources, failedReasons, abortedByUser };
+  }, [performTransferRequest, promptTransferConflictSelection]);
 
   // 파일 업로드 실행 함수
   const performUpload = useCallback(
@@ -479,46 +743,38 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       const dstSpace = destinationSpace ?? selectedSpace;
 
       try {
-        const relativeSources = sources.map(s => normalizeRelativePath(s));
-        const relativeDestination = normalizeRelativePath(destination);
+        const { summary, succeededSources, failedReasons, abortedByUser } = await executeTransfer(
+          'move',
+          sources,
+          destination,
+          destinationSpace
+        );
 
-        const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/move`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sources: relativeSources,
-            destination: {
-              spaceId: dstSpace.id,
-              path: relativeDestination,
-            },
-          }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to move');
+        const shouldRefresh = summary.succeeded > 0 || summary.failed > 0;
+        if (shouldRefresh) {
+          await refreshContents();
+          invalidateTree([
+            ...succeededSources.map((source) => createInvalidationTarget(getParentPath(source), selectedSpace)),
+            createInvalidationTarget(destination, dstSpace),
+          ]);
         }
 
-        const result = await response.json();
-        const succeededCount = result.succeeded?.length || 0;
-        const failedCount = result.failed?.length || 0;
-
-        if (failedCount > 0) {
-          message.warning(`${succeededCount}개 이동 완료, ${failedCount}개 실패`);
-        } else {
-          message.success(`${succeededCount}개 항목이 이동되었습니다`);
+        const summaryMessage = `이동 결과: 성공 ${summary.succeeded}개 / 건너뜀 ${summary.skipped}개 / 실패 ${summary.failed}개`;
+        if (abortedByUser) {
+          message.warning(`${summaryMessage} (사용자 중단)`);
+          return;
         }
-
-        await refreshContents();
-        invalidateTree([
-          ...sources.map((source) => createInvalidationTarget(getParentPath(source), selectedSpace)),
-          createInvalidationTarget(destination, dstSpace),
-        ]);
+        if (summary.failed > 0) {
+          const firstFailure = failedReasons[0] ? ` - ${failedReasons[0]}` : '';
+          message.warning(`${summaryMessage}${firstFailure}`);
+          return;
+        }
+        message.success(summaryMessage);
       } catch (error) {
         message.error(error instanceof Error ? error.message : '이동 실패');
       }
     },
-    [selectedSpace, refreshContents, message, invalidateTree]
+    [selectedSpace, refreshContents, message, invalidateTree, executeTransfer]
   );
 
   // 복사 처리 (cross-Space 지원)
@@ -533,43 +789,35 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       const dstSpace = destinationSpace ?? selectedSpace;
 
       try {
-        const relativeSources = sources.map(s => normalizeRelativePath(s));
-        const relativeDestination = normalizeRelativePath(destination);
+        const { summary, failedReasons, abortedByUser } = await executeTransfer(
+          'copy',
+          sources,
+          destination,
+          destinationSpace
+        );
 
-        const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/copy`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sources: relativeSources,
-            destination: {
-              spaceId: dstSpace.id,
-              path: relativeDestination,
-            },
-          }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to copy');
+        const shouldRefresh = summary.succeeded > 0 || summary.failed > 0;
+        if (shouldRefresh) {
+          await refreshContents();
+          invalidateTree([createInvalidationTarget(destination, dstSpace)]);
         }
 
-        const result = await response.json();
-        const succeededCount = result.succeeded?.length || 0;
-        const failedCount = result.failed?.length || 0;
-
-        if (failedCount > 0) {
-          message.warning(`${succeededCount}개 복사 완료, ${failedCount}개 실패`);
-        } else {
-          message.success(`${succeededCount}개 항목이 복사되었습니다`);
+        const summaryMessage = `복사 결과: 성공 ${summary.succeeded}개 / 건너뜀 ${summary.skipped}개 / 실패 ${summary.failed}개`;
+        if (abortedByUser) {
+          message.warning(`${summaryMessage} (사용자 중단)`);
+          return;
         }
-
-        await refreshContents();
-        invalidateTree([createInvalidationTarget(destination, dstSpace)]);
+        if (summary.failed > 0) {
+          const firstFailure = failedReasons[0] ? ` - ${failedReasons[0]}` : '';
+          message.warning(`${summaryMessage}${firstFailure}`);
+          return;
+        }
+        message.success(summaryMessage);
       } catch (error) {
         message.error(error instanceof Error ? error.message : '복사 실패');
       }
     },
-    [selectedSpace, refreshContents, message, invalidateTree]
+    [selectedSpace, refreshContents, message, invalidateTree, executeTransfer]
   );
 
   // 단일 삭제 처리

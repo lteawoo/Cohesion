@@ -9,6 +9,7 @@ interface DestinationPickerModalProps {
   sourceCount: number;
   sources: string[];
   currentPath: string;
+  currentSpace?: Space;
   onConfirm: (destination: string, destinationSpace?: Space) => void;
   onCancel: () => void;
 }
@@ -19,6 +20,7 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   sourceCount,
   sources,
   currentPath,
+  currentSpace,
   onConfirm,
   onCancel,
 }) => {
@@ -26,26 +28,38 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   const [selectedDestination, setSelectedDestination] = useState<string>('');
   const [selectedDestinationSpace, setSelectedDestinationSpace] = useState<Space | undefined>();
 
+  const handleAfterOpenChange = (open: boolean) => {
+    if (!open) {
+      return;
+    }
+    setSelectedDestination(currentPath);
+    setSelectedDestinationSpace(currentSpace);
+  };
+
   const handleOk = () => {
     if (!selectedDestination) {
       message.warning('대상 폴더를 선택하세요');
       return;
     }
 
+    const currentSpaceId = currentSpace?.id ?? null;
+    const destinationSpaceId = selectedDestinationSpace?.id ?? currentSpaceId;
+    const isSameSpaceDestination = currentSpaceId !== null && destinationSpaceId === currentSpaceId;
+
     // 현재 경로로는 이동/복사 불가
-    if (selectedDestination === currentPath) {
+    if (isSameSpaceDestination && selectedDestination === currentPath) {
       message.error('같은 위치로 이동/복사할 수 없습니다');
       return;
     }
 
     // 소스 경로 중 하나로는 이동/복사 불가
-    if (sources.includes(selectedDestination)) {
+    if (isSameSpaceDestination && sources.includes(selectedDestination)) {
       message.error('선택한 항목으로 이동/복사할 수 없습니다');
       return;
     }
 
     // 소스가 폴더이고, 대상이 소스의 하위 디렉토리인지 확인
-    const isSubdirectory = sources.some(source => {
+    const isSubdirectory = isSameSpaceDestination && sources.some(source => {
       return selectedDestination.startsWith(source + '/');
     });
     if (isSubdirectory) {
@@ -82,12 +96,23 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
     return leafName ?? '선택됨';
   }, [selectedDestination, selectedDestinationSpace]);
 
+  const treeSelectedKeys = useMemo<React.Key[]>(() => {
+    if (!selectedDestinationSpace) {
+      return [];
+    }
+    if (!selectedDestination) {
+      return [`space-${selectedDestinationSpace.id}`];
+    }
+    return [`space-${selectedDestinationSpace.id}::${selectedDestination}`];
+  }, [selectedDestination, selectedDestinationSpace]);
+
   return (
     <Modal
       title={`${mode === 'move' ? '이동' : '복사'} - ${sourceCount}개 항목`}
       open={visible}
       onOk={handleOk}
       onCancel={handleCancel}
+      afterOpenChange={handleAfterOpenChange}
       maskClosable={false}
       styles={{ mask: { pointerEvents: 'auto' } }}
       okText={mode === 'move' ? '이동' : '복사'}
@@ -100,6 +125,7 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
       <div style={{ border: `1px solid ${token.colorBorder}`, borderRadius: '4px', padding: '8px', maxHeight: '400px', overflow: 'auto' }}>
         <FolderTree
           onSelect={handleSelect}
+          selectedKeys={treeSelectedKeys}
         />
       </div>
       {selectedDestination && (

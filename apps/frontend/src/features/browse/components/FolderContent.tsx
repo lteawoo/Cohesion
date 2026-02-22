@@ -1182,6 +1182,7 @@ const FolderContent: React.FC = () => {
         sourceCount={modals.destination.data.sources.length}
         sources={modals.destination.data.sources}
         currentPath={selectedPath}
+        currentSpace={selectedSpace}
         onConfirm={modals.destination.data.mode === 'move' ? handleMoveConfirm : handleCopyConfirm}
         onCancel={handleDestinationCancel}
       />
