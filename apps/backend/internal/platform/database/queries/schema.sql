@@ -11,6 +11,23 @@ CREATE TABLE IF NOT EXISTS space (
     updated_user_id TEXT
 );
 
+CREATE TABLE IF NOT EXISTS trash_items (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    space_id      INTEGER NOT NULL,
+    original_path TEXT NOT NULL,
+    storage_path  TEXT NOT NULL,
+    item_name     TEXT NOT NULL,
+    is_dir        INTEGER NOT NULL DEFAULT 0,
+    item_size     INTEGER NOT NULL DEFAULT 0,
+    deleted_by    TEXT NOT NULL,
+    deleted_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (space_id, storage_path),
+    FOREIGN KEY (space_id) REFERENCES space(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_trash_items_space_deleted_at
+    ON trash_items(space_id, deleted_at DESC);
+
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT NOT NULL UNIQUE,

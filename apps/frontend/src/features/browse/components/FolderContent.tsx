@@ -6,7 +6,7 @@ import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { useBreadcrumb } from '../hooks/useBreadcrumb';
-import { useFileOperations } from '../hooks/useFileOperations';
+import { useFileOperations, type TrashItem } from '../hooks/useFileOperations';
 import { useDragAndDrop } from '../hooks/useDragAndDrop';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useBoxSelection } from '../hooks/useBoxSelection';
@@ -18,6 +18,7 @@ import FolderContentTable from './FolderContent/FolderContentTable';
 import FolderContentGrid from './FolderContent/FolderContentGrid';
 import RenameModal from './FolderContent/RenameModal';
 import CreateFolderModal from './FolderContent/CreateFolderModal';
+import TrashModal from './FolderContent/TrashModal';
 import UploadOverlay from './FolderContent/UploadOverlay';
 import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
 import { useAuth } from '@/features/auth/useAuth';
@@ -37,7 +38,7 @@ const EMPTY_SELECTION = new Set<string>();
 const SEARCH_MODE_HELP_TEXT = '2글자 이상 입력하면 전체 Space 검색 결과를 확인할 수 있습니다.';
 
 const FolderContent: React.FC = () => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const { token } = theme.useToken();
   const location = useLocation();
   const navigate = useNavigate();
@@ -60,6 +61,8 @@ const FolderContent: React.FC = () => {
   const browseError = useBrowseStore((state) => state.error);
   const setPath = useBrowseStore((state) => state.setPath);
   const fetchSpaceContents = useBrowseStore((state) => state.fetchSpaceContents);
+  const trashOpenRequest = useBrowseStore((state) => state.trashOpenRequest);
+  const clearTrashOpenRequest = useBrowseStore((state) => state.clearTrashOpenRequest);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rootContainerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +82,11 @@ const FolderContent: React.FC = () => {
   const [isPathOverflow, setIsPathOverflow] = useState(false);
   const [overlayOffset, setOverlayOffset] = useState({ x: 0, y: 0 });
   const [navigationState, setNavigationState] = useState<NavigationState>({ entries: [], index: -1 });
+  const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+  const [selectedTrashIds, setSelectedTrashIds] = useState<number[]>([]);
+  const [isTrashLoading, setIsTrashLoading] = useState(false);
+  const [isTrashProcessing, setIsTrashProcessing] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
   const suppressTapUntilRef = useRef(0);
@@ -131,6 +139,10 @@ const FolderContent: React.FC = () => {
     handleCreateFolder: performCreateFolder,
     handleDelete,
     handleBulkDelete,
+    fetchTrashItems,
+    handleTrashRestore,
+    handleTrashDelete,
+    handleTrashEmpty,
     handleMove,
     handleCopy,
     handleBulkDownload,
@@ -334,7 +346,7 @@ const FolderContent: React.FC = () => {
   }, [navigationState, handleNavigate]);
 
   const isAnyModalOpen =
-    modals.destination.visible || modals.rename.visible || modals.createFolder.visible;
+    modals.destination.visible || modals.rename.visible || modals.createFolder.visible || isTrashModalOpen;
 
   // Box selection (Grid 뷰 전용)
   const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
@@ -363,6 +375,14 @@ const FolderContent: React.FC = () => {
   useEffect(() => {
     selectedItemsRef.current = selectedItems;
   }, [selectedItems]);
+
+  useEffect(() => {
+    if (!selectedSpace || isSearchMode) {
+      setIsTrashModalOpen(false);
+      setTrashItems([]);
+      setSelectedTrashIds([]);
+    }
+  }, [isSearchMode, selectedSpace]);
 
   useEffect(() => {
     return () => {
@@ -694,6 +714,155 @@ const FolderContent: React.FC = () => {
     }, 0);
   };
 
+  const refreshCurrentFolder = useCallback(async () => {
+    if (!selectedSpace || isSearchMode) {
+      return;
+    }
+    await fetchSpaceContents(selectedSpace.id, selectedPath);
+  }, [fetchSpaceContents, isSearchMode, selectedPath, selectedSpace]);
+
+  const loadTrashItems = useCallback(async () => {
+    if (!selectedSpace) {
+      return;
+    }
+    setIsTrashLoading(true);
+    try {
+      const items = await fetchTrashItems();
+      setTrashItems(items);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '휴지통 목록 조회 실패');
+    } finally {
+      setIsTrashLoading(false);
+    }
+  }, [fetchTrashItems, message, selectedSpace]);
+
+  const handleOpenTrash = useCallback(() => {
+    if (!selectedSpace) {
+      message.error('Space가 선택되지 않았습니다');
+      return;
+    }
+    setIsTrashModalOpen(true);
+    setSelectedTrashIds([]);
+    void loadTrashItems();
+  }, [loadTrashItems, message, selectedSpace]);
+
+  useEffect(() => {
+    if (!trashOpenRequest || !selectedSpace) {
+      return;
+    }
+    if (trashOpenRequest.spaceId !== selectedSpace.id) {
+      return;
+    }
+    handleOpenTrash();
+    clearTrashOpenRequest();
+  }, [clearTrashOpenRequest, handleOpenTrash, selectedSpace, trashOpenRequest]);
+
+  const handleCloseTrash = useCallback(() => {
+    if (isTrashProcessing) {
+      return;
+    }
+    setIsTrashModalOpen(false);
+    setSelectedTrashIds([]);
+  }, [isTrashProcessing]);
+
+  const handleTrashRestoreConfirm = useCallback(() => {
+    if (selectedTrashIds.length === 0) {
+      message.warning('복원할 항목을 선택하세요');
+      return;
+    }
+
+    modal.confirm({
+      title: '복원 확인',
+      content: `선택한 ${selectedTrashIds.length}개 항목을 복원하시겠습니까?`,
+      okText: '복원',
+      cancelText: '취소',
+      onOk: async () => {
+        setIsTrashProcessing(true);
+        try {
+          await handleTrashRestore(selectedTrashIds);
+          await loadTrashItems();
+          await refreshCurrentFolder();
+          setSelectedTrashIds([]);
+        } finally {
+          setIsTrashProcessing(false);
+        }
+      },
+    });
+  }, [
+    handleTrashRestore,
+    loadTrashItems,
+    message,
+    modal,
+    refreshCurrentFolder,
+    selectedTrashIds,
+  ]);
+
+  const handleTrashDeleteConfirm = useCallback(() => {
+    if (selectedTrashIds.length === 0) {
+      message.warning('영구 삭제할 항목을 선택하세요');
+      return;
+    }
+
+    modal.confirm({
+      title: '영구 삭제 확인',
+      content: `선택한 ${selectedTrashIds.length}개 항목을 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`,
+      okText: '영구 삭제',
+      okType: 'danger',
+      cancelText: '취소',
+      onOk: async () => {
+        setIsTrashProcessing(true);
+        try {
+          await handleTrashDelete(selectedTrashIds);
+          await loadTrashItems();
+          await refreshCurrentFolder();
+          setSelectedTrashIds([]);
+        } finally {
+          setIsTrashProcessing(false);
+        }
+      },
+    });
+  }, [
+    handleTrashDelete,
+    loadTrashItems,
+    message,
+    modal,
+    refreshCurrentFolder,
+    selectedTrashIds,
+  ]);
+
+  const handleTrashEmptyConfirm = useCallback(() => {
+    if (trashItems.length === 0) {
+      message.info('휴지통이 비어 있습니다');
+      return;
+    }
+
+    modal.confirm({
+      title: '휴지통 비우기',
+      content: `휴지통 항목 ${trashItems.length}개를 모두 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`,
+      okText: '비우기',
+      okType: 'danger',
+      cancelText: '취소',
+      onOk: async () => {
+        setIsTrashProcessing(true);
+        try {
+          await handleTrashEmpty();
+          await loadTrashItems();
+          await refreshCurrentFolder();
+          setSelectedTrashIds([]);
+        } finally {
+          setIsTrashProcessing(false);
+        }
+      },
+    });
+  }, [
+    handleTrashEmpty,
+    loadTrashItems,
+    message,
+    modal,
+    refreshCurrentFolder,
+    trashItems.length,
+  ]);
+
   // File input handlers
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -945,7 +1114,7 @@ const FolderContent: React.FC = () => {
             )}
             {canWriteFiles && (
               <Button size="small" icon={<DeleteOutlined />} danger onClick={() => handleBulkDelete(Array.from(selectedItems))}>
-                삭제
+                휴지통 이동
               </Button>
             )}
           </div>
@@ -1187,6 +1356,23 @@ const FolderContent: React.FC = () => {
         onCancel={handleDestinationCancel}
       />
 
+      <TrashModal
+        open={isTrashModalOpen}
+        spaceName={selectedSpace?.space_name}
+        items={trashItems}
+        selectedIds={selectedTrashIds}
+        loading={isTrashLoading}
+        processing={isTrashProcessing}
+        onSelectionChange={(ids) => setSelectedTrashIds(ids)}
+        onRefresh={() => {
+          void loadTrashItems();
+        }}
+        onRestore={handleTrashRestoreConfirm}
+        onDelete={handleTrashDeleteConfirm}
+        onEmpty={handleTrashEmptyConfirm}
+        onClose={handleCloseTrash}
+      />
+
       <BottomSheet
         open={showMobileSelectionBar && isMobileActionsOpen}
         onClose={() => setIsMobileActionsOpen(false)}
@@ -1261,7 +1447,7 @@ const FolderContent: React.FC = () => {
                 ? [{
                     key: 'delete',
                     icon: <DeleteOutlined />,
-                    label: '삭제',
+                    label: '휴지통 이동',
                     danger: true,
                     onClick: () => {
                       armToolbarInteractionGuard();

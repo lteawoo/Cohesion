@@ -5,6 +5,7 @@ interface SidePanelShellProps {
   leftAction?: React.ReactNode;
   rightAction?: React.ReactNode;
   bodyClassName?: string;
+  footer?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -13,10 +14,11 @@ const SidePanelShell: React.FC<SidePanelShellProps> = ({
   leftAction,
   rightAction,
   bodyClassName,
+  footer,
   children,
 }) => {
   return (
-    <>
+    <div className="layout-sider-shell">
       <div className="layout-sider-header">
         <div className="layout-sider-header-main">
           {leftAction ? <div className="layout-sider-header-action">{leftAction}</div> : null}
@@ -27,7 +29,8 @@ const SidePanelShell: React.FC<SidePanelShellProps> = ({
       <div className={`layout-sider-body${bodyClassName ? ` ${bodyClassName}` : ''}`}>
         {children}
       </div>
-    </>
+      {footer ? <div className="layout-sider-footer">{footer}</div> : null}
+    </div>
   );
 };
 

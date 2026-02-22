@@ -100,7 +100,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
                 {
                   key: 'delete',
                   icon: <DeleteOutlined />,
-                  label: '삭제',
+                  label: '휴지통으로 이동',
                   danger: true,
                 },
               ]

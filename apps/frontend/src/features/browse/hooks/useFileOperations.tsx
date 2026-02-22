@@ -10,12 +10,27 @@ type TransferMode = 'move' | 'copy';
 type TransferConflictPolicy = 'overwrite' | 'rename' | 'skip';
 type UploadSource = File | File[] | FileList;
 type UploadStatus = 'uploaded' | 'skipped';
+type TrashConflictPolicy = 'overwrite' | 'rename' | 'skip';
+
+export interface TrashItem {
+  id: number;
+  originalPath: string;
+  itemName: string;
+  isDir: boolean;
+  itemSize: number;
+  deletedBy: string;
+  deletedAt: string;
+}
 
 interface UseFileOperationsReturn {
   handleRename: (oldPath: string, newName: string) => Promise<void>;
   handleCreateFolder: (parentPath: string, folderName: string) => Promise<void>;
   handleDelete: (record: { path: string; name: string; isDir: boolean }) => Promise<void>;
   handleBulkDelete: (paths: string[]) => Promise<void>;
+  fetchTrashItems: () => Promise<TrashItem[]>;
+  handleTrashRestore: (ids: number[]) => Promise<void>;
+  handleTrashDelete: (ids: number[]) => Promise<void>;
+  handleTrashEmpty: () => Promise<void>;
   handleMove: (sources: string[], destination: string, destinationSpace?: Space) => Promise<void>;
   handleCopy: (sources: string[], destination: string, destinationSpace?: Space) => Promise<void>;
   handleBulkDownload: (paths: string[]) => Promise<void>;
@@ -74,6 +89,52 @@ interface TransferConflictSelection {
   applyToRemaining: boolean;
 }
 
+interface TrashListResponsePayload {
+  items?: TrashItem[];
+}
+
+interface TrashRestoreSuccessPayload {
+  id?: number;
+  originalPath?: string;
+}
+
+interface TrashRestoreFailurePayload {
+  id?: number;
+  originalPath?: string;
+  reason?: string;
+  code?: string;
+}
+
+interface TrashRestoreResponsePayload {
+  succeeded?: TrashRestoreSuccessPayload[];
+  skipped?: TrashRestoreSuccessPayload[];
+  failed?: TrashRestoreFailurePayload[];
+}
+
+interface TrashDeleteSuccessPayload {
+  id?: number;
+}
+
+interface TrashDeleteFailurePayload {
+  id?: number;
+  reason?: string;
+}
+
+interface TrashDeleteResponsePayload {
+  succeeded?: TrashDeleteSuccessPayload[];
+  failed?: TrashDeleteFailurePayload[];
+}
+
+interface TrashEmptyFailurePayload {
+  id?: number;
+  reason?: string;
+}
+
+interface TrashEmptyResponsePayload {
+  removed?: number;
+  failed?: TrashEmptyFailurePayload[];
+}
+
 function normalizeRelativePath(path: string): string {
   return path.replace(/^\/+/, '').replace(/\/+$/, '');
 }
@@ -119,7 +180,7 @@ function getTransferVerb(mode: TransferMode): string {
   return mode === 'move' ? '이동' : '복사';
 }
 
-function isDestinationConflictFailure(item: TransferFailurePayload): boolean {
+function isDestinationConflictFailure(item: { code?: string }): boolean {
   return item.code === 'destination_exists';
 }
 
@@ -260,6 +321,86 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       });
     });
   }, [modal]);
+
+  const promptTrashConflictPolicy = useCallback((conflictCount: number): Promise<TrashConflictPolicy | null> => {
+    return new Promise((resolve) => {
+      let selectedPolicy: TrashConflictPolicy = 'overwrite';
+      let settled = false;
+      const settle = (value: TrashConflictPolicy | null) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve(value);
+      };
+
+      modal.confirm({
+        title: '복원 충돌 처리',
+        content: (
+          <AntSpace direction="vertical" size={12} style={{ width: '100%' }}>
+            <Typography.Text>
+              복원 대상 중 {conflictCount}개 항목이 기존 경로와 충돌합니다.
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              충돌 항목 처리 정책을 선택하세요.
+            </Typography.Text>
+            <Radio.Group
+              defaultValue="overwrite"
+              onChange={(event) => {
+                selectedPolicy = event.target.value as TrashConflictPolicy;
+              }}
+            >
+              <AntSpace direction="vertical" size={8}>
+                <Radio value="overwrite">덮어쓰기</Radio>
+                <Radio value="rename">이름 변경</Radio>
+                <Radio value="skip">건너뛰기</Radio>
+              </AntSpace>
+            </Radio.Group>
+          </AntSpace>
+        ),
+        okText: '적용',
+        cancelText: '복원 중단',
+        onOk: () => {
+          settle(selectedPolicy);
+        },
+        onCancel: () => {
+          settle(null);
+        },
+      });
+    });
+  }, [modal]);
+
+  const performTrashRestoreRequest = useCallback(async (
+    ids: number[],
+    conflictPolicy?: TrashConflictPolicy
+  ): Promise<TrashRestoreResponsePayload> => {
+    if (!selectedSpace) {
+      throw new Error('Space가 선택되지 않았습니다');
+    }
+
+    const payload: { ids: number[]; conflictPolicy?: TrashConflictPolicy } = { ids };
+    if (conflictPolicy) {
+      payload.conflictPolicy = conflictPolicy;
+    }
+
+    const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/trash-restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorMessage = await readErrorMessage(response, '휴지통 복원 실패');
+      throw new Error(errorMessage);
+    }
+
+    return (await response.json()) as TrashRestoreResponsePayload;
+  }, [readErrorMessage, selectedSpace]);
+
+  const summarizeTrashRestoreFailure = useCallback((item: TrashRestoreFailurePayload): string => {
+    const targetPath = item.originalPath ?? `#${item.id ?? 'unknown'}`;
+    return `${targetPath}: ${item.reason ?? '복원 실패'}`;
+  }, []);
 
   const executeTransfer = useCallback(async (
     mode: TransferMode,
@@ -681,15 +822,15 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     [selectedSpace, message, readErrorMessage]
   );
 
-  // 다중 삭제 처리
+  // 다중 휴지통 이동 처리
   const handleBulkDelete = useCallback(
     async (paths: string[]) => {
       if (paths.length === 0) return;
 
       modal.confirm({
-        title: '삭제 확인',
-        content: `선택한 ${paths.length}개 항목을 삭제하시겠습니까?`,
-        okText: '삭제',
+        title: '휴지통 이동 확인',
+        content: `선택한 ${paths.length}개 항목을 휴지통으로 이동하시겠습니까?`,
+        okText: '이동',
         okType: 'danger',
         cancelText: '취소',
         onOk: async () => {
@@ -707,7 +848,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
             if (!response.ok) {
               const error = await response.json();
-              throw new Error(error.message || 'Failed to delete');
+              throw new Error(error.message || '휴지통 이동 실패');
             }
 
             const result = await response.json();
@@ -715,21 +856,172 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
             const failedCount = result.failed?.length || 0;
 
             if (failedCount > 0) {
-              message.warning(`${succeededCount}개 삭제 완료, ${failedCount}개 실패`);
+              message.warning(`${succeededCount}개 휴지통 이동 완료, ${failedCount}개 실패`);
             } else {
-              message.success(`${succeededCount}개 항목이 삭제되었습니다`);
+              message.success(`${succeededCount}개 항목이 휴지통으로 이동되었습니다`);
             }
 
             await refreshContents();
             invalidateTree(paths.map((path) => createInvalidationTarget(getParentPath(path), selectedSpace)));
           } catch (error) {
-            message.error(error instanceof Error ? error.message : '삭제 실패');
+            message.error(error instanceof Error ? error.message : '휴지통 이동 실패');
           }
         },
       });
     },
     [selectedSpace, refreshContents, message, modal, invalidateTree]
   );
+
+  const fetchTrashItems = useCallback(async (): Promise<TrashItem[]> => {
+    if (!selectedSpace) {
+      throw new Error('Space가 선택되지 않았습니다');
+    }
+
+    const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/trash`, {
+      method: 'GET',
+    });
+    if (!response.ok) {
+      const errorMessage = await readErrorMessage(response, '휴지통 목록 조회 실패');
+      throw new Error(errorMessage);
+    }
+
+    const payload = (await response.json()) as TrashListResponsePayload;
+    return Array.isArray(payload.items) ? payload.items : [];
+  }, [readErrorMessage, selectedSpace]);
+
+  const handleTrashRestore = useCallback(async (ids: number[]) => {
+    if (ids.length === 0) {
+      return;
+    }
+
+    try {
+      const firstResult = await performTrashRestoreRequest(ids);
+      const initialSucceeded = firstResult.succeeded ?? [];
+      const initialSkipped = firstResult.skipped ?? [];
+      const initialFailed = firstResult.failed ?? [];
+
+      let succeededCount = initialSucceeded.length;
+      let skippedCount = initialSkipped.length;
+      const failedReasons: string[] = initialFailed
+        .filter((item) => !isDestinationConflictFailure(item))
+        .map(summarizeTrashRestoreFailure);
+
+      const conflictItems = initialFailed.filter(isDestinationConflictFailure);
+      if (conflictItems.length > 0) {
+        const conflictIds: number[] = [];
+        conflictItems.forEach((item) => {
+          if (typeof item.id === 'number') {
+            conflictIds.push(item.id);
+            return;
+          }
+          failedReasons.push(summarizeTrashRestoreFailure(item));
+        });
+
+        if (conflictIds.length > 0) {
+          const conflictPolicy = await promptTrashConflictPolicy(conflictIds.length);
+          if (!conflictPolicy) {
+            failedReasons.push(
+              ...conflictItems
+                .filter((item) => typeof item.id === 'number')
+                .map(summarizeTrashRestoreFailure)
+            );
+            const unresolvedCount = conflictItems.length;
+            const summaryMessage =
+              `복원 결과: 성공 ${succeededCount}개 / 건너뜀 ${skippedCount}개 / 실패 ${failedReasons.length}개` +
+              ` (충돌 ${unresolvedCount}개 미처리)`;
+            message.warning(summaryMessage);
+            return;
+          }
+
+          const retriedResult = await performTrashRestoreRequest(conflictIds, conflictPolicy);
+          const retriedSucceeded = retriedResult.succeeded ?? [];
+          const retriedSkipped = retriedResult.skipped ?? [];
+          const retriedFailed = retriedResult.failed ?? [];
+
+          succeededCount += retriedSucceeded.length;
+          skippedCount += retriedSkipped.length;
+          failedReasons.push(...retriedFailed.map(summarizeTrashRestoreFailure));
+        }
+      }
+
+      const failedCount = failedReasons.length;
+      const summaryMessage = `복원 결과: 성공 ${succeededCount}개 / 건너뜀 ${skippedCount}개 / 실패 ${failedCount}개`;
+      if (failedCount > 0) {
+        const firstFailure = failedReasons[0] ? ` - ${failedReasons[0]}` : '';
+        message.warning(`${summaryMessage}${firstFailure}`);
+        return;
+      }
+      message.success(summaryMessage);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '휴지통 복원 실패');
+    }
+  }, [message, performTrashRestoreRequest, promptTrashConflictPolicy, summarizeTrashRestoreFailure]);
+
+  const handleTrashDelete = useCallback(async (ids: number[]) => {
+    if (ids.length === 0) {
+      return;
+    }
+
+    if (!selectedSpace) {
+      message.error('Space가 선택되지 않았습니다');
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/trash-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!response.ok) {
+        const errorMessage = await readErrorMessage(response, '휴지통 영구 삭제 실패');
+        throw new Error(errorMessage);
+      }
+
+      const payload = (await response.json()) as TrashDeleteResponsePayload;
+      const succeededCount = payload.succeeded?.length ?? 0;
+      const failed = payload.failed ?? [];
+      if (failed.length > 0) {
+        const firstFailure = failed[0]?.reason ? ` - ${failed[0].reason}` : '';
+        message.warning(`영구 삭제 결과: 성공 ${succeededCount}개 / 실패 ${failed.length}개${firstFailure}`);
+        return;
+      }
+
+      message.success(`${succeededCount}개 항목을 영구 삭제했습니다`);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '휴지통 영구 삭제 실패');
+    }
+  }, [message, readErrorMessage, selectedSpace]);
+
+  const handleTrashEmpty = useCallback(async () => {
+    if (!selectedSpace) {
+      message.error('Space가 선택되지 않았습니다');
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/trash-empty`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorMessage = await readErrorMessage(response, '휴지통 비우기 실패');
+        throw new Error(errorMessage);
+      }
+
+      const payload = (await response.json()) as TrashEmptyResponsePayload;
+      const removed = typeof payload.removed === 'number' ? payload.removed : 0;
+      const failed = payload.failed ?? [];
+      if (failed.length > 0) {
+        const firstFailure = failed[0]?.reason ? ` - ${failed[0].reason}` : '';
+        message.warning(`휴지통 비우기 결과: 제거 ${removed}개 / 실패 ${failed.length}개${firstFailure}`);
+        return;
+      }
+      message.success(`휴지통 비우기 완료 (${removed}개)`);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '휴지통 비우기 실패');
+    }
+  }, [message, readErrorMessage, selectedSpace]);
 
   // 이동 처리 (cross-Space 지원)
   const handleMove = useCallback(
@@ -820,15 +1112,15 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     [selectedSpace, refreshContents, message, invalidateTree, executeTransfer]
   );
 
-  // 단일 삭제 처리
+  // 단일 휴지통 이동 처리
   const handleDelete = useCallback(
     async (record: { path: string; name: string; isDir: boolean }) => {
       modal.confirm({
-        title: '삭제 확인',
-        content: `"${record.name}"을(를) 삭제하시겠습니까?${
-          record.isDir ? ' (폴더 내 모든 파일도 삭제됩니다)' : ''
+        title: '휴지통 이동 확인',
+        content: `"${record.name}"을(를) 휴지통으로 이동하시겠습니까?${
+          record.isDir ? ' (폴더 내 모든 파일이 함께 이동됩니다)' : ''
         }`,
-        okText: '삭제',
+        okText: '이동',
         okType: 'danger',
         cancelText: '취소',
         onOk: async () => {
@@ -845,14 +1137,14 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
             if (!response.ok) {
               const error = await response.json();
-              throw new Error(error.message || 'Failed to delete');
+              throw new Error(error.message || '휴지통 이동 실패');
             }
 
-            message.success('삭제되었습니다');
+            message.success('휴지통으로 이동되었습니다');
             await refreshContents();
             invalidateTree([createInvalidationTarget(getParentPath(record.path), selectedSpace)]);
           } catch (error) {
-            message.error(error instanceof Error ? error.message : '삭제 실패');
+            message.error(error instanceof Error ? error.message : '휴지통 이동 실패');
           }
         },
       });
@@ -865,6 +1157,10 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     handleCreateFolder,
     handleDelete,
     handleBulkDelete,
+    fetchTrashItems,
+    handleTrashRestore,
+    handleTrashDelete,
+    handleTrashEmpty,
     handleMove,
     handleCopy,
     handleBulkDownload,

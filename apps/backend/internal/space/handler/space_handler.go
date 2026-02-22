@@ -30,6 +30,7 @@ type SpaceAccessService interface {
 
 type Handler struct {
 	spaceService      *space.Service
+	trashService      *space.TrashService
 	browseService     BrowseService
 	accountService    SpaceAccessService
 	ticketMu          sync.Mutex
@@ -38,9 +39,15 @@ type Handler struct {
 }
 
 // 의존성 주입 생성자 생성
-func NewHandler(spaceService *space.Service, browseService BrowseService, accountService SpaceAccessService) *Handler {
+func NewHandler(spaceService *space.Service, browseService BrowseService, accountService SpaceAccessService, trashService ...*space.TrashService) *Handler {
+	var resolvedTrashService *space.TrashService
+	if len(trashService) > 0 {
+		resolvedTrashService = trashService[0]
+	}
+
 	return &Handler{
 		spaceService:      spaceService,
+		trashService:      resolvedTrashService,
 		browseService:     browseService,
 		accountService:    accountService,
 		downloadTickets:   make(map[string]downloadTicket),
@@ -294,6 +301,13 @@ func (h *Handler) handleSpaceBrowse(w http.ResponseWriter, r *http.Request, spac
 
 	// 상대 경로 가져오기
 	relativePath := r.URL.Query().Get("path")
+	if err := ensurePathOutsideTrash(relativePath); err != nil {
+		return &web.Error{
+			Code:    http.StatusForbidden,
+			Message: "Access denied: invalid path",
+			Err:     err,
+		}
+	}
 
 	// 절대 경로 계산
 	absolutePath := filepath.Join(spaceData.SpacePath, relativePath)

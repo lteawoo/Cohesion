@@ -14,6 +14,11 @@ export interface TreeInvalidationTarget {
   spaceId?: number;
 }
 
+interface TrashOpenRequest {
+  spaceId: number;
+  nonce: number;
+}
+
 interface BrowseStore {
   selectedPath: string;
   selectedSpace: Space | undefined;
@@ -22,11 +27,14 @@ interface BrowseStore {
   error: Error | null;
   treeRefreshVersion: number;
   treeInvalidationTargets: TreeInvalidationTarget[];
+  trashOpenRequest: TrashOpenRequest | null;
 
   setPath: (path: string, space?: Space) => void;
   fetchSystemContents: (path: string) => Promise<void>;
   fetchSpaceContents: (spaceId: number, relativePath: string) => Promise<void>;
   invalidateTree: (targets?: TreeInvalidationTarget[]) => void;
+  requestOpenTrash: (spaceId: number) => void;
+  clearTrashOpenRequest: () => void;
   clearContent: () => void;
 }
 
@@ -45,6 +53,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
   error: null,
   treeRefreshVersion: 0,
   treeInvalidationTargets: [],
+  trashOpenRequest: null,
 
   setPath: (path: string, space?: Space) => {
     set((state) => {
@@ -113,7 +122,20 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
     }));
   },
 
+  requestOpenTrash: (spaceId: number) => {
+    set((state) => ({
+      trashOpenRequest: {
+        spaceId,
+        nonce: (state.trashOpenRequest?.nonce ?? 0) + 1,
+      },
+    }));
+  },
+
+  clearTrashOpenRequest: () => {
+    set({ trashOpenRequest: null });
+  },
+
   clearContent: () => {
-    set({ content: [], selectedPath: '', selectedSpace: undefined });
+    set({ content: [], selectedPath: '', selectedSpace: undefined, trashOpenRequest: null });
   },
 }));

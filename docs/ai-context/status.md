@@ -1,6 +1,92 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **휴지통 진입 UI/범위 재구성 (2026-02-22)**:
+    - 프론트:
+      - 스페이스 트리 내부 휴지통 노드를 제거하고, 사이드패널 최하단 고정 `휴지통` 버튼으로 진입점을 이동.
+      - `/trash` 화면을 단일 Space 기준에서 `연결된 전체 Space` 통합 조회/처리 구조로 전환.
+        - 조회: 각 Space의 `/files/trash`를 병렬 호출 후 병합 정렬.
+        - 액션: 선택 항목을 Space별로 그룹화해 `복원/영구삭제` 호출, `비우기`는 모든 Space 대상으로 실행.
+      - 휴지통 화면 상단 `탐색기로` 버튼 제거(휴지통 작업 집중형 툴바로 단순화).
+      - `/trash` 진입 시 스페이스 트리 선택 상태는 비워 UI 충돌(선택된 Space vs 전역 휴지통)을 제거.
+    - 구현 파일:
+      - `apps/frontend/src/components/layout/MainLayout/MainSider.tsx`
+      - `apps/frontend/src/components/common/SidePanelShell.tsx`
+      - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+      - `apps/frontend/src/features/browse/components/TrashExplorer.tsx`
+      - `apps/frontend/src/assets/css/global.css`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+      - 브라우저 실측 스크린샷:
+        - `/tmp/cohesion-trash-footer-global.png`
+
+- **휴지통 내부 경로 우회 접근 차단 보강 (2026-02-22)**:
+    - 백엔드:
+      - 일반 파일/브라우즈 경로에서 예약 디렉토리 `.cohesion_trash` 접근을 차단하는 가드 추가.
+      - 적용 범위:
+        - browse 경로(`handleSpaceBrowse`)
+        - 다운로드/다운로드 티켓
+        - 이름변경/폴더생성/업로드
+        - 이동/복사(source/destination)
+        - 다중 다운로드/티켓
+      - 구현 파일:
+        - `apps/backend/internal/space/handler/file_handler.go`
+        - `apps/backend/internal/space/handler/space_handler.go`
+      - 테스트 추가:
+        - `TestTrash_InternalTrashPathIsBlockedFromRegularBrowseAndDownload`
+        - 파일: `apps/backend/internal/space/handler/file_handler_trash_test.go`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+
+- **파일 삭제 문구 정합화 (2026-02-22)**:
+    - 프론트 파일 작업 UI에서 `삭제` 문구를 실제 동작에 맞게 `휴지통 이동`으로 보정.
+    - 변경 범위:
+      - 삭제 확인 모달 제목/본문/확인 버튼 문구
+      - 선택 툴바/컨텍스트 메뉴/행 액션 메뉴의 삭제 라벨
+      - 삭제 실패 fallback 문구(`휴지통 이동 실패`)
+    - 구현 파일:
+      - `apps/frontend/src/features/browse/hooks/useFileOperations.tsx`
+      - `apps/frontend/src/features/browse/constants.tsx`
+      - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+      - `apps/frontend/src/features/browse/components/FolderContent/FolderContentTable.tsx`
+      - `apps/frontend/src/features/browse/components/FolderContent/FolderContentSelectionBar.tsx`
+
+- **휴지통(Soft Delete) + 복원 기능 구현 완료 (#123, 2026-02-22)**:
+    - 백엔드:
+      - 삭제 API를 즉시 영구삭제에서 휴지통 이동으로 전환.
+        - `handleFileDelete`, `handleFileDeleteMultiple` -> soft delete 처리
+      - 휴지통 API 추가:
+        - `GET /api/spaces/{id}/files/trash`
+        - `POST /api/spaces/{id}/files/trash-restore`
+        - `POST /api/spaces/{id}/files/trash-delete`
+        - `POST /api/spaces/{id}/files/trash-empty`
+      - `trash_items` 스키마/스토어/서비스 도입.
+      - 구현 파일:
+        - `apps/backend/internal/platform/database/queries/schema.sql`
+        - `apps/backend/internal/space/trash.go`
+        - `apps/backend/internal/space/trash_service.go`
+        - `apps/backend/internal/space/store/trash_store.go`
+        - `apps/backend/internal/space/handler/file_handler.go`
+        - `apps/backend/internal/space/handler/space_handler.go`
+        - `apps/backend/main.go`
+      - 테스트 추가:
+        - `apps/backend/internal/space/handler/file_handler_trash_test.go`
+    - 프론트:
+      - 파일 삭제 메시지를 `휴지통 이동` 의미로 변경.
+      - 툴바에 휴지통 진입 버튼 추가.
+      - 휴지통 모달(조회/복원/영구삭제/비우기) 추가.
+      - 복원 충돌 시 정책 선택(`overwrite|rename|skip`) UX 추가.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/hooks/useFileOperations.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent/FolderContentToolbar.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent/TrashModal.tsx`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+
 - **복사/이동 충돌 정책 2차 확장 완료 (2026-02-22)**:
     - 백엔드:
       - `move/copy` API에 `conflictPolicy`(`overwrite|rename|skip`) 파라미터를 추가.

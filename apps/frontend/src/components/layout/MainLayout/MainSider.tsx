@@ -1,6 +1,6 @@
 import DirectorySetupModal from "@/features/space/components/DirectorySetupModal";
 import FolderTree from "@/features/browse/components/FolderTree";
-import { PlusOutlined, CloseOutlined } from "@ant-design/icons";
+import { PlusOutlined, CloseOutlined, DeleteOutlined } from "@ant-design/icons";
 import { Button, Layout, theme, App } from "antd";
 import type { Space } from "@/features/space/types";
 import { useMemo, useState } from "react";
@@ -9,7 +9,7 @@ import { useSpaceStore } from "@/stores/spaceStore";
 import { useBrowseStore } from "@/stores/browseStore";
 import { useAuth } from "@/features/auth/useAuth";
 import SidePanelShell from "@/components/common/SidePanelShell";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 const { Sider } = Layout;
 
@@ -24,7 +24,9 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
   const { token } = theme.useToken();
   const { message, modal } = App.useApp();
   const location = useLocation();
+  const navigate = useNavigate();
   const isSearchMode = location.pathname === "/search";
+  const isTrashMode = location.pathname === "/trash";
   const { user } = useAuth();
   const canWriteSpaces = (user?.permissions ?? []).includes("space.write");
   const [isOpen, setIsOpen] = useState(false);
@@ -33,7 +35,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
   const selectedSpace = useBrowseStore((state) => state.selectedSpace);
   const [isDeleting, setIsDeleting] = useState(false);
   const treeSelectedKeys = useMemo<Key[]>(() => {
-    if (isSearchMode) {
+    if (isSearchMode || isTrashMode) {
       return [];
     }
     if (!selectedSpace) {
@@ -43,7 +45,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
       return [`space-${selectedSpace.id}`];
     }
     return [`space-${selectedSpace.id}::${selectedPath}`];
-  }, [isSearchMode, selectedPath, selectedSpace]);
+  }, [isSearchMode, isTrashMode, selectedPath, selectedSpace]);
 
   const handleDeleteSpace = (space: Space) => {
     modal.confirm({
@@ -68,6 +70,13 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
 
   const handleSelect = (path: string, space?: Space) => {
     (onPathSelect || (() => {}))(path, space);
+    onAfterSelect?.();
+  };
+
+  const handleOpenTrash = () => {
+    if (location.pathname !== "/trash") {
+      navigate("/trash");
+    }
     onAfterSelect?.();
   };
 
@@ -100,6 +109,19 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
             title="Space 추가"
           />
         ) : null}
+        footer={(
+          <Button
+            type="text"
+            icon={<DeleteOutlined />}
+            className={`layout-sider-footer-action${isTrashMode ? " layout-sider-footer-action-active" : ""}`}
+            onClick={handleOpenTrash}
+            aria-label="휴지통"
+            title="휴지통"
+            block
+          >
+            휴지통
+          </Button>
+        )}
       >
         <FolderTree
           onSelect={handleSelect}

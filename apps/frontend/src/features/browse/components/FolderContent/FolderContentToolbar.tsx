@@ -1,6 +1,12 @@
 import React from 'react';
 import { Space as AntSpace, Button, Select, theme } from 'antd';
-import { UploadOutlined, UnorderedListOutlined, AppstoreOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
+import {
+  UploadOutlined,
+  UnorderedListOutlined,
+  AppstoreOutlined,
+  LeftOutlined,
+  RightOutlined,
+} from '@ant-design/icons';
 import type { ViewMode, SortConfig } from '../../types';
 import { SORT_OPTIONS } from '../../constants';
 
