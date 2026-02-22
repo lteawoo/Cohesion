@@ -36,3 +36,18 @@ func TestRequiredPermissionForRequest_RoleEndpoints(t *testing.T) {
 		})
 	}
 }
+
+func TestRequiredPermissionForRequest_SearchEndpoint(t *testing.T) {
+	req := &http.Request{
+		Method: http.MethodGet,
+		URL:    &url.URL{Path: "/api/search/files"},
+	}
+
+	got, ok := requiredPermissionForRequest(req)
+	if !ok {
+		t.Fatal("expected permission mapping for search endpoint")
+	}
+	if got != PermissionFileRead {
+		t.Fatalf("expected %q, got %q", PermissionFileRead, got)
+	}
+}

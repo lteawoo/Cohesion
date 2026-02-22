@@ -61,6 +61,9 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 		}
 		return PermissionSpaceRead, true
 	}
+	if path == "/api/search/files" && method == http.MethodGet {
+		return PermissionFileRead, true
+	}
 
 	if path == "/api/spaces" {
 		if method == http.MethodGet {

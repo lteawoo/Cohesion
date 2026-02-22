@@ -15,6 +15,10 @@ export default function App() {
             path="/"
             element={<FileExplorer />}
           />
+          <Route
+            path="/search"
+            element={<FileExplorer />}
+          />
         </Route>
         <Route
           path="/settings"

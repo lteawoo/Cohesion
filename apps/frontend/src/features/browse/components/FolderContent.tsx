@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
 import { Empty, App, Grid, Button, Menu, theme, Breadcrumb, Spin, Alert } from 'antd';
 import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
+import { useLocation } from 'react-router';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { useFileSelection } from '../hooks/useFileSelection';
@@ -21,6 +22,9 @@ import UploadOverlay from './FolderContent/UploadOverlay';
 import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
 import { useAuth } from '@/features/auth/useAuth';
 import BottomSheet from '@/components/common/BottomSheet';
+import { formatDate, formatSize } from '../constants';
+import { useSearchExplorerSource } from '@/features/search/hooks/useSearchExplorerSource';
+import type { SearchFileResult } from '@/features/search/types';
 
 const LONG_PRESS_DURATION_MS = 420;
 const TOUCH_PAN_THRESHOLD_PX = 8;
@@ -28,15 +32,19 @@ const PATH_BAR_HEIGHT = 36;
 const EXPLORER_SIDE_PADDING = 16;
 const PATH_BAR_CONTENT_OVERLAY_HEIGHT = PATH_BAR_HEIGHT - EXPLORER_SIDE_PADDING;
 type NavigationState = { entries: string[]; index: number };
+const EMPTY_SELECTION = new Set<string>();
+const SEARCH_MODE_HELP_TEXT = '2글자 이상 입력하면 전체 Space 검색 결과를 확인할 수 있습니다.';
 
 const FolderContent: React.FC = () => {
   const { message } = App.useApp();
   const { token } = theme.useToken();
+  const location = useLocation();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
+  const isSearchMode = location.pathname === '/search';
   const { user } = useAuth();
   const permissions = user?.permissions ?? [];
-  const canWriteFiles = permissions.includes('file.write');
+  const canWriteFiles = !isSearchMode && permissions.includes('file.write');
 
   // Store selectors
   const selectedPath = useBrowseStore((state) => state.selectedPath);
@@ -80,6 +88,24 @@ const FolderContent: React.FC = () => {
 
   // Custom hooks
   const { selectedItems, handleItemClick, setSelection, clearSelection } = useFileSelection();
+  const searchSource = useSearchExplorerSource(isSearchMode);
+  const searchItemsByRowPath = useMemo(() => {
+    const next = new Map<string, SearchFileResult>();
+    searchSource.results.forEach((item) => {
+      next.set(`${item.spaceId}::${item.path}`, item);
+    });
+    return next;
+  }, [searchSource.results]);
+  const searchContent = useMemo<FileNode[]>(() => {
+    return searchSource.results.map((item) => ({
+      name: item.name,
+      path: `${item.spaceId}::${item.path}`,
+      isDir: item.isDir,
+      modTime: item.modTime,
+      size: item.size,
+    }));
+  }, [searchSource.results]);
+  const sourceContent = isSearchMode ? searchContent : content;
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current) {
@@ -128,11 +154,26 @@ const FolderContent: React.FC = () => {
     setPath(path, space);
   }, [selectedSpace, setPath]);
 
-  const { breadcrumbItems } = useBreadcrumb({
+  const { breadcrumbItems: browseBreadcrumbItems } = useBreadcrumb({
     selectedPath,
     selectedSpace,
     onNavigate: handleNavigate,
   });
+  const breadcrumbItems = useMemo(() => {
+    if (!isSearchMode) {
+      return browseBreadcrumbItems;
+    }
+
+    const queryText = searchSource.query.trim();
+    if (!queryText) {
+      return [{ key: 'search-root', title: <span>검색</span> }];
+    }
+
+    return [
+      { key: 'search-root', title: <span>검색</span> },
+      { key: `search-query:${queryText}`, title: <span>"{queryText}"</span> },
+    ];
+  }, [browseBreadcrumbItems, isSearchMode, searchSource.query]);
 
   const compactBreadcrumbItems = useMemo(() => {
     if (!isPathOverflow || breadcrumbItems.length <= 3) {
@@ -149,7 +190,7 @@ const FolderContent: React.FC = () => {
   }, [breadcrumbItems, isPathOverflow]);
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
-  const sortedContent = useSortedContent(content, sortConfig);
+  const sortedContent = useSortedContent(sourceContent, sortConfig);
 
   const { handleContextMenu, handleEmptyAreaContextMenu } = useContextMenu({
     selectedItems,
@@ -173,7 +214,7 @@ const FolderContent: React.FC = () => {
   });
 
   useEffect(() => {
-    if (selectedSpace) {
+    if (!isSearchMode && selectedSpace) {
       useBrowseStore.getState().fetchSpaceContents(selectedSpace.id, selectedPath);
     }
 
@@ -190,7 +231,7 @@ const FolderContent: React.FC = () => {
     }
 
     prevNavRef.current = currentNav;
-  }, [selectedPath, selectedSpace, handleClearSelection, modals.destination.visible]);
+  }, [selectedPath, selectedSpace, handleClearSelection, isSearchMode, modals.destination.visible]);
 
   useEffect(() => {
     let frame: number | null = null;
@@ -199,6 +240,16 @@ const FolderContent: React.FC = () => {
         setNavigationState(updater);
       });
     };
+
+    if (isSearchMode) {
+      scheduleNavigationUpdate({ entries: [], index: -1 });
+      historySpaceIdRef.current = undefined;
+      return () => {
+        if (frame !== null) {
+          window.cancelAnimationFrame(frame);
+        }
+      };
+    }
 
     if (!selectedSpace) {
       scheduleNavigationUpdate({ entries: [], index: -1 });
@@ -245,7 +296,7 @@ const FolderContent: React.FC = () => {
         window.cancelAnimationFrame(frame);
       }
     };
-  }, [selectedPath, selectedSpace]);
+  }, [isSearchMode, selectedPath, selectedSpace]);
 
   const handleGoBack = useCallback(() => {
     if (navigationState.index <= 0) {
@@ -274,7 +325,7 @@ const FolderContent: React.FC = () => {
 
   // Box selection (Grid 뷰 전용)
   const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
-    enabled: viewMode === 'grid' && !isMobile && !isAnyModalOpen,
+    enabled: !isSearchMode && viewMode === 'grid' && !isMobile && !isAnyModalOpen,
     startAreaRef: rootContainerRef,
     startAreaOutsetPx: 16,
     containerRef: selectionContainerRef,
@@ -393,9 +444,35 @@ const FolderContent: React.FC = () => {
     suppressTapUntilRef.current = Date.now() + 700;
   }, []);
 
+  const resolveSearchResult = useCallback((recordPath: string): SearchFileResult | null => {
+    return searchItemsByRowPath.get(recordPath) ?? null;
+  }, [searchItemsByRowPath]);
+
+  const openSearchResultByRecordPath = useCallback((recordPath: string) => {
+    const item = resolveSearchResult(recordPath);
+    if (!item) {
+      return;
+    }
+    searchSource.openResult(item);
+  }, [resolveSearchResult, searchSource]);
+
+  const renderSearchMeta = useCallback((record: FileNode) => {
+    const item = resolveSearchResult(record.path);
+    if (!item) {
+      return `${record.isDir ? '-' : formatSize(record.size)} | ${formatDate(record.modTime)}`;
+    }
+    const sizeText = item.isDir ? '-' : formatSize(item.size);
+    return `${sizeText} | ${formatDate(item.modTime)} | ${item.spaceName}`;
+  }, [resolveSearchResult]);
+
+  const isSearching = isSearchMode && searchSource.isSearching;
+  const activeErrorMessage = isSearchMode
+    ? searchSource.errorMessage
+    : (browseError?.message ?? null);
+  const activeLoading = isSearchMode ? isSearching : isLoading;
   const showMobileSelectionBar =
-    isMobile && selectedItems.size > 0;
-  const showDesktopSelectionBar = !isMobile && selectedItems.size > 0;
+    !isSearchMode && isMobile && selectedItems.size > 0;
+  const showDesktopSelectionBar = !isSearchMode && !isMobile && selectedItems.size > 0;
   const topRowHeight = isMobile ? 44 : 52;
   const topRowOffset = 8;
   const topRowSlotHeight = topRowHeight + topRowOffset;
@@ -412,21 +489,21 @@ const FolderContent: React.FC = () => {
   );
 
   const hasContent = sortedContent.length > 0;
-  const shouldShowCenteredLoading = isLoading && !hasContent;
-  const shouldShowInlineError = !isLoading && hasContent && Boolean(browseError);
-  const shouldShowFullError = !isLoading && !hasContent && Boolean(browseError);
-  const shouldShowEmpty = !isLoading && !browseError && !hasContent;
-  const shouldShowLoadingOverlay = isLoading && hasContent;
+  const shouldShowCenteredLoading = activeLoading && !hasContent;
+  const shouldShowInlineError = !activeLoading && hasContent && Boolean(activeErrorMessage);
+  const shouldShowFullError = !activeLoading && !hasContent && Boolean(activeErrorMessage);
+  const shouldShowEmpty = !activeLoading && !activeErrorMessage && !hasContent;
+  const shouldShowLoadingOverlay = !isSearchMode && isLoading && hasContent;
 
   const handleRetryContentLoad = useCallback(() => {
-    if (!selectedSpace) {
+    if (isSearchMode || !selectedSpace) {
       return;
     }
     void fetchSpaceContents(selectedSpace.id, selectedPath);
-  }, [fetchSpaceContents, selectedPath, selectedSpace]);
+  }, [fetchSpaceContents, isSearchMode, selectedPath, selectedSpace]);
 
   const handleMobileLongPressStart = useCallback((record: FileNode) => {
-    if (!isMobile || isMobileSelectionMode) {
+    if (isSearchMode || !isMobile || isMobileSelectionMode) {
       return;
     }
     clearLongPressTimer();
@@ -438,7 +515,7 @@ const FolderContent: React.FC = () => {
       setIsMobileSelectionMode(true);
       setSelection(new Set([record.path]));
     }, LONG_PRESS_DURATION_MS);
-  }, [isMobile, isMobileSelectionMode, clearLongPressTimer, setSelection]);
+  }, [isMobile, isMobileSelectionMode, isSearchMode, clearLongPressTimer, setSelection]);
 
   const handleMobileLongPressEnd = useCallback(() => {
     clearLongPressTimer();
@@ -498,6 +575,11 @@ const FolderContent: React.FC = () => {
       return;
     }
 
+    if (isSearchMode) {
+      openSearchResultByRecordPath(record.path);
+      return;
+    }
+
     if (!isMobile) {
       handleItemClick(e, record, index, sortedContent);
       return;
@@ -525,23 +607,34 @@ const FolderContent: React.FC = () => {
       handleClearSelection();
       return;
     }
-  }, [isAnyModalOpen, isMobile, handleItemClick, sortedContent, isMobileSelectionMode, toggleMobileSelection, handleNavigate, handleClearSelection]);
+  }, [
+    isAnyModalOpen,
+    isMobile,
+    isMobileSelectionMode,
+    isSearchMode,
+    handleClearSelection,
+    handleItemClick,
+    handleNavigate,
+    openSearchResultByRecordPath,
+    sortedContent,
+    toggleMobileSelection,
+  ]);
 
   const handleItemContextMenu = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode) => {
-    if (isMobile || isAnyModalOpen) {
+    if (isSearchMode || isMobile || isAnyModalOpen) {
       e.preventDefault();
       return;
     }
     handleContextMenu(e, record);
-  }, [isMobile, isAnyModalOpen, handleContextMenu]);
+  }, [isSearchMode, isMobile, isAnyModalOpen, handleContextMenu]);
 
   const handleContainerContextMenu = useCallback((e: React.MouseEvent) => {
-    if (isMobile || isAnyModalOpen) {
+    if (isSearchMode || isMobile || isAnyModalOpen) {
       e.preventDefault();
       return;
     }
     handleEmptyAreaContextMenu(e);
-  }, [isMobile, isAnyModalOpen, handleEmptyAreaContextMenu]);
+  }, [isSearchMode, isMobile, isAnyModalOpen, handleEmptyAreaContextMenu]);
 
   // Modal wrapper handlers
   const handleRenameConfirm = async () => {
@@ -656,8 +749,8 @@ const FolderContent: React.FC = () => {
     }
   };
 
-  // Early return if no space selected
-  if (!selectedSpace) {
+  // Browse 모드에서만 Space 선택 필수
+  if (!selectedSpace && !isSearchMode) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Empty description="왼쪽 트리나 스페이스에서 폴더를 선택하세요." />
@@ -886,13 +979,21 @@ const FolderContent: React.FC = () => {
           </div>
         ) : shouldShowFullError ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Empty description={browseError?.message ?? '폴더를 불러오지 못했습니다.'}>
-              <Button size="small" onClick={handleRetryContentLoad}>다시 시도</Button>
+            <Empty description={activeErrorMessage ?? (isSearchMode ? '검색 결과를 불러오지 못했습니다.' : '폴더를 불러오지 못했습니다.')}>
+              {!isSearchMode && (
+                <Button size="small" onClick={handleRetryContentLoad}>다시 시도</Button>
+              )}
             </Empty>
           </div>
         ) : shouldShowEmpty ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Empty description="이 폴더는 비어 있습니다." />
+            <Empty
+              description={
+                isSearchMode
+                  ? (searchSource.hasEnoughQuery ? '검색 결과가 없습니다.' : SEARCH_MODE_HELP_TEXT)
+                  : '이 폴더는 비어 있습니다.'
+              }
+            />
           </div>
         ) : (
           <div style={{ position: 'relative', minHeight: '100%' }}>
@@ -901,9 +1002,13 @@ const FolderContent: React.FC = () => {
                 <Alert
                   type="warning"
                   showIcon
-                  message="최신 폴더 정보를 불러오지 못했습니다."
-                  description={browseError?.message}
-                  action={<Button size="small" onClick={handleRetryContentLoad}>재시도</Button>}
+                  message={isSearchMode ? '검색 결과를 일부 불러오지 못했습니다.' : '최신 폴더 정보를 불러오지 못했습니다.'}
+                  description={activeErrorMessage ?? undefined}
+                  action={
+                    !isSearchMode
+                      ? <Button size="small" onClick={handleRetryContentLoad}>재시도</Button>
+                      : undefined
+                  }
                 />
               </div>
             )}
@@ -911,10 +1016,10 @@ const FolderContent: React.FC = () => {
               <FolderContentTable
                 dataSource={sortedContent}
                 loading={false}
-                selectedItems={selectedItems}
-                dragOverFolder={dragOverFolder}
+                selectedItems={isSearchMode ? EMPTY_SELECTION : selectedItems}
+                dragOverFolder={isSearchMode ? null : dragOverFolder}
                 onItemClick={handleItemTap}
-                onItemDoubleClick={handleNavigate}
+                onItemDoubleClick={isSearchMode ? openSearchResultByRecordPath : handleNavigate}
                 onItemTouchStart={(record) => handleMobileLongPressStart(record)}
                 onItemTouchEnd={handleMobileLongPressEnd}
                 onItemTouchCancel={handleMobileLongPressEnd}
@@ -926,20 +1031,24 @@ const FolderContent: React.FC = () => {
                 onFolderDrop={handleFolderDrop}
                 disableDrag
                 canWriteFiles={canWriteFiles}
-                onItemDownload={(record) => handleBulkDownload([record.path])}
-                onItemCopy={(record) => openModal('destination', { mode: 'copy', sources: [record.path] })}
-                onItemMove={(record) => openModal('destination', { mode: 'move', sources: [record.path] })}
-                onItemRename={(record) => openModal('rename', { record, newName: record.name })}
-                onItemDelete={handleDelete}
+                onItemDownload={isSearchMode ? undefined : (record) => handleBulkDownload([record.path])}
+                onItemCopy={isSearchMode ? undefined : (record) => openModal('destination', { mode: 'copy', sources: [record.path] })}
+                onItemMove={isSearchMode ? undefined : (record) => openModal('destination', { mode: 'move', sources: [record.path] })}
+                onItemRename={isSearchMode ? undefined : (record) => openModal('rename', { record, newName: record.name })}
+                onItemDelete={isSearchMode ? undefined : handleDelete}
+                showActions={!isSearchMode}
+                rowKeyResolver={isSearchMode ? ((record) => record.path) : undefined}
+                renderMeta={isSearchMode ? renderSearchMeta : undefined}
+                emptyText={isSearchMode ? (searchSource.hasEnoughQuery ? '검색 결과가 없습니다.' : SEARCH_MODE_HELP_TEXT) : undefined}
               />
             ) : (
               <FolderContentGrid
                 dataSource={sortedContent}
                 loading={false}
-                selectedItems={selectedItems}
-                dragOverFolder={dragOverFolder}
+                selectedItems={isSearchMode ? EMPTY_SELECTION : selectedItems}
+                dragOverFolder={isSearchMode ? null : dragOverFolder}
                 onItemClick={handleItemTap}
-                onItemDoubleClick={handleNavigate}
+                onItemDoubleClick={isSearchMode ? openSearchResultByRecordPath : handleNavigate}
                 onItemTouchStart={(record) => handleMobileLongPressStart(record)}
                 onItemTouchEnd={handleMobileLongPressEnd}
                 onItemTouchCancel={handleMobileLongPressEnd}
@@ -950,8 +1059,8 @@ const FolderContent: React.FC = () => {
                 onFolderDragLeave={handleFolderDragLeave}
                 onFolderDrop={handleFolderDrop}
                 itemsRef={itemsRef}
-                disableDraggable={isSelecting || isMobile || !canWriteFiles}
-                spaceId={selectedSpace?.id}
+                disableDraggable={isSearchMode || isSelecting || isMobile || !canWriteFiles}
+                spaceId={isSearchMode ? undefined : selectedSpace?.id}
               />
             )}
             {shouldShowLoadingOverlay && (
