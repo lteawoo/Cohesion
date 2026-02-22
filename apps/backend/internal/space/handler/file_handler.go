@@ -18,6 +18,20 @@ import (
 	"taeu.kr/cohesion/internal/space"
 )
 
+type uploadConflictPolicy string
+
+const (
+	uploadConflictPolicyOverwrite uploadConflictPolicy = "overwrite"
+	uploadConflictPolicyRename    uploadConflictPolicy = "rename"
+	uploadConflictPolicySkip      uploadConflictPolicy = "skip"
+)
+
+const (
+	fileConflictCodeDestinationExists       = "destination_exists"
+	fileConflictCodeSameDestination         = "same_destination"
+	fileConflictCodeDestinationTypeMismatch = "destination_type_mismatch"
+)
+
 // resolveAbsPath는 Space 경로와 상대 경로를 합쳐 절대 경로를 반환하고 트래버셜 방지 검증을 수행합니다.
 func resolveAbsPath(spacePath, relativePath string) (string, error) {
 	abs := filepath.Join(spacePath, relativePath)
@@ -25,6 +39,132 @@ func resolveAbsPath(spacePath, relativePath string) (string, error) {
 		return "", fmt.Errorf("path traversal detected")
 	}
 	return abs, nil
+}
+
+func resolveUploadConflictPolicy(raw string, overwriteLegacy bool) (uploadConflictPolicy, bool, error) {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	if normalized == "" {
+		if overwriteLegacy {
+			return uploadConflictPolicyOverwrite, true, nil
+		}
+		return "", false, nil
+	}
+
+	policy := uploadConflictPolicy(normalized)
+	switch policy {
+	case uploadConflictPolicyOverwrite, uploadConflictPolicyRename, uploadConflictPolicySkip:
+		return policy, true, nil
+	default:
+		return "", false, fmt.Errorf("invalid conflict policy: %s", raw)
+	}
+}
+
+func resolveUploadRenamePath(destPath string) (string, string, error) {
+	dir := filepath.Dir(destPath)
+	base := filepath.Base(destPath)
+	nameWithoutExt := base
+	ext := ""
+	if strings.HasPrefix(base, ".") && strings.Count(base, ".") == 1 {
+		nameWithoutExt = base
+	} else {
+		ext = filepath.Ext(base)
+		nameWithoutExt = strings.TrimSuffix(base, ext)
+	}
+
+	for i := 1; ; i++ {
+		candidateName := fmt.Sprintf("%s (%d)%s", nameWithoutExt, i, ext)
+		candidatePath := filepath.Join(dir, candidateName)
+		if _, err := os.Stat(candidatePath); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			return "", "", err
+		}
+		return candidatePath, candidateName, nil
+	}
+}
+
+func resolveUniqueSiblingPath(destPath, purpose string) (string, error) {
+	dir := filepath.Dir(destPath)
+	base := filepath.Base(destPath)
+
+	for i := 1; ; i++ {
+		candidatePath := filepath.Join(dir, fmt.Sprintf(".%s.cohesion-%s-%d", base, purpose, i))
+		if _, err := os.Stat(candidatePath); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+		return candidatePath, nil
+	}
+}
+
+func moveWithDestinationSwap(srcPath, destPath string) error {
+	backupPath, err := resolveUniqueSiblingPath(destPath, "bak")
+	if err != nil {
+		return fmt.Errorf("failed to allocate backup path: %w", err)
+	}
+
+	if err := os.Rename(destPath, backupPath); err != nil {
+		return fmt.Errorf("failed to backup destination: %w", err)
+	}
+
+	if err := os.Rename(srcPath, destPath); err != nil {
+		if restoreErr := os.Rename(backupPath, destPath); restoreErr != nil {
+			return fmt.Errorf("failed to move source: %v; additionally failed to restore destination backup %q: %v", err, backupPath, restoreErr)
+		}
+		return err
+	}
+
+	if removeErr := os.RemoveAll(backupPath); removeErr != nil {
+		log.Printf("[WARN] move overwrite backup cleanup failed: %s: %v", backupPath, removeErr)
+	}
+
+	return nil
+}
+
+func copyWithDestinationSwap(srcPath, destPath string, isDir bool) error {
+	stagedPath, err := resolveUniqueSiblingPath(destPath, "stage")
+	if err != nil {
+		return fmt.Errorf("failed to allocate staging path: %w", err)
+	}
+
+	var copyErr error
+	if isDir {
+		copyErr = copyDir(srcPath, stagedPath)
+	} else {
+		copyErr = copyFile(srcPath, stagedPath)
+	}
+	if copyErr != nil {
+		os.RemoveAll(stagedPath) //nolint:errcheck
+		return copyErr
+	}
+
+	backupPath, err := resolveUniqueSiblingPath(destPath, "bak")
+	if err != nil {
+		os.RemoveAll(stagedPath) //nolint:errcheck
+		return fmt.Errorf("failed to allocate backup path: %w", err)
+	}
+
+	if err := os.Rename(destPath, backupPath); err != nil {
+		os.RemoveAll(stagedPath) //nolint:errcheck
+		return fmt.Errorf("failed to backup destination: %w", err)
+	}
+
+	if err := os.Rename(stagedPath, destPath); err != nil {
+		if restoreErr := os.Rename(backupPath, destPath); restoreErr != nil {
+			return fmt.Errorf("failed to finalize copied data: %v; additionally failed to restore destination backup %q: %v", err, backupPath, restoreErr)
+		}
+		if cleanupErr := os.RemoveAll(stagedPath); cleanupErr != nil {
+			log.Printf("[WARN] copy overwrite staging cleanup failed: %s: %v", stagedPath, cleanupErr)
+		}
+		return err
+	}
+
+	if removeErr := os.RemoveAll(backupPath); removeErr != nil {
+		log.Printf("[WARN] copy overwrite backup cleanup failed: %s: %v", backupPath, removeErr)
+	}
+
+	return nil
 }
 
 // handleSpaceFiles는 /api/spaces/{id}/files/* 요청을 액션별로 분기합니다.
@@ -467,7 +607,7 @@ func (h *Handler) handleFileCreateFolder(w http.ResponseWriter, r *http.Request,
 }
 
 // handleFileUpload: POST /api/spaces/{id}/files/upload
-// multipart form: file, path (상대 경로), overwrite (optional)
+// multipart form: file, path (상대 경로), conflictPolicy (optional: overwrite|rename|skip), overwrite (legacy optional)
 func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, spaceID int64) *web.Error {
 	if r.Method != http.MethodPost {
 		return &web.Error{Code: http.StatusMethodNotAllowed, Message: "Method not allowed"}
@@ -506,12 +646,41 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 	defer file.Close()
 
 	destPath := filepath.Join(absTarget, header.Filename)
-	overwrite := r.FormValue("overwrite") == "true"
+	resultFileName := header.Filename
+	overwriteLegacy := r.FormValue("overwrite") == "true"
+	conflictPolicy, hasConflictPolicy, err := resolveUploadConflictPolicy(r.FormValue("conflictPolicy"), overwriteLegacy)
+	if err != nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid conflict policy", Err: err}
+	}
 
-	if _, err := os.Stat(destPath); err == nil {
-		if !overwrite {
+	if existingInfo, err := os.Stat(destPath); err == nil {
+		if !hasConflictPolicy {
 			return &web.Error{Code: http.StatusConflict, Message: "File already exists"}
 		}
+		switch conflictPolicy {
+		case uploadConflictPolicyOverwrite:
+			if existingInfo.IsDir() {
+				return &web.Error{Code: http.StatusConflict, Message: "Directory already exists"}
+			}
+		case uploadConflictPolicyRename:
+			renamedPath, renamedFileName, resolveErr := resolveUploadRenamePath(destPath)
+			if resolveErr != nil {
+				return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to resolve rename destination", Err: resolveErr}
+			}
+			destPath = renamedPath
+			resultFileName = renamedFileName
+		case uploadConflictPolicySkip:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message":  "Skipped existing file",
+				"filename": header.Filename,
+				"status":   "skipped",
+			})
+			return nil
+		}
+	} else if !os.IsNotExist(err) {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect destination path", Err: err}
 	}
 
 	destFile, err := os.Create(destPath)
@@ -527,7 +696,11 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Successfully uploaded", "filename": header.Filename})
+	json.NewEncoder(w).Encode(map[string]string{
+		"message":  "Successfully uploaded",
+		"filename": resultFileName,
+		"status":   "uploaded",
+	})
 	return nil
 }
 
@@ -544,8 +717,9 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 	}
 
 	var req struct {
-		Sources     []string `json:"sources"`
-		Destination struct {
+		Sources        []string `json:"sources"`
+		ConflictPolicy string   `json:"conflictPolicy,omitempty"`
+		Destination    struct {
 			SpaceID int64  `json:"spaceId"`
 			Path    string `json:"path"`
 		} `json:"destination"`
@@ -555,6 +729,10 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 	}
 	if len(req.Sources) == 0 {
 		return &web.Error{Code: http.StatusBadRequest, Message: "sources array is required and cannot be empty"}
+	}
+	conflictPolicy, hasConflictPolicy, err := resolveUploadConflictPolicy(req.ConflictPolicy, false)
+	if err != nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid conflict policy", Err: err}
 	}
 
 	// 대상 Space 조회 (cross-Space 지원)
@@ -589,8 +767,10 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 	type moveResult struct {
 		Path   string `json:"path"`
 		Reason string `json:"reason,omitempty"`
+		Code   string `json:"code,omitempty"`
 	}
 	succeeded := []string{}
+	skipped := []string{}
 	failed := []moveResult{}
 
 	for _, relSrc := range req.Sources {
@@ -617,8 +797,60 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 		}
 
 		destPath := filepath.Join(absDestDir, filepath.Base(absSrc))
-		if _, err := os.Stat(destPath); err == nil {
-			failed = append(failed, moveResult{Path: relSrc, Reason: "Destination path already exists"})
+		cleanDestPath := filepath.Clean(destPath)
+		if cleanSrc == cleanDestPath {
+			failed = append(failed, moveResult{
+				Path:   relSrc,
+				Reason: "Cannot move to the same destination",
+				Code:   fileConflictCodeSameDestination,
+			})
+			continue
+		}
+
+		if destInfo, statErr := os.Stat(destPath); statErr == nil {
+			if !hasConflictPolicy {
+				failed = append(failed, moveResult{
+					Path:   relSrc,
+					Reason: "Destination path already exists",
+					Code:   fileConflictCodeDestinationExists,
+				})
+				continue
+			}
+
+			switch conflictPolicy {
+			case uploadConflictPolicyOverwrite:
+				srcInfo, srcInfoErr := os.Stat(absSrc)
+				if srcInfoErr != nil {
+					failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to access source: %v", srcInfoErr)})
+					continue
+				}
+				if srcInfo.IsDir() != destInfo.IsDir() {
+					failed = append(failed, moveResult{
+						Path:   relSrc,
+						Reason: "Cannot overwrite destination with different type",
+						Code:   fileConflictCodeDestinationTypeMismatch,
+					})
+					continue
+				}
+				if overwriteErr := moveWithDestinationSwap(absSrc, destPath); overwriteErr != nil {
+					failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to overwrite destination: %v", overwriteErr)})
+					continue
+				}
+				succeeded = append(succeeded, relSrc)
+				continue
+			case uploadConflictPolicyRename:
+				renamedPath, _, renameErr := resolveUploadRenamePath(destPath)
+				if renameErr != nil {
+					failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to resolve rename destination: %v", renameErr)})
+					continue
+				}
+				destPath = renamedPath
+			case uploadConflictPolicySkip:
+				skipped = append(skipped, relSrc)
+				continue
+			}
+		} else if !os.IsNotExist(statErr) {
+			failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to access destination: %v", statErr)})
 			continue
 		}
 
@@ -631,7 +863,11 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{"succeeded": succeeded, "failed": failed})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"succeeded": succeeded,
+		"failed":    failed,
+		"skipped":   skipped,
+	})
 	return nil
 }
 
@@ -648,8 +884,9 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 	}
 
 	var req struct {
-		Sources     []string `json:"sources"`
-		Destination struct {
+		Sources        []string `json:"sources"`
+		ConflictPolicy string   `json:"conflictPolicy,omitempty"`
+		Destination    struct {
 			SpaceID int64  `json:"spaceId"`
 			Path    string `json:"path"`
 		} `json:"destination"`
@@ -659,6 +896,10 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 	}
 	if len(req.Sources) == 0 {
 		return &web.Error{Code: http.StatusBadRequest, Message: "sources array is required and cannot be empty"}
+	}
+	conflictPolicy, hasConflictPolicy, err := resolveUploadConflictPolicy(req.ConflictPolicy, false)
+	if err != nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid conflict policy", Err: err}
 	}
 
 	dstSpaceID := req.Destination.SpaceID
@@ -692,8 +933,10 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 	type copyResult struct {
 		Path   string `json:"path"`
 		Reason string `json:"reason,omitempty"`
+		Code   string `json:"code,omitempty"`
 	}
 	succeeded := []string{}
+	skipped := []string{}
 	failed := []copyResult{}
 
 	for _, relSrc := range req.Sources {
@@ -721,8 +964,55 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 		}
 
 		destPath := filepath.Join(absDestDir, filepath.Base(absSrc))
-		if _, err := os.Stat(destPath); err == nil {
-			failed = append(failed, copyResult{Path: relSrc, Reason: "Destination path already exists"})
+		cleanDestPath := filepath.Clean(destPath)
+		if cleanSrc == cleanDestPath {
+			failed = append(failed, copyResult{
+				Path:   relSrc,
+				Reason: "Cannot copy to the same destination",
+				Code:   fileConflictCodeSameDestination,
+			})
+			continue
+		}
+
+		if destInfo, statErr := os.Stat(destPath); statErr == nil {
+			if !hasConflictPolicy {
+				failed = append(failed, copyResult{
+					Path:   relSrc,
+					Reason: "Destination path already exists",
+					Code:   fileConflictCodeDestinationExists,
+				})
+				continue
+			}
+
+			switch conflictPolicy {
+			case uploadConflictPolicyOverwrite:
+				if sourceInfo.IsDir() != destInfo.IsDir() {
+					failed = append(failed, copyResult{
+						Path:   relSrc,
+						Reason: "Cannot overwrite destination with different type",
+						Code:   fileConflictCodeDestinationTypeMismatch,
+					})
+					continue
+				}
+				if overwriteErr := copyWithDestinationSwap(absSrc, destPath, sourceInfo.IsDir()); overwriteErr != nil {
+					failed = append(failed, copyResult{Path: relSrc, Reason: fmt.Sprintf("Failed to overwrite destination: %v", overwriteErr)})
+					continue
+				}
+				succeeded = append(succeeded, relSrc)
+				continue
+			case uploadConflictPolicyRename:
+				renamedPath, _, renameErr := resolveUploadRenamePath(destPath)
+				if renameErr != nil {
+					failed = append(failed, copyResult{Path: relSrc, Reason: fmt.Sprintf("Failed to resolve rename destination: %v", renameErr)})
+					continue
+				}
+				destPath = renamedPath
+			case uploadConflictPolicySkip:
+				skipped = append(skipped, relSrc)
+				continue
+			}
+		} else if !os.IsNotExist(statErr) {
+			failed = append(failed, copyResult{Path: relSrc, Reason: fmt.Sprintf("Failed to access destination: %v", statErr)})
 			continue
 		}
 
@@ -741,7 +1031,11 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{"succeeded": succeeded, "failed": failed})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"succeeded": succeeded,
+		"failed":    failed,
+		"skipped":   skipped,
+	})
 	return nil
 }
 

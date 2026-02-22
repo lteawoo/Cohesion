@@ -1,6 +1,70 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **복사/이동 충돌 정책 2차 확장 완료 (2026-02-22)**:
+    - 백엔드:
+      - `move/copy` API에 `conflictPolicy`(`overwrite|rename|skip`) 파라미터를 추가.
+      - 충돌 실패 항목에 `code`(`destination_exists` 등)를 포함해 프론트가 문자열 파싱 없이 충돌 타입을 식별하도록 보강.
+      - `skip` 결과를 `skipped` 배열로 반환하고, `overwrite`/`rename` 처리 시 `succeeded/failed/skipped` 집계를 일관화.
+      - 구현 파일:
+        - `apps/backend/internal/space/handler/file_handler.go`
+      - 테스트 추가:
+        - `apps/backend/internal/space/handler/file_handler_move_copy_conflict_test.go`
+    - 프론트:
+      - 이동/복사 실행을 `충돌 감지 -> 사용자 정책 선택 -> 재시도` 흐름으로 확장.
+      - 첫 충돌에서 `덮어쓰기/이름 변경/건너뛰기` 선택 모달을 표시하고, `남은 충돌 항목 동일 적용` 옵션 제공.
+      - 이동/복사 결과를 `성공/건너뜀/실패` 요약으로 표기.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/hooks/useFileOperations.tsx`
+    - UI 보정:
+      - 이동/복사 대상 모달 기본 선택 경로를 현재 경로(`currentPath/currentSpace`)로 초기화.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/DestinationPickerModal.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+      - 브라우저 실측:
+        - 첫 요청(`conflictPolicy` 없음)에서 충돌 감지 후 정책 모달 표시 확인.
+        - 정책 적용 재요청(`conflictPolicy=overwrite`)으로 복사/이동 모두 충돌 해결 확인.
+    - 후속 안정화:
+      - `copy`에서 동일 경로(`source == destination`)에 `overwrite` 정책이 들어와도 원본이 삭제되지 않도록 `same_destination` 가드 추가.
+      - `move/copy overwrite`를 `RemoveAll -> write` 방식에서 `backup/swap` 기반 non-destructive 처리로 전환해 실패 시 기존 대상을 복구하도록 보강.
+      - 이동/복사 결과에서 `성공 0건 + 실패>0건`인 경우에도 목록 새로고침/트리 invalidate를 수행해 UI stale 상태를 방지.
+      - 충돌 모달에서 사용자가 `중단`을 선택하면 남은 미처리 충돌 항목 수를 `실패` 집계에 반영하도록 보정.
+      - 검증:
+        - `TestHandleFileCopy_SameDestinationWithOverwriteDoesNotDeleteSource` 추가 및 통과.
+        - `TestMoveWithDestinationSwap_RestoresDestinationWhenMoveFails` 추가 및 통과.
+        - `cd apps/backend && go test ./internal/space/handler` 통과.
+        - `pnpm -C apps/frontend lint` 통과.
+        - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+
+- **업로드 충돌 정책(#124) 구현 완료 (2026-02-22)**:
+    - 백엔드:
+      - `handleFileUpload`에 `conflictPolicy`(`overwrite|rename|skip`) 파라미터를 추가하고, 기존 `overwrite=true`는 하위호환으로 유지.
+      - 정책 미지정 충돌은 기존처럼 `409`를 유지하고, `rename`은 `파일명 (n).확장자` 규칙으로 서버에서 충돌 없는 경로를 자동 결정.
+      - `skip`은 파일 미작성으로 처리하고 응답 `status`(`uploaded|skipped`)를 반환해 프론트 집계 근거를 제공.
+      - 구현 파일:
+        - `apps/backend/internal/space/handler/file_handler.go`
+      - 테스트 추가:
+        - `apps/backend/internal/space/handler/file_handler_upload_test.go`
+    - 프론트:
+      - 업로드 훅을 단일 파일에서 다중 파일 입력으로 확장하고, 첫 충돌 시 `덮어쓰기/이름 변경/건너뛰기` 정책 모달을 표시.
+      - 사용자가 선택한 정책을 동일 배치의 후속 충돌 파일에 재사용하고, 종료 시 `성공/건너뜀/실패` 요약 토스트를 표시.
+      - 드래그앤드롭/파일 선택 업로드 모두 다중 파일 입력을 지원하도록 연동.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/hooks/useFileOperations.tsx`
+        - `apps/frontend/src/features/browse/hooks/useDragAndDrop.ts`
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+      - UI 실측 스크린샷:
+        - `/tmp/cohesion-upload-conflict-policy-modal.png`
+        - `/tmp/cohesion-upload-conflict-summary.png`
+
 - **검색 모드 그리드/테이블 전환 재개 (2026-02-22)**:
     - 프론트:
       - `FolderContent`의 검색 모드 강제 table 고정을 해제해 `/search`에서도 뷰 토글(`table/grid`)이 동작하도록 복원.
