@@ -1,6 +1,6 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Tree, Spin } from 'antd';
+import { Tree, Spin, Alert, Button } from 'antd';
 import type { GetProps, MenuProps } from 'antd';
 import type { EventDataNode } from 'antd/es/tree';
 import { useContextMenuStore } from '@/stores/contextMenuStore';
@@ -113,6 +113,8 @@ function clearChildrenByKeys(list: TreeDataNode[], keys: Set<string>): TreeDataN
 
 const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, onSpaceDelete }) => {
   const spaces = useSpaceStore((state) => state.spaces);
+  const spaceError = useSpaceStore((state) => state.error);
+  const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
   const treeRefreshVersion = useBrowseStore((state) => state.treeRefreshVersion);
   const treeInvalidationTargets = useBrowseStore((state) => state.treeInvalidationTargets);
   const selectedPath = useBrowseStore((state) => state.selectedPath);
@@ -120,9 +122,10 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const loadingKeysRef = useRef<Set<React.Key>>(new Set());
   const handledRefreshVersionRef = useRef(0);
-  const { isLoading, fetchBaseDirectories, fetchDirectoryContents, fetchSpaceDirectoryContents } = useBrowseApi();
+  const { isLoading, error: browseError, fetchBaseDirectories, fetchDirectoryContents, fetchSpaceDirectoryContents } = useBrowseApi();
   const openContextMenu = useContextMenuStore((state) => state.openContextMenu);
 
   const loadChildrenForKey = useCallback(
@@ -171,6 +174,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
 
         setTreeData((origin) => updateTreeData(origin, key, newChildren));
         setLoadedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
+      } catch {
+        // Error state is managed by useBrowseApi.
       } finally {
         loadingKeysRef.current.delete(key);
       }
@@ -182,39 +187,47 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   useEffect(() => {
     let isMounted = true;
     const loadInitialData = async () => {
-      // showBaseDirectories가 true면 파일 시스템을 최우선으로 표시
-      if (showBaseDirectories) {
-        // base directories 로드 (Space 생성 모달 등에서 사용)
-        const baseDirs = await fetchBaseDirectories();
-        if (isMounted) {
-          setTreeData(convertToFileTreeData(baseDirs));
-          setLoadedKeys([]);
-          setExpandedKeys([]);
+      try {
+        // showBaseDirectories가 true면 파일 시스템을 최우선으로 표시
+        if (showBaseDirectories) {
+          // base directories 로드 (Space 생성 모달 등에서 사용)
+          const baseDirs = await fetchBaseDirectories();
+          if (isMounted) {
+            setTreeData(convertToFileTreeData(baseDirs));
+            setLoadedKeys([]);
+            setExpandedKeys([]);
+          }
+        } else if (rootPath && rootName) {
+          // 단일 Space를 루트 노드로 표시
+          if (isMounted) {
+            setTreeData([{
+              title: rootName,
+              key: rootPath,
+              isLeaf: false,
+            }]);
+            setLoadedKeys([]);
+            setExpandedKeys([]);
+          }
+        } else if (spaces && spaces.length > 0) {
+          // Spaces를 루트 노드로 표시 (메인 사이드바에서 사용)
+          if (isMounted) {
+            setTreeData(spaces.map(space => ({
+              title: space.space_name,
+              key: `space-${space.id}`,
+              isLeaf: false,
+            })));
+            setLoadedKeys([]);
+            setExpandedKeys([]);
+          }
+        } else {
+          // 트리를 비움
+          if (isMounted) {
+            setTreeData([]);
+            setLoadedKeys([]);
+            setExpandedKeys([]);
+          }
         }
-      } else if (rootPath && rootName) {
-        // 단일 Space를 루트 노드로 표시
-        if (isMounted) {
-          setTreeData([{
-            title: rootName,
-            key: rootPath,
-            isLeaf: false,
-          }]);
-          setLoadedKeys([]);
-          setExpandedKeys([]);
-        }
-      } else if (spaces && spaces.length > 0) {
-        // Spaces를 루트 노드로 표시 (메인 사이드바에서 사용)
-        if (isMounted) {
-          setTreeData(spaces.map(space => ({
-            title: space.space_name,
-            key: `space-${space.id}`,
-            isLeaf: false,
-          })));
-          setLoadedKeys([]);
-          setExpandedKeys([]);
-        }
-      } else {
-        // 트리를 비움
+      } catch {
         if (isMounted) {
           setTreeData([]);
           setLoadedKeys([]);
@@ -224,7 +237,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     };
     loadInitialData();
     return () => { isMounted = false; };
-  }, [rootPath, rootName, showBaseDirectories, spaces, fetchBaseDirectories]);
+  }, [rootPath, rootName, showBaseDirectories, spaces, fetchBaseDirectories, reloadNonce]);
 
   // 트리 전체 초기화 요청(legacy fallback)
   useEffect(() => {
@@ -382,7 +395,27 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
   };
 
 
+  const retryTreeLoad = () => {
+    if (!rootPath && !showBaseDirectories) {
+      void fetchSpaces();
+    }
+    setReloadNonce((prev) => prev + 1);
+  };
+
   if (!rootPath && !showBaseDirectories && (!spaces || spaces.length === 0)) {
+    if (spaceError) {
+      return (
+        <div style={{ padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Alert
+            type="error"
+            showIcon
+            message="Space 목록을 불러오지 못했습니다."
+            description={spaceError.message}
+          />
+          <Button size="small" onClick={retryTreeLoad}>다시 시도</Button>
+        </div>
+      );
+    }
     return (
       <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ant-color-text-secondary, #778da9)', fontSize: '12px' }}>
         Space를 선택하세요
@@ -398,34 +431,61 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
     );
   }
 
+  if (browseError && treeData.length === 0) {
+    return (
+      <div style={{ padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <Alert
+          type="error"
+          showIcon
+          message="폴더 트리를 불러오지 못했습니다."
+          description={browseError.message}
+        />
+        <Button size="small" onClick={retryTreeLoad}>다시 시도</Button>
+      </div>
+    );
+  }
+
   return (
-    <Tree.DirectoryTree
-      className="folder-tree"
-      onSelect={handleSelect}
-      onExpand={handleExpand}
-      onRightClick={handleRightClick}
-      treeData={treeData}
-      loadedKeys={loadedKeys}
-      expandedKeys={expandedKeys}
-      showIcon={false}
-      switcherIcon={({ expanded, isLeaf }) => {
-        if (isLeaf) {
-          return <span className="folder-tree-switcher-placeholder" aria-hidden="true" />;
-        }
-        return (
-          <span
-            className="material-symbols-rounded folder-tree-switcher-icon"
-            style={{
-              fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20',
-            }}
-            aria-hidden="true"
-          >
-            {expanded ? 'folder_open' : 'folder'}
-          </span>
-        );
-      }}
-      expandAction={false}
-    />
+    <>
+      {browseError && treeData.length > 0 && (
+        <div style={{ padding: '0 12px 8px' }}>
+          <Alert
+            type="warning"
+            showIcon
+            message="일부 폴더를 불러오지 못했습니다."
+            description={browseError.message}
+            action={<Button size="small" onClick={retryTreeLoad}>재시도</Button>}
+          />
+        </div>
+      )}
+      <Tree.DirectoryTree
+        className="folder-tree"
+        onSelect={handleSelect}
+        onExpand={handleExpand}
+        onRightClick={handleRightClick}
+        treeData={treeData}
+        loadedKeys={loadedKeys}
+        expandedKeys={expandedKeys}
+        showIcon={false}
+        switcherIcon={({ expanded, isLeaf }) => {
+          if (isLeaf) {
+            return <span className="folder-tree-switcher-placeholder" aria-hidden="true" />;
+          }
+          return (
+            <span
+              className="material-symbols-rounded folder-tree-switcher-icon"
+              style={{
+                fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20',
+              }}
+              aria-hidden="true"
+            >
+              {expanded ? 'folder_open' : 'folder'}
+            </span>
+          );
+        }}
+        expandAction={false}
+      />
+    </>
   );
 }
 

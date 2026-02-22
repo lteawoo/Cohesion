@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Space } from '@/features/space/types';
 import { apiFetch } from '@/api/client';
+import { toApiError } from '@/api/error';
 
 interface SpaceStore {
   spaces: Space[];
@@ -14,6 +15,13 @@ interface SpaceStore {
   deleteSpace: (id: number) => Promise<void>;
 }
 
+function normalizeUnknownError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(fallbackMessage);
+}
+
 export const useSpaceStore = create<SpaceStore>((set, get) => ({
   spaces: [],
   selectedSpace: undefined,
@@ -25,12 +33,12 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
     try {
       const response = await apiFetch('/api/spaces');
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw await toApiError(response, 'Space 목록을 불러오지 못했습니다.');
       }
       const data: Space[] = await response.json();
       set({ spaces: data, isLoading: false });
     } catch (e) {
-      set({ error: e as Error, isLoading: false });
+      set({ error: normalizeUnknownError(e, 'Space 목록을 불러오지 못했습니다.'), isLoading: false });
     }
   },
 

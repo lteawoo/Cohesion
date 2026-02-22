@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
-import { Empty, App, Grid, Button, Menu, theme, Breadcrumb } from 'antd';
+import { Empty, App, Grid, Button, Menu, theme, Breadcrumb, Spin, Alert } from 'antd';
 import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
@@ -43,7 +43,9 @@ const FolderContent: React.FC = () => {
   const selectedSpace = useBrowseStore((state) => state.selectedSpace);
   const content = useBrowseStore((state) => state.content);
   const isLoading = useBrowseStore((state) => state.isLoading);
+  const browseError = useBrowseStore((state) => state.error);
   const setPath = useBrowseStore((state) => state.setPath);
+  const fetchSpaceContents = useBrowseStore((state) => state.fetchSpaceContents);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rootContainerRef = useRef<HTMLDivElement>(null);
@@ -408,6 +410,20 @@ const FolderContent: React.FC = () => {
       drive_file_move
     </span>
   );
+
+  const hasContent = sortedContent.length > 0;
+  const shouldShowCenteredLoading = isLoading && !hasContent;
+  const shouldShowInlineError = !isLoading && hasContent && Boolean(browseError);
+  const shouldShowFullError = !isLoading && !hasContent && Boolean(browseError);
+  const shouldShowEmpty = !isLoading && !browseError && !hasContent;
+  const shouldShowLoadingOverlay = isLoading && hasContent;
+
+  const handleRetryContentLoad = useCallback(() => {
+    if (!selectedSpace) {
+      return;
+    }
+    void fetchSpaceContents(selectedSpace.id, selectedPath);
+  }, [fetchSpaceContents, selectedPath, selectedSpace]);
 
   const handleMobileLongPressStart = useCallback((record: FileNode) => {
     if (!isMobile || isMobileSelectionMode) {
@@ -864,54 +880,97 @@ const FolderContent: React.FC = () => {
           paddingBottom: PATH_BAR_CONTENT_OVERLAY_HEIGHT + 6,
         }}
       >
-        {viewMode === 'table' ? (
-          <FolderContentTable
-            dataSource={sortedContent}
-            loading={isLoading}
-            selectedItems={selectedItems}
-            dragOverFolder={dragOverFolder}
-            onItemClick={handleItemTap}
-            onItemDoubleClick={handleNavigate}
-            onItemTouchStart={(record) => handleMobileLongPressStart(record)}
-            onItemTouchEnd={handleMobileLongPressEnd}
-            onItemTouchCancel={handleMobileLongPressEnd}
-            onContextMenu={handleItemContextMenu}
-            onItemDragStart={handleItemDragStart}
-            onItemDragEnd={handleItemDragEnd}
-            onFolderDragOver={handleFolderDragOver}
-            onFolderDragLeave={handleFolderDragLeave}
-            onFolderDrop={handleFolderDrop}
-            disableDrag
-            canWriteFiles={canWriteFiles}
-            onItemDownload={(record) => handleBulkDownload([record.path])}
-            onItemCopy={(record) => openModal('destination', { mode: 'copy', sources: [record.path] })}
-            onItemMove={(record) => openModal('destination', { mode: 'move', sources: [record.path] })}
-            onItemRename={(record) => openModal('rename', { record, newName: record.name })}
-            onItemDelete={handleDelete}
-          />
+        {shouldShowCenteredLoading ? (
+          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Spin size="large" />
+          </div>
+        ) : shouldShowFullError ? (
+          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Empty description={browseError?.message ?? '폴더를 불러오지 못했습니다.'}>
+              <Button size="small" onClick={handleRetryContentLoad}>다시 시도</Button>
+            </Empty>
+          </div>
+        ) : shouldShowEmpty ? (
+          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Empty description="이 폴더는 비어 있습니다." />
+          </div>
         ) : (
-          <>
-            <FolderContentGrid
-              dataSource={sortedContent}
-              loading={isLoading}
-              selectedItems={selectedItems}
-              dragOverFolder={dragOverFolder}
-              onItemClick={handleItemTap}
-              onItemDoubleClick={handleNavigate}
-              onItemTouchStart={(record) => handleMobileLongPressStart(record)}
-              onItemTouchEnd={handleMobileLongPressEnd}
-              onItemTouchCancel={handleMobileLongPressEnd}
-              onContextMenu={handleItemContextMenu}
-              onItemDragStart={handleItemDragStart}
-              onItemDragEnd={handleItemDragEnd}
-              onFolderDragOver={handleFolderDragOver}
-              onFolderDragLeave={handleFolderDragLeave}
-              onFolderDrop={handleFolderDrop}
-              itemsRef={itemsRef}
-              disableDraggable={isSelecting || isMobile || !canWriteFiles}
-              spaceId={selectedSpace?.id}
-            />
-          </>
+          <div style={{ position: 'relative', minHeight: '100%' }}>
+            {shouldShowInlineError && (
+              <div style={{ marginBottom: 12 }}>
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="최신 폴더 정보를 불러오지 못했습니다."
+                  description={browseError?.message}
+                  action={<Button size="small" onClick={handleRetryContentLoad}>재시도</Button>}
+                />
+              </div>
+            )}
+            {viewMode === 'table' ? (
+              <FolderContentTable
+                dataSource={sortedContent}
+                loading={false}
+                selectedItems={selectedItems}
+                dragOverFolder={dragOverFolder}
+                onItemClick={handleItemTap}
+                onItemDoubleClick={handleNavigate}
+                onItemTouchStart={(record) => handleMobileLongPressStart(record)}
+                onItemTouchEnd={handleMobileLongPressEnd}
+                onItemTouchCancel={handleMobileLongPressEnd}
+                onContextMenu={handleItemContextMenu}
+                onItemDragStart={handleItemDragStart}
+                onItemDragEnd={handleItemDragEnd}
+                onFolderDragOver={handleFolderDragOver}
+                onFolderDragLeave={handleFolderDragLeave}
+                onFolderDrop={handleFolderDrop}
+                disableDrag
+                canWriteFiles={canWriteFiles}
+                onItemDownload={(record) => handleBulkDownload([record.path])}
+                onItemCopy={(record) => openModal('destination', { mode: 'copy', sources: [record.path] })}
+                onItemMove={(record) => openModal('destination', { mode: 'move', sources: [record.path] })}
+                onItemRename={(record) => openModal('rename', { record, newName: record.name })}
+                onItemDelete={handleDelete}
+              />
+            ) : (
+              <FolderContentGrid
+                dataSource={sortedContent}
+                loading={false}
+                selectedItems={selectedItems}
+                dragOverFolder={dragOverFolder}
+                onItemClick={handleItemTap}
+                onItemDoubleClick={handleNavigate}
+                onItemTouchStart={(record) => handleMobileLongPressStart(record)}
+                onItemTouchEnd={handleMobileLongPressEnd}
+                onItemTouchCancel={handleMobileLongPressEnd}
+                onContextMenu={handleItemContextMenu}
+                onItemDragStart={handleItemDragStart}
+                onItemDragEnd={handleItemDragEnd}
+                onFolderDragOver={handleFolderDragOver}
+                onFolderDragLeave={handleFolderDragLeave}
+                onFolderDrop={handleFolderDrop}
+                itemsRef={itemsRef}
+                disableDraggable={isSelecting || isMobile || !canWriteFiles}
+                spaceId={selectedSpace?.id}
+              />
+            )}
+            {shouldShowLoadingOverlay && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--ant-color-bg-container, rgba(255, 255, 255, 0.52))',
+                  pointerEvents: 'none',
+                  zIndex: 3,
+                }}
+              >
+                <Spin size="small" />
+              </div>
+            )}
+          </div>
         )}
       </div>
 
