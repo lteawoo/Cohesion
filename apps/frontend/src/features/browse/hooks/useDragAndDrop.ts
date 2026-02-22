@@ -4,7 +4,7 @@ import type { FileNode, DragData } from '../types';
 
 interface UseDragAndDropParams {
   onMove: (sources: string[], destination: string) => Promise<void>;
-  onFileUpload: (file: File, targetPath: string) => Promise<void>;
+  onFileUpload: (files: File[], targetPath: string) => Promise<void>;
   selectedItems: Set<string>;
   currentPath: string;
 }
@@ -167,8 +167,7 @@ export function useDragAndDrop({
       // 1. 외부 파일 업로드 체크
       const files = Array.from(e.dataTransfer.files);
       if (files.length > 0) {
-        // 첫 번째 파일만 업로드
-        await onFileUpload(files[0], currentPath);
+        await onFileUpload(files, currentPath);
         return;
       }
 

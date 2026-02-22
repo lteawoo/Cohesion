@@ -18,6 +18,14 @@ import (
 	"taeu.kr/cohesion/internal/space"
 )
 
+type uploadConflictPolicy string
+
+const (
+	uploadConflictPolicyOverwrite uploadConflictPolicy = "overwrite"
+	uploadConflictPolicyRename    uploadConflictPolicy = "rename"
+	uploadConflictPolicySkip      uploadConflictPolicy = "skip"
+)
+
 // resolveAbsPath는 Space 경로와 상대 경로를 합쳐 절대 경로를 반환하고 트래버셜 방지 검증을 수행합니다.
 func resolveAbsPath(spacePath, relativePath string) (string, error) {
 	abs := filepath.Join(spacePath, relativePath)
@@ -25,6 +33,48 @@ func resolveAbsPath(spacePath, relativePath string) (string, error) {
 		return "", fmt.Errorf("path traversal detected")
 	}
 	return abs, nil
+}
+
+func resolveUploadConflictPolicy(raw string, overwriteLegacy bool) (uploadConflictPolicy, bool, error) {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	if normalized == "" {
+		if overwriteLegacy {
+			return uploadConflictPolicyOverwrite, true, nil
+		}
+		return "", false, nil
+	}
+
+	policy := uploadConflictPolicy(normalized)
+	switch policy {
+	case uploadConflictPolicyOverwrite, uploadConflictPolicyRename, uploadConflictPolicySkip:
+		return policy, true, nil
+	default:
+		return "", false, fmt.Errorf("invalid conflict policy: %s", raw)
+	}
+}
+
+func resolveUploadRenamePath(destPath string) (string, string, error) {
+	dir := filepath.Dir(destPath)
+	base := filepath.Base(destPath)
+	nameWithoutExt := base
+	ext := ""
+	if strings.HasPrefix(base, ".") && strings.Count(base, ".") == 1 {
+		nameWithoutExt = base
+	} else {
+		ext = filepath.Ext(base)
+		nameWithoutExt = strings.TrimSuffix(base, ext)
+	}
+
+	for i := 1; ; i++ {
+		candidateName := fmt.Sprintf("%s (%d)%s", nameWithoutExt, i, ext)
+		candidatePath := filepath.Join(dir, candidateName)
+		if _, err := os.Stat(candidatePath); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			return "", "", err
+		}
+		return candidatePath, candidateName, nil
+	}
 }
 
 // handleSpaceFiles는 /api/spaces/{id}/files/* 요청을 액션별로 분기합니다.
@@ -467,7 +517,7 @@ func (h *Handler) handleFileCreateFolder(w http.ResponseWriter, r *http.Request,
 }
 
 // handleFileUpload: POST /api/spaces/{id}/files/upload
-// multipart form: file, path (상대 경로), overwrite (optional)
+// multipart form: file, path (상대 경로), conflictPolicy (optional: overwrite|rename|skip), overwrite (legacy optional)
 func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, spaceID int64) *web.Error {
 	if r.Method != http.MethodPost {
 		return &web.Error{Code: http.StatusMethodNotAllowed, Message: "Method not allowed"}
@@ -506,12 +556,41 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 	defer file.Close()
 
 	destPath := filepath.Join(absTarget, header.Filename)
-	overwrite := r.FormValue("overwrite") == "true"
+	resultFileName := header.Filename
+	overwriteLegacy := r.FormValue("overwrite") == "true"
+	conflictPolicy, hasConflictPolicy, err := resolveUploadConflictPolicy(r.FormValue("conflictPolicy"), overwriteLegacy)
+	if err != nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid conflict policy", Err: err}
+	}
 
-	if _, err := os.Stat(destPath); err == nil {
-		if !overwrite {
+	if existingInfo, err := os.Stat(destPath); err == nil {
+		if !hasConflictPolicy {
 			return &web.Error{Code: http.StatusConflict, Message: "File already exists"}
 		}
+		switch conflictPolicy {
+		case uploadConflictPolicyOverwrite:
+			if existingInfo.IsDir() {
+				return &web.Error{Code: http.StatusConflict, Message: "Directory already exists"}
+			}
+		case uploadConflictPolicyRename:
+			renamedPath, renamedFileName, resolveErr := resolveUploadRenamePath(destPath)
+			if resolveErr != nil {
+				return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to resolve rename destination", Err: resolveErr}
+			}
+			destPath = renamedPath
+			resultFileName = renamedFileName
+		case uploadConflictPolicySkip:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message":  "Skipped existing file",
+				"filename": header.Filename,
+				"status":   "skipped",
+			})
+			return nil
+		}
+	} else if !os.IsNotExist(err) {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect destination path", Err: err}
 	}
 
 	destFile, err := os.Create(destPath)
@@ -527,7 +606,11 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Successfully uploaded", "filename": header.Filename})
+	json.NewEncoder(w).Encode(map[string]string{
+		"message":  "Successfully uploaded",
+		"filename": resultFileName,
+		"status":   "uploaded",
+	})
 	return nil
 }
 

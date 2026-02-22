@@ -698,7 +698,7 @@ const FolderContent: React.FC = () => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleFileUpload(files[0], selectedPath);
+      void handleFileUpload(Array.from(files), selectedPath);
       e.target.value = '';
     }
   };
@@ -785,6 +785,7 @@ const FolderContent: React.FC = () => {
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         style={{ display: 'none' }}
         onChange={handleFileSelect}
       />

@@ -1,6 +1,31 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **업로드 충돌 정책(#124) 구현 완료 (2026-02-22)**:
+    - 백엔드:
+      - `handleFileUpload`에 `conflictPolicy`(`overwrite|rename|skip`) 파라미터를 추가하고, 기존 `overwrite=true`는 하위호환으로 유지.
+      - 정책 미지정 충돌은 기존처럼 `409`를 유지하고, `rename`은 `파일명 (n).확장자` 규칙으로 서버에서 충돌 없는 경로를 자동 결정.
+      - `skip`은 파일 미작성으로 처리하고 응답 `status`(`uploaded|skipped`)를 반환해 프론트 집계 근거를 제공.
+      - 구현 파일:
+        - `apps/backend/internal/space/handler/file_handler.go`
+      - 테스트 추가:
+        - `apps/backend/internal/space/handler/file_handler_upload_test.go`
+    - 프론트:
+      - 업로드 훅을 단일 파일에서 다중 파일 입력으로 확장하고, 첫 충돌 시 `덮어쓰기/이름 변경/건너뛰기` 정책 모달을 표시.
+      - 사용자가 선택한 정책을 동일 배치의 후속 충돌 파일에 재사용하고, 종료 시 `성공/건너뜀/실패` 요약 토스트를 표시.
+      - 드래그앤드롭/파일 선택 업로드 모두 다중 파일 입력을 지원하도록 연동.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/hooks/useFileOperations.tsx`
+        - `apps/frontend/src/features/browse/hooks/useDragAndDrop.ts`
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+      - UI 실측 스크린샷:
+        - `/tmp/cohesion-upload-conflict-policy-modal.png`
+        - `/tmp/cohesion-upload-conflict-summary.png`
+
 - **검색 모드 그리드/테이블 전환 재개 (2026-02-22)**:
     - 프론트:
       - `FolderContent`의 검색 모드 강제 table 고정을 해제해 `/search`에서도 뷰 토글(`table/grid`)이 동작하도록 복원.
