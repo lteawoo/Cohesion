@@ -24,6 +24,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
   const { token } = theme.useToken();
   const { message, modal } = App.useApp();
   const location = useLocation();
+  const isSearchMode = location.pathname === "/search";
   const { user } = useAuth();
   const canWriteSpaces = (user?.permissions ?? []).includes("space.write");
   const [isOpen, setIsOpen] = useState(false);
@@ -32,7 +33,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
   const selectedSpace = useBrowseStore((state) => state.selectedSpace);
   const [isDeleting, setIsDeleting] = useState(false);
   const treeSelectedKeys = useMemo<Key[]>(() => {
-    if (location.pathname === "/search") {
+    if (isSearchMode) {
       return [];
     }
     if (!selectedSpace) {
@@ -42,7 +43,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
       return [`space-${selectedSpace.id}`];
     }
     return [`space-${selectedSpace.id}::${selectedPath}`];
-  }, [location.pathname, selectedPath, selectedSpace]);
+  }, [isSearchMode, selectedPath, selectedSpace]);
 
   const handleDeleteSpace = (space: Space) => {
     modal.confirm({
@@ -104,6 +105,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
           onSelect={handleSelect}
           onSpaceDelete={canWriteSpaces ? handleDeleteSpace : undefined}
           selectedKeys={treeSelectedKeys}
+          isSearchMode={isSearchMode}
         />
       </SidePanelShell>
     </>

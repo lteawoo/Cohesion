@@ -13,6 +13,7 @@ import type { FileNode, TreeDataNode } from '../types';
 import type { Space } from '@/features/space/types';
 
 type DirectoryTreeProps = GetProps<typeof Tree.DirectoryTree>;
+const PATH_SYNC_PARTIAL_CHILD_THRESHOLD = 40;
 
 // API 응답(FileNode)을 Ant Design Tree가 요구하는 형식(TreeDataNode)으로 변환합니다.
 const convertToFileTreeData = (nodes: FileNode[]): TreeDataNode[] => {
@@ -34,6 +35,7 @@ interface FolderTreeProps {
   showBaseDirectories?: boolean;
   onSpaceDelete?: (space: Space) => void;
   selectedKeys?: React.Key[];
+  isSearchMode?: boolean;
 }
 
 function resolveTargetKey(
@@ -81,6 +83,61 @@ function findNodeByKey(list: TreeDataNode[], key: React.Key): TreeDataNode | nul
   return null;
 }
 
+function resolveAncestorExpandKeysFromSelection(key: string): string[] {
+  if (!key.startsWith('space-')) {
+    return [key];
+  }
+
+  const separatorIndex = key.indexOf('::');
+  if (separatorIndex < 0) {
+    return [key];
+  }
+
+  const rootKey = key.substring(0, separatorIndex);
+  const relativePath = key.substring(separatorIndex + 2);
+  const segments = relativePath.split('/').filter(Boolean);
+  if (segments.length === 0) {
+    return [rootKey];
+  }
+  // 선택 노드는 확장하지 않고 상위 경로만 확장해 초기 렌더 부하를 줄입니다.
+  const ancestorKeys = segments
+    .slice(0, -1)
+    .map((_, index) => `${rootKey}::${segments.slice(0, index + 1).join('/')}`);
+  return [rootKey, ...ancestorKeys];
+}
+
+function resolveNextPathSegmentForKey(selectedKey: string, currentKey: string): string | null {
+  const selectedSepIndex = selectedKey.indexOf('::');
+  if (selectedSepIndex < 0) {
+    return null;
+  }
+
+  const selectedRoot = selectedKey.substring(0, selectedSepIndex);
+  const currentSepIndex = currentKey.indexOf('::');
+  const currentRoot = currentSepIndex >= 0 ? currentKey.substring(0, currentSepIndex) : currentKey;
+  if (selectedRoot !== currentRoot) {
+    return null;
+  }
+
+  const selectedSegments = selectedKey
+    .substring(selectedSepIndex + 2)
+    .split('/')
+    .filter(Boolean);
+  const currentSegments = currentSepIndex >= 0
+    ? currentKey.substring(currentSepIndex + 2).split('/').filter(Boolean)
+    : [];
+
+  if (currentSegments.length >= selectedSegments.length) {
+    return null;
+  }
+  for (let index = 0; index < currentSegments.length; index += 1) {
+    if (currentSegments[index] !== selectedSegments[index]) {
+      return null;
+    }
+  }
+  return selectedSegments[currentSegments.length] ?? null;
+}
+
 function collectNodeKeys(node: TreeDataNode): React.Key[] {
   const keys: React.Key[] = [node.key];
   if (!node.children) {
@@ -112,6 +169,36 @@ function clearChildrenByKeys(list: TreeDataNode[], keys: Set<string>): TreeDataN
   });
 }
 
+function mergeExpandedKeys(prev: React.Key[], keysToExpand: string[]): React.Key[] {
+  if (keysToExpand.length === 0) {
+    return prev;
+  }
+  const merged = new Set(prev);
+  const beforeSize = merged.size;
+  for (const key of keysToExpand) {
+    merged.add(key);
+  }
+  if (merged.size === beforeSize) {
+    return prev;
+  }
+  return Array.from(merged);
+}
+
+function stripRootChildren(list: TreeDataNode[]): TreeDataNode[] {
+  let changed = false;
+  const next = list.map((node) => {
+    if (!node.children || node.children.length === 0) {
+      return node;
+    }
+    changed = true;
+    return {
+      ...node,
+      children: undefined,
+    };
+  });
+  return changed ? next : list;
+}
+
 const FolderTree: React.FC<FolderTreeProps> = ({
   onSelect,
   rootPath,
@@ -119,6 +206,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
   showBaseDirectories = false,
   onSpaceDelete,
   selectedKeys,
+  isSearchMode = false,
 }) => {
   const spaces = useSpaceStore((state) => state.spaces);
   const spaceError = useSpaceStore((state) => state.error);
@@ -131,10 +219,60 @@ const FolderTree: React.FC<FolderTreeProps> = ({
   const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const treeDataRef = useRef<TreeDataNode[]>([]);
+  const partialLoadedKeysRef = useRef<Set<string>>(new Set());
+  const pathSyncModeRef = useRef(false);
+  const pathSyncTargetKeyRef = useRef<string | null>(null);
+  const prevIsSearchModeRef = useRef(isSearchMode);
   const loadingKeysRef = useRef<Set<React.Key>>(new Set());
   const handledRefreshVersionRef = useRef(0);
   const { isLoading, error: browseError, fetchBaseDirectories, fetchDirectoryContents, fetchSpaceDirectoryContents } = useBrowseApi();
   const openContextMenu = useContextMenuStore((state) => state.openContextMenu);
+
+  useEffect(() => {
+    treeDataRef.current = treeData;
+  }, [treeData]);
+
+  useEffect(() => {
+    const previousIsSearchMode = prevIsSearchModeRef.current;
+    const selectedKey = selectedKeys?.length ? String(selectedKeys[0]) : null;
+
+    if (previousIsSearchMode && !isSearchMode && selectedKey) {
+      pathSyncModeRef.current = true;
+      pathSyncTargetKeyRef.current = selectedKey;
+      partialLoadedKeysRef.current.clear();
+    }
+
+    if (isSearchMode) {
+      pathSyncModeRef.current = false;
+      pathSyncTargetKeyRef.current = null;
+      partialLoadedKeysRef.current.clear();
+    } else if (
+      pathSyncModeRef.current &&
+      pathSyncTargetKeyRef.current &&
+      selectedKey &&
+      pathSyncTargetKeyRef.current !== selectedKey
+    ) {
+      pathSyncModeRef.current = false;
+      pathSyncTargetKeyRef.current = null;
+    }
+
+    prevIsSearchModeRef.current = isSearchMode;
+  }, [isSearchMode, selectedKeys]);
+
+  useEffect(() => {
+    if (!pathSyncModeRef.current) {
+      return;
+    }
+    const targetKey = pathSyncTargetKeyRef.current;
+    if (!targetKey) {
+      return;
+    }
+    if (findNodeByKey(treeData, targetKey)) {
+      pathSyncModeRef.current = false;
+      pathSyncTargetKeyRef.current = null;
+    }
+  }, [treeData]);
 
   const loadChildrenForKey = useCallback(
     async (key: React.Key) => {
@@ -142,6 +280,9 @@ const FolderTree: React.FC<FolderTreeProps> = ({
         return;
       }
       if (loadingKeysRef.current.has(key)) {
+        return;
+      }
+      if (!findNodeByKey(treeDataRef.current, key)) {
         return;
       }
 
@@ -172,8 +313,26 @@ const FolderTree: React.FC<FolderTreeProps> = ({
           contents = await fetchDirectoryContents(path, showBaseDirectories);
         }
 
-        const newChildren = (contents ?? [])
-          .filter((node) => node.isDir)
+        const directoryNodes = (contents ?? [])
+          .filter((node) => node.isDir);
+        const syncTargetKey = pathSyncModeRef.current ? pathSyncTargetKeyRef.current : null;
+        const nextSegment = syncTargetKey ? resolveNextPathSegmentForKey(syncTargetKey, keyStr) : null;
+        const focusedNodes = nextSegment
+          ? directoryNodes.filter((node) => node.name === nextSegment)
+          : directoryNodes;
+        const shouldKeepPathOnly =
+          focusedNodes.length > 0 &&
+          focusedNodes.length < directoryNodes.length &&
+          directoryNodes.length > PATH_SYNC_PARTIAL_CHILD_THRESHOLD;
+        const effectiveNodes = shouldKeepPathOnly ? focusedNodes : directoryNodes;
+
+        if (shouldKeepPathOnly) {
+          partialLoadedKeysRef.current.add(keyStr);
+        } else {
+          partialLoadedKeysRef.current.delete(keyStr);
+        }
+
+        const newChildren = effectiveNodes
           .map((node) => ({
             title: node.name,
             key: spacePrefix ? `${spacePrefix}::${node.path}` : node.path,
@@ -324,7 +483,47 @@ const FolderTree: React.FC<FolderTreeProps> = ({
     }
   }, [expandedKeys, loadedKeys, loadChildrenForKey]);
 
+  // 검색 모드에서는 트리 내부 상태를 루트만 남기고 정리해 누적 비용을 줄입니다.
+  useEffect(() => {
+    if (showBaseDirectories || rootPath || !isSearchMode) {
+      return;
+    }
+    pathSyncModeRef.current = false;
+    pathSyncTargetKeyRef.current = null;
+    partialLoadedKeysRef.current.clear();
+    setExpandedKeys((prev) => (prev.length === 0 ? prev : []));
+    setLoadedKeys((prev) => (prev.length === 0 ? prev : []));
+    setTreeData((prev) => stripRootChildren(prev));
+  }, [isSearchMode, rootPath, showBaseDirectories]);
+
+  // selectedKeys 기준으로 자동 확장합니다.
+  useEffect(() => {
+    if (showBaseDirectories || rootPath || isSearchMode) {
+      return;
+    }
+    if (!selectedKeys || selectedKeys.length === 0) {
+      return;
+    }
+    const selectedKey = String(selectedKeys[0]);
+    const keysToExpand = resolveAncestorExpandKeysFromSelection(selectedKey);
+    setExpandedKeys((prev) => mergeExpandedKeys(prev, keysToExpand));
+  }, [isSearchMode, rootPath, selectedKeys, showBaseDirectories]);
+
   const handleExpand: DirectoryTreeProps['onExpand'] = (keys: React.Key[]) => {
+    const keysToHydrate = keys
+      .map((key) => String(key))
+      .filter((key) => partialLoadedKeysRef.current.has(key));
+
+    if (keysToHydrate.length > 0) {
+      pathSyncModeRef.current = false;
+      pathSyncTargetKeyRef.current = null;
+      for (const key of keysToHydrate) {
+        partialLoadedKeysRef.current.delete(key);
+      }
+      const keySet = new Set(keysToHydrate);
+      setLoadedKeys((prev) => prev.filter((key) => !keySet.has(String(key))));
+    }
+
     setExpandedKeys(keys);
   };
 
