@@ -51,6 +51,7 @@ func NewHandler(spaceService *space.Service, browseService BrowseService, accoun
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/spaces", web.Handler(h.handleSpaces))
 	mux.Handle("/api/spaces/", web.Handler(h.handleSpaceByID))
+	mux.Handle("/api/search/files", web.Handler(h.handleSearchFiles))
 	mux.Handle("/api/downloads/", web.Handler(h.handleDownloadByTicket))
 }
 

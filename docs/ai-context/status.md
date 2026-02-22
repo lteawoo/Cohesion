@@ -1,6 +1,87 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **전역 검색(#122) UX 보정: 검색 화면 트리 선택 해제 처리 완료 (2026-02-22)**:
+    - 프론트:
+      - 검색 결과 전체보기(`/search`) 화면에서 좌측 Space 트리 선택 하이라이트를 비우도록 조정.
+      - 트리 노드 클릭 시 기존과 동일하게 browse(`/`)로 복귀하고 해당 Space/경로 선택은 다시 정상 표시.
+      - 구현 방식:
+        - `FolderTree`에 선택키 주입 prop(`selectedKeys`) 추가.
+        - `MainSider`에서 현재 라우트가 `/search`일 때 `selectedKeys=[]` 전달, browse에서는 store 기반 선택키 전달.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 실측: `/search` 트리 selected 0개, 트리 클릭 후 `/`에서 selected 1개 확인
+- **전역 검색(#122) 3차 통합 완료: 검색 결과를 `FolderContent` 내부 소스로 흡수 (2026-02-22)**:
+    - 프론트:
+      - `FileExplorer`를 단일 렌더 구조로 정리하고(`/`, `/search` 공통) 내부 콘텐츠 분기 제거.
+      - `FolderContent`가 라우트(`/search`)를 직접 감지해 검색/브라우징 데이터 소스만 전환하도록 변경.
+      - 검색 모드에서도 기존 탐색기 골격(상단 툴바, 콘텐츠 영역, 하단 경로바/Breadcrumb)을 동일하게 사용.
+      - 검색 전용 상태 처리(쿼리 길이 부족/검색 중/오류/빈 결과)를 `FolderContent`의 공통 상태 분기 안에서 처리.
+      - 검색 모드에서는 파일 작업 컨텍스트 메뉴/액션을 비활성화하고, 결과 클릭 시 기존 browse 경로(`setPath` + `/`)로 이동 유지.
+      - 트리 클릭 시 `/search` -> `/` 복귀 동선과 함께 기본 파일 익스플로러 목록이 즉시 표시되도록 정합성 확보.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `pnpm -C apps/frontend build` 통과
+      - 시각 검증 스크린샷: `/tmp/cohesion-search-foldercontent-unified.png`
+- **전역 검색(#122) 2차 구현 완료: API 연동 + 전용 검색 화면 + 헤더 즉시결과 (2026-02-22)**:
+    - 백엔드:
+      - `GET /api/search/files` 신규 추가 (Space별 읽기 권한 필터 + 재귀 검색 + 숨김 파일/폴더 제외 + `limit` 지원).
+      - 라우트 등록: `apps/backend/internal/space/handler/space_handler.go`.
+      - 권한 매핑 추가: `apps/backend/internal/auth/permissions.go` (`/api/search/files` -> `file.read`).
+      - 테스트 추가:
+        - `apps/backend/internal/space/handler/search_handler_test.go` (인증 누락, limit 검증, 권한 필터 검색 결과).
+        - `apps/backend/internal/auth/permissions_test.go` (검색 엔드포인트 권한 매핑).
+    - 프론트:
+      - 헤더 검색 입력을 `선택 Space 한정`에서 `연결된 전체 Space` 대상으로 전환.
+      - 타이핑 시 헤더 드롭다운 즉시결과(상위 8개) 표시 및 클릭 시 해당 Space/경로로 이동.
+      - Enter 입력 시 전용 검색 화면(`/search?q=...`)으로 이동하도록 연결.
+      - 검색 입력 placeholder를 단순 문구 `검색`으로 통일.
+      - 라우트 구조 리팩터링:
+        - `/search` 라우트도 `SearchPage` 별도 화면 대신 `FileExplorer` 자체를 렌더하도록 통합.
+        - `FileExplorer` 내부에서 현재 경로(`browse/search`)에 따라 데이터 소스만 전환하는 구조로 정리.
+      - 검색 전용 화면은 `FileExplorer` 내부 모드로 통합 (`/search`에서 동일 익스플로러 컨테이너 사용).
+      - 검색 전용 화면 리팩터링:
+        - `FolderContentTable`를 옵션 기반으로 확장(`showActions`, `renderMeta`, `emptyText`, `rowKeyResolver`)해 읽기 전용 재사용 가능하게 조정.
+        - `SearchResultExplorer` 컴포넌트 추가로 검색 결과 화면이 기존 탐색기 테이블 컴포넌트를 직접 재사용하도록 전환.
+        - `useSearchExplorerSource` + `SearchExplorerContent`를 추가해 검색 소스/뷰를 분리하고 `FileExplorer`에서 선택적으로 조립.
+      - 검색 API 클라이언트/타입 추가:
+        - `apps/frontend/src/features/search/api/searchApi.ts`
+        - `apps/frontend/src/features/search/types.ts`
+        - `apps/frontend/src/features/search/components/SearchResultExplorer.tsx`
+        - `apps/frontend/src/features/search/hooks/useSearchExplorerSource.ts`
+        - `apps/frontend/src/features/search/components/SearchExplorerContent.tsx`
+      - 라우팅/헤더/CSS 반영:
+        - `apps/frontend/src/App.tsx`
+        - `apps/frontend/src/components/layout/MainLayout/index.tsx`
+        - `apps/frontend/src/assets/css/global.css`
+    - 검증:
+      - 백엔드: `cd apps/backend && go test ./...` 통과.
+      - 프론트: `pnpm -C apps/frontend lint` 통과, `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+      - 시각 검증(브라우저 실측 + 스크린샷):
+        - `/tmp/cohesion-search-page.png`
+        - `/tmp/cohesion-header-search-dropdown-and-page.png`
+        - `/tmp/cohesion-search-refactor-reuse-table.png`
+        - `/tmp/cohesion-unified-fileexplorer-search-route.png`
+- **전역 검색(#122) 헤더 UI 시안 1차 반영 완료 (2026-02-22)**:
+    - 프론트:
+      - `MainLayout` 헤더 중앙에 검색 입력 UI 추가(데스크톱 상시 노출).
+      - 모바일 헤더에 검색 아이콘/토글 입력 UI 추가.
+      - Space 미선택 시 검색 입력 비활성화 및 안내 placeholder 적용.
+      - 관련 레이아웃/CSS 클래스(`layout-header-center`, `layout-header-search-*`) 추가.
+    - 시각 검증:
+      - 데스크톱/모바일 실측 확인 (`http://localhost:5173`).
+      - 모바일에서 `검색` 버튼 클릭 시 입력창 확장/닫기 동작 확인.
+    - 참고:
+      - 현재 단계는 UI 시안이며 검색 API 연결은 후속 작업(`#122`)에서 진행.
+- **기능 확장 사전 이슈 등록 완료 (2026-02-22)**:
+    - GitHub Issue:
+      - `#122` 전역 검색(파일명/경로/확장자)
+      - `#123` 휴지통(Soft Delete) + 복원
+      - `#124` 업로드 충돌 정책(덮어쓰기/이름변경/건너뛰기)
+      - `#125` Space 용량/쿼터 + 사용량 대시보드
+      - `#126` 감사 로그(Audit Log) 수집/조회
 - **백엔드 테스트 최소 세트 확장 완료 (인증/권한 + 서비스 로직, 2026-02-22)**:
     - 백엔드 테스트:
       - `apps/backend/internal/auth/service_test.go` 추가 (로그인/토큰 발급/리프레시 검증).

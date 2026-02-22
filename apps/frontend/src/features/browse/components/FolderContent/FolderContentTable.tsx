@@ -24,11 +24,15 @@ interface FolderContentTableProps {
   onFolderDrop: (e: React.DragEvent<HTMLElement>, record: FileNode) => void;
   disableDrag?: boolean;
   canWriteFiles: boolean;
-  onItemDownload: (record: FileNode) => void;
-  onItemCopy: (record: FileNode) => void;
-  onItemMove: (record: FileNode) => void;
-  onItemRename: (record: FileNode) => void;
-  onItemDelete: (record: FileNode) => void;
+  onItemDownload?: (record: FileNode) => void;
+  onItemCopy?: (record: FileNode) => void;
+  onItemMove?: (record: FileNode) => void;
+  onItemRename?: (record: FileNode) => void;
+  onItemDelete?: (record: FileNode) => void;
+  showActions?: boolean;
+  rowKeyResolver?: (record: FileNode) => string;
+  renderMeta?: (record: FileNode) => React.ReactNode;
+  emptyText?: React.ReactNode;
 }
 
 const FolderContentTable: React.FC<FolderContentTableProps> = ({
@@ -54,6 +58,10 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
   onItemMove,
   onItemRename,
   onItemDelete,
+  showActions = true,
+  rowKeyResolver,
+  renderMeta,
+  emptyText = '이 폴더는 비어 있습니다.',
 }) => {
   const columns = [
     {
@@ -112,35 +120,39 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
                   {record.name}
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.72 }}>
-                  {record.isDir ? '-' : formatSize(record.size)} | {formatDate(record.modTime)}
+                  {renderMeta
+                    ? renderMeta(record)
+                    : `${record.isDir ? '-' : formatSize(record.size)} | ${formatDate(record.modTime)}`}
                 </div>
               </div>
             </div>
-            <Dropdown
-              trigger={['click']}
-              placement="bottomRight"
-              menu={{
-                items: menuItems,
-                onClick: (info: Parameters<NonNullable<MenuProps['onClick']>>[0]) => {
-                  const { key, domEvent } = info;
-                  domEvent.stopPropagation();
-                  if (key === 'download') onItemDownload(record);
-                  if (key === 'copy') onItemCopy(record);
-                  if (key === 'move') onItemMove(record);
-                  if (key === 'rename') onItemRename(record);
-                  if (key === 'delete') onItemDelete(record);
-                },
-              }}
-            >
-              <Button
-                type="text"
-                size="small"
-                icon={<MoreOutlined />}
-                onClick={(e) => e.stopPropagation()}
-                aria-label="더보기"
-                title="더보기"
-              />
-            </Dropdown>
+            {showActions && (
+              <Dropdown
+                trigger={['click']}
+                placement="bottomRight"
+                menu={{
+                  items: menuItems,
+                  onClick: (info: Parameters<NonNullable<MenuProps['onClick']>>[0]) => {
+                    const { key, domEvent } = info;
+                    domEvent.stopPropagation();
+                    if (key === 'download') onItemDownload?.(record);
+                    if (key === 'copy') onItemCopy?.(record);
+                    if (key === 'move') onItemMove?.(record);
+                    if (key === 'rename') onItemRename?.(record);
+                    if (key === 'delete') onItemDelete?.(record);
+                  },
+                }}
+              >
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<MoreOutlined />}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="더보기"
+                  title="더보기"
+                />
+              </Dropdown>
+            )}
           </div>
         );
       },
@@ -153,7 +165,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
       columns={columns}
       tableLayout="fixed"
       loading={loading}
-      rowKey="path"
+      rowKey={rowKeyResolver ?? 'path'}
       pagination={false}
       showHeader={false}
       rowClassName={(record: FileNode) => {
@@ -179,7 +191,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
         onDragLeave: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDragLeave(e),
         onDrop: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDrop(e, record),
       })}
-      locale={{ emptyText: '이 폴더는 비어 있습니다.' }}
+      locale={{ emptyText }}
     />
   );
 };

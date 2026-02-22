@@ -33,6 +33,7 @@ interface FolderTreeProps {
   rootName?: string;
   showBaseDirectories?: boolean;
   onSpaceDelete?: (space: Space) => void;
+  selectedKeys?: React.Key[];
 }
 
 function resolveTargetKey(
@@ -111,7 +112,14 @@ function clearChildrenByKeys(list: TreeDataNode[], keys: Set<string>): TreeDataN
   });
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, showBaseDirectories = false, onSpaceDelete }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({
+  onSelect,
+  rootPath,
+  rootName,
+  showBaseDirectories = false,
+  onSpaceDelete,
+  selectedKeys,
+}) => {
   const spaces = useSpaceStore((state) => state.spaces);
   const spaceError = useSpaceStore((state) => state.error);
   const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
@@ -464,6 +472,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ onSelect, rootPath, rootName, s
         onExpand={handleExpand}
         onRightClick={handleRightClick}
         treeData={treeData}
+        selectedKeys={selectedKeys}
         loadedKeys={loadedKeys}
         expandedKeys={expandedKeys}
         showIcon={false}

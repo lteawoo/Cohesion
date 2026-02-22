@@ -3,10 +3,13 @@ import FolderTree from "@/features/browse/components/FolderTree";
 import { PlusOutlined, CloseOutlined } from "@ant-design/icons";
 import { Button, Layout, theme, App } from "antd";
 import type { Space } from "@/features/space/types";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { Key } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
+import { useBrowseStore } from "@/stores/browseStore";
 import { useAuth } from "@/features/auth/useAuth";
 import SidePanelShell from "@/components/common/SidePanelShell";
+import { useLocation } from "react-router";
 
 const { Sider } = Layout;
 
@@ -20,11 +23,26 @@ interface MainSiderProps {
 export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, containerType = "sider" }: MainSiderProps) {
   const { token } = theme.useToken();
   const { message, modal } = App.useApp();
+  const location = useLocation();
   const { user } = useAuth();
   const canWriteSpaces = (user?.permissions ?? []).includes("space.write");
   const [isOpen, setIsOpen] = useState(false);
   const deleteSpaceAction = useSpaceStore((state) => state.deleteSpace);
+  const selectedPath = useBrowseStore((state) => state.selectedPath);
+  const selectedSpace = useBrowseStore((state) => state.selectedSpace);
   const [isDeleting, setIsDeleting] = useState(false);
+  const treeSelectedKeys = useMemo<Key[]>(() => {
+    if (location.pathname === "/search") {
+      return [];
+    }
+    if (!selectedSpace) {
+      return [];
+    }
+    if (!selectedPath) {
+      return [`space-${selectedSpace.id}`];
+    }
+    return [`space-${selectedSpace.id}::${selectedPath}`];
+  }, [location.pathname, selectedPath, selectedSpace]);
 
   const handleDeleteSpace = (space: Space) => {
     modal.confirm({
@@ -85,6 +103,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
         <FolderTree
           onSelect={handleSelect}
           onSpaceDelete={canWriteSpaces ? handleDeleteSpace : undefined}
+          selectedKeys={treeSelectedKeys}
         />
       </SidePanelShell>
     </>
