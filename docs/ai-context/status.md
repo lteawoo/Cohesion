@@ -1,6 +1,135 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **검색 모드 그리드/테이블 전환 재개 (2026-02-22)**:
+    - 프론트:
+      - `FolderContent`의 검색 모드 강제 table 고정을 해제해 `/search`에서도 뷰 토글(`table/grid`)이 동작하도록 복원.
+      - 검색 모드의 읽기 전용 가드(쓰기 액션/컨텍스트 메뉴/드래그 비활성)는 기존대로 유지.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+
+- **불필요 변경 정리 (2026-02-22)**:
+    - 프론트:
+      - `FolderContent`에서 검색 모드 강제 table 정책과 충돌하던 dead code(미도달 grid truncation 분기)를 제거.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 범위 정리:
+      - 백엔드 검색 최적화 변경(`account/service.go`, `search_handler.go`, `search_handler_test.go`)은 이번 정리 변경셋에서 제외(분리) 처리.
+
+- **검색 전환 체감 성능 개선 3차 적용 완료 (#128, 2026-02-22)**:
+    - 프론트:
+      - 검색 결과 클릭(`/search -> /`) 시 트리 자동 확장을 경로 중심으로 경량화.
+        - 선택 노드 자체는 자동 확장에서 제외하고 상위 경로만 확장.
+        - 자동 동기화 중 자식 수가 많은 디렉터리(`> 40`)는 선택 경로 하위만 우선 로드해 초기 렌더 노드 수를 억제.
+        - 사용자가 해당 노드를 직접 확장하면 전체 자식 목록을 다시 hydrate하도록 처리.
+      - `/search` 결과 페이징 limit을 `120 -> 80`으로 조정해 Enter 전환 시 초기 렌더 부하 완화.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+        - `apps/frontend/src/features/search/hooks/useSearchExplorerSource.ts`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 실측(동일 시나리오):
+        - 검색 결과 클릭 시 트리 노드 수: `198 -> 38`
+        - 검색 결과 클릭 시 최대 long task: `264ms -> 89ms`
+        - Enter 전체결과 전환 시 최대 long task: `154ms -> 71ms`
+
+- **검색 복귀 후 트리 누적 상태 정리 적용 완료 (#128, 2026-02-22)**:
+    - 프론트:
+      - `MainSider`에서 `/search` 여부를 `FolderTree`로 전달(`isSearchMode`)해 검색 모드 전용 트리 정리 트리거를 명시.
+      - `FolderTree`에서 검색 모드 진입 시
+        - `expandedKeys` 초기화,
+        - `loadedKeys` 초기화,
+        - 루트 노드 하위 `children` 제거(루트만 유지)
+        를 수행해 반복 검색/복귀 시 트리 내부 상태 누적을 줄이도록 보정.
+      - `loadChildrenForKey`는 `treeDataRef` 기반 노드 존재 확인을 유지해, 상위 노드가 아직 주입되지 않은 deep key가 성급히 `loaded` 처리되는 문제를 방지.
+      - 구현 파일:
+        - `apps/frontend/src/components/layout/MainLayout/MainSider.tsx`
+        - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 실측: `/search?q=md` 기준 검색 결과 클릭 후 `/` 이동 -> `<` 복귀 시 트리 노드가 최종 `3`개(루트만)로 안정화, 확장 누적 미재현 확인
+
+- **검색 반복 시 누적 지연 완화 2차 적용 완료 (#128, 2026-02-22)**:
+    - 프론트:
+      - 검색 API(`searchFiles`)에 `AbortSignal` 전달 옵션 추가.
+      - 헤더 즉시검색에서 새 요청 시작/검색 종료/화면 이탈 시 이전 in-flight 요청을 `abort()` 처리.
+      - `/search` 전용 결과 훅(`useSearchExplorerSource`)에서도 쿼리 변경/언마운트 시 이전 요청 취소 처리.
+      - `AbortError`는 사용자 에러 메시지로 노출하지 않도록 분기.
+      - 구현 파일:
+        - `apps/frontend/src/features/search/api/searchApi.ts`
+        - `apps/frontend/src/components/layout/MainLayout/index.tsx`
+        - `apps/frontend/src/features/search/hooks/useSearchExplorerSource.ts`
+    - 백엔드:
+      - 검색 핸들러 루프 및 `WalkDir` 내부에 `r.Context()` 취소 체크를 추가해 클라이언트 취소 시 탐색을 조기 중단.
+      - 짧은 쿼리(2글자)에서 불필요한 `filepath.Rel` 계산을 피하도록 상대경로 계산 시점을 지연.
+      - 구현 파일:
+        - `apps/backend/internal/space/handler/search_handler.go`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - `cd apps/backend && go test ./...` 통과
+
+- **검색 결과 복귀 UX 통합 완료 (`<` 버튼 흡수, 2026-02-22)**:
+    - 프론트:
+      - `FolderContent`의 `<` 버튼 동작을 확장:
+        - 우선순위 1: 폴더 히스토리 뒤로 이동
+        - 우선순위 2: 폴더 히스토리가 없고 `fromSearchQuery`가 있으면 `/search?q=...`로 복귀
+      - 결과적으로 검색 결과 진입 후 별도 버튼 없이 기존 뒤로가기 버튼으로 검색 결과 화면으로 복귀 가능.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 실측: `/search?q=te` -> 결과 클릭(`/`) -> `<` 클릭 시 `/search?q=te` 복귀 확인
+
+- **전역 검색 성능/정확도 개선 1차 완료 (#128, 2026-02-22)**:
+    - 백엔드:
+      - 검색 권한 필터를 요청당 1회 계산하는 경로를 추가해 Space별 반복 권한 조회(N+1)를 완화.
+        - `account.Service.ResolveAccessibleSpaceIDs` 추가
+        - `search_handler`에서 optional resolver(type assertion) 우선 사용, 미지원 구현은 기존 per-space fallback 유지
+      - 검색 결과 수집 순서를 `Space 순회 중 잔여 limit 차감`에서 `Space별 후보 수집 -> 전역 정렬 -> 상위 limit 절단`으로 전환.
+      - 짧은 쿼리(2글자)에서 path contains 매칭을 제한해 노이즈를 줄이고, path segment prefix 가중치를 rank에 반영.
+      - 구현 파일:
+        - `apps/backend/internal/account/service.go`
+        - `apps/backend/internal/space/handler/search_handler.go`
+        - `apps/backend/internal/space/handler/search_handler_test.go`
+    - 테스트:
+      - 추가:
+        - `TestHandleSearchFiles_GlobalRankingKeepsLaterSpaceCandidates`
+        - `TestHandleSearchFiles_ShortQuerySkipsPathOnlyHits`
+        - `TestHandleSearchFiles_UsesBatchAccessResolver`
+      - 검증:
+        - `cd apps/backend && go test ./...` 통과
+    - 프론트:
+      - 헤더 즉시검색 디바운스를 `220ms -> 420ms`로 상향해 타이핑 중 API 호출 빈도를 완화.
+      - 헤더 드롭다운 즉시결과 API 호출 최소 길이는 `2글자`로 유지.
+      - Enter 전체검색(`/search`) 최소 길이 `2글자`는 유지.
+      - 구현 파일:
+        - `apps/frontend/src/components/layout/MainLayout/index.tsx`
+      - 검증:
+        - `pnpm -C apps/frontend lint` 통과
+        - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+- **검색 성능/정확도 개선 이슈 등록 완료 (#128, 2026-02-22)**:
+    - 이슈: `https://github.com/lteawoo/Cohesion/issues/128`
+    - 범위:
+      - 권한 필터링 최적화
+      - 전역 랭킹/limit 적용 순서 보정
+      - 짧은 쿼리 정확도 보정
+    - 권장 PR 라벨: `fix`
+- **전역 검색(#122) 결과 클릭 시 Space 트리 자동 확장/선택 동기화 보정 완료 (2026-02-22)**:
+    - 프론트:
+      - `FolderTree`에 `selectedKeys` 기반 상위 경로 자동 확장 로직을 추가.
+      - `/search`에서 결과 클릭 후 `/`로 복귀할 때 `selectedPath`/`selectedSpace` 값이 이전과 같아도, `selectedKeys` 변화(`[] -> target`)를 트리거로 확장을 보장.
+      - 결과적으로 검색 결과 클릭 시 파일 익스플로러 경로와 좌측 Space 트리 선택/열림 상태를 일치시키도록 보정.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 실측(모바일 뷰포트): `/search?q=te` 결과 클릭 -> `/` 전환 후 트리에서 대상 폴더 자동 확장/선택 확인
+      - 확인 스크린샷: `/tmp/cohesion-search-click-tree-selected.png`
 - **전역 검색(#122) 표시 정리: 경로 노출 제거 + 드롭다운 아이콘 통일 (2026-02-22)**:
     - 프론트:
       - 헤더 검색 드롭다운 메타에서 `space · parentPath` 표기를 제거하고 `spaceName`만 노출.

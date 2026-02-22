@@ -6,10 +6,14 @@ import { useBrowseStore } from "@/stores/browseStore";
 import { useSpaceStore } from "@/stores/spaceStore";
 
 const MIN_SEARCH_QUERY_LENGTH = 2;
-const SEARCH_PAGE_LIMIT = 200;
+const SEARCH_PAGE_LIMIT = 80;
 
 function resolveBrowsePath(item: SearchFileResult): string {
   return item.isDir ? item.path : item.parentPath;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 export interface SearchExplorerSource {
@@ -38,13 +42,15 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
       return;
     }
 
-    let isCancelled = false;
+    const controller = new AbortController();
+    let isDisposed = false;
     if (query.length < MIN_SEARCH_QUERY_LENGTH) {
       setResults([]);
       setIsLoading(false);
       setErrorMessage(null);
       return () => {
-        isCancelled = true;
+        isDisposed = true;
+        controller.abort();
       };
     }
 
@@ -53,24 +59,28 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
 
     void (async () => {
       try {
-        const data = await searchFiles(query, SEARCH_PAGE_LIMIT);
-        if (!isCancelled) {
+        const data = await searchFiles(query, SEARCH_PAGE_LIMIT, { signal: controller.signal });
+        if (!isDisposed) {
           setResults(data);
         }
       } catch (error) {
-        if (!isCancelled) {
+        if (isAbortError(error)) {
+          return;
+        }
+        if (!isDisposed) {
           setResults([]);
           setErrorMessage(error instanceof Error ? error.message : "검색 결과를 불러오지 못했습니다.");
         }
       } finally {
-        if (!isCancelled) {
+        if (!isDisposed) {
           setIsLoading(false);
         }
       }
     })();
 
     return () => {
-      isCancelled = true;
+      isDisposed = true;
+      controller.abort();
     };
   }, [enabled, query]);
 
@@ -80,8 +90,12 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
       return;
     }
     setPath(resolveBrowsePath(item), targetSpace);
-    navigate("/");
-  }, [navigate, setPath, spaces]);
+    navigate("/", {
+      state: {
+        fromSearchQuery: query,
+      },
+    });
+  }, [navigate, query, setPath, spaces]);
 
   const hasEnoughQuery = query.length >= MIN_SEARCH_QUERY_LENGTH;
   const isSearching = enabled && hasEnoughQuery && isLoading;

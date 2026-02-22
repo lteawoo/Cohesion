@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
 import { Empty, App, Grid, Button, Menu, theme, Breadcrumb, Spin, Alert } from 'antd';
 import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { useFileSelection } from '../hooks/useFileSelection';
@@ -32,6 +32,7 @@ const PATH_BAR_HEIGHT = 36;
 const EXPLORER_SIDE_PADDING = 16;
 const PATH_BAR_CONTENT_OVERLAY_HEIGHT = PATH_BAR_HEIGHT - EXPLORER_SIDE_PADDING;
 type NavigationState = { entries: string[]; index: number };
+type BrowseLocationState = { fromSearchQuery?: string };
 const EMPTY_SELECTION = new Set<string>();
 const SEARCH_MODE_HELP_TEXT = '2글자 이상 입력하면 전체 Space 검색 결과를 확인할 수 있습니다.';
 
@@ -39,9 +40,14 @@ const FolderContent: React.FC = () => {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const location = useLocation();
+  const navigate = useNavigate();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
   const isSearchMode = location.pathname === '/search';
+  const locationState = location.state as BrowseLocationState | null;
+  const incomingSearchQuery = typeof locationState?.fromSearchQuery === 'string'
+    ? locationState.fromSearchQuery.trim()
+    : '';
   const { user } = useAuth();
   const permissions = user?.permissions ?? [];
   const canWriteFiles = !isSearchMode && permissions.includes('file.write');
@@ -191,6 +197,7 @@ const FolderContent: React.FC = () => {
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useSortedContent(sourceContent, sortConfig);
+  const effectiveViewMode: ViewMode = viewMode;
 
   const { handleContextMenu, handleEmptyAreaContextMenu } = useContextMenu({
     selectedItems,
@@ -299,15 +306,21 @@ const FolderContent: React.FC = () => {
   }, [isSearchMode, selectedPath, selectedSpace]);
 
   const handleGoBack = useCallback(() => {
-    if (navigationState.index <= 0) {
+    if (navigationState.index > 0) {
+      const nextIndex = navigationState.index - 1;
+      const targetPath = navigationState.entries[nextIndex];
+      isHistoryTraversalRef.current = true;
+      setNavigationState((prev) => ({ ...prev, index: nextIndex }));
+      handleNavigate(targetPath);
       return;
     }
-    const nextIndex = navigationState.index - 1;
-    const targetPath = navigationState.entries[nextIndex];
-    isHistoryTraversalRef.current = true;
-    setNavigationState((prev) => ({ ...prev, index: nextIndex }));
-    handleNavigate(targetPath);
-  }, [navigationState, handleNavigate]);
+
+    if (!incomingSearchQuery) {
+      return;
+    }
+
+    navigate(`/search?q=${encodeURIComponent(incomingSearchQuery)}`);
+  }, [handleNavigate, incomingSearchQuery, navigate, navigationState]);
 
   const handleGoForward = useCallback(() => {
     if (navigationState.index < 0 || navigationState.index >= navigationState.entries.length - 1) {
@@ -938,10 +951,10 @@ const FolderContent: React.FC = () => {
         ) : (
           <div style={{ height: topRowHeight }}>
               <FolderContentToolbar
-                viewMode={viewMode}
+                viewMode={effectiveViewMode}
                 sortConfig={sortConfig}
                 canUpload={canWriteFiles}
-                canGoBack={navigationState.index > 0}
+                canGoBack={navigationState.index > 0 || (!isSearchMode && Boolean(incomingSearchQuery))}
                 canGoForward={navigationState.index >= 0 && navigationState.index < navigationState.entries.length - 1}
                 compact
                 onGoBack={handleGoBack}
@@ -1012,7 +1025,7 @@ const FolderContent: React.FC = () => {
                 />
               </div>
             )}
-            {viewMode === 'table' ? (
+            {effectiveViewMode === 'table' ? (
               <FolderContentTable
                 dataSource={sortedContent}
                 loading={false}

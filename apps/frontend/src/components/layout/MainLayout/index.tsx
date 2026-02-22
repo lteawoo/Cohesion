@@ -3,7 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router";
 import { SettingOutlined, MenuOutlined, SearchOutlined, CloseOutlined, FolderFilled } from "@ant-design/icons";
 import MainSider from "./MainSider";
 import ServerStatus from "./ServerStatus";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, memo } from "react";
 import type { ChangeEvent, MouseEvent } from "react";
 import type { Space } from "@/features/space/types";
 import { useSpaceStore } from "@/stores/spaceStore";
@@ -17,46 +17,42 @@ import { FileTypeIcon } from "@/features/browse/components/FileTypeIcon";
 
 const { Header, Content } = Layout;
 const HEADER_SEARCH_RESULT_LIMIT = 8;
-const HEADER_SEARCH_MIN_QUERY_LENGTH = 2;
+const HEADER_SEARCH_SUBMIT_MIN_QUERY_LENGTH = 2;
+const HEADER_SEARCH_SUGGEST_MIN_QUERY_LENGTH = 2;
+const HEADER_SEARCH_DEBOUNCE_MS = 420;
 
-const PageLayout = () => {
-  const { token } = theme.useToken();
-  const screens = Grid.useBreakpoint();
-  const isMobile = !screens.lg;
-  const location = useLocation();
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+interface HeaderSearchProps {
+  isMobile: boolean;
+  isMobileSearchMode: boolean;
+  onMobileSearchClose: () => void;
+}
+
+const HeaderSearch = memo(function HeaderSearch({
+  isMobile,
+  isMobileSearchMode,
+  onMobileSearchClose,
+}: HeaderSearchProps) {
   const navigate = useNavigate();
-  const [isNavOpen, setIsNavOpen] = useState(false);
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const spaces = useSpaceStore((state) => state.spaces);
+  const setPath = useBrowseStore((state) => state.setPath);
+  const hasConnectedSpaces = spaces.length > 0;
+
   const [headerSearchQuery, setHeaderSearchQuery] = useState("");
   const [headerSearchResults, setHeaderSearchResults] = useState<SearchFileResult[]>([]);
   const [isHeaderSearchLoading, setIsHeaderSearchLoading] = useState(false);
   const [headerSearchError, setHeaderSearchError] = useState<string | null>(null);
   const headerSearchTimerRef = useRef<number | undefined>(undefined);
+  const headerSearchAbortControllerRef = useRef<AbortController | null>(null);
   const headerSearchRequestSeqRef = useRef(0);
-  const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
-  const spaces = useSpaceStore((state) => state.spaces);
-  const selectedSpace = useBrowseStore((state) => state.selectedSpace);
-  const setPath = useBrowseStore((state) => state.setPath);
-  const clearContent = useBrowseStore((state) => state.clearContent);
-  const hasConnectedSpaces = spaces.length > 0;
+
   const normalizedHeaderSearchQuery = headerSearchQuery.trim();
-  const isMobileSearchMode = isMobile && isMobileSearchOpen;
-  const showHeaderSearchInput = !isMobile || isMobileSearchMode;
   const showHeaderSearchDropdown =
-    showHeaderSearchInput &&
-    normalizedHeaderSearchQuery.length >= HEADER_SEARCH_MIN_QUERY_LENGTH &&
+    normalizedHeaderSearchQuery.length >= HEADER_SEARCH_SUGGEST_MIN_QUERY_LENGTH &&
     (isHeaderSearchLoading || headerSearchError !== null || headerSearchResults.length > 0);
-
-  useEffect(() => {
-    fetchSpaces();
-  }, [fetchSpaces]);
-
-  useEffect(() => {
-    document.body.classList.add('browse-shell-active');
-    return () => {
-      document.body.classList.remove('browse-shell-active');
-    };
-  }, []);
 
   const clearHeaderSearchTimer = useCallback(() => {
     if (headerSearchTimerRef.current !== undefined) {
@@ -65,11 +61,12 @@ const PageLayout = () => {
     }
   }, []);
 
-  useEffect(() => {
-    return () => {
-      clearHeaderSearchTimer();
-    };
-  }, [clearHeaderSearchTimer]);
+  const clearHeaderSearchInFlight = useCallback(() => {
+    if (headerSearchAbortControllerRef.current) {
+      headerSearchAbortControllerRef.current.abort();
+      headerSearchAbortControllerRef.current = null;
+    }
+  }, []);
 
   const resetHeaderSearchState = useCallback(() => {
     setHeaderSearchResults([]);
@@ -77,75 +74,54 @@ const PageLayout = () => {
     setHeaderSearchError(null);
   }, []);
 
-  const runHeaderSearch = useCallback(async (query: string, requestSeq: number) => {
+  useEffect(() => {
+    return () => {
+      clearHeaderSearchTimer();
+      clearHeaderSearchInFlight();
+    };
+  }, [clearHeaderSearchInFlight, clearHeaderSearchTimer]);
+
+  const runHeaderSearch = useCallback(async (
+    query: string,
+    requestSeq: number,
+    controller: AbortController
+  ) => {
     try {
-      const data = await searchFiles(query, HEADER_SEARCH_RESULT_LIMIT);
+      const data = await searchFiles(query, HEADER_SEARCH_RESULT_LIMIT, {
+        signal: controller.signal,
+      });
       if (requestSeq !== headerSearchRequestSeqRef.current) {
         return;
       }
       setHeaderSearchResults(data);
       setHeaderSearchError(null);
     } catch (error) {
+      if (isAbortError(error)) {
+        return;
+      }
       if (requestSeq !== headerSearchRequestSeqRef.current) {
         return;
       }
       setHeaderSearchResults([]);
       setHeaderSearchError(error instanceof Error ? error.message : "검색 결과를 불러오지 못했습니다.");
     } finally {
-      if (requestSeq === headerSearchRequestSeqRef.current) {
+      if (headerSearchAbortControllerRef.current === controller) {
+        headerSearchAbortControllerRef.current = null;
+      }
+      if (requestSeq === headerSearchRequestSeqRef.current && !controller.signal.aborted) {
         setIsHeaderSearchLoading(false);
       }
     }
   }, []);
 
-  const handlePathSelect = useCallback((path: string, space?: Space) => {
-    if (space) {
-      setPath(path, space);
-    } else if (selectedSpace) {
-      setPath(path, selectedSpace);
-    }
-
-    if (location.pathname !== "/") {
-      navigate("/");
-    }
-  }, [location.pathname, navigate, setPath, selectedSpace]);
-
-  useEffect(() => {
-    if (!selectedSpace) {
-      return;
-    }
-    const isSelectedSpaceAllowed = spaces.some((space) => space.id === selectedSpace.id);
-    if (!isSelectedSpaceAllowed) {
-      clearContent();
-    }
-  }, [spaces, selectedSpace, clearContent]);
-
-  const closeNavDrawer = useCallback(() => {
-    setIsNavOpen(false);
-  }, []);
-
-  const handleMobileSearchClose = useCallback(() => {
-    setIsMobileSearchOpen(false);
-    clearHeaderSearchTimer();
-    headerSearchRequestSeqRef.current += 1;
-    resetHeaderSearchState();
-  }, [clearHeaderSearchTimer, resetHeaderSearchState]);
-
-  const handleMobileSearchToggle = useCallback(() => {
-    if (isMobileSearchOpen) {
-      handleMobileSearchClose();
-      return;
-    }
-    setIsMobileSearchOpen(true);
-  }, [handleMobileSearchClose, isMobileSearchOpen]);
-
   const handleHeaderSearchChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.target.value;
     setHeaderSearchQuery(nextValue);
     clearHeaderSearchTimer();
+    clearHeaderSearchInFlight();
 
     const normalized = nextValue.trim();
-    if (!hasConnectedSpaces || normalized.length < HEADER_SEARCH_MIN_QUERY_LENGTH) {
+    if (!hasConnectedSpaces || normalized.length < HEADER_SEARCH_SUGGEST_MIN_QUERY_LENGTH) {
       headerSearchRequestSeqRef.current += 1;
       resetHeaderSearchState();
       return;
@@ -156,23 +132,35 @@ const PageLayout = () => {
     setIsHeaderSearchLoading(true);
     setHeaderSearchError(null);
     headerSearchTimerRef.current = window.setTimeout(() => {
-      void runHeaderSearch(normalized, requestSeq);
-    }, 220);
-  }, [clearHeaderSearchTimer, hasConnectedSpaces, resetHeaderSearchState, runHeaderSearch]);
+      const controller = new AbortController();
+      headerSearchAbortControllerRef.current = controller;
+      void runHeaderSearch(normalized, requestSeq, controller);
+    }, HEADER_SEARCH_DEBOUNCE_MS);
+  }, [clearHeaderSearchInFlight, clearHeaderSearchTimer, hasConnectedSpaces, resetHeaderSearchState, runHeaderSearch]);
 
   const handleHeaderSearchSubmit = useCallback((rawQuery?: string) => {
     const keyword = (rawQuery ?? headerSearchQuery).trim();
-    if (!hasConnectedSpaces || keyword.length < HEADER_SEARCH_MIN_QUERY_LENGTH) {
+    if (!hasConnectedSpaces || keyword.length < HEADER_SEARCH_SUBMIT_MIN_QUERY_LENGTH) {
       return;
     }
     clearHeaderSearchTimer();
+    clearHeaderSearchInFlight();
     headerSearchRequestSeqRef.current += 1;
     resetHeaderSearchState();
     if (isMobile) {
-      setIsMobileSearchOpen(false);
+      onMobileSearchClose();
     }
     navigate(`/search?q=${encodeURIComponent(keyword)}`);
-  }, [clearHeaderSearchTimer, hasConnectedSpaces, headerSearchQuery, isMobile, navigate, resetHeaderSearchState]);
+  }, [
+    clearHeaderSearchInFlight,
+    clearHeaderSearchTimer,
+    hasConnectedSpaces,
+    headerSearchQuery,
+    isMobile,
+    navigate,
+    onMobileSearchClose,
+    resetHeaderSearchState,
+  ]);
 
   const handleHeaderSearchResultSelect = useCallback((item: SearchFileResult) => {
     const targetSpace = spaces.find((space) => space.id === item.spaceId);
@@ -181,38 +169,34 @@ const PageLayout = () => {
     }
 
     clearHeaderSearchTimer();
+    clearHeaderSearchInFlight();
     headerSearchRequestSeqRef.current += 1;
     resetHeaderSearchState();
     setHeaderSearchQuery(item.name);
     setPath(item.isDir ? item.path : item.parentPath, targetSpace);
+    const searchQuery = normalizedHeaderSearchQuery || item.name;
 
     if (isMobile) {
-      setIsMobileSearchOpen(false);
+      onMobileSearchClose();
     }
-    navigate("/");
-  }, [clearHeaderSearchTimer, isMobile, navigate, resetHeaderSearchState, setPath, spaces]);
+    navigate("/", {
+      state: {
+        fromSearchQuery: searchQuery,
+      },
+    });
+  }, [
+    clearHeaderSearchInFlight,
+    clearHeaderSearchTimer,
+    isMobile,
+    navigate,
+    normalizedHeaderSearchQuery,
+    onMobileSearchClose,
+    resetHeaderSearchState,
+    setPath,
+    spaces,
+  ]);
 
-  const handleContextMenuCapture = useCallback((event: MouseEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement | null;
-    if (!target) {
-      event.preventDefault();
-      return;
-    }
-
-    const isEditableElement = Boolean(
-      target.closest('input, textarea, [contenteditable="true"], [contenteditable=""], .allow-native-context-menu')
-    );
-
-    if (isEditableElement) {
-      return;
-    }
-
-    // 탐색 앱 쉘에서는 브라우저 기본 우클릭 메뉴를 막고,
-    // 허용된 위치에서는 각 컴포넌트의 커스텀 컨텍스트 메뉴를 사용합니다.
-    event.preventDefault();
-  }, []);
-
-  const headerSearchField = (
+  return (
     <div className="layout-header-search-field">
       <Input
         allowClear
@@ -277,6 +261,100 @@ const PageLayout = () => {
       )}
     </div>
   );
+});
+
+const PageLayout = () => {
+  const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.lg;
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [isNavOpen, setIsNavOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
+  const spaces = useSpaceStore((state) => state.spaces);
+  const selectedSpace = useBrowseStore((state) => state.selectedSpace);
+  const setPath = useBrowseStore((state) => state.setPath);
+  const clearContent = useBrowseStore((state) => state.clearContent);
+  const isMobileSearchMode = isMobile && isMobileSearchOpen;
+  const showHeaderSearchInput = !isMobile || isMobileSearchMode;
+
+  useEffect(() => {
+    fetchSpaces();
+  }, [fetchSpaces]);
+
+  useEffect(() => {
+    document.body.classList.add('browse-shell-active');
+    return () => {
+      document.body.classList.remove('browse-shell-active');
+    };
+  }, []);
+
+  const handlePathSelect = useCallback((path: string, space?: Space) => {
+    if (space) {
+      setPath(path, space);
+    } else if (selectedSpace) {
+      setPath(path, selectedSpace);
+    }
+
+    if (location.pathname !== "/") {
+      navigate("/");
+    }
+  }, [location.pathname, navigate, setPath, selectedSpace]);
+
+  useEffect(() => {
+    if (!selectedSpace) {
+      return;
+    }
+    const isSelectedSpaceAllowed = spaces.some((space) => space.id === selectedSpace.id);
+    if (!isSelectedSpaceAllowed) {
+      clearContent();
+    }
+  }, [spaces, selectedSpace, clearContent]);
+
+  const closeNavDrawer = useCallback(() => {
+    setIsNavOpen(false);
+  }, []);
+
+  const handleMobileSearchClose = useCallback(() => {
+    setIsMobileSearchOpen(false);
+  }, []);
+
+  const handleMobileSearchToggle = useCallback(() => {
+    if (isMobileSearchOpen) {
+      handleMobileSearchClose();
+      return;
+    }
+    setIsMobileSearchOpen(true);
+  }, [handleMobileSearchClose, isMobileSearchOpen]);
+
+  const handleContextMenuCapture = useCallback((event: MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) {
+      event.preventDefault();
+      return;
+    }
+
+    const isEditableElement = Boolean(
+      target.closest('input, textarea, [contenteditable="true"], [contenteditable=""], .allow-native-context-menu')
+    );
+
+    if (isEditableElement) {
+      return;
+    }
+
+    // 탐색 앱 쉘에서는 브라우저 기본 우클릭 메뉴를 막고,
+    // 허용된 위치에서는 각 컴포넌트의 커스텀 컨텍스트 메뉴를 사용합니다.
+    event.preventDefault();
+  }, []);
+
+  const headerSearchField = showHeaderSearchInput ? (
+    <HeaderSearch
+      isMobile={isMobile}
+      isMobileSearchMode={isMobileSearchMode}
+      onMobileSearchClose={handleMobileSearchClose}
+    />
+  ) : null;
 
   return (
     <Layout className="layout-page layout-page-browse-shell" onContextMenuCapture={handleContextMenuCapture}>
