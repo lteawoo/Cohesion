@@ -3,6 +3,7 @@ import type { FileNode } from '@/features/browse/types';
 import type { Space } from '@/features/space/types';
 import { useSpaceStore } from './spaceStore';
 import { apiFetch } from '@/api/client';
+import { toApiError } from '@/api/error';
 
 function normalizeRelativePath(path: string): string {
   return path.replace(/^\/+/, '').replace(/\/+$/, '');
@@ -27,6 +28,13 @@ interface BrowseStore {
   fetchSpaceContents: (spaceId: number, relativePath: string) => Promise<void>;
   invalidateTree: (targets?: TreeInvalidationTarget[]) => void;
   clearContent: () => void;
+}
+
+function normalizeUnknownError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(fallbackMessage);
 }
 
 export const useBrowseStore = create<BrowseStore>((set) => ({
@@ -55,12 +63,12 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
       const url = `/api/browse?path=${encodeURIComponent(path)}&system=true`;
       const response = await apiFetch(url);
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw await toApiError(response, '디렉토리 목록을 불러오지 못했습니다.');
       }
       const data: FileNode[] = await response.json();
       set({ content: data, isLoading: false });
     } catch (e) {
-      set({ error: e as Error, isLoading: false });
+      set({ error: normalizeUnknownError(e, '디렉토리 목록을 불러오지 못했습니다.'), isLoading: false });
     }
   },
 
@@ -70,7 +78,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
       const url = `/api/spaces/${spaceId}/browse?path=${encodeURIComponent(relativePath)}`;
       const response = await apiFetch(url);
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw await toApiError(response, 'Space 폴더 목록을 불러오지 못했습니다.');
       }
       const data: FileNode[] = await response.json();
 
@@ -83,7 +91,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
         selectedSpace: space  // 덮어쓰기 없음
       });
     } catch (e) {
-      set({ error: e as Error, isLoading: false });
+      set({ error: normalizeUnknownError(e, 'Space 폴더 목록을 불러오지 못했습니다.'), isLoading: false });
     }
   },
 

@@ -1,6 +1,37 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **백엔드 테스트 최소 세트 확장 완료 (인증/권한 + 서비스 로직, 2026-02-22)**:
+    - 백엔드 테스트:
+      - `apps/backend/internal/auth/service_test.go` 추가 (로그인/토큰 발급/리프레시 검증).
+      - `apps/backend/internal/auth/middleware_test.go` 추가 (퍼블릭 경로, 무토큰 `401`, 권한 부족 `403`, claims 주입 검증).
+      - `apps/backend/internal/account/service_permissions_test.go` 추가 (`CanAccessSpaceByID` 권한 계층, `ReplaceUserPermissions` 입력 검증).
+      - `apps/backend/internal/auth/test_helpers_test.go` 추가 (SQLite in-memory 공통 테스트 셋업).
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+- **프론트 탐색 상태 처리 일관화 완료 (2026-02-22)**:
+    - 프론트:
+      - `FolderContent`에서 로딩/에러/빈 상태를 단일 규칙으로 정리 (중앙 로딩, 에러 재시도, 빈 폴더 Empty, 로딩 오버레이).
+      - `FolderTree`에서 Space 목록/API 실패 상태를 분리해 오류 메시지 + 재시도 버튼 제공.
+      - `useBrowseApi`를 에러 throw 기반으로 정리하고, `browseStore`/`spaceStore` 에러 메시지를 사용자 친화적으로 보강.
+      - 공통 API 에러 파서 `apps/frontend/src/api/error.ts` 추가.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+- **PR CI 기본 파이프라인 추가 완료 (2026-02-22)**:
+    - CI:
+      - `.github/workflows/ci.yml` 추가.
+      - 트리거: `pull_request`, `push(main)`.
+      - 순서: `pnpm install --frozen-lockfile` -> `pnpm lint` -> `pnpm build` -> `apps/backend go test ./...`.
+      - `concurrency` 및 `timeout-minutes: 20` 적용.
+    - 검증:
+      - 로컬에서 CI와 동일한 단계(`pnpm lint`, `pnpm build`, `go test ./...`) 통과.
+- **v0.1.0 릴리즈 노트 문서 초안 작성 완료** (2026-02-21):
+    - 문서:
+      - `docs/releases/v0.1.0.md` 신규 추가.
+      - 섹션 구성: `Highlights / New Features / Bug Fixes / Maintenance (Chore) / Security / Breaking Changes / Assets / Changelog`.
+      - GitHub 업데이트에 바로 활용 가능한 영문 릴리즈 노트 형태로 작성.
 - **README 영문화 완료** (2026-02-21):
     - 문서:
       - `README.md` 전 섹션(개요/기능/프로토콜/빌드/환경변수/보안/라이선스)을 영어 문구로 전환.
