@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router"
 import MainLayout from "@/components/layout/MainLayout"
 import FileExplorer from "@/features/browse/components/FileExplorer"
+import TrashExplorer from "@/features/browse/components/TrashExplorer"
 import Settings from "@/pages/Settings"
 import Login from "@/pages/Login"
 import RequireAuth from "@/features/auth/RequireAuth"
@@ -18,6 +19,10 @@ export default function App() {
           <Route
             path="/search"
             element={<FileExplorer />}
+          />
+          <Route
+            path="/trash"
+            element={<TrashExplorer />}
           />
         </Route>
         <Route

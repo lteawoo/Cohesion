@@ -288,9 +288,9 @@ const FolderTree: React.FC<FolderTreeProps> = ({
 
       loadingKeysRef.current.add(key);
       try {
+        const keyStr = key as string;
         let path: string;
         let spacePrefix = '';
-        const keyStr = key as string;
 
         let contents;
         if (keyStr.startsWith('space-')) {
@@ -302,9 +302,9 @@ const FolderTree: React.FC<FolderTreeProps> = ({
             spacePrefix = keyStr;
             path = '';
           }
-          const spaceId = parseInt(spacePrefix.replace('space-', ''));
-          const space = spaces?.find((s) => s.id === spaceId);
-          if (!space) {
+          const spaceId = parseInt(spacePrefix.replace('space-', ''), 10);
+          const currentSpace = spaces?.find((s) => s.id === spaceId);
+          if (!currentSpace) {
             return;
           }
           contents = await fetchSpaceDirectoryContents(spaceId, path);
@@ -332,14 +332,13 @@ const FolderTree: React.FC<FolderTreeProps> = ({
           partialLoadedKeysRef.current.delete(keyStr);
         }
 
-        const newChildren = effectiveNodes
+        const directoryChildren = effectiveNodes
           .map((node) => ({
             title: node.name,
             key: spacePrefix ? `${spacePrefix}::${node.path}` : node.path,
             isLeaf: false,
           }));
-
-        setTreeData((origin) => updateTreeData(origin, key, newChildren));
+        setTreeData((origin) => updateTreeData(origin, key, directoryChildren));
         setLoadedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
       } catch {
         // Error state is managed by useBrowseApi.
@@ -545,7 +544,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
       if (key.startsWith('space-')) {
         const sepIndex = key.indexOf('::');
         const spacePrefix = sepIndex >= 0 ? key.substring(0, sepIndex) : key;
-        const spaceId = parseInt(spacePrefix.replace('space-', ''));
+        const spaceId = parseInt(spacePrefix.replace('space-', ''), 10);
         const space = spaces?.find(s => s.id === spaceId);
 
         if (sepIndex >= 0) {
@@ -578,7 +577,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
 
     // Space 루트 노드인지 확인 (space-{id} 형식, :: 없음)
     if (key.startsWith('space-') && !key.includes('::')) {
-      const spaceId = parseInt(key.replace('space-', ''));
+      const spaceId = parseInt(key.replace('space-', ''), 10);
       const space = spaces?.find(s => s.id === spaceId);
 
       if (space) {

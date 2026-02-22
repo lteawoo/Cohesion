@@ -75,7 +75,7 @@ const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
         )}
         {canWrite && (
           <Button size="small" icon={<DeleteOutlined />} danger onClick={onDelete}>
-            삭제
+            휴지통 이동
           </Button>
         )}
         <Button size="small" onClick={onClear}>
