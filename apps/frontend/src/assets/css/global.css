@@ -140,6 +140,18 @@ body.browse-shell-active .ant-select-dropdown [contenteditable] {
   min-width: 0;
 }
 
+.layout-header-mobile-search {
+  justify-content: stretch;
+}
+
+.layout-header-mobile-search-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
 .layout-header-search-shell {
   display: flex;
   align-items: center;
@@ -222,8 +234,8 @@ body.browse-shell-active .ant-select-dropdown [contenteditable] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  font-size: 16px;
+  width: 20px;
+  font-size: 18px;
 }
 
 .layout-header-search-result-main {
@@ -269,6 +281,10 @@ body.browse-shell-active .ant-select-dropdown [contenteditable] {
   .layout-header {
     gap: 6px;
     padding: 0 12px;
+  }
+
+  .layout-header-mobile-search {
+    padding: 0 8px;
   }
 
   .layout-header-start {

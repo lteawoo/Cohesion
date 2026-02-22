@@ -1,6 +1,6 @@
 import { Layout, Button, theme, Drawer, Grid, Input, Spin } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router";
-import { SettingOutlined, MenuOutlined, SearchOutlined, CloseOutlined, FileOutlined, FolderFilled } from "@ant-design/icons";
+import { SettingOutlined, MenuOutlined, SearchOutlined, CloseOutlined, FolderFilled } from "@ant-design/icons";
 import MainSider from "./MainSider";
 import ServerStatus from "./ServerStatus";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,6 +13,7 @@ import HeaderBrand from "@/components/common/HeaderBrand";
 import HeaderGroup from "@/components/common/HeaderGroup";
 import { searchFiles } from "@/features/search/api/searchApi";
 import type { SearchFileResult } from "@/features/search/types";
+import { FileTypeIcon } from "@/features/browse/components/FileTypeIcon";
 
 const { Header, Content } = Layout;
 const HEADER_SEARCH_RESULT_LIMIT = 8;
@@ -39,7 +40,8 @@ const PageLayout = () => {
   const clearContent = useBrowseStore((state) => state.clearContent);
   const hasConnectedSpaces = spaces.length > 0;
   const normalizedHeaderSearchQuery = headerSearchQuery.trim();
-  const showHeaderSearchInput = !isMobile || isMobileSearchOpen;
+  const isMobileSearchMode = isMobile && isMobileSearchOpen;
+  const showHeaderSearchInput = !isMobile || isMobileSearchMode;
   const showHeaderSearchDropdown =
     showHeaderSearchInput &&
     normalizedHeaderSearchQuery.length >= HEADER_SEARCH_MIN_QUERY_LENGTH &&
@@ -210,121 +212,131 @@ const PageLayout = () => {
     event.preventDefault();
   }, []);
 
+  const headerSearchField = (
+    <div className="layout-header-search-field">
+      <Input
+        allowClear
+        autoFocus={isMobileSearchMode}
+        className="layout-header-search-input allow-text-select allow-native-context-menu"
+        disabled={!hasConnectedSpaces}
+        value={headerSearchQuery}
+        onChange={handleHeaderSearchChange}
+        onPressEnter={() => handleHeaderSearchSubmit()}
+        placeholder="검색"
+        prefix={<SearchOutlined />}
+      />
+      {showHeaderSearchDropdown && (
+        <div className="layout-header-search-dropdown">
+          {isHeaderSearchLoading ? (
+            <div className="layout-header-search-status">
+              <Spin size="small" />
+              <span>검색 중...</span>
+            </div>
+          ) : headerSearchError ? (
+            <div className="layout-header-search-status layout-header-search-status-error">
+              {headerSearchError}
+            </div>
+          ) : headerSearchResults.length > 0 ? (
+            <div className="layout-header-search-result-list">
+              {headerSearchResults.map((item) => (
+                <button
+                  type="button"
+                  key={`${item.spaceId}:${item.path}`}
+                  className="layout-header-search-result-item"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleHeaderSearchResultSelect(item)}
+                >
+                  <span className="layout-header-search-result-icon">
+                    {item.isDir ? (
+                      <FolderFilled style={{ color: "var(--app-folder-icon-color, #415a77)", fontSize: 18 }} />
+                    ) : (
+                      <FileTypeIcon filename={item.name} size={18} />
+                    )}
+                  </span>
+                  <span className="layout-header-search-result-main">
+                    <span className="layout-header-search-result-name">{item.name}</span>
+                    <span className="layout-header-search-result-meta">
+                      {item.spaceName}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="layout-header-search-status">검색 결과가 없습니다.</div>
+          )}
+          <button
+            type="button"
+            className="layout-header-search-submit"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => handleHeaderSearchSubmit(normalizedHeaderSearchQuery)}
+          >
+            Enter로 전체 결과 보기
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Layout className="layout-page layout-page-browse-shell" onContextMenuCapture={handleContextMenuCapture}>
       <Header
-        className="layout-header"
+        className={`layout-header${isMobileSearchMode ? " layout-header-mobile-search" : ""}`}
         style={{
           background: token.colorBgContainer
         }}
       >
-        <HeaderGroup align="start">
-            {isMobile && (
-              <Button
-                type="text"
-                icon={<MenuOutlined />}
-                onClick={() => setIsNavOpen(true)}
-              />
-            )}
-            <HeaderBrand text="Cohesion" color={token.colorText} />
-            <ServerStatus />
-        </HeaderGroup>
-        <div className="layout-header-center">
-          {showHeaderSearchInput && (
-            <div className="layout-header-search-shell">
-              <div className="layout-header-search-field">
-                <Input
-                  allowClear
-                  autoFocus={isMobile}
-                  className="layout-header-search-input allow-text-select allow-native-context-menu"
-                  disabled={!hasConnectedSpaces}
-                  value={headerSearchQuery}
-                  onChange={handleHeaderSearchChange}
-                  onPressEnter={() => handleHeaderSearchSubmit()}
-                  placeholder="검색"
-                  prefix={<SearchOutlined />}
-                />
-                {showHeaderSearchDropdown && (
-                  <div className="layout-header-search-dropdown">
-                    {isHeaderSearchLoading ? (
-                      <div className="layout-header-search-status">
-                        <Spin size="small" />
-                        <span>검색 중...</span>
-                      </div>
-                    ) : headerSearchError ? (
-                      <div className="layout-header-search-status layout-header-search-status-error">
-                        {headerSearchError}
-                      </div>
-                    ) : headerSearchResults.length > 0 ? (
-                      <div className="layout-header-search-result-list">
-                        {headerSearchResults.map((item) => (
-                          <button
-                            type="button"
-                            key={`${item.spaceId}:${item.path}`}
-                            className="layout-header-search-result-item"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={() => handleHeaderSearchResultSelect(item)}
-                          >
-                            <span className="layout-header-search-result-icon">
-                              {item.isDir ? (
-                                <FolderFilled style={{ color: "var(--app-folder-icon-color, #415a77)" }} />
-                              ) : (
-                                <FileOutlined />
-                              )}
-                            </span>
-                            <span className="layout-header-search-result-main">
-                              <span className="layout-header-search-result-name">{item.name}</span>
-                              <span className="layout-header-search-result-meta">
-                                {item.spaceName} · {item.parentPath || "/"}
-                              </span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="layout-header-search-status">검색 결과가 없습니다.</div>
-                    )}
-                    <button
-                      type="button"
-                      className="layout-header-search-submit"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => handleHeaderSearchSubmit(normalizedHeaderSearchQuery)}
-                    >
-                      Enter로 전체 결과 보기
-                    </button>
-                  </div>
+        {isMobileSearchMode ? (
+          <div className="layout-header-mobile-search-shell">
+            <Button
+              type="text"
+              icon={<CloseOutlined />}
+              aria-label="검색 닫기"
+              title="검색 닫기"
+              onClick={handleMobileSearchClose}
+            />
+            {headerSearchField}
+          </div>
+        ) : (
+          <>
+            <HeaderGroup align="start">
+                {isMobile && (
+                  <Button
+                    type="text"
+                    icon={<MenuOutlined />}
+                    onClick={() => setIsNavOpen(true)}
+                  />
                 )}
-              </div>
+                <HeaderBrand text="Cohesion" color={token.colorText} />
+                <ServerStatus />
+            </HeaderGroup>
+            <div className="layout-header-center">
+              {showHeaderSearchInput && (
+                <div className="layout-header-search-shell">
+                  {headerSearchField}
+                </div>
+              )}
+            </div>
+            <HeaderGroup align="end">
               {isMobile && (
                 <Button
                   type="text"
-                  icon={<CloseOutlined />}
-                  aria-label="검색 닫기"
-                  title="검색 닫기"
-                  onClick={handleMobileSearchClose}
+                  icon={<SearchOutlined />}
+                  onClick={handleMobileSearchToggle}
+                  aria-label="검색"
+                  title="검색"
                 />
               )}
-            </div>
-          )}
-        </div>
-        <HeaderGroup align="end">
-          {isMobile && !isMobileSearchOpen && (
-            <Button
-              type="text"
-              icon={<SearchOutlined />}
-              onClick={handleMobileSearchToggle}
-              aria-label="검색"
-              title="검색"
-            />
-          )}
-          <Button
-            type="text"
-            icon={<SettingOutlined />}
-            onClick={() => navigate('/settings')}
-            aria-label="설정"
-            title="설정"
-          />
-        </HeaderGroup>
+              <Button
+                type="text"
+                icon={<SettingOutlined />}
+                onClick={() => navigate('/settings')}
+                aria-label="설정"
+                title="설정"
+              />
+            </HeaderGroup>
+          </>
+        )}
       </Header>
       <Layout className="layout-body">
           {!isMobile && (

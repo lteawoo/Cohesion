@@ -461,9 +461,8 @@ const FolderContent: React.FC = () => {
     if (!item) {
       return `${record.isDir ? '-' : formatSize(record.size)} | ${formatDate(record.modTime)}`;
     }
-    const parentPath = item.parentPath || '/';
     const sizeText = item.isDir ? '-' : formatSize(item.size);
-    return `${sizeText} | ${formatDate(item.modTime)} | ${item.spaceName} | ${parentPath}`;
+    return `${sizeText} | ${formatDate(item.modTime)} | ${item.spaceName}`;
   }, [resolveSearchResult]);
 
   const isSearching = isSearchMode && searchSource.isSearching;

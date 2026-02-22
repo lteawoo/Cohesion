@@ -1,6 +1,32 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **전역 검색(#122) 표시 정리: 경로 노출 제거 + 드롭다운 아이콘 통일 (2026-02-22)**:
+    - 프론트:
+      - 헤더 검색 드롭다운 메타에서 `space · parentPath` 표기를 제거하고 `spaceName`만 노출.
+      - 검색 결과 테이블 메타에서 `parentPath`를 제거하고 `size | modTime | spaceName`만 노출.
+      - 헤더 검색 드롭다운 파일 아이콘을 `FileOutlined` 단일 아이콘에서 `FileTypeIcon`으로 교체해 테이블 뷰 아이콘 정책과 통일.
+      - 드롭다운 아이콘 크기(18px)도 테이블과 맞춰 시각적 차이를 축소.
+      - 구현 파일:
+        - `apps/frontend/src/components/layout/MainLayout/index.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+        - `apps/frontend/src/assets/css/global.css`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 시각 확인 스크린샷: `/tmp/cohesion-search-dropdown-space-only.png`
+- **전역 검색(#122) 모바일 UX 보정: 검색 아이콘 탭 시 헤더 전체 검색 모드 전환 (2026-02-22)**:
+    - 프론트:
+      - 모바일에서 검색 아이콘 탭 시 헤더의 일반 요소(메뉴/브랜드/상태/설정)를 숨기고 `닫기 + 검색 입력`만 노출하도록 변경.
+      - 데스크톱 헤더 검색 UX는 기존 유지, 모바일에서만 전용 검색 헤더 모드 적용.
+      - 검색 입력/드롭다운 렌더를 공통 블록으로 정리해 모바일/데스크톱 동작 일관성 유지.
+      - 구현 파일:
+        - `apps/frontend/src/components/layout/MainLayout/index.tsx`
+        - `apps/frontend/src/assets/css/global.css`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과
+      - 브라우저 실측(390px): `검색` 탭 시 헤더에 `검색 닫기 + 검색 입력`만 표시, 닫기 시 기본 헤더 복귀 확인
 - **전역 검색(#122) UX 보정: 검색 화면 트리 선택 해제 처리 완료 (2026-02-22)**:
     - 프론트:
       - 검색 결과 전체보기(`/search`) 화면에서 좌측 Space 트리 선택 하이라이트를 비우도록 조정.
