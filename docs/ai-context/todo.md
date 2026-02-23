@@ -13,6 +13,7 @@
 - [x] 프론트 타입체크 오류 정리 (`TrashModal`/`TrashExplorer`/`SpaceSettings` 콜백 타입 및 아이콘 prop 정합)
 - [x] `v0.1.0` 릴리즈 노트 문서 작성 (`docs/releases/v0.1.0.md`, 영문 카테고리 기반)
 - [x] README 영문화 (섹션 구조/명령어 유지, 설명 문구 영어 전환)
+- [x] README에 릴리즈 산출물 실행 가이드 및 지원 OS/아키텍처 표기 추가
 - [x] GoReleaser changelog 생성 방식 전환 (`.goreleaser.yaml`: `changelog.use=github-native`, `.github/release.yml` 카테고리 반영)
 - [x] GitHub Actions 자동 릴리즈 워크플로 추가 (`.github/workflows/release.yml`, 태그 `v*` 트리거 + GoReleaser 실행)
 - [x] GitHub Release Notes 카테고리 템플릿 추가 (`.github/release.yml`: New Features/Bug Fixes/Maintenance(Chore)/Other Changes)

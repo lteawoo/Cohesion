@@ -85,6 +85,46 @@ pnpm release:check
 pnpm release:snapshot
 ```
 
+### Supported OS / Architecture (Release Artifacts)
+
+| OS | Architecture | Artifact Format |
+| --- | --- | --- |
+| macOS | `amd64`, `arm64` | `.tar.gz` |
+| Linux | `amd64`, `arm64` | `.tar.gz` |
+| Windows | `amd64` | `.zip` |
+
+Release artifacts are published on GitHub Releases:
+
+- https://github.com/lteawoo/Cohesion/releases
+
+### Run from Release Artifact
+
+1. Download the artifact that matches your OS/architecture.
+2. Extract it.
+3. Run the binary.
+
+macOS / Linux:
+
+```bash
+tar -xzf cohesion_<version>_<os>_<arch>.tar.gz
+cd cohesion_<version>_<os>_<arch>
+./cohesion
+```
+
+Windows (PowerShell):
+
+```powershell
+Expand-Archive .\cohesion_<version>_windows_amd64.zip .
+.\cohesion.exe
+```
+
+On first run, Cohesion creates a default config file when missing. The default production config uses `data/cohesion.db` for SQLite, and secret files are generated locally when needed.
+
+### Upgrade Notes
+
+- Stop the running process before replacing the binary.
+- Keep your existing `config/` and `data/` directories to preserve settings and data.
+
 ## Environment Variables
 
 - `COHESION_JWT_SECRET`

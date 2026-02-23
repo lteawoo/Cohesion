@@ -55,6 +55,15 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### README에 릴리즈 사용자 가이드(지원 OS/실행법) 명시 (2026-02-23)
+- **문제**:
+  - README에는 릴리즈 산출물 생성 명령만 있었고, 최종 사용자가 GitHub Releases 산출물을 받아 실행하는 방법과 OS 지원 범위가 명시돼 있지 않았다.
+- **결정**:
+  - README에 `Supported OS / Architecture (Release Artifacts)` 섹션을 추가한다.
+  - 릴리즈 산출물 실행 방법(macOS/Linux, Windows)과 업그레이드 시 주의사항(설정/데이터 디렉토리 유지)을 명시한다.
+- **이유**:
+  - 릴리즈 소비자 관점의 초기 실행 진입 장벽을 낮추고, 반복 문의를 줄여 운영 문서 품질을 높이기 위함.
+
 ### 프론트 타입 검증 명령 표준화 (`tsc -b`) 및 CI 단계 분리 (2026-02-23)
 - **문제**:
   - `pnpm -C apps/frontend exec tsc --noEmit`는 루트 `tsconfig` references 구조에서 CI의 실제 빌드 경로(`tsc -b`)와 동일하지 않아, 일부 타입 오류를 사전에 놓칠 수 있었다.
