@@ -1,6 +1,14 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **README 릴리즈 산출물 가이드 보강 (2026-02-23)**:
+    - 문서:
+      - `Supported OS / Architecture (Release Artifacts)` 섹션 추가.
+      - GitHub Releases 링크 및 산출물 실행 방법(macOS/Linux, Windows) 추가.
+      - 첫 실행 시 기본 설정/DB 경로 관련 안내와 업그레이드 시 주의사항(설정/데이터 디렉토리 유지) 추가.
+      - 구현 파일:
+        - `README.md`
+
 - **프론트 타입체크 명령/CI 검증 경로 정합화 (2026-02-23)**:
     - 프론트:
       - `apps/frontend/package.json`에 `typecheck` 스크립트(`tsc -b --pretty false`) 추가.
