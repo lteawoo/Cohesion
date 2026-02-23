@@ -13,6 +13,7 @@ type Space struct {
 	SpacePath     string     `db:"space_path" json:"space_path"`
 	Icon          *string    `db:"icon" json:"icon,omitempty"`
 	SpaceCategory *string    `db:"space_category" json:"space_category,omitempty"`
+	QuotaBytes    *int64     `db:"quota_bytes" json:"quota_bytes,omitempty"`
 	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
 	CreatedUserID *string    `db:"created_user_id" json:"created_user_id,omitempty"`
 	UpdatedAt     *time.Time `db:"updated_at" json:"updated_at,omitempty"`
@@ -26,6 +27,7 @@ type CreateSpaceRequest struct {
 	SpacePath     string  `json:"space_path"`
 	Icon          *string `json:"icon,omitempty"`
 	SpaceCategory *string `json:"space_category,omitempty"`
+	QuotaBytes    *int64  `json:"quota_bytes,omitempty"`
 }
 
 // Validate는 CreateSpaceRequest의 유효성을 검사합니다
@@ -40,6 +42,9 @@ func (req *CreateSpaceRequest) Validate() error {
 	// Space 이름 길이 제한
 	if len(req.SpaceName) > 100 {
 		return errors.New("space_name must be less than 100 characters")
+	}
+	if req.QuotaBytes != nil && *req.QuotaBytes < 0 {
+		return errors.New("quota_bytes must be greater than or equal to 0")
 	}
 
 	// 경로 유효성 검사

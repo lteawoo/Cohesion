@@ -64,6 +64,9 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	if path == "/api/search/files" && method == http.MethodGet {
 		return PermissionFileRead, true
 	}
+	if path == "/api/spaces/usage" && method == http.MethodGet {
+		return PermissionSpaceRead, true
+	}
 
 	if path == "/api/spaces" {
 		if method == http.MethodGet {
@@ -75,6 +78,9 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	}
 
 	if strings.HasPrefix(path, "/api/spaces/") && method == http.MethodDelete {
+		return PermissionSpaceWrite, true
+	}
+	if strings.HasPrefix(path, "/api/spaces/") && strings.HasSuffix(path, "/quota") && method == http.MethodPatch {
 		return PermissionSpaceWrite, true
 	}
 
@@ -136,6 +142,12 @@ func requiredSpacePermissionForRequest(r *http.Request) (*spacePermissionRequire
 		return &spacePermissionRequirement{
 			spaceID:  spaceID,
 			required: account.PermissionRead,
+		}, true
+	}
+	if strings.HasSuffix(path, "/quota") && r.Method == http.MethodPatch {
+		return &spacePermissionRequirement{
+			spaceID:  spaceID,
+			required: account.PermissionWrite,
 		}, true
 	}
 

@@ -5,6 +5,7 @@ import {
   BgColorsOutlined,
   FileOutlined,
   GlobalOutlined,
+  ClusterOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
   MenuOutlined,
@@ -17,6 +18,7 @@ import GeneralSettings from './sections/GeneralSettings';
 import AppearanceSettings from './sections/AppearanceSettings';
 import FileSettings from './sections/FileSettings';
 import ServerSettings from './sections/ServerSettings';
+import SpaceSettings from './sections/SpaceSettings';
 import AccountSettings from './sections/AccountSettings';
 import PermissionSettings from './sections/PermissionSettings';
 import ProfileSettings from './sections/ProfileSettings';
@@ -27,7 +29,7 @@ import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
 
-type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server' | 'permissions' | 'accounts';
+type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server' | 'spaces' | 'permissions' | 'accounts';
 
 const SettingsPage = () => {
   const { token } = theme.useToken();
@@ -40,6 +42,7 @@ const SettingsPage = () => {
 
   const permissions = user?.permissions ?? [];
   const canAccessServerSettings = permissions.includes('server.config.read') || permissions.includes('server.config.write');
+  const canAccessSpaceSettings = permissions.includes('space.read') || permissions.includes('space.write');
   const canAccessAccountSettings = permissions.includes('account.read') || permissions.includes('account.write');
 
   const menuItems = useMemo(() => [
@@ -68,6 +71,11 @@ const SettingsPage = () => {
       icon: <GlobalOutlined />,
       label: '서버',
     }] : []),
+    ...(canAccessSpaceSettings ? [{
+      key: 'spaces',
+      icon: <ClusterOutlined />,
+      label: '스페이스',
+    }] : []),
     ...(canAccessAccountSettings ? [{
       key: 'permissions',
       icon: <SafetyCertificateOutlined />,
@@ -78,10 +86,11 @@ const SettingsPage = () => {
       icon: <TeamOutlined />,
       label: '계정 관리',
     }] : []),
-  ], [canAccessAccountSettings, canAccessServerSettings]);
+  ], [canAccessAccountSettings, canAccessServerSettings, canAccessSpaceSettings]);
 
   const effectiveSection: SettingsSection = (
     (selectedSection === 'server' && !canAccessServerSettings) ||
+    (selectedSection === 'spaces' && !canAccessSpaceSettings) ||
     (selectedSection === 'permissions' && !canAccessAccountSettings) ||
     (selectedSection === 'accounts' && !canAccessAccountSettings)
   )
@@ -100,6 +109,8 @@ const SettingsPage = () => {
         return <FileSettings />;
       case 'server':
         return canAccessServerSettings ? <ServerSettings /> : <ProfileSettings />;
+      case 'spaces':
+        return canAccessSpaceSettings ? <SpaceSettings /> : <ProfileSettings />;
       case 'permissions':
         return canAccessAccountSettings ? <PermissionSettings /> : <ProfileSettings />;
       case 'accounts':

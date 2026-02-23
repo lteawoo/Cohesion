@@ -13,6 +13,10 @@ type Storer interface {
 	Delete(ctx context.Context, id int64) error
 }
 
+type quotaUpdatable interface {
+	UpdateQuota(ctx context.Context, id int64, quotaBytes *int64) (*Space, error)
+}
+
 type Service struct {
 	store Storer
 }
@@ -74,4 +78,25 @@ func (s *Service) DeleteSpace(ctx context.Context, id int64) error {
 	}
 
 	return nil
+}
+
+// UpdateSpaceQuota는 Space 쿼터를 갱신합니다. nil이면 무제한으로 설정됩니다.
+func (s *Service) UpdateSpaceQuota(ctx context.Context, id int64, quotaBytes *int64) (*Space, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid space id: %d", id)
+	}
+	if quotaBytes != nil && *quotaBytes < 0 {
+		return nil, fmt.Errorf("invalid quota bytes: %d", *quotaBytes)
+	}
+
+	updatable, ok := s.store.(quotaUpdatable)
+	if !ok {
+		return nil, fmt.Errorf("space store does not support quota updates")
+	}
+
+	updated, err := updatable.UpdateQuota(ctx, id, quotaBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update space quota: %w", err)
+	}
+	return updated, nil
 }

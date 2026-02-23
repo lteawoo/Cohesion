@@ -37,8 +37,9 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   };
 
   const handleOk = () => {
-    if (!selectedDestination) {
-      message.warning('대상 폴더를 선택하세요');
+    const hasDestinationSelection = Boolean(selectedDestinationSpace) || selectedDestination !== '';
+    if (!hasDestinationSelection) {
+      message.warning('대상 스페이스/폴더를 선택하세요');
       return;
     }
 
@@ -86,12 +87,12 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
 
   // 선택된 경로를 Space 상대 경로로 표시
   const displayPath = useMemo(() => {
-    if (!selectedDestination) return '';
     if (selectedDestinationSpace) {
       return selectedDestination
         ? `${selectedDestinationSpace.space_name}/${selectedDestination}`
-        : selectedDestinationSpace.space_name;
+        : `${selectedDestinationSpace.space_name}/`;
     }
+    if (!selectedDestination) return '';
     const leafName = selectedDestination.split('/').filter(Boolean).pop();
     return leafName ?? '선택됨';
   }, [selectedDestination, selectedDestinationSpace]);
@@ -128,7 +129,7 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
           selectedKeys={treeSelectedKeys}
         />
       </div>
-      {selectedDestination && (
+      {(selectedDestinationSpace || selectedDestination) && (
         <div style={{ marginTop: '16px', padding: '8px', backgroundColor: token.colorBgContainer, border: `1px solid ${token.colorBorder}`, borderRadius: '4px' }}>
           선택된 경로: <strong>{displayPath}</strong>
         </div>

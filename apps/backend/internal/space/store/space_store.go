@@ -32,6 +32,7 @@ func (s *Store) GetAll(ctx context.Context) ([]*space.Space, error) {
 			"space_path",
 			"icon",
 			"space_category",
+			"quota_bytes",
 			"created_at",
 			"created_user_id",
 			"updated_at",
@@ -60,6 +61,7 @@ func (s *Store) GetAll(ctx context.Context) ([]*space.Space, error) {
 			&sp.SpacePath,
 			&sp.Icon,
 			&sp.SpaceCategory,
+			&sp.QuotaBytes,
 			&sp.CreatedAt,
 			&sp.CreatedUserID,
 			&sp.UpdatedAt,
@@ -90,6 +92,7 @@ func (s *Store) GetByName(ctx context.Context, name string) (*space.Space, error
 			"space_path",
 			"icon",
 			"space_category",
+			"quota_bytes",
 			"created_at",
 			"created_user_id",
 			"updated_at",
@@ -112,6 +115,7 @@ func (s *Store) GetByName(ctx context.Context, name string) (*space.Space, error
 		&sp.SpacePath,
 		&sp.Icon,
 		&sp.SpaceCategory,
+		&sp.QuotaBytes,
 		&sp.CreatedAt,
 		&sp.CreatedUserID,
 		&sp.UpdatedAt,
@@ -132,6 +136,7 @@ func (s *Store) GetByID(ctx context.Context, id int64) (*space.Space, error) {
 			"space_path",
 			"icon",
 			"space_category",
+			"quota_bytes",
 			"created_at",
 			"created_user_id",
 			"updated_at",
@@ -154,6 +159,7 @@ func (s *Store) GetByID(ctx context.Context, id int64) (*space.Space, error) {
 		&sp.SpacePath,
 		&sp.Icon,
 		&sp.SpaceCategory,
+		&sp.QuotaBytes,
 		&sp.CreatedAt,
 		&sp.CreatedUserID,
 		&sp.UpdatedAt,
@@ -181,6 +187,7 @@ func (s *Store) Create(ctx context.Context, req *space.CreateSpaceRequest) (*spa
 			"space_path",
 			"icon",
 			"space_category",
+			"quota_bytes",
 			"created_at",
 		).
 		Values(
@@ -189,6 +196,7 @@ func (s *Store) Create(ctx context.Context, req *space.CreateSpaceRequest) (*spa
 			req.SpacePath,
 			req.Icon,
 			req.SpaceCategory,
+			req.QuotaBytes,
 			now,
 		).
 		ToSql()
@@ -220,11 +228,38 @@ func (s *Store) Create(ctx context.Context, req *space.CreateSpaceRequest) (*spa
 		SpacePath:     req.SpacePath,
 		Icon:          req.Icon,
 		SpaceCategory: req.SpaceCategory,
+		QuotaBytes:    req.QuotaBytes,
 		CreatedAt:     now,
 		CreatedUserID: nil,
 		UpdatedAt:     nil,
 		UpdatedUserID: nil,
 	}, nil
+}
+
+func (s *Store) UpdateQuota(ctx context.Context, id int64, quotaBytes *int64) (*space.Space, error) {
+	sqlQuery, args, err := s.qb.
+		Update("space").
+		Set("quota_bytes", quotaBytes).
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build SQL query for UpdateQuota: %w", err)
+	}
+
+	result, err := s.db.ExecContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update space quota: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rows affected for UpdateQuota: %w", err)
+	}
+	if rowsAffected == 0 {
+		return nil, fmt.Errorf("space with id %d not found", id)
+	}
+
+	return s.GetByID(ctx, id)
 }
 
 // Delete는 Space를 삭제합니다

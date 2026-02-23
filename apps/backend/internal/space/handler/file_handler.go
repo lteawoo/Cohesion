@@ -2,6 +2,7 @@ package handler
 
 import (
 	"archive/zip"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -33,6 +34,7 @@ const (
 	fileConflictCodeDestinationExists       = "destination_exists"
 	fileConflictCodeSameDestination         = "same_destination"
 	fileConflictCodeDestinationTypeMismatch = "destination_type_mismatch"
+	fileConflictCodeQuotaExceeded           = "quota_exceeded"
 )
 
 const (
@@ -219,6 +221,32 @@ func ensureNameIsNotTrashDirectory(name string) error {
 		return fmt.Errorf("trash directory name is reserved")
 	}
 	return nil
+}
+
+func (h *Handler) ensureSpaceQuotaForWrite(ctx context.Context, spaceID int64, deltaBytes int64) *web.Error {
+	if h.quotaService == nil {
+		return nil
+	}
+
+	if err := h.quotaService.EnsureCanWrite(ctx, spaceID, deltaBytes); err != nil {
+		var quotaErr *space.QuotaExceededError
+		if errors.As(err, &quotaErr) {
+			return &web.Error{Code: http.StatusInsufficientStorage, Message: "Space quota exceeded", Err: err}
+		}
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to evaluate space quota", Err: err}
+	}
+	return nil
+}
+
+func quotaFailureReason(err error) string {
+	if err == nil {
+		return "Space quota exceeded"
+	}
+	var quotaErr *space.QuotaExceededError
+	if errors.As(err, &quotaErr) {
+		return fmt.Sprintf("Space quota exceeded (used=%d, quota=%d)", quotaErr.UsedBytes, quotaErr.QuotaBytes)
+	}
+	return "Space quota exceeded"
 }
 
 func trashStorageRelativePath(spacePath string, storageAbsPath string) (string, error) {
@@ -963,6 +991,9 @@ func (h *Handler) handleTrashRestore(w http.ResponseWriter, r *http.Request, spa
 		}
 		succeeded = append(succeeded, restoreSuccess{ID: item.ID, OriginalPath: item.OriginalPath})
 	}
+	if h.quotaService != nil && len(succeeded) > 0 {
+		h.quotaService.Invalidate(spaceID)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -1033,6 +1064,9 @@ func (h *Handler) handleTrashDelete(w http.ResponseWriter, r *http.Request, spac
 		}
 		succeeded = append(succeeded, deleteSuccess{ID: item.ID})
 	}
+	if h.quotaService != nil && len(succeeded) > 0 {
+		h.quotaService.Invalidate(spaceID)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -1085,6 +1119,9 @@ func (h *Handler) handleTrashEmpty(w http.ResponseWriter, r *http.Request, space
 			continue
 		}
 		removed++
+	}
+	if h.quotaService != nil && removed > 0 {
+		h.quotaService.Invalidate(spaceID)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -1150,8 +1187,15 @@ func (h *Handler) handleFileCreateFolder(w http.ResponseWriter, r *http.Request,
 		return &web.Error{Code: http.StatusConflict, Message: "Folder already exists"}
 	}
 
+	if webErr := h.ensureSpaceQuotaForWrite(r.Context(), spaceID, 0); webErr != nil {
+		return webErr
+	}
+
 	if err := os.Mkdir(folderPath, 0755); err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to create folder", Err: err}
+	}
+	if h.quotaService != nil {
+		h.quotaService.Invalidate(spaceID)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -1207,6 +1251,7 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 
 	destPath := filepath.Join(absTarget, header.Filename)
 	resultFileName := header.Filename
+	projectedDelta := header.Size
 	overwriteLegacy := r.FormValue("overwrite") == "true"
 	conflictPolicy, hasConflictPolicy, err := resolveUploadConflictPolicy(r.FormValue("conflictPolicy"), overwriteLegacy)
 	if err != nil {
@@ -1222,6 +1267,7 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 			if existingInfo.IsDir() {
 				return &web.Error{Code: http.StatusConflict, Message: "Directory already exists"}
 			}
+			projectedDelta = header.Size - existingInfo.Size()
 		case uploadConflictPolicyRename:
 			renamedPath, renamedFileName, resolveErr := resolveUploadRenamePath(destPath)
 			if resolveErr != nil {
@@ -1243,6 +1289,10 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect destination path", Err: err}
 	}
 
+	if webErr := h.ensureSpaceQuotaForWrite(r.Context(), spaceID, projectedDelta); webErr != nil {
+		return webErr
+	}
+
 	destFile, err := os.Create(destPath)
 	if err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to create destination file", Err: err}
@@ -1261,6 +1311,9 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 		"filename": resultFileName,
 		"status":   "uploaded",
 	})
+	if h.quotaService != nil {
+		h.quotaService.Invalidate(spaceID)
+	}
 	return nil
 }
 
@@ -1335,6 +1388,7 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 	succeeded := []string{}
 	skipped := []string{}
 	failed := []moveResult{}
+	quotaInvalidationTargets := map[int64]struct{}{}
 
 	for _, relSrc := range req.Sources {
 		if err := ensurePathOutsideTrash(relSrc); err != nil {
@@ -1347,12 +1401,18 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 			continue
 		}
 
-		if _, err := os.Stat(absSrc); err != nil {
+		srcInfo, err := os.Stat(absSrc)
+		if err != nil {
 			if os.IsNotExist(err) {
 				failed = append(failed, moveResult{Path: relSrc, Reason: "Source not found"})
 			} else {
 				failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to access source: %v", err)})
 			}
+			continue
+		}
+		sourceSize, sizeErr := h.quotaService.CalculatePathSize(r.Context(), absSrc)
+		if sizeErr != nil {
+			failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to evaluate source size: %v", sizeErr)})
 			continue
 		}
 
@@ -1374,6 +1434,11 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 			continue
 		}
 
+		projectedDelta := sourceSize
+		if dstSpaceID == spaceID {
+			projectedDelta = 0
+		}
+
 		if destInfo, statErr := os.Stat(destPath); statErr == nil {
 			if !hasConflictPolicy {
 				failed = append(failed, moveResult{
@@ -1386,11 +1451,6 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 
 			switch conflictPolicy {
 			case uploadConflictPolicyOverwrite:
-				srcInfo, srcInfoErr := os.Stat(absSrc)
-				if srcInfoErr != nil {
-					failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to access source: %v", srcInfoErr)})
-					continue
-				}
 				if srcInfo.IsDir() != destInfo.IsDir() {
 					failed = append(failed, moveResult{
 						Path:   relSrc,
@@ -1399,11 +1459,27 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 					})
 					continue
 				}
+				existingSize, existingSizeErr := h.quotaService.CalculatePathSize(r.Context(), destPath)
+				if existingSizeErr != nil {
+					failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to evaluate destination size: %v", existingSizeErr)})
+					continue
+				}
+				projectedDelta -= existingSize
+				if webErr := h.ensureSpaceQuotaForWrite(r.Context(), dstSpaceID, projectedDelta); webErr != nil {
+					failed = append(failed, moveResult{
+						Path:   relSrc,
+						Reason: quotaFailureReason(webErr.Err),
+						Code:   fileConflictCodeQuotaExceeded,
+					})
+					continue
+				}
 				if overwriteErr := moveWithDestinationSwap(absSrc, destPath); overwriteErr != nil {
 					failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to overwrite destination: %v", overwriteErr)})
 					continue
 				}
 				succeeded = append(succeeded, relSrc)
+				quotaInvalidationTargets[dstSpaceID] = struct{}{}
+				quotaInvalidationTargets[spaceID] = struct{}{}
 				continue
 			case uploadConflictPolicyRename:
 				renamedPath, _, renameErr := resolveUploadRenamePath(destPath)
@@ -1421,11 +1497,29 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 			continue
 		}
 
+		if webErr := h.ensureSpaceQuotaForWrite(r.Context(), dstSpaceID, projectedDelta); webErr != nil {
+			failed = append(failed, moveResult{
+				Path:   relSrc,
+				Reason: quotaFailureReason(webErr.Err),
+				Code:   fileConflictCodeQuotaExceeded,
+			})
+			continue
+		}
+
 		if err := os.Rename(absSrc, destPath); err != nil {
 			failed = append(failed, moveResult{Path: relSrc, Reason: fmt.Sprintf("Failed to move: %v", err)})
 		} else {
 			succeeded = append(succeeded, relSrc)
+			quotaInvalidationTargets[dstSpaceID] = struct{}{}
+			quotaInvalidationTargets[spaceID] = struct{}{}
 		}
+	}
+	if h.quotaService != nil && len(quotaInvalidationTargets) > 0 {
+		spaceIDs := make([]int64, 0, len(quotaInvalidationTargets))
+		for targetID := range quotaInvalidationTargets {
+			spaceIDs = append(spaceIDs, targetID)
+		}
+		h.quotaService.InvalidateMany(spaceIDs...)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -1508,6 +1602,7 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 	succeeded := []string{}
 	skipped := []string{}
 	failed := []copyResult{}
+	quotaInvalidationTargets := map[int64]struct{}{}
 
 	for _, relSrc := range req.Sources {
 		if err := ensurePathOutsideTrash(relSrc); err != nil {
@@ -1529,6 +1624,11 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 			}
 			continue
 		}
+		sourceSize, sizeErr := h.quotaService.CalculatePathSize(r.Context(), absSrc)
+		if sizeErr != nil {
+			failed = append(failed, copyResult{Path: relSrc, Reason: fmt.Sprintf("Failed to evaluate source size: %v", sizeErr)})
+			continue
+		}
 
 		cleanSrc := filepath.Clean(absSrc)
 		cleanDst := filepath.Clean(absDestDir)
@@ -1548,6 +1648,7 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 			continue
 		}
 
+		projectedDelta := sourceSize
 		if destInfo, statErr := os.Stat(destPath); statErr == nil {
 			if !hasConflictPolicy {
 				failed = append(failed, copyResult{
@@ -1568,11 +1669,26 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 					})
 					continue
 				}
+				existingSize, existingSizeErr := h.quotaService.CalculatePathSize(r.Context(), destPath)
+				if existingSizeErr != nil {
+					failed = append(failed, copyResult{Path: relSrc, Reason: fmt.Sprintf("Failed to evaluate destination size: %v", existingSizeErr)})
+					continue
+				}
+				projectedDelta -= existingSize
+				if webErr := h.ensureSpaceQuotaForWrite(r.Context(), dstSpaceID, projectedDelta); webErr != nil {
+					failed = append(failed, copyResult{
+						Path:   relSrc,
+						Reason: quotaFailureReason(webErr.Err),
+						Code:   fileConflictCodeQuotaExceeded,
+					})
+					continue
+				}
 				if overwriteErr := copyWithDestinationSwap(absSrc, destPath, sourceInfo.IsDir()); overwriteErr != nil {
 					failed = append(failed, copyResult{Path: relSrc, Reason: fmt.Sprintf("Failed to overwrite destination: %v", overwriteErr)})
 					continue
 				}
 				succeeded = append(succeeded, relSrc)
+				quotaInvalidationTargets[dstSpaceID] = struct{}{}
 				continue
 			case uploadConflictPolicyRename:
 				renamedPath, _, renameErr := resolveUploadRenamePath(destPath)
@@ -1590,6 +1706,15 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 			continue
 		}
 
+		if webErr := h.ensureSpaceQuotaForWrite(r.Context(), dstSpaceID, projectedDelta); webErr != nil {
+			failed = append(failed, copyResult{
+				Path:   relSrc,
+				Reason: quotaFailureReason(webErr.Err),
+				Code:   fileConflictCodeQuotaExceeded,
+			})
+			continue
+		}
+
 		var copyErr error
 		if sourceInfo.IsDir() {
 			copyErr = copyDir(absSrc, destPath)
@@ -1600,7 +1725,15 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 			failed = append(failed, copyResult{Path: relSrc, Reason: fmt.Sprintf("Failed to copy: %v", copyErr)})
 		} else {
 			succeeded = append(succeeded, relSrc)
+			quotaInvalidationTargets[dstSpaceID] = struct{}{}
 		}
+	}
+	if h.quotaService != nil && len(quotaInvalidationTargets) > 0 {
+		spaceIDs := make([]int64, 0, len(quotaInvalidationTargets))
+		for targetID := range quotaInvalidationTargets {
+			spaceIDs = append(spaceIDs, targetID)
+		}
+		h.quotaService.InvalidateMany(spaceIDs...)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
