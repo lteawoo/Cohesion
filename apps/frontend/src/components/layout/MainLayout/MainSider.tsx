@@ -1,7 +1,7 @@
 import DirectorySetupModal from "@/features/space/components/DirectorySetupModal";
 import FolderTree from "@/features/browse/components/FolderTree";
-import { PlusOutlined, CloseOutlined, DeleteOutlined } from "@ant-design/icons";
-import { Button, Layout, theme, App } from "antd";
+import { PlusOutlined, CloseOutlined } from "@ant-design/icons";
+import { Button, Layout, theme, App, Tree } from "antd";
 import type { Space } from "@/features/space/types";
 import { useMemo, useState } from "react";
 import type { Key } from "react";
@@ -46,6 +46,10 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
     }
     return [`space-${selectedSpace.id}::${selectedPath}`];
   }, [isSearchMode, isTrashMode, selectedPath, selectedSpace]);
+  const trashTreeSelectedKeys = useMemo<Key[]>(
+    () => (isTrashMode ? ["trash-action"] : []),
+    [isTrashMode]
+  );
 
   const handleDeleteSpace = (space: Space) => {
     modal.confirm({
@@ -109,25 +113,38 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
             title="Space 추가"
           />
         ) : null}
-        footer={(
-          <Button
-            type="text"
-            icon={<DeleteOutlined />}
-            className={`layout-sider-footer-action${isTrashMode ? " layout-sider-footer-action-active" : ""}`}
-            onClick={handleOpenTrash}
-            aria-label="휴지통"
-            title="휴지통"
-            block
-          >
-            휴지통
-          </Button>
-        )}
       >
         <FolderTree
           onSelect={handleSelect}
           onSpaceDelete={canWriteSpaces ? handleDeleteSpace : undefined}
           selectedKeys={treeSelectedKeys}
           isSearchMode={isSearchMode}
+        />
+        <Tree.DirectoryTree
+          className="folder-tree layout-sider-tree-action"
+          selectable
+          selectedKeys={trashTreeSelectedKeys}
+          treeData={[
+            {
+              key: "trash-action",
+              title: (
+                <span className="layout-sider-tree-action-title">
+                  <span
+                    className="material-symbols-rounded layout-sider-tree-action-icon"
+                    style={{ fontVariationSettings: '"FILL" 1, "wght" 500, "GRAD" 0, "opsz" 20' }}
+                    aria-hidden="true"
+                  >
+                    delete
+                  </span>
+                  <span>휴지통</span>
+                </span>
+              ),
+              isLeaf: true,
+            },
+          ]}
+          onSelect={() => handleOpenTrash()}
+          expandAction={false}
+          showIcon={false}
         />
       </SidePanelShell>
     </>

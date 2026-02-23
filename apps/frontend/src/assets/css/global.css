@@ -366,6 +366,33 @@ body.browse-shell-active .ant-select-dropdown [contenteditable] {
   border-top: 1px solid var(--ant-color-border);
 }
 
+.layout-sider-tree-action {
+  flex: 0 0 auto;
+}
+
+.layout-sider-tree-action-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  line-height: 24px;
+  vertical-align: top;
+  margin-left: -8px;
+}
+
+.layout-sider-tree-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.layout-sider-tree-action .ant-tree-switcher {
+  display: none;
+}
+
 .layout-sider-footer-action {
   justify-content: flex-start;
   min-height: 40px;
@@ -433,7 +460,7 @@ body.browse-shell-active .ant-select-dropdown [contenteditable] {
   background-color: var(--browse-dragover-bg) !important;
 }
 
-.folder-tree .ant-tree-switcher {
+.folder-tree:not(.layout-sider-tree-action) .ant-tree-switcher {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -442,8 +469,8 @@ body.browse-shell-active .ant-select-dropdown [contenteditable] {
   line-height: 1;
 }
 
-.folder-tree .folder-tree-switcher-icon,
-.folder-tree .ant-tree-switcher .folder-tree-switcher-icon.ant-tree-switcher-icon {
+.folder-tree:not(.layout-sider-tree-action) .folder-tree-switcher-icon,
+.folder-tree:not(.layout-sider-tree-action) .ant-tree-switcher .folder-tree-switcher-icon.ant-tree-switcher-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -453,7 +480,7 @@ body.browse-shell-active .ant-select-dropdown [contenteditable] {
   line-height: 1 !important;
 }
 
-.folder-tree .folder-tree-switcher-placeholder {
+.folder-tree:not(.layout-sider-tree-action) .folder-tree-switcher-placeholder {
   display: inline-block;
   width: 20px;
   height: 20px;

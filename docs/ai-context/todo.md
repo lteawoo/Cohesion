@@ -145,6 +145,12 @@
 - [x] 이동/복사 충돌 정책(덮어쓰기/이름변경/건너뛰기 + 남은 충돌 일괄 적용)
 - [x] 이동/복사 충돌 후속 안정화 (`copy` 동일경로 overwrite 보호 + 실패 케이스 refresh/invalidate 보강)
 - [x] 이동/복사 대상 모달에서 Space 루트 선택 허용 (`''` 미선택 오판 검증 수정)
+- [x] 사이드패널 휴지통 진입점을 footer 버튼에서 트리 하단 트리 스타일로 전환
+- [x] 휴지통 트리 항목 `ant-tree-switcher-noop` 여백 제거 (`folder-tree` 공통 switcher 규칙 범위 분리)
+- [x] 휴지통 트리 아이콘을 `material-symbols-rounded` 계열로 통일 (`delete`)
+- [x] 휴지통 트리 행 높이/아이콘 수직정렬을 스페이스 트리(24px)와 통일 (`vertical-align: top`, `line-height: 24px`)
+- [x] 휴지통 트리 아이콘/텍스트 시작점을 스페이스 트리 칼럼과 통일 (`margin-left: -8px`, `gap: 12px`)
+- [x] 휴지통(`/trash`/모달) 수동 새로고침 버튼 제거 + 모달 `onRefresh` prop 정리
 - [x] Space 용량/쿼터 + 사용량 대시보드 (#125)
 - [x] Settings > 스페이스 전용 섹션 분리 및 `space.read/write` 기반 접근/수정 권한 분리 (#125 후속)
 - [x] 스페이스 쿼터 입력 단위 `GB -> MB` 전환 (#125 후속)

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { App, Button, Empty, Radio, Space as AntSpace, Table, Typography } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { DeleteOutlined, ReloadOutlined, RollbackOutlined } from '@ant-design/icons';
+import { DeleteOutlined, RollbackOutlined } from '@ant-design/icons';
 import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
 import { useBrowseStore } from '@/stores/browseStore';
@@ -547,9 +547,6 @@ const TrashExplorer: React.FC = () => {
           휴지통
         </Typography.Title>
         <AntSpace wrap>
-          <Button icon={<ReloadOutlined />} onClick={() => void loadTrashItems()} disabled={loading || processing}>
-            새로고침
-          </Button>
           <Button icon={<RollbackOutlined />} onClick={handleRestoreConfirm} disabled={selectedItems.length === 0 || loading || processing}>
             복원
           </Button>

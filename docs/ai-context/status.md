@@ -1,6 +1,36 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **사이드패널 휴지통 진입점 스타일 통합 (2026-02-23)**:
+    - 프론트:
+      - `SidePanelShell` footer 버튼 방식을 제거하고, 스페이스 트리 하단에 트리 스타일의 `휴지통` 항목을 배치.
+      - `휴지통` 항목을 하단 고정하지 않고 스페이스 트리 바로 아래 동일 스크롤 문맥으로 배치.
+      - `휴지통` 항목 위 구분선을 제거하고, 트리 switcher placeholder를 숨겨 아이콘 왼쪽 여백을 제거.
+      - `folder-tree` 공통 switcher 스타일이 휴지통 액션 트리에도 적용되던 우선순위 충돌을 해소하기 위해, 공통 규칙을 `.layout-sider-tree-action`에서 제외.
+      - 휴지통 아이콘을 `DeleteOutlined`에서 `material-symbols-rounded(delete)`로 교체해 스페이스 트리 아이콘 계열과 통일.
+      - 휴지통 라벨(`inline-flex`) baseline 정렬로 행 높이가 29px로 커지던 문제를 `line-height: 24px` + `vertical-align: top`으로 보정해 스페이스 항목(24px)과 통일.
+      - 휴지통 라벨 래퍼의 x축 시작점을 `margin-left: -8px`, `gap: 12px`으로 보정해 스페이스 트리와 아이콘/텍스트 시작 칼럼을 일치.
+      - 휴지통 화면(`/trash`) 및 휴지통 모달 footer의 수동 `새로고침` 버튼을 제거(자동 갱신 경로만 유지).
+      - 구현 파일:
+        - `apps/frontend/src/components/layout/MainLayout/MainSider.tsx`
+        - `apps/frontend/src/assets/css/global.css`
+        - `apps/frontend/src/features/browse/components/TrashExplorer.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent/TrashModal.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+      - 브라우저 실측 스크린샷:
+        - `/tmp/cohesion-tree-trash-below-spaces-desktop.png`
+        - `/tmp/cohesion-tree-trash-below-spaces-mobile.png`
+        - `/tmp/cohesion-tree-trash-no-divider-desktop.png`
+        - `/tmp/cohesion-tree-trash-no-divider-mobile.png`
+        - `/tmp/cohesion-trash-switcher-gap-fix.png`
+        - `/tmp/cohesion-trash-material-icon.png`
+        - `/tmp/cohesion-trash-row-align-fix.png`
+        - `/tmp/cohesion-trash-startpoint-align-fix.png`
+        - `/tmp/cohesion-trash-no-refresh-button.png`
+
 - **이동/복사 대상 모달 Space 루트 선택 허용 보정 (2026-02-23)**:
     - 프론트:
       - 대상 선택 모달이 Space 루트(`''`)를 미선택으로 오판하던 검증 로직을 수정.
