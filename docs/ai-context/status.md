@@ -1,6 +1,44 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **프론트 lint 경고(`baseline-browser-mapping`) 제거 (2026-02-23)**:
+    - 프론트:
+      - `apps/frontend`에 `baseline-browser-mapping@^2.10.0`를 devDependency로 명시 추가.
+      - 구현 파일:
+        - `apps/frontend/package.json`
+        - `pnpm-lock.yaml`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과 (기존 baseline 경고 제거 확인).
+      - `pnpm -C apps/frontend typecheck` 통과.
+
+- **메인 헤더 브랜드 링크 및 서버 설정 유효성 검사 강화 (#139, 2026-02-23)**:
+    - 프론트:
+      - `MainLayout` 헤더의 `Cohesion` 브랜드 클릭 시 메인(`/`)으로 이동하도록 링크 동작 추가.
+      - `ServerSettings`에 저장/재시작 전 유효성 검사 추가:
+        - WEB 포트 범위(1~65535) 검사
+        - SFTP 활성화 시 SFTP 포트 범위(1~65535) 검사
+        - WEB/SFTP 포트 충돌 검사
+      - 유효하지 않은 설정일 때 에러 Alert 노출 및 저장/재시작 버튼 비활성화.
+      - 구현 파일:
+        - `apps/frontend/src/components/layout/MainLayout/index.tsx`
+        - `apps/frontend/src/pages/Settings/sections/ServerSettings.tsx`
+        - `apps/frontend/src/api/config.ts`
+    - 백엔드:
+      - `/api/config` 업데이트 시 서버 설정 유효성 검증 추가:
+        - `server.port` 필수/정수/범위 검사
+        - `sftpEnabled=true`일 때 `server.sftpPort` 범위 및 포트 충돌 검사
+      - 구현 파일:
+        - `apps/backend/internal/config/handler.go`
+      - 테스트 추가:
+        - `apps/backend/internal/config/handler_test.go`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `cd apps/backend && go test ./...` 통과.
+      - 브라우저 실측 스크린샷:
+        - `/tmp/cohesion-main-brand-search-page.png`
+        - `/tmp/cohesion-settings-config-validation.png`
+
 - **README 릴리즈 산출물 가이드 보강 (2026-02-23)**:
     - 문서:
       - `Supported OS / Architecture (Release Artifacts)` 섹션 추가.
