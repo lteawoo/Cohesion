@@ -5,6 +5,7 @@ import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
 import { useAuth } from '@/features/auth/useAuth';
 import SettingSectionHeader from '../components/SettingSectionHeader';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 const BYTES_PER_MB = 1024 * 1024;
@@ -32,6 +33,7 @@ function formatBytes(bytes: number): string {
 }
 
 const SpaceSettings = () => {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const { user } = useAuth();
   const [usageLoading, setUsageLoading] = useState(false);
@@ -48,7 +50,7 @@ const SpaceSettings = () => {
     try {
       const response = await apiFetch('/api/spaces/usage');
       if (!response.ok) {
-        throw await toApiError(response, 'Space 사용량을 불러오지 못했습니다.');
+        throw await toApiError(response, t('spaceSettings.loadUsageFallback'));
       }
       const data = (await response.json()) as SpaceUsageItem[];
       setSpaceUsages(data);
@@ -61,11 +63,11 @@ const SpaceSettings = () => {
         }, {})
       );
     } catch {
-      message.error('Space 사용량을 불러오는데 실패했습니다');
+      message.error(t('spaceSettings.loadUsageFailed'));
     } finally {
       setUsageLoading(false);
     }
-  }, [message]);
+  }, [message, t]);
 
   useEffect(() => {
     if (!canReadSpaceSettings) {
@@ -83,7 +85,7 @@ const SpaceSettings = () => {
 
   const handleSaveQuota = async (spaceId: number, overrideDraftMb?: number | null) => {
     if (!canWriteSpaceSettings) {
-      message.error('Space 쿼터 수정 권한이 없습니다');
+      message.error(t('spaceSettings.noWritePermission'));
       return;
     }
 
@@ -100,50 +102,50 @@ const SpaceSettings = () => {
         body: JSON.stringify({ quotaBytes }),
       });
       if (!response.ok) {
-        throw await toApiError(response, 'Space 쿼터를 저장하지 못했습니다.');
+        throw await toApiError(response, t('spaceSettings.saveQuotaFallback'));
       }
-      message.success('Space 쿼터가 저장되었습니다');
+      message.success(t('spaceSettings.saveQuotaSuccess'));
       await loadSpaceUsage();
     } catch {
-      message.error('Space 쿼터 저장에 실패했습니다');
+      message.error(t('spaceSettings.saveQuotaFailed'));
     } finally {
       setQuotaSaving((prev) => ({ ...prev, [spaceId]: false }));
     }
   };
 
   if (!canReadSpaceSettings) {
-    return <div>권한이 없습니다.</div>;
+    return <div>{t('spaceSettings.noPermission')}</div>;
   }
 
   const spaceUsageColumns = [
     {
-      title: 'Space',
+      title: t('spaceSettings.columnSpace'),
       key: 'spaceName',
       render: (_: unknown, item: SpaceUsageItem) => (
         <Space size={8}>
           <Text strong>{item.spaceName}</Text>
-          {item.overQuota ? <Tag color="error">초과</Tag> : null}
+          {item.overQuota ? <Tag color="error">{t('spaceSettings.overQuotaTag')}</Tag> : null}
         </Space>
       ),
     },
     {
-      title: '사용량',
+      title: t('spaceSettings.columnUsage'),
       key: 'usedBytes',
       render: (_: unknown, item: SpaceUsageItem) => <Text>{formatBytes(item.usedBytes)}</Text>,
     },
     {
-      title: '쿼터',
+      title: t('spaceSettings.columnQuota'),
       key: 'quotaBytes',
       render: (_: unknown, item: SpaceUsageItem) => (
-        item.quotaBytes != null ? <Text>{formatBytes(item.quotaBytes)}</Text> : <Tag>무제한</Tag>
+        item.quotaBytes != null ? <Text>{formatBytes(item.quotaBytes)}</Text> : <Tag>{t('spaceSettings.unlimited')}</Tag>
       ),
     },
     {
-      title: '사용률',
+      title: t('spaceSettings.columnUsageRate'),
       key: 'usageRate',
       render: (_: unknown, item: SpaceUsageItem) => {
         if (item.quotaBytes == null || item.quotaBytes <= 0) {
-          return <Text type="secondary">무제한</Text>;
+          return <Text type="secondary">{t('spaceSettings.unlimited')}</Text>;
         }
         const ratio = (item.usedBytes / item.quotaBytes) * 100;
         return (
@@ -157,7 +159,7 @@ const SpaceSettings = () => {
       },
     },
     {
-      title: '쿼터 설정',
+      title: t('spaceSettings.columnQuotaEditor'),
       key: 'quotaEditor',
       render: (_: unknown, item: SpaceUsageItem) => (
         <Space size={8} wrap>
@@ -167,7 +169,7 @@ const SpaceSettings = () => {
             step={1}
             value={quotaDrafts[item.spaceId]}
             onChange={(value: number | null) => handleQuotaDraftChange(item.spaceId, value)}
-            placeholder="무제한"
+            placeholder={t('spaceSettings.unlimited')}
             addonAfter="MB"
             disabled={!canWriteSpaceSettings || quotaSaving[item.spaceId]}
           />
@@ -178,7 +180,7 @@ const SpaceSettings = () => {
             onClick={() => void handleSaveQuota(item.spaceId)}
             disabled={!canWriteSpaceSettings}
           >
-            저장
+            {t('spaceSettings.save')}
           </Button>
           <Button
             size="small"
@@ -188,7 +190,7 @@ const SpaceSettings = () => {
             }}
             disabled={!canWriteSpaceSettings || quotaSaving[item.spaceId]}
           >
-            무제한
+            {t('spaceSettings.unlimited')}
           </Button>
         </Space>
       ),
@@ -197,14 +199,14 @@ const SpaceSettings = () => {
 
   return (
     <Space vertical size="small" className="settings-section">
-      <SettingSectionHeader title="스페이스 설정" subtitle="스페이스 사용량과 쿼터를 관리합니다" />
+      <SettingSectionHeader title={t('spaceSettings.sectionTitle')} subtitle={t('spaceSettings.sectionSubtitle')} />
 
       <Card
-        title="Space 쿼터/사용량"
+        title={t('spaceSettings.cardTitle')}
         size="small"
         extra={(
           <Button size="small" icon={<ReloadOutlined />} onClick={() => void loadSpaceUsage()} loading={usageLoading}>
-            새로고침
+            {t('spaceSettings.refresh')}
           </Button>
         )}
       >
@@ -215,7 +217,7 @@ const SpaceSettings = () => {
           columns={spaceUsageColumns}
           dataSource={spaceUsages}
           pagination={false}
-          locale={{ emptyText: '표시할 Space가 없습니다' }}
+          locale={{ emptyText: t('spaceSettings.emptyText') }}
         />
       </Card>
     </Space>

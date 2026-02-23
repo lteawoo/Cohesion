@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Modal, theme, App } from 'antd';
 import FolderTree from './FolderTree';
 import type { Space } from '@/features/space/types';
+import { useTranslation } from 'react-i18next';
 
 interface DestinationPickerModalProps {
   visible: boolean;
@@ -24,6 +25,7 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const [selectedDestination, setSelectedDestination] = useState<string>('');
   const [selectedDestinationSpace, setSelectedDestinationSpace] = useState<Space | undefined>();
@@ -39,7 +41,7 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
   const handleOk = () => {
     const hasDestinationSelection = Boolean(selectedDestinationSpace) || selectedDestination !== '';
     if (!hasDestinationSelection) {
-      message.warning('대상 스페이스/폴더를 선택하세요');
+      message.warning(t('destinationPicker.selectDestinationWarning'));
       return;
     }
 
@@ -49,13 +51,13 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
 
     // 현재 경로로는 이동/복사 불가
     if (isSameSpaceDestination && selectedDestination === currentPath) {
-      message.error('같은 위치로 이동/복사할 수 없습니다');
+      message.error(t('destinationPicker.sameDestinationError'));
       return;
     }
 
     // 소스 경로 중 하나로는 이동/복사 불가
     if (isSameSpaceDestination && sources.includes(selectedDestination)) {
-      message.error('선택한 항목으로 이동/복사할 수 없습니다');
+      message.error(t('destinationPicker.sourceDestinationError'));
       return;
     }
 
@@ -64,7 +66,7 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
       return selectedDestination.startsWith(source + '/');
     });
     if (isSubdirectory) {
-      message.error('하위 폴더로 이동/복사할 수 없습니다');
+      message.error(t('destinationPicker.subdirectoryError'));
       return;
     }
 
@@ -94,8 +96,12 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
     }
     if (!selectedDestination) return '';
     const leafName = selectedDestination.split('/').filter(Boolean).pop();
-    return leafName ?? '선택됨';
-  }, [selectedDestination, selectedDestinationSpace]);
+    return leafName ?? t('destinationPicker.selectedLabel');
+  }, [selectedDestination, selectedDestinationSpace, t]);
+
+  const modeText = mode === 'move'
+    ? t('destinationPicker.moveMode')
+    : t('destinationPicker.copyMode');
 
   const treeSelectedKeys = useMemo<React.Key[]>(() => {
     if (!selectedDestinationSpace) {
@@ -109,19 +115,19 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
 
   return (
     <Modal
-      title={`${mode === 'move' ? '이동' : '복사'} - ${sourceCount}개 항목`}
+      title={t('destinationPicker.title', { mode: modeText, count: sourceCount })}
       open={visible}
       onOk={handleOk}
       onCancel={handleCancel}
       afterOpenChange={handleAfterOpenChange}
       maskClosable={false}
       styles={{ mask: { pointerEvents: 'auto' } }}
-      okText={mode === 'move' ? '이동' : '복사'}
-      cancelText="취소"
+      okText={mode === 'move' ? t('destinationPicker.okMove') : t('destinationPicker.okCopy')}
+      cancelText={t('destinationPicker.cancel')}
       width={600}
     >
       <div style={{ marginBottom: '16px', color: token.colorTextSecondary, fontSize: '14px' }}>
-        {mode === 'move' ? '이동할' : '복사할'} 대상 폴더를 선택하세요
+        {t('destinationPicker.selectTargetDescription', { mode: modeText })}
       </div>
       <div style={{ border: `1px solid ${token.colorBorder}`, borderRadius: '4px', padding: '8px', maxHeight: '400px', overflow: 'auto' }}>
         <FolderTree
@@ -131,7 +137,7 @@ const DestinationPickerModal: React.FC<DestinationPickerModalProps> = ({
       </div>
       {(selectedDestinationSpace || selectedDestination) && (
         <div style={{ marginTop: '16px', padding: '8px', backgroundColor: token.colorBgContainer, border: `1px solid ${token.colorBorder}`, borderRadius: '4px' }}>
-          선택된 경로: <strong>{displayPath}</strong>
+          {t('destinationPicker.selectedPath')}: <strong>{displayPath}</strong>
         </div>
       )}
     </Modal>

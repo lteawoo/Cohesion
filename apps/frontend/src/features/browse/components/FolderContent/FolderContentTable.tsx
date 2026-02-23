@@ -5,6 +5,7 @@ import { FolderFilled, MoreOutlined, EditOutlined, DeleteOutlined, CopyOutlined,
 import type { FileNode } from '../../types';
 import { formatDate, formatSize } from '../../constants';
 import { FileTypeIcon } from '../FileTypeIcon';
+import { useTranslation } from 'react-i18next';
 
 interface FolderContentTableProps {
   dataSource: FileNode[];
@@ -61,8 +62,10 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
   showActions = true,
   rowKeyResolver,
   renderMeta,
-  emptyText = '이 폴더는 비어 있습니다.',
+  emptyText,
 }) => {
+  const { t } = useTranslation();
+  const resolvedEmptyText = emptyText ?? t('folderContent.folderEmpty');
   const columns = [
     {
       key: 'entry',
@@ -73,14 +76,14 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
           {
             key: 'download',
             icon: <DownloadOutlined />,
-            label: record.isDir ? '폴더 다운로드 (ZIP)' : '다운로드',
+            label: record.isDir ? t('browseMenu.folderDownloadZip') : t('browseMenu.download'),
           },
           ...(canWriteFiles
             ? [
                 {
                   key: 'copy',
                   icon: <CopyOutlined />,
-                  label: '복사',
+                  label: t('browseMenu.copy'),
                 },
                 {
                   key: 'move',
@@ -89,18 +92,18 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
                       drive_file_move
                     </span>
                   ),
-                  label: '이동',
+                  label: t('browseMenu.move'),
                 },
                 {
                   key: 'rename',
                   icon: <EditOutlined />,
-                  label: '이름 변경',
+                  label: t('browseMenu.rename'),
                 },
                 { type: 'divider' as const },
                 {
                   key: 'delete',
                   icon: <DeleteOutlined />,
-                  label: '휴지통으로 이동',
+                  label: t('browseMenu.moveToTrash'),
                   danger: true,
                 },
               ]
@@ -148,8 +151,8 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
                   size="small"
                   icon={<MoreOutlined />}
                   onClick={(e) => e.stopPropagation()}
-                  aria-label="더보기"
-                  title="더보기"
+                  aria-label={t('browseMenu.more')}
+                  title={t('browseMenu.more')}
                 />
               </Dropdown>
             )}
@@ -191,7 +194,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
         onDragLeave: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDragLeave(e),
         onDrop: disableDrag ? undefined : (e: React.DragEvent<HTMLElement>) => record.isDir && onFolderDrop(e, record),
       })}
-      locale={{ emptyText }}
+      locale={{ emptyText: resolvedEmptyText }}
     />
   );
 };

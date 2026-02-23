@@ -12,6 +12,9 @@ import {
 } from '@ant-design/icons';
 import type { FileNode } from './types';
 
+type TranslationOptions = Record<string, unknown>;
+type TranslateFn = (key: string, options?: TranslationOptions) => string;
+
 // Utility functions
 export const formatSize = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -30,11 +33,19 @@ export const formatDate = (dateString: string): string => {
 // Table columns builder
 export function buildTableColumns(
   onNavigate: (path: string) => void,
-  sortConfig: { sortBy: string; sortOrder: 'ascend' | 'descend' }
+  sortConfig: { sortBy: string; sortOrder: 'ascend' | 'descend' },
+  t?: TranslateFn
 ): TableColumnsType<FileNode> {
+  const translate = t ?? ((key: string) => {
+    if (key === 'browseTable.name') return 'Name';
+    if (key === 'browseTable.modifiedAt') return 'Modified';
+    if (key === 'browseTable.size') return 'Size';
+    return key;
+  });
+
   return [
     {
-      title: '이름',
+      title: translate('browseTable.name'),
       dataIndex: 'name',
       key: 'name',
       sorter: true, // Enable sorting UI
@@ -51,7 +62,7 @@ export function buildTableColumns(
       ),
     },
     {
-      title: '수정일',
+      title: translate('browseTable.modifiedAt'),
       dataIndex: 'modTime',
       key: 'modTime',
       width: 200,
@@ -60,7 +71,7 @@ export function buildTableColumns(
       render: (date: string) => formatDate(date),
     },
     {
-      title: '크기',
+      title: translate('browseTable.size'),
       dataIndex: 'size',
       key: 'size',
       width: 120,
@@ -86,6 +97,7 @@ export interface ContextMenuCallbacks {
 export function buildSingleItemMenu(
   record: FileNode,
   callbacks: ContextMenuCallbacks,
+  t: TranslateFn,
   options?: { canWriteFiles?: boolean }
 ): MenuProps['items'] {
   const canWriteFiles = options?.canWriteFiles ?? true;
@@ -93,7 +105,7 @@ export function buildSingleItemMenu(
     {
       key: 'download',
       icon: <DownloadOutlined />,
-      label: record.isDir ? '폴더 다운로드 (ZIP)' : '다운로드',
+      label: record.isDir ? t('browseMenu.folderDownloadZip') : t('browseMenu.download'),
       onClick: () => callbacks.onDownload(record.path),
     },
     ...(canWriteFiles
@@ -101,26 +113,26 @@ export function buildSingleItemMenu(
           {
             key: 'copy',
             icon: <CopyOutlined />,
-            label: '복사',
+            label: t('browseMenu.copy'),
             onClick: callbacks.onCopy,
           },
           {
             key: 'move',
             icon: <ScissorOutlined />,
-            label: '이동',
+            label: t('browseMenu.move'),
             onClick: callbacks.onMove,
           },
           {
             key: 'rename',
             icon: <EditOutlined />,
-            label: '이름 변경',
+            label: t('browseMenu.rename'),
             onClick: () => callbacks.onRename(record),
           },
           { type: 'divider' as const },
           {
             key: 'delete',
             icon: <DeleteOutlined />,
-            label: '휴지통으로 이동',
+            label: t('browseMenu.moveToTrash'),
             danger: true,
             onClick: () => callbacks.onDelete(record),
           },
@@ -132,20 +144,21 @@ export function buildSingleItemMenu(
 export function buildMultiItemMenu(
   count: number,
   callbacks: Pick<ContextMenuCallbacks, 'onBulkDownload' | 'onCopy' | 'onMove' | 'onBulkDelete'>,
+  t: TranslateFn,
   options?: { canWriteFiles?: boolean }
 ): MenuProps['items'] {
   const canWriteFiles = options?.canWriteFiles ?? true;
   return [
     {
       key: 'selection-summary',
-      label: `${count}개 선택됨`,
+      label: t('browseMenu.selectedCount', { count }),
       disabled: true,
     },
     { type: 'divider' as const },
     {
       key: 'download',
       icon: <DownloadOutlined />,
-      label: '다운로드',
+      label: t('browseMenu.download'),
       onClick: callbacks.onBulkDownload,
     },
     ...(canWriteFiles
@@ -153,20 +166,20 @@ export function buildMultiItemMenu(
           {
             key: 'copy',
             icon: <CopyOutlined />,
-            label: '복사',
+            label: t('browseMenu.copy'),
             onClick: callbacks.onCopy,
           },
           {
             key: 'move',
             icon: <ScissorOutlined />,
-            label: '이동',
+            label: t('browseMenu.move'),
             onClick: callbacks.onMove,
           },
           { type: 'divider' as const },
           {
             key: 'delete',
             icon: <DeleteOutlined />,
-            label: '휴지통으로 이동',
+            label: t('browseMenu.moveToTrash'),
             danger: true,
             onClick: callbacks.onBulkDelete,
           },
@@ -175,7 +188,11 @@ export function buildMultiItemMenu(
   ];
 }
 
-export function buildEmptyAreaMenu(onCreateFolder: () => void, options?: { canWriteFiles?: boolean }): MenuProps['items'] {
+export function buildEmptyAreaMenu(
+  onCreateFolder: () => void,
+  t: TranslateFn,
+  options?: { canWriteFiles?: boolean }
+): MenuProps['items'] {
   const canWriteFiles = options?.canWriteFiles ?? true;
   if (!canWriteFiles) {
     return [];
@@ -184,18 +201,20 @@ export function buildEmptyAreaMenu(onCreateFolder: () => void, options?: { canWr
     {
       key: 'create-folder',
       icon: <FolderOutlined />,
-      label: '새 폴더 만들기',
+      label: t('browseMenu.createFolder'),
       onClick: onCreateFolder,
     },
   ];
 }
 
 // Sort options
-export const SORT_OPTIONS = [
-  { value: 'name-ascend', label: '이름 ↑' },
-  { value: 'name-descend', label: '이름 ↓' },
-  { value: 'modTime-ascend', label: '수정일 ↑' },
-  { value: 'modTime-descend', label: '수정일 ↓' },
-  { value: 'size-ascend', label: '크기 ↑' },
-  { value: 'size-descend', label: '크기 ↓' },
-];
+export function buildSortOptions(t: TranslateFn) {
+  return [
+    { value: 'name-ascend', label: t('browseMenu.sortNameAsc') },
+    { value: 'name-descend', label: t('browseMenu.sortNameDesc') },
+    { value: 'modTime-ascend', label: t('browseMenu.sortModTimeAsc') },
+    { value: 'modTime-descend', label: t('browseMenu.sortModTimeDesc') },
+    { value: 'size-ascend', label: t('browseMenu.sortSizeAsc') },
+    { value: 'size-descend', label: t('browseMenu.sortSizeDesc') },
+  ];
+}

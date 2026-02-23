@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Modal, Input } from 'antd';
 import type { InputRef } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 interface CreateFolderModalProps {
   visible: boolean;
@@ -17,6 +18,7 @@ const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
   onCancel,
   onChange,
 }) => {
+  const { t } = useTranslation();
   const inputRef = useRef<InputRef>(null);
 
   useEffect(() => {
@@ -30,18 +32,18 @@ const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
 
   return (
     <Modal
-      title="새 폴더 만들기"
+      title={t('createFolderModal.title')}
       open={visible}
       onOk={onConfirm}
       onCancel={onCancel}
       maskClosable={false}
       styles={{ mask: { pointerEvents: 'auto' } }}
-      okText="생성"
-      cancelText="취소"
+      okText={t('createFolderModal.create')}
+      cancelText={t('createFolderModal.cancel')}
     >
       <Input
         ref={inputRef}
-        placeholder="폴더 이름"
+        placeholder={t('createFolderModal.placeholder')}
         value={folderName}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         onPressEnter={onConfirm}

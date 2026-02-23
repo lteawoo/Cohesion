@@ -6,6 +6,7 @@ import { formatSize } from '../../constants';
 import { isImageFile } from '../../utils/fileTypeUtils';
 import { ImageThumbnail } from '../ImageThumbnail';
 import { FileTypeIcon } from '../FileTypeIcon';
+import { useTranslation } from 'react-i18next';
 
 interface FolderContentGridProps {
   dataSource: FileNode[];
@@ -48,6 +49,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   disableDraggable = false,
   spaceId,
 }) => {
+  const { t } = useTranslation();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
   const gridTemplateColumns = isMobile
@@ -57,7 +59,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   return (
     <>
       {dataSource.length === 0 && !loading ? (
-        <Empty description="이 폴더는 비어 있습니다." />
+        <Empty description={t('folderContent.folderEmpty')} />
       ) : (
         <div
           style={{

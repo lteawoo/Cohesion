@@ -3,10 +3,12 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import SettingRow from '../components/SettingRow';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
 const GeneralSettings = () => {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const language = useSettingsStore((state) => state.language);
   const setLanguage = useSettingsStore((state) => state.setLanguage);
@@ -14,30 +16,33 @@ const GeneralSettings = () => {
 
   const handleReset = () => {
     resetToDefaults();
-    message.success('설정이 초기화되었습니다');
+    message.success(t('generalSettings.resetSuccess'));
   };
 
   const handleClearCache = () => {
-    message.success('캐시가 삭제되었습니다');
+    message.success(t('generalSettings.clearCacheSuccess'));
   };
 
   return (
     <Space vertical size="small" className="settings-section">
-      <SettingSectionHeader title="일반 설정" subtitle="기본 애플리케이션 설정" />
+      <SettingSectionHeader
+        title={t('generalSettings.sectionTitle')}
+        subtitle={t('generalSettings.sectionSubtitle')}
+      />
 
-      <Card size="small" title="기본">
+      <Card size="small" title={t('generalSettings.baseCardTitle')}>
         <Space vertical size={4} className="settings-stack-full">
-          <Text type="secondary">언어, 기본 동작과 같은 일반 옵션을 설정합니다.</Text>
+          <Text type="secondary">{t('generalSettings.baseDescription')}</Text>
           <SettingRow
-            left={<Text strong>언어</Text>}
+            left={<Text strong>{t('generalSettings.languageLabel')}</Text>}
             right={(
               <Select
                 className="settings-select-compact"
                 value={language}
                 onChange={setLanguage}
                 options={[
-                  { value: 'ko', label: '한국어' },
-                  { value: 'en', label: 'English' },
+                  { value: 'ko', label: t('generalSettings.languageKo') },
+                  { value: 'en', label: t('generalSettings.languageEn') },
                 ]}
               />
             )}
@@ -45,31 +50,31 @@ const GeneralSettings = () => {
         </Space>
       </Card>
 
-      <Card size="small" title="데이터 관리">
+      <Card size="small" title={t('generalSettings.dataCardTitle')}>
         <Space vertical size={4} className="settings-stack-full">
-          <Text type="secondary">브라우저 저장 설정을 정리하거나 기본값으로 되돌릴 수 있습니다.</Text>
+          <Text type="secondary">{t('generalSettings.dataDescription')}</Text>
           <SettingRow
-            left={<Text strong>캐시 삭제</Text>}
+            left={<Text strong>{t('generalSettings.clearCacheLabel')}</Text>}
             right={(
               <Button
                 size="small"
                 icon={<DeleteOutlined />}
                 onClick={handleClearCache}
               >
-                삭제
+                {t('generalSettings.clearCacheButton')}
               </Button>
             )}
           />
 
           <SettingRow
-            left={<Text strong>설정 초기화</Text>}
+            left={<Text strong>{t('generalSettings.resetLabel')}</Text>}
             right={(
               <Popconfirm
-                title="설정 초기화"
-                description="모든 설정을 기본값으로 되돌립니다. 계속하시겠습니까?"
+                title={t('generalSettings.resetTitle')}
+                description={t('generalSettings.resetDescription')}
                 onConfirm={handleReset}
-                okText="초기화"
-                cancelText="취소"
+                okText={t('generalSettings.resetOk')}
+                cancelText={t('generalSettings.resetCancel')}
                 okButtonProps={{ danger: true }}
               >
                 <Button
@@ -77,7 +82,7 @@ const GeneralSettings = () => {
                   icon={<ReloadOutlined />}
                   danger
                 >
-                  초기화
+                  {t('generalSettings.resetButton')}
                 </Button>
               </Popconfirm>
             )}

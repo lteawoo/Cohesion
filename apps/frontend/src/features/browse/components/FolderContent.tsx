@@ -26,6 +26,7 @@ import BottomSheet from '@/components/common/BottomSheet';
 import { formatDate, formatSize } from '../constants';
 import { useSearchExplorerSource } from '@/features/search/hooks/useSearchExplorerSource';
 import type { SearchFileResult } from '@/features/search/types';
+import { useTranslation } from 'react-i18next';
 
 const LONG_PRESS_DURATION_MS = 420;
 const TOUCH_PAN_THRESHOLD_PX = 8;
@@ -35,9 +36,9 @@ const PATH_BAR_CONTENT_OVERLAY_HEIGHT = PATH_BAR_HEIGHT - EXPLORER_SIDE_PADDING;
 type NavigationState = { entries: string[]; index: number };
 type BrowseLocationState = { fromSearchQuery?: string };
 const EMPTY_SELECTION = new Set<string>();
-const SEARCH_MODE_HELP_TEXT = '2글자 이상 입력하면 전체 Space 검색 결과를 확인할 수 있습니다.';
 
 const FolderContent: React.FC = () => {
+  const { t } = useTranslation();
   const { message, modal } = App.useApp();
   const { token } = theme.useToken();
   const location = useLocation();
@@ -49,6 +50,7 @@ const FolderContent: React.FC = () => {
   const incomingSearchQuery = typeof locationState?.fromSearchQuery === 'string'
     ? locationState.fromSearchQuery.trim()
     : '';
+  const searchModeHelpText = t('folderContent.searchHint');
   const { user } = useAuth();
   const permissions = user?.permissions ?? [];
   const canWriteFiles = !isSearchMode && permissions.includes('file.write');
@@ -184,14 +186,14 @@ const FolderContent: React.FC = () => {
 
     const queryText = searchSource.query.trim();
     if (!queryText) {
-      return [{ key: 'search-root', title: <span>검색</span> }];
+      return [{ key: 'search-root', title: <span>{t('folderContent.searchBreadcrumb')}</span> }];
     }
 
     return [
-      { key: 'search-root', title: <span>검색</span> },
+      { key: 'search-root', title: <span>{t('folderContent.searchBreadcrumb')}</span> },
       { key: `search-query:${queryText}`, title: <span>"{queryText}"</span> },
     ];
-  }, [browseBreadcrumbItems, isSearchMode, searchSource.query]);
+  }, [browseBreadcrumbItems, isSearchMode, searchSource.query, t]);
 
   const compactBreadcrumbItems = useMemo(() => {
     if (!isPathOverflow || breadcrumbItems.length <= 3) {
@@ -673,7 +675,7 @@ const FolderContent: React.FC = () => {
   const handleRenameConfirm = async () => {
     const { record, newName } = modals.rename.data;
     if (!record || !newName.trim()) {
-      message.error('새 이름을 입력하세요');
+      message.error(t('folderContent.renameRequired'));
       return;
     }
     await performRename(record.path, newName.trim());
@@ -684,7 +686,7 @@ const FolderContent: React.FC = () => {
   const handleCreateFolderConfirm = async () => {
     const { folderName } = modals.createFolder.data;
     if (!folderName.trim()) {
-      message.error('폴더 이름을 입력하세요');
+      message.error(t('folderContent.folderNameRequired'));
       return;
     }
     await performCreateFolder(selectedPath, folderName.trim());
@@ -730,21 +732,21 @@ const FolderContent: React.FC = () => {
       const items = await fetchTrashItems();
       setTrashItems(items);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '휴지통 목록 조회 실패');
+      message.error(error instanceof Error ? error.message : t('folderContent.trashListLoadFailed'));
     } finally {
       setIsTrashLoading(false);
     }
-  }, [fetchTrashItems, message, selectedSpace]);
+  }, [fetchTrashItems, message, selectedSpace, t]);
 
   const handleOpenTrash = useCallback(() => {
     if (!selectedSpace) {
-      message.error('Space가 선택되지 않았습니다');
+      message.error(t('folderContent.noSelectedSpace'));
       return;
     }
     setIsTrashModalOpen(true);
     setSelectedTrashIds([]);
     void loadTrashItems();
-  }, [loadTrashItems, message, selectedSpace]);
+  }, [loadTrashItems, message, selectedSpace, t]);
 
   useEffect(() => {
     if (!trashOpenRequest || !selectedSpace) {
@@ -767,15 +769,15 @@ const FolderContent: React.FC = () => {
 
   const handleTrashRestoreConfirm = useCallback(() => {
     if (selectedTrashIds.length === 0) {
-      message.warning('복원할 항목을 선택하세요');
+      message.warning(t('folderContent.selectRestoreItems'));
       return;
     }
 
     modal.confirm({
-      title: '복원 확인',
-      content: `선택한 ${selectedTrashIds.length}개 항목을 복원하시겠습니까?`,
-      okText: '복원',
-      cancelText: '취소',
+      title: t('folderContent.restoreConfirmTitle'),
+      content: t('folderContent.restoreConfirmContent', { count: selectedTrashIds.length }),
+      okText: t('folderContent.restore'),
+      cancelText: t('folderContent.cancel'),
       onOk: async () => {
         setIsTrashProcessing(true);
         try {
@@ -795,20 +797,21 @@ const FolderContent: React.FC = () => {
     modal,
     refreshCurrentFolder,
     selectedTrashIds,
+    t,
   ]);
 
   const handleTrashDeleteConfirm = useCallback(() => {
     if (selectedTrashIds.length === 0) {
-      message.warning('영구 삭제할 항목을 선택하세요');
+      message.warning(t('folderContent.selectPermanentDeleteItems'));
       return;
     }
 
     modal.confirm({
-      title: '영구 삭제 확인',
-      content: `선택한 ${selectedTrashIds.length}개 항목을 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`,
-      okText: '영구 삭제',
+      title: t('folderContent.permanentDeleteConfirmTitle'),
+      content: t('folderContent.permanentDeleteConfirmContent', { count: selectedTrashIds.length }),
+      okText: t('folderContent.permanentDelete'),
       okType: 'danger',
-      cancelText: '취소',
+      cancelText: t('folderContent.cancel'),
       onOk: async () => {
         setIsTrashProcessing(true);
         try {
@@ -828,20 +831,21 @@ const FolderContent: React.FC = () => {
     modal,
     refreshCurrentFolder,
     selectedTrashIds,
+    t,
   ]);
 
   const handleTrashEmptyConfirm = useCallback(() => {
     if (trashItems.length === 0) {
-      message.info('휴지통이 비어 있습니다');
+      message.info(t('folderContent.trashEmptyInfo'));
       return;
     }
 
     modal.confirm({
-      title: '휴지통 비우기',
-      content: `휴지통 항목 ${trashItems.length}개를 모두 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`,
-      okText: '비우기',
+      title: t('folderContent.emptyTrashConfirmTitle'),
+      content: t('folderContent.emptyTrashConfirmContent', { count: trashItems.length }),
+      okText: t('folderContent.emptyTrash'),
       okType: 'danger',
-      cancelText: '취소',
+      cancelText: t('folderContent.cancel'),
       onOk: async () => {
         setIsTrashProcessing(true);
         try {
@@ -861,6 +865,7 @@ const FolderContent: React.FC = () => {
     modal,
     refreshCurrentFolder,
     trashItems.length,
+    t,
   ]);
 
   // File input handlers
@@ -935,7 +940,7 @@ const FolderContent: React.FC = () => {
   if (!selectedSpace && !isSearchMode) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Empty description="왼쪽 트리나 스페이스에서 폴더를 선택하세요." />
+        <Empty description={t('folderContent.selectFolderFromTree')} />
       </div>
     );
   }
@@ -1011,14 +1016,16 @@ const FolderContent: React.FC = () => {
             <Button
               size="small"
               icon={<CloseOutlined />}
-              aria-label="선택 해제"
-              title="선택 해제"
+              aria-label={t('folderContent.clearSelection')}
+              title={t('folderContent.clearSelection')}
               onClick={() => {
                 armToolbarInteractionGuard();
                 handleClearSelection();
               }}
             />
-            <span style={{ fontWeight: 600, color: token.colorText, whiteSpace: 'nowrap' }}>{selectedItems.size}개 선택됨</span>
+            <span style={{ fontWeight: 600, color: token.colorText, whiteSpace: 'nowrap' }}>
+              {t('folderContent.selectedCount', { count: selectedItems.size })}
+            </span>
             <Button
               size="small"
               icon={<DownloadOutlined />}
@@ -1080,21 +1087,27 @@ const FolderContent: React.FC = () => {
               overflowY: 'hidden',
             }}
           >
-            <Button size="small" icon={<CloseOutlined />} aria-label="선택 해제" title="선택 해제" onClick={handleClearSelection} />
+            <Button
+              size="small"
+              icon={<CloseOutlined />}
+              aria-label={t('folderContent.clearSelection')}
+              title={t('folderContent.clearSelection')}
+              onClick={handleClearSelection}
+            />
             <span style={{ fontWeight: 600, color: token.colorText, whiteSpace: 'nowrap' }}>
-              {selectedItems.size}개 선택됨
+              {t('folderContent.selectedCount', { count: selectedItems.size })}
             </span>
             <Button size="small" icon={<DownloadOutlined />} onClick={() => handleBulkDownload(Array.from(selectedItems))}>
-              다운로드
+              {t('folderContent.download')}
             </Button>
             {canWriteFiles && (
               <Button size="small" icon={<CopyOutlined />} onClick={() => openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) })}>
-                복사
+                {t('folderContent.copy')}
               </Button>
             )}
             {canWriteFiles && (
               <Button size="small" icon={moveActionIcon} onClick={() => openModal('destination', { mode: 'move', sources: Array.from(selectedItems) })}>
-                이동
+                {t('folderContent.move')}
               </Button>
             )}
             {canWriteFiles && selectedItems.size === 1 && (
@@ -1109,12 +1122,12 @@ const FolderContent: React.FC = () => {
                   }
                 }}
               >
-                이름 변경
+                {t('folderContent.rename')}
               </Button>
             )}
             {canWriteFiles && (
               <Button size="small" icon={<DeleteOutlined />} danger onClick={() => handleBulkDelete(Array.from(selectedItems))}>
-                휴지통 이동
+                {t('folderContent.moveToTrash')}
               </Button>
             )}
           </div>
@@ -1162,9 +1175,9 @@ const FolderContent: React.FC = () => {
           </div>
         ) : shouldShowFullError ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Empty description={activeErrorMessage ?? (isSearchMode ? '검색 결과를 불러오지 못했습니다.' : '폴더를 불러오지 못했습니다.')}>
+            <Empty description={activeErrorMessage ?? (isSearchMode ? t('folderContent.loadSearchFailed') : t('folderContent.loadFolderFailed'))}>
               {!isSearchMode && (
-                <Button size="small" onClick={handleRetryContentLoad}>다시 시도</Button>
+                <Button size="small" onClick={handleRetryContentLoad}>{t('folderContent.retry')}</Button>
               )}
             </Empty>
           </div>
@@ -1173,8 +1186,8 @@ const FolderContent: React.FC = () => {
             <Empty
               description={
                 isSearchMode
-                  ? (searchSource.hasEnoughQuery ? '검색 결과가 없습니다.' : SEARCH_MODE_HELP_TEXT)
-                  : '이 폴더는 비어 있습니다.'
+                  ? (searchSource.hasEnoughQuery ? t('folderContent.noSearchResults') : searchModeHelpText)
+                  : t('folderContent.folderEmpty')
               }
             />
           </div>
@@ -1185,11 +1198,11 @@ const FolderContent: React.FC = () => {
                 <Alert
                   type="warning"
                   showIcon
-                  message={isSearchMode ? '검색 결과를 일부 불러오지 못했습니다.' : '최신 폴더 정보를 불러오지 못했습니다.'}
+                  message={isSearchMode ? t('folderContent.partialSearchFailed') : t('folderContent.latestFolderLoadFailed')}
                   description={activeErrorMessage ?? undefined}
                   action={
                     !isSearchMode
-                      ? <Button size="small" onClick={handleRetryContentLoad}>재시도</Button>
+                      ? <Button size="small" onClick={handleRetryContentLoad}>{t('folderContent.retryShort')}</Button>
                       : undefined
                   }
                 />
@@ -1222,7 +1235,7 @@ const FolderContent: React.FC = () => {
                 showActions={!isSearchMode}
                 rowKeyResolver={isSearchMode ? ((record) => record.path) : undefined}
                 renderMeta={isSearchMode ? renderSearchMeta : undefined}
-                emptyText={isSearchMode ? (searchSource.hasEnoughQuery ? '검색 결과가 없습니다.' : SEARCH_MODE_HELP_TEXT) : undefined}
+                emptyText={isSearchMode ? (searchSource.hasEnoughQuery ? t('folderContent.noSearchResults') : searchModeHelpText) : undefined}
               />
             ) : (
               <FolderContentGrid
@@ -1385,7 +1398,7 @@ const FolderContent: React.FC = () => {
               color: token.colorTextSecondary,
             }}
           >
-            {selectedItems.size}개 선택됨
+            {t('folderContent.selectedCount', { count: selectedItems.size })}
           </div>
           <Menu
             selectable={false}
@@ -1393,7 +1406,7 @@ const FolderContent: React.FC = () => {
               {
                 key: 'download',
                 icon: <DownloadOutlined />,
-                label: '다운로드',
+                label: t('folderContent.download'),
                 onClick: () => {
                   armToolbarInteractionGuard();
                   setIsMobileActionsOpen(false);
@@ -1404,7 +1417,7 @@ const FolderContent: React.FC = () => {
                 ? [{
                     key: 'copy',
                     icon: <CopyOutlined />,
-                    label: '복사',
+                    label: t('folderContent.copy'),
                     onClick: () => {
                       armToolbarInteractionGuard();
                       setIsMobileActionsOpen(false);
@@ -1416,7 +1429,7 @@ const FolderContent: React.FC = () => {
                 ? [{
                     key: 'move',
                     icon: moveActionIcon,
-                    label: '이동',
+                    label: t('folderContent.move'),
                     onClick: () => {
                       armToolbarInteractionGuard();
                       setIsMobileActionsOpen(false);
@@ -1428,7 +1441,7 @@ const FolderContent: React.FC = () => {
                 ? [{
                     key: 'rename',
                     icon: <EditOutlined />,
-                    label: '이름 변경',
+                    label: t('folderContent.rename'),
                     onClick: () => {
                       armToolbarInteractionGuard();
                       const path = Array.from(selectedItems)[0];
@@ -1444,7 +1457,7 @@ const FolderContent: React.FC = () => {
                 ? [{
                     key: 'delete',
                     icon: <DeleteOutlined />,
-                    label: '휴지통 이동',
+                    label: t('folderContent.moveToTrash'),
                     danger: true,
                     onClick: () => {
                       armToolbarInteractionGuard();

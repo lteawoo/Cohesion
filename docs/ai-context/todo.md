@@ -16,6 +16,10 @@
 - [x] README에 릴리즈 산출물 실행 가이드 및 지원 OS/아키텍처 표기 추가
 - [x] 메인 헤더 `Cohesion` 링크 동작 추가 + 설정 `서버` 섹션 유효성 검사 강화 (`/api/config` 백엔드 검증/테스트 포함) (#139)
 - [x] lint baseline 데이터 경고 제거를 위한 `baseline-browser-mapping` 최신화 (`apps/frontend` devDependency)
+- [x] 언어 설정 실제 반영 1차 (`i18next/react-i18next` 도입 + RootProviders locale 연동 + 핵심 공통 UI 번역 키 적용) (#141)
+- [x] 언어 설정 실제 반영 2차 (로그인/탐색기/휴지통 화면 번역 키 적용 + `trashExplorer` 번역 리소스 추가) (#141)
+- [x] 언어 설정 실제 반영 3차 (파일연산/드래그드롭/탐색 API 훅 메시지 i18n 전환 + browse table 라벨 키 전환) (#141)
+- [x] 언어 설정 실제 반영 4차 (설정 상세 섹션 + API/store/search fallback + 업로드 오버레이 문구 i18n 전환) (#141)
 - [x] GoReleaser changelog 생성 방식 전환 (`.goreleaser.yaml`: `changelog.use=github-native`, `.github/release.yml` 카테고리 반영)
 - [x] GitHub Actions 자동 릴리즈 워크플로 추가 (`.github/workflows/release.yml`, 태그 `v*` 트리거 + GoReleaser 실행)
 - [x] GitHub Release Notes 카테고리 템플릿 추가 (`.github/release.yml`: New Features/Bug Fixes/Maintenance(Chore)/Other Changes)

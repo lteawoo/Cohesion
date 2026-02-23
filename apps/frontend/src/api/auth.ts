@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import i18n from '@/i18n';
 
 export interface AuthUser {
   id: number;
@@ -48,7 +49,7 @@ export async function login(payload: LoginRequest): Promise<AuthUser> {
   });
 
   if (!response.ok) {
-    await throwResponseError(response, '로그인에 실패했습니다');
+    await throwResponseError(response, i18n.t('apiErrors.authLoginFailed'));
   }
 
   const data = await response.json() as { user: AuthUser };
@@ -58,7 +59,7 @@ export async function login(payload: LoginRequest): Promise<AuthUser> {
 export async function me(): Promise<AuthUser> {
   const response = await apiFetch('/api/auth/me');
   if (!response.ok) {
-    await throwResponseError(response, '인증되지 않은 요청입니다');
+    await throwResponseError(response, i18n.t('apiErrors.authUnauthorized'));
   }
   return response.json();
 }
@@ -68,7 +69,7 @@ export async function refreshAuth(): Promise<AuthUser> {
     method: 'POST',
   });
   if (!response.ok) {
-    await throwResponseError(response, '세션 갱신에 실패했습니다');
+    await throwResponseError(response, i18n.t('apiErrors.authRefreshFailed'));
   }
   const data = await response.json() as { user: AuthUser };
   return data.user;
@@ -79,6 +80,6 @@ export async function logout(): Promise<void> {
     method: 'POST',
   });
   if (!response.ok) {
-    await throwResponseError(response, '로그아웃에 실패했습니다');
+    await throwResponseError(response, i18n.t('apiErrors.authLogoutFailed'));
   }
 }

@@ -12,10 +12,12 @@ import {
 } from '@/api/roles';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import { useAuth } from '@/features/auth/useAuth';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
 const PermissionSettings = () => {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const { user, refreshSession } = useAuth();
   const [roles, setRoles] = useState<RoleItem[]>([]);
@@ -58,11 +60,11 @@ const PermissionSettings = () => {
         return roleList[0]?.name ?? '';
       });
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '권한 정보를 불러오지 못했습니다');
+      message.error(error instanceof Error ? error.message : t('permissionSettings.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [message]);
+  }, [message, t]);
 
   useEffect(() => {
     void loadData();
@@ -78,7 +80,7 @@ const PermissionSettings = () => {
 
   const handleCreateRole = async () => {
     if (newRoleName.trim().length < 2) {
-      message.error('Role 이름은 2자 이상이어야 합니다');
+      message.error(t('permissionSettings.roleNameMin'));
       return;
     }
 
@@ -89,9 +91,9 @@ const PermissionSettings = () => {
       setSelectedRole(created.name);
       setNewRoleName('');
       setNewRoleDescription('');
-      message.success('Role이 생성되었습니다');
+      message.success(t('permissionSettings.roleCreateSuccess'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Role 생성에 실패했습니다');
+      message.error(error instanceof Error ? error.message : t('permissionSettings.roleCreateFailed'));
     } finally {
       setCreating(false);
     }
@@ -107,9 +109,9 @@ const PermissionSettings = () => {
       const nextRoles = roles.filter((role) => role.name !== selectedRoleInfo.name);
       setRoles(nextRoles);
       setSelectedRole(nextRoles[0]?.name ?? '');
-      message.success('Role이 삭제되었습니다');
+      message.success(t('permissionSettings.roleDeleteSuccess'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Role 삭제에 실패했습니다');
+      message.error(error instanceof Error ? error.message : t('permissionSettings.roleDeleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -130,9 +132,9 @@ const PermissionSettings = () => {
       if (user?.role === selectedRoleInfo.name) {
         await refreshSession();
       }
-      message.success('권한이 저장되었습니다');
+      message.success(t('permissionSettings.savePermissionsSuccess'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '권한 저장에 실패했습니다');
+      message.error(error instanceof Error ? error.message : t('permissionSettings.savePermissionsFailed'));
     } finally {
       setSaving(false);
     }
@@ -140,7 +142,7 @@ const PermissionSettings = () => {
 
   return (
     <Space vertical size="small" className="settings-section">
-      <SettingSectionHeader title="권한 관리" subtitle="Role 생성/삭제 및 Role별 권한을 관리합니다" />
+      <SettingSectionHeader title={t('permissionSettings.sectionTitle')} subtitle={t('permissionSettings.sectionSubtitle')} />
 
       <Card size="small" loading={loading}>
         <Space vertical size="small" className="settings-stack-full">
@@ -150,7 +152,7 @@ const PermissionSettings = () => {
               options={roleOptions}
               onChange={(value: string) => setSelectedRole(value)}
               style={{ minWidth: 180 }}
-              placeholder="Role 선택"
+              placeholder={t('permissionSettings.selectRolePlaceholder')}
             />
             <Button
               type="primary"
@@ -159,13 +161,13 @@ const PermissionSettings = () => {
               loading={saving}
               disabled={!selectedRole}
             >
-              권한 저장
+              {t('permissionSettings.savePermissionsButton')}
             </Button>
             <Popconfirm
-              title="Role 삭제"
-              description={`${selectedRole || ''} Role을 삭제하시겠습니까?`}
-              okText="삭제"
-              cancelText="취소"
+              title={t('permissionSettings.deleteRoleTitle')}
+              description={t('permissionSettings.deleteRoleDescription', { role: selectedRole || '' })}
+              okText={t('permissionSettings.delete')}
+              cancelText={t('permissionSettings.cancel')}
               onConfirm={() => void handleDeleteRole()}
               disabled={!selectedRoleInfo || selectedRoleInfo.isSystem}
             >
@@ -175,16 +177,18 @@ const PermissionSettings = () => {
                 disabled={!selectedRoleInfo || selectedRoleInfo.isSystem}
                 loading={deleting}
               >
-                Role 삭제
+                {t('permissionSettings.deleteRoleButton')}
               </Button>
             </Popconfirm>
           </Space>
 
           {selectedRoleInfo && (
             <Space vertical size={4}>
-              <Text strong>선택 Role: {selectedRoleInfo.name}</Text>
+              <Text strong>{t('permissionSettings.selectedRole', { role: selectedRoleInfo.name })}</Text>
               <Text type="secondary">
-                {selectedRoleInfo.isSystem ? '시스템 기본 Role(삭제 불가)' : (selectedRoleInfo.description || '설명 없음')}
+                {selectedRoleInfo.isSystem
+                  ? t('permissionSettings.systemRoleDescription')
+                  : (selectedRoleInfo.description || t('permissionSettings.noDescription'))}
               </Text>
             </Space>
           )}
@@ -208,15 +212,15 @@ const PermissionSettings = () => {
         </Space>
       </Card>
 
-      <Card size="small" title="새 Role 추가">
+      <Card size="small" title={t('permissionSettings.newRoleCardTitle')}>
         <Space vertical size="small" className="settings-stack-full">
           <Input
-            placeholder="Role 이름 (예: manager)"
+            placeholder={t('permissionSettings.newRoleNamePlaceholder')}
             value={newRoleName}
             onChange={(event: ChangeEvent<HTMLInputElement>) => setNewRoleName(event.target.value)}
           />
           <Input
-            placeholder="설명 (선택)"
+            placeholder={t('permissionSettings.newRoleDescriptionPlaceholder')}
             value={newRoleDescription}
             onChange={(event: ChangeEvent<HTMLInputElement>) => setNewRoleDescription(event.target.value)}
           />
@@ -226,7 +230,7 @@ const PermissionSettings = () => {
             onClick={() => void handleCreateRole()}
             loading={creating}
           >
-            Role 추가
+            {t('permissionSettings.addRoleButton')}
           </Button>
         </Space>
       </Card>

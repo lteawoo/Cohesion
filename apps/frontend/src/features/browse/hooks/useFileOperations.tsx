@@ -4,6 +4,7 @@ import { useBrowseStore } from '@/stores/browseStore';
 import type { TreeInvalidationTarget } from '@/stores/browseStore';
 import type { Space } from '@/features/space/types';
 import { apiFetch } from '@/api/client';
+import { useTranslation } from 'react-i18next';
 
 type UploadConflictPolicy = 'overwrite' | 'rename' | 'skip';
 type TransferMode = 'move' | 'copy';
@@ -176,15 +177,12 @@ function normalizeUploadSource(files: UploadSource): File[] {
   return Array.from(files);
 }
 
-function getTransferVerb(mode: TransferMode): string {
-  return mode === 'move' ? '이동' : '복사';
-}
-
 function isDestinationConflictFailure(item: { code?: string }): boolean {
   return item.code === 'destination_exists';
 }
 
 export function useFileOperations(selectedPath: string, selectedSpace?: Space): UseFileOperationsReturn {
+  const { t } = useTranslation();
   const { message, modal } = App.useApp();
   const fetchSpaceContents = useBrowseStore((state) => state.fetchSpaceContents);
   const invalidateTree = useBrowseStore((state) => state.invalidateTree);
@@ -219,7 +217,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       conflictPolicy?: TransferConflictPolicy
     ): Promise<TransferResponsePayload> => {
       if (!selectedSpace) {
-        throw new Error('Space가 선택되지 않았습니다');
+        throw new Error(t('fileOperations.selectedSpaceRequired'));
       }
 
       const dstSpace = destinationSpace ?? selectedSpace;
@@ -248,13 +246,16 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       });
 
       if (!response.ok) {
-        const errorMessage = await readErrorMessage(response, `${getTransferVerb(mode)} 실패`);
+        const errorMessage = await readErrorMessage(
+          response,
+          mode === 'move' ? t('fileOperations.moveFailed') : t('fileOperations.copyFailed')
+        );
         throw new Error(errorMessage);
       }
 
       return (await response.json()) as TransferResponsePayload;
     },
-    [selectedSpace, readErrorMessage]
+    [selectedSpace, readErrorMessage, t]
   );
 
   const promptTransferConflictSelection = useCallback((
@@ -274,17 +275,17 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         resolve(value);
       };
       const fileName = sourcePath.split('/').filter(Boolean).pop() ?? sourcePath;
-      const transferVerb = getTransferVerb(mode);
+      const transferVerb = mode === 'move' ? t('fileOperations.moveVerb') : t('fileOperations.copyVerb');
 
       modal.confirm({
-        title: '충돌 항목 처리',
+        title: t('fileOperations.conflictTitle'),
         content: (
           <AntSpace direction="vertical" size={12} style={{ width: '100%' }}>
             <Typography.Text>
-              "{fileName}" 항목이 대상 위치에 이미 있습니다.
+              {t('fileOperations.conflictItemExists', { fileName })}
             </Typography.Text>
             <Typography.Text type="secondary">
-              처리 방법을 선택하세요.
+              {t('fileOperations.conflictChoose')}
             </Typography.Text>
             <Radio.Group
               defaultValue="overwrite"
@@ -293,13 +294,16 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
               }}
             >
               <AntSpace direction="vertical" size={8}>
-                <Radio value="overwrite">덮어쓰기</Radio>
-                <Radio value="rename">이름 변경</Radio>
-                <Radio value="skip">건너뛰기</Radio>
+                <Radio value="overwrite">{t('fileOperations.overwrite')}</Radio>
+                <Radio value="rename">{t('fileOperations.rename')}</Radio>
+                <Radio value="skip">{t('fileOperations.skip')}</Radio>
               </AntSpace>
             </Radio.Group>
             <Typography.Text type="secondary">
-              {transferVerb} 충돌 항목 {remainingConflictCount + 1}개 중 현재 항목을 처리합니다.
+              {t('fileOperations.conflictCurrentItem', {
+                mode: transferVerb,
+                current: remainingConflictCount + 1,
+              })}
             </Typography.Text>
             {remainingConflictCount > 0 ? (
               <Checkbox
@@ -308,13 +312,13 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
                   applyToRemaining = event.target.checked;
                 }}
               >
-                남은 충돌 항목 {remainingConflictCount}개에 동일하게 적용
+                {t('fileOperations.conflictApplyRemaining', { count: remainingConflictCount })}
               </Checkbox>
             ) : null}
           </AntSpace>
         ),
-        okText: '적용',
-        cancelText: `${transferVerb} 중단`,
+        okText: t('fileOperations.apply'),
+        cancelText: t('fileOperations.stopAction', { mode: transferVerb }),
         onOk: () => {
           settle({ policy: selectedPolicy, applyToRemaining });
         },
@@ -323,7 +327,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         },
       });
     });
-  }, [modal]);
+  }, [modal, t]);
 
   const promptTrashConflictPolicy = useCallback((conflictCount: number): Promise<TrashConflictPolicy | null> => {
     return new Promise((resolve) => {
@@ -338,14 +342,14 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       };
 
       modal.confirm({
-        title: '복원 충돌 처리',
+        title: t('trashExplorer.conflictPolicyTitle'),
         content: (
           <AntSpace direction="vertical" size={12} style={{ width: '100%' }}>
             <Typography.Text>
-              복원 대상 중 {conflictCount}개 항목이 기존 경로와 충돌합니다.
+              {t('trashExplorer.conflictDetected', { count: conflictCount })}
             </Typography.Text>
             <Typography.Text type="secondary">
-              충돌 항목 처리 정책을 선택하세요.
+              {t('trashExplorer.conflictPolicyDescription')}
             </Typography.Text>
             <Radio.Group
               defaultValue="overwrite"
@@ -354,15 +358,15 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
               }}
             >
               <AntSpace direction="vertical" size={8}>
-                <Radio value="overwrite">덮어쓰기</Radio>
-                <Radio value="rename">이름 변경</Radio>
-                <Radio value="skip">건너뛰기</Radio>
+                <Radio value="overwrite">{t('trashExplorer.overwrite')}</Radio>
+                <Radio value="rename">{t('trashExplorer.rename')}</Radio>
+                <Radio value="skip">{t('trashExplorer.skip')}</Radio>
               </AntSpace>
             </Radio.Group>
           </AntSpace>
         ),
-        okText: '적용',
-        cancelText: '복원 중단',
+        okText: t('trashExplorer.apply'),
+        cancelText: t('trashExplorer.stopRestore'),
         onOk: () => {
           settle(selectedPolicy);
         },
@@ -371,14 +375,14 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         },
       });
     });
-  }, [modal]);
+  }, [modal, t]);
 
   const performTrashRestoreRequest = useCallback(async (
     ids: number[],
     conflictPolicy?: TrashConflictPolicy
   ): Promise<TrashRestoreResponsePayload> => {
     if (!selectedSpace) {
-      throw new Error('Space가 선택되지 않았습니다');
+      throw new Error(t('fileOperations.selectedSpaceRequired'));
     }
 
     const payload: { ids: number[]; conflictPolicy?: TrashConflictPolicy } = { ids };
@@ -393,17 +397,17 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     });
 
     if (!response.ok) {
-      const errorMessage = await readErrorMessage(response, '휴지통 복원 실패');
+      const errorMessage = await readErrorMessage(response, t('fileOperations.trashRestoreFailed'));
       throw new Error(errorMessage);
     }
 
     return (await response.json()) as TrashRestoreResponsePayload;
-  }, [readErrorMessage, selectedSpace]);
+  }, [readErrorMessage, selectedSpace, t]);
 
   const summarizeTrashRestoreFailure = useCallback((item: TrashRestoreFailurePayload): string => {
     const targetPath = item.originalPath ?? `#${item.id ?? 'unknown'}`;
-    return `${targetPath}: ${item.reason ?? '복원 실패'}`;
-  }, []);
+    return `${targetPath}: ${item.reason ?? t('fileOperations.trashRestoreItemFailed')}`;
+  }, [t]);
 
   const executeTransfer = useCallback(async (
     mode: TransferMode,
@@ -433,8 +437,10 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     initialFailed
       .filter((item) => !isDestinationConflictFailure(item))
       .forEach((item) => {
-        const failurePath = item.path ?? '(unknown)';
-        failedReasons.push(`${failurePath}: ${item.reason ?? `${getTransferVerb(mode)} 실패`}`);
+        const failurePath = item.path ?? t('fileOperations.unknownPath');
+        failedReasons.push(
+          `${failurePath}: ${item.reason ?? (mode === 'move' ? t('fileOperations.moveFailed') : t('fileOperations.copyFailed'))}`
+        );
       });
 
     const conflictQueue = initialFailed
@@ -454,7 +460,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         const unresolvedSources = [currentSource, ...conflictQueue];
         summary.failed += unresolvedSources.length;
         unresolvedSources.forEach((sourcePath) => {
-          failedReasons.push(`${sourcePath}: 사용자 중단으로 미처리`);
+          failedReasons.push(`${sourcePath}: ${t('fileOperations.unresolvedByUser')}`);
         });
         conflictQueue.length = 0;
         abortedByUser = true;
@@ -483,8 +489,10 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         succeededSources.push(...retriedSucceeded);
 
         retriedFailed.forEach((item) => {
-          const failurePath = item.path ?? '(unknown)';
-          failedReasons.push(`${failurePath}: ${item.reason ?? `${getTransferVerb(mode)} 실패`}`);
+          const failurePath = item.path ?? t('fileOperations.unknownPath');
+          failedReasons.push(
+            `${failurePath}: ${item.reason ?? (mode === 'move' ? t('fileOperations.moveFailed') : t('fileOperations.copyFailed'))}`
+          );
         });
         continue;
       }
@@ -506,18 +514,20 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       succeededSources.push(...retriedSucceeded);
 
       retriedFailed.forEach((item) => {
-        const failurePath = item.path ?? '(unknown)';
-        failedReasons.push(`${failurePath}: ${item.reason ?? `${getTransferVerb(mode)} 실패`}`);
+        const failurePath = item.path ?? t('fileOperations.unknownPath');
+        failedReasons.push(
+          `${failurePath}: ${item.reason ?? (mode === 'move' ? t('fileOperations.moveFailed') : t('fileOperations.copyFailed'))}`
+        );
       });
     }
 
     return { summary, succeededSources, failedReasons, abortedByUser };
-  }, [performTransferRequest, promptTransferConflictSelection]);
+  }, [performTransferRequest, promptTransferConflictSelection, t]);
 
   // 파일 업로드 실행 함수
   const performUpload = useCallback(
     async (file: File, targetPath: string, conflictPolicy?: UploadConflictPolicy): Promise<UploadResult> => {
-      if (!selectedSpace) throw new Error('Space가 선택되지 않았습니다');
+      if (!selectedSpace) throw new Error(t('fileOperations.selectedSpaceRequired'));
 
       const formData = new FormData();
       formData.append('file', file);
@@ -532,7 +542,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       });
 
       if (!response.ok) {
-        const errorMessage = await readErrorMessage(response, '업로드 실패');
+        const errorMessage = await readErrorMessage(response, t('fileOperations.uploadFailed'));
         throw { status: response.status, message: errorMessage };
       }
 
@@ -543,7 +553,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         : file.name;
       return { status, filename };
     },
-    [selectedSpace, readErrorMessage]
+    [selectedSpace, readErrorMessage, t]
   );
 
   const promptConflictPolicy = useCallback((fileName: string): Promise<UploadConflictPolicy | null> => {
@@ -559,11 +569,11 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       };
 
       modal.confirm({
-        title: '업로드 충돌 처리',
+        title: t('fileOperations.uploadConflictTitle'),
         content: (
           <AntSpace direction="vertical" size={12} style={{ width: '100%' }}>
             <Typography.Text>
-              "{fileName}" 파일이 이미 존재합니다.
+              {t('fileOperations.uploadConflictFileExists', { fileName })}
             </Typography.Text>
             <Radio.Group
               defaultValue="overwrite"
@@ -572,18 +582,18 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
               }}
             >
               <AntSpace direction="vertical" size={8}>
-                <Radio value="overwrite">덮어쓰기</Radio>
-                <Radio value="rename">이름 변경</Radio>
-                <Radio value="skip">건너뛰기</Radio>
+                <Radio value="overwrite">{t('fileOperations.overwrite')}</Radio>
+                <Radio value="rename">{t('fileOperations.rename')}</Radio>
+                <Radio value="skip">{t('fileOperations.skip')}</Radio>
               </AntSpace>
             </Radio.Group>
             <Typography.Text type="secondary">
-              선택한 정책은 이번 업로드 작업의 모든 충돌 파일에 동일하게 적용됩니다.
+              {t('fileOperations.uploadConflictApplyBatch')}
             </Typography.Text>
           </AntSpace>
         ),
-        okText: '적용',
-        cancelText: '업로드 중단',
+        okText: t('fileOperations.apply'),
+        cancelText: t('fileOperations.uploadStop'),
         onOk: () => {
           settle(selectedPolicy);
         },
@@ -592,7 +602,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         },
       });
     });
-  }, [modal]);
+  }, [modal, t]);
 
   // 파일 업로드 처리 (다중 업로드 + 충돌 정책 일괄 적용)
   const handleFileUpload = useCallback(
@@ -626,7 +636,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
             : 0;
           const errorMessage = error && typeof error === 'object' && 'message' in error
             ? String(error.message)
-            : '업로드 실패';
+            : t('fileOperations.uploadFailed');
 
           if (status === 409 && !batchConflictPolicy) {
             const selectedPolicy = await promptConflictPolicy(file.name);
@@ -649,7 +659,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
               summary.failed += 1;
               const retryMessage = retryError && typeof retryError === 'object' && 'message' in retryError
                 ? String(retryError.message)
-                : '업로드 실패';
+                : t('fileOperations.uploadFailed');
               failedReasons.push(`${file.name}: ${retryMessage}`);
             }
             continue;
@@ -666,24 +676,28 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
       if (uploadFiles.length === 1) {
         if (abortedByUser) {
-          message.info('업로드를 중단했습니다');
+          message.info(t('fileOperations.uploadStopped'));
           return;
         }
         if (summary.uploaded === 1) {
-          message.success(`"${uploadedNames[0] ?? uploadFiles[0].name}" 업로드 완료`);
+          message.success(t('fileOperations.uploadSingleSuccess', { name: uploadedNames[0] ?? uploadFiles[0].name }));
           return;
         }
         if (summary.skipped === 1) {
-          message.warning(`"${skippedNames[0] ?? uploadFiles[0].name}" 건너뜀`);
+          message.warning(t('fileOperations.uploadSingleSkipped', { name: skippedNames[0] ?? uploadFiles[0].name }));
           return;
         }
-        message.error(failedReasons[0] ?? '업로드 실패');
+        message.error(failedReasons[0] ?? t('fileOperations.uploadFailed'));
         return;
       }
 
-      const summaryMessage = `업로드 결과: 성공 ${summary.uploaded}개 / 건너뜀 ${summary.skipped}개 / 실패 ${summary.failed}개`;
+      const summaryMessage = t('fileOperations.uploadSummary', {
+        uploaded: summary.uploaded,
+        skipped: summary.skipped,
+        failed: summary.failed,
+      });
       if (abortedByUser) {
-        message.warning(`${summaryMessage} (사용자 중단)`);
+        message.warning(`${summaryMessage} (${t('fileOperations.userAbortedSuffix')})`);
         return;
       }
       if (summary.failed > 0) {
@@ -693,18 +707,18 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       }
       message.success(summaryMessage);
     },
-    [performUpload, promptConflictPolicy, refreshContents, message]
+    [performUpload, promptConflictPolicy, refreshContents, message, t]
   );
 
   // 이름 변경 처리
   const handleRename = useCallback(
     async (oldPath: string, newName: string) => {
       if (!newName.trim()) {
-        message.error('새 이름을 입력하세요');
+        message.error(t('folderContent.renameRequired'));
         return;
       }
       if (!selectedSpace) {
-        message.error('Space가 선택되지 않았습니다');
+        message.error(t('fileOperations.selectedSpaceRequired'));
         return;
       }
 
@@ -720,28 +734,28 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(error.message || 'Failed to rename');
+          throw new Error(error.message || t('fileOperations.renameFailed'));
         }
 
-        message.success('이름이 변경되었습니다');
+        message.success(t('fileOperations.renameSuccess'));
         await refreshContents();
         invalidateTree([createInvalidationTarget(getParentPath(oldPath), selectedSpace)]);
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '이름 변경 실패');
+        message.error(error instanceof Error ? error.message : t('fileOperations.renameFailed'));
       }
     },
-    [selectedSpace, refreshContents, message, invalidateTree]
+    [selectedSpace, refreshContents, message, invalidateTree, t]
   );
 
   // 새 폴더 만들기 처리
   const handleCreateFolder = useCallback(
     async (parentPath: string, folderName: string) => {
       if (!folderName.trim()) {
-        message.error('폴더 이름을 입력하세요');
+        message.error(t('folderContent.folderNameRequired'));
         return;
       }
       if (!selectedSpace) {
-        message.error('Space가 선택되지 않았습니다');
+        message.error(t('fileOperations.selectedSpaceRequired'));
         return;
       }
 
@@ -757,17 +771,17 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(error.message || 'Failed to create folder');
+          throw new Error(error.message || t('fileOperations.createFolderFailed'));
         }
 
-        message.success('폴더가 생성되었습니다');
+        message.success(t('fileOperations.createFolderSuccess'));
         await refreshContents();
         invalidateTree([createInvalidationTarget(parentPath, selectedSpace)]);
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '폴더 생성 실패');
+        message.error(error instanceof Error ? error.message : t('fileOperations.createFolderFailed'));
       }
     },
-    [selectedSpace, refreshContents, message, invalidateTree]
+    [selectedSpace, refreshContents, message, invalidateTree, t]
   );
 
   // 다중 다운로드 처리
@@ -775,7 +789,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     async (paths: string[]) => {
       if (paths.length === 0) return;
       if (!selectedSpace) {
-        message.error('Space가 선택되지 않았습니다');
+        message.error(t('fileOperations.selectedSpaceRequired'));
         return;
       }
 
@@ -790,13 +804,13 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           });
 
           if (!ticketResponse.ok) {
-            const errorMessage = await readErrorMessage(ticketResponse, '다운로드 준비 실패');
+            const errorMessage = await readErrorMessage(ticketResponse, t('fileOperations.downloadPrepareFailed'));
             throw new Error(errorMessage);
           }
 
           const payload = (await ticketResponse.json()) as DownloadTicketResponse;
           if (!payload.downloadUrl || typeof payload.downloadUrl !== 'string') {
-            throw new Error('다운로드 URL 생성 실패');
+            throw new Error(t('fileOperations.downloadUrlCreateFailed'));
           }
           triggerBrowserDownloadFromUrl(payload.downloadUrl, payload.fileName);
           return;
@@ -809,20 +823,20 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         });
 
         if (!ticketResponse.ok) {
-          const errorMessage = await readErrorMessage(ticketResponse, '다운로드 준비 실패');
+          const errorMessage = await readErrorMessage(ticketResponse, t('fileOperations.downloadPrepareFailed'));
           throw new Error(errorMessage);
         }
 
         const payload = (await ticketResponse.json()) as DownloadTicketResponse;
         if (!payload.downloadUrl || typeof payload.downloadUrl !== 'string') {
-          throw new Error('다운로드 URL 생성 실패');
+          throw new Error(t('fileOperations.downloadUrlCreateFailed'));
         }
         triggerBrowserDownloadFromUrl(payload.downloadUrl, payload.fileName);
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '다운로드 실패');
+        message.error(error instanceof Error ? error.message : t('fileOperations.downloadFailed'));
       }
     },
-    [selectedSpace, message, readErrorMessage]
+    [selectedSpace, message, readErrorMessage, t]
   );
 
   // 다중 휴지통 이동 처리
@@ -831,14 +845,14 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       if (paths.length === 0) return;
 
       modal.confirm({
-        title: '휴지통 이동 확인',
-        content: `선택한 ${paths.length}개 항목을 휴지통으로 이동하시겠습니까?`,
-        okText: '이동',
+        title: t('fileOperations.moveToTrashConfirmTitle'),
+        content: t('fileOperations.moveToTrashBulkConfirmContent', { count: paths.length }),
+        okText: t('folderContent.move'),
         okType: 'danger',
-        cancelText: '취소',
+        cancelText: t('folderContent.cancel'),
         onOk: async () => {
           if (!selectedSpace) {
-            message.error('Space가 선택되지 않았습니다');
+            message.error(t('fileOperations.selectedSpaceRequired'));
             return;
           }
           try {
@@ -851,7 +865,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
             if (!response.ok) {
               const error = await response.json();
-              throw new Error(error.message || '휴지통 이동 실패');
+              throw new Error(error.message || t('fileOperations.moveToTrashFailed'));
             }
 
             const result = await response.json();
@@ -859,38 +873,38 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
             const failedCount = result.failed?.length || 0;
 
             if (failedCount > 0) {
-              message.warning(`${succeededCount}개 휴지통 이동 완료, ${failedCount}개 실패`);
+              message.warning(t('fileOperations.moveToTrashBulkPartial', { succeeded: succeededCount, failed: failedCount }));
             } else {
-              message.success(`${succeededCount}개 항목이 휴지통으로 이동되었습니다`);
+              message.success(t('fileOperations.moveToTrashBulkSuccess', { count: succeededCount }));
             }
 
             await refreshContents();
             invalidateTree(paths.map((path) => createInvalidationTarget(getParentPath(path), selectedSpace)));
           } catch (error) {
-            message.error(error instanceof Error ? error.message : '휴지통 이동 실패');
+            message.error(error instanceof Error ? error.message : t('fileOperations.moveToTrashFailed'));
           }
         },
       });
     },
-    [selectedSpace, refreshContents, message, modal, invalidateTree]
+    [selectedSpace, refreshContents, message, modal, invalidateTree, t]
   );
 
   const fetchTrashItems = useCallback(async (): Promise<TrashItem[]> => {
     if (!selectedSpace) {
-      throw new Error('Space가 선택되지 않았습니다');
+      throw new Error(t('fileOperations.selectedSpaceRequired'));
     }
 
     const response = await apiFetch(`/api/spaces/${selectedSpace.id}/files/trash`, {
       method: 'GET',
     });
     if (!response.ok) {
-      const errorMessage = await readErrorMessage(response, '휴지통 목록 조회 실패');
+      const errorMessage = await readErrorMessage(response, t('fileOperations.trashListLoadFailed'));
       throw new Error(errorMessage);
     }
 
     const payload = (await response.json()) as TrashListResponsePayload;
     return Array.isArray(payload.items) ? payload.items : [];
-  }, [readErrorMessage, selectedSpace]);
+  }, [readErrorMessage, selectedSpace, t]);
 
   const handleTrashRestore = useCallback(async (ids: number[]) => {
     if (ids.length === 0) {
@@ -929,9 +943,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
                 .map(summarizeTrashRestoreFailure)
             );
             const unresolvedCount = conflictItems.length;
-            const summaryMessage =
-              `복원 결과: 성공 ${succeededCount}개 / 건너뜀 ${skippedCount}개 / 실패 ${failedReasons.length}개` +
-              ` (충돌 ${unresolvedCount}개 미처리)`;
+            const summaryMessage = t('fileOperations.restoreSummaryWithUnresolved', {
+              succeeded: succeededCount,
+              skipped: skippedCount,
+              failed: failedReasons.length,
+              unresolved: unresolvedCount,
+            });
             message.warning(summaryMessage);
             return;
           }
@@ -948,7 +965,11 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       }
 
       const failedCount = failedReasons.length;
-      const summaryMessage = `복원 결과: 성공 ${succeededCount}개 / 건너뜀 ${skippedCount}개 / 실패 ${failedCount}개`;
+      const summaryMessage = t('fileOperations.restoreSummary', {
+        succeeded: succeededCount,
+        skipped: skippedCount,
+        failed: failedCount,
+      });
       if (failedCount > 0) {
         const firstFailure = failedReasons[0] ? ` - ${failedReasons[0]}` : '';
         message.warning(`${summaryMessage}${firstFailure}`);
@@ -956,9 +977,9 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       }
       message.success(summaryMessage);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '휴지통 복원 실패');
+      message.error(error instanceof Error ? error.message : t('fileOperations.trashRestoreFailed'));
     }
-  }, [message, performTrashRestoreRequest, promptTrashConflictPolicy, summarizeTrashRestoreFailure]);
+  }, [message, performTrashRestoreRequest, promptTrashConflictPolicy, summarizeTrashRestoreFailure, t]);
 
   const handleTrashDelete = useCallback(async (ids: number[]) => {
     if (ids.length === 0) {
@@ -966,7 +987,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     }
 
     if (!selectedSpace) {
-      message.error('Space가 선택되지 않았습니다');
+      message.error(t('fileOperations.selectedSpaceRequired'));
       return;
     }
 
@@ -977,7 +998,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         body: JSON.stringify({ ids }),
       });
       if (!response.ok) {
-        const errorMessage = await readErrorMessage(response, '휴지통 영구 삭제 실패');
+        const errorMessage = await readErrorMessage(response, t('fileOperations.trashDeleteFailed'));
         throw new Error(errorMessage);
       }
 
@@ -986,19 +1007,22 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       const failed = payload.failed ?? [];
       if (failed.length > 0) {
         const firstFailure = failed[0]?.reason ? ` - ${failed[0].reason}` : '';
-        message.warning(`영구 삭제 결과: 성공 ${succeededCount}개 / 실패 ${failed.length}개${firstFailure}`);
+        message.warning(`${t('fileOperations.trashDeleteSummary', {
+          succeeded: succeededCount,
+          failed: failed.length,
+        })}${firstFailure}`);
         return;
       }
 
-      message.success(`${succeededCount}개 항목을 영구 삭제했습니다`);
+      message.success(t('fileOperations.trashDeleteSuccess', { count: succeededCount }));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '휴지통 영구 삭제 실패');
+      message.error(error instanceof Error ? error.message : t('fileOperations.trashDeleteFailed'));
     }
-  }, [message, readErrorMessage, selectedSpace]);
+  }, [message, readErrorMessage, selectedSpace, t]);
 
   const handleTrashEmpty = useCallback(async () => {
     if (!selectedSpace) {
-      message.error('Space가 선택되지 않았습니다');
+      message.error(t('fileOperations.selectedSpaceRequired'));
       return;
     }
 
@@ -1008,7 +1032,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         headers: { 'Content-Type': 'application/json' },
       });
       if (!response.ok) {
-        const errorMessage = await readErrorMessage(response, '휴지통 비우기 실패');
+        const errorMessage = await readErrorMessage(response, t('fileOperations.trashEmptyFailed'));
         throw new Error(errorMessage);
       }
 
@@ -1017,21 +1041,24 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       const failed = payload.failed ?? [];
       if (failed.length > 0) {
         const firstFailure = failed[0]?.reason ? ` - ${failed[0].reason}` : '';
-        message.warning(`휴지통 비우기 결과: 제거 ${removed}개 / 실패 ${failed.length}개${firstFailure}`);
+        message.warning(`${t('fileOperations.trashEmptySummary', {
+          removed,
+          failed: failed.length,
+        })}${firstFailure}`);
         return;
       }
-      message.success(`휴지통 비우기 완료 (${removed}개)`);
+      message.success(t('fileOperations.trashEmptySuccess', { count: removed }));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '휴지통 비우기 실패');
+      message.error(error instanceof Error ? error.message : t('fileOperations.trashEmptyFailed'));
     }
-  }, [message, readErrorMessage, selectedSpace]);
+  }, [message, readErrorMessage, selectedSpace, t]);
 
   // 이동 처리 (cross-Space 지원)
   const handleMove = useCallback(
     async (sources: string[], destination: string, destinationSpace?: Space) => {
       if (sources.length === 0) return;
       if (!selectedSpace) {
-        message.error('Space가 선택되지 않았습니다');
+        message.error(t('fileOperations.selectedSpaceRequired'));
         return;
       }
 
@@ -1054,9 +1081,14 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           ]);
         }
 
-        const summaryMessage = `이동 결과: 성공 ${summary.succeeded}개 / 건너뜀 ${summary.skipped}개 / 실패 ${summary.failed}개`;
+        const summaryMessage = t('fileOperations.transferSummary', {
+          mode: t('fileOperations.moveVerb'),
+          succeeded: summary.succeeded,
+          skipped: summary.skipped,
+          failed: summary.failed,
+        });
         if (abortedByUser) {
-          message.warning(`${summaryMessage} (사용자 중단)`);
+          message.warning(`${summaryMessage} (${t('fileOperations.userAbortedSuffix')})`);
           return;
         }
         if (summary.failed > 0) {
@@ -1066,10 +1098,10 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         }
         message.success(summaryMessage);
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '이동 실패');
+        message.error(error instanceof Error ? error.message : t('fileOperations.moveFailed'));
       }
     },
-    [selectedSpace, refreshContents, message, invalidateTree, executeTransfer]
+    [selectedSpace, refreshContents, message, invalidateTree, executeTransfer, t]
   );
 
   // 복사 처리 (cross-Space 지원)
@@ -1077,7 +1109,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     async (sources: string[], destination: string, destinationSpace?: Space) => {
       if (sources.length === 0) return;
       if (!selectedSpace) {
-        message.error('Space가 선택되지 않았습니다');
+        message.error(t('fileOperations.selectedSpaceRequired'));
         return;
       }
 
@@ -1097,9 +1129,14 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           invalidateTree([createInvalidationTarget(destination, dstSpace)]);
         }
 
-        const summaryMessage = `복사 결과: 성공 ${summary.succeeded}개 / 건너뜀 ${summary.skipped}개 / 실패 ${summary.failed}개`;
+        const summaryMessage = t('fileOperations.transferSummary', {
+          mode: t('fileOperations.copyVerb'),
+          succeeded: summary.succeeded,
+          skipped: summary.skipped,
+          failed: summary.failed,
+        });
         if (abortedByUser) {
-          message.warning(`${summaryMessage} (사용자 중단)`);
+          message.warning(`${summaryMessage} (${t('fileOperations.userAbortedSuffix')})`);
           return;
         }
         if (summary.failed > 0) {
@@ -1109,26 +1146,27 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         }
         message.success(summaryMessage);
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '복사 실패');
+        message.error(error instanceof Error ? error.message : t('fileOperations.copyFailed'));
       }
     },
-    [selectedSpace, refreshContents, message, invalidateTree, executeTransfer]
+    [selectedSpace, refreshContents, message, invalidateTree, executeTransfer, t]
   );
 
   // 단일 휴지통 이동 처리
   const handleDelete = useCallback(
     async (record: { path: string; name: string; isDir: boolean }) => {
+      const singleDeleteContent = record.isDir
+        ? `${t('fileOperations.moveToTrashSingleConfirmContent', { name: record.name })} (${t('fileOperations.moveToTrashFolderNotice')})`
+        : t('fileOperations.moveToTrashSingleConfirmContent', { name: record.name });
       modal.confirm({
-        title: '휴지통 이동 확인',
-        content: `"${record.name}"을(를) 휴지통으로 이동하시겠습니까?${
-          record.isDir ? ' (폴더 내 모든 파일이 함께 이동됩니다)' : ''
-        }`,
-        okText: '이동',
+        title: t('fileOperations.moveToTrashConfirmTitle'),
+        content: singleDeleteContent,
+        okText: t('folderContent.move'),
         okType: 'danger',
-        cancelText: '취소',
+        cancelText: t('folderContent.cancel'),
         onOk: async () => {
           if (!selectedSpace) {
-            message.error('Space가 선택되지 않았습니다');
+            message.error(t('fileOperations.selectedSpaceRequired'));
             return;
           }
           try {
@@ -1140,19 +1178,19 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
 
             if (!response.ok) {
               const error = await response.json();
-              throw new Error(error.message || '휴지통 이동 실패');
+              throw new Error(error.message || t('fileOperations.moveToTrashFailed'));
             }
 
-            message.success('휴지통으로 이동되었습니다');
+            message.success(t('fileOperations.movedToTrashSuccess'));
             await refreshContents();
             invalidateTree([createInvalidationTarget(getParentPath(record.path), selectedSpace)]);
           } catch (error) {
-            message.error(error instanceof Error ? error.message : '휴지통 이동 실패');
+            message.error(error instanceof Error ? error.message : t('fileOperations.moveToTrashFailed'));
           }
         },
       });
     },
-    [selectedSpace, refreshContents, message, modal, invalidateTree]
+    [selectedSpace, refreshContents, message, modal, invalidateTree, t]
   );
 
   return {

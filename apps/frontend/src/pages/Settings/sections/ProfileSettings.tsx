@@ -3,10 +3,12 @@ import { LogoutOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/features/auth/useAuth';
 import SettingSectionHeader from '../components/SettingSectionHeader';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
 const ProfileSettings = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
@@ -17,7 +19,7 @@ const ProfileSettings = () => {
 
   return (
     <Space vertical size="small" className="settings-section">
-      <SettingSectionHeader title="내 프로필" subtitle="현재 로그인 계정 정보와 세션 관리" />
+      <SettingSectionHeader title={t('profileSettings.sectionTitle')} subtitle={t('profileSettings.sectionSubtitle')} />
 
       <Card size="small">
         <Descriptions
@@ -27,20 +29,24 @@ const ProfileSettings = () => {
           items={[
             {
               key: 'username',
-              label: '아이디',
+              label: t('profileSettings.usernameLabel'),
               children: <Text code>{user?.username ?? '-'}</Text>,
             },
             {
               key: 'nickname',
-              label: '닉네임',
+              label: t('profileSettings.nicknameLabel'),
               children: <Text>{user?.nickname ?? '-'}</Text>,
             },
             {
               key: 'role',
-              label: '권한',
+              label: t('profileSettings.roleLabel'),
               children: (
                 <Tag color={user?.role === 'admin' ? 'gold' : 'default'}>
-                  {user?.role === 'admin' ? '관리자' : user?.role === 'user' ? '사용자' : '-'}
+                  {user?.role === 'admin'
+                    ? t('profileSettings.roleAdmin')
+                    : user?.role === 'user'
+                      ? t('profileSettings.roleUser')
+                      : '-'}
                 </Tag>
               ),
             },
@@ -50,7 +56,7 @@ const ProfileSettings = () => {
 
       <Space size="small" className="settings-stack-full">
         <Button danger type="primary" size="small" icon={<LogoutOutlined />} onClick={() => void handleLogout()}>
-          로그아웃
+          {t('profileSettings.logout')}
         </Button>
       </Space>
     </Space>

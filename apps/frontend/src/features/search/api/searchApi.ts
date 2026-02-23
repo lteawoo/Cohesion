@@ -1,6 +1,7 @@
 import { apiFetch } from "@/api/client";
 import { toApiError } from "@/api/error";
 import type { SearchFileResult } from "../types";
+import i18n from "@/i18n";
 
 const DEFAULT_LIMIT = 80;
 
@@ -24,7 +25,7 @@ export async function searchFiles(
     { signal: options.signal }
   );
   if (!response.ok) {
-    throw await toApiError(response, "검색 결과를 불러오지 못했습니다.");
+    throw await toApiError(response, i18n.t('search.loadResultsFailed'));
   }
   return response.json() as Promise<SearchFileResult[]>;
 }

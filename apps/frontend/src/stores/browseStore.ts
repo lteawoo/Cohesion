@@ -4,6 +4,7 @@ import type { Space } from '@/features/space/types';
 import { useSpaceStore } from './spaceStore';
 import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
+import i18n from '@/i18n';
 
 function normalizeRelativePath(path: string): string {
   return path.replace(/^\/+/, '').replace(/\/+$/, '');
@@ -72,12 +73,12 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
       const url = `/api/browse?path=${encodeURIComponent(path)}&system=true`;
       const response = await apiFetch(url);
       if (!response.ok) {
-        throw await toApiError(response, '디렉토리 목록을 불러오지 못했습니다.');
+        throw await toApiError(response, i18n.t('storeErrors.loadDirectoryFailed'));
       }
       const data: FileNode[] = await response.json();
       set({ content: data, isLoading: false });
     } catch (e) {
-      set({ error: normalizeUnknownError(e, '디렉토리 목록을 불러오지 못했습니다.'), isLoading: false });
+      set({ error: normalizeUnknownError(e, i18n.t('storeErrors.loadDirectoryFailed')), isLoading: false });
     }
   },
 
@@ -87,7 +88,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
       const url = `/api/spaces/${spaceId}/browse?path=${encodeURIComponent(relativePath)}`;
       const response = await apiFetch(url);
       if (!response.ok) {
-        throw await toApiError(response, 'Space 폴더 목록을 불러오지 못했습니다.');
+        throw await toApiError(response, i18n.t('storeErrors.loadSpaceDirectoryFailed'));
       }
       const data: FileNode[] = await response.json();
 
@@ -100,7 +101,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
         selectedSpace: space  // 덮어쓰기 없음
       });
     } catch (e) {
-      set({ error: normalizeUnknownError(e, 'Space 폴더 목록을 불러오지 못했습니다.'), isLoading: false });
+      set({ error: normalizeUnknownError(e, i18n.t('storeErrors.loadSpaceDirectoryFailed')), isLoading: false });
     }
   },
 

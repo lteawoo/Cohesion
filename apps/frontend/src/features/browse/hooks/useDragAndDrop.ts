@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { App } from 'antd';
 import type { FileNode, DragData } from '../types';
+import { useTranslation } from 'react-i18next';
 
 interface UseDragAndDropParams {
   onMove: (sources: string[], destination: string) => Promise<void>;
@@ -29,6 +30,7 @@ export function useDragAndDrop({
   selectedItems,
   currentPath,
 }: UseDragAndDropParams): UseDragAndDropReturn {
+  const { t } = useTranslation();
   const { modal } = App.useApp();
   const [isDragging, setIsDragging] = useState(false);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
@@ -36,16 +38,16 @@ export function useDragAndDrop({
   const confirmAndMove = useCallback(
     (sourcePaths: string[], destinationPath: string) => {
       modal.confirm({
-        title: '이동 확인',
-        content: `선택한 ${sourcePaths.length}개 항목을 이동하시겠습니까?`,
-        okText: '이동',
-        cancelText: '취소',
+        title: t('dragAndDrop.moveConfirmTitle'),
+        content: t('dragAndDrop.moveConfirmContent', { count: sourcePaths.length }),
+        okText: t('dragAndDrop.move'),
+        cancelText: t('dragAndDrop.cancel'),
         onOk: async () => {
           await onMove(sourcePaths, destinationPath);
         },
       });
     },
-    [modal, onMove]
+    [modal, onMove, t]
   );
 
   // 아이템 드래그 시작 핸들러
