@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Input } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 interface RenameModalProps {
   visible: boolean;
@@ -16,19 +17,20 @@ const RenameModal: React.FC<RenameModalProps> = ({
   onCancel,
   onChange,
 }) => {
+  const { t } = useTranslation();
   return (
     <Modal
-      title="이름 변경"
+      title={t('renameModal.title')}
       open={visible}
       onOk={onConfirm}
       onCancel={onCancel}
       maskClosable={false}
       styles={{ mask: { pointerEvents: 'auto' } }}
-      okText="변경"
-      cancelText="취소"
+      okText={t('renameModal.confirm')}
+      cancelText={t('renameModal.cancel')}
     >
       <Input
-        placeholder="새 이름"
+        placeholder={t('renameModal.placeholder')}
         value={initialName}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         onPressEnter={onConfirm}

@@ -11,6 +11,7 @@ import { DeleteOutlined } from '@ant-design/icons';
 import { useBrowseApi } from '../hooks/useBrowseApi';
 import type { FileNode, TreeDataNode } from '../types';
 import type { Space } from '@/features/space/types';
+import { useTranslation } from 'react-i18next';
 
 type DirectoryTreeProps = GetProps<typeof Tree.DirectoryTree>;
 const PATH_SYNC_PARTIAL_CHILD_THRESHOLD = 40;
@@ -208,6 +209,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
   selectedKeys,
   isSearchMode = false,
 }) => {
+  const { t } = useTranslation();
   const spaces = useSpaceStore((state) => state.spaces);
   const spaceError = useSpaceStore((state) => state.error);
   const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
@@ -587,7 +589,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
           {
             key: 'delete',
             icon: <DeleteOutlined />,
-            label: '삭제',
+            label: t('folderTree.delete'),
             danger: true,
             onClick: () => {
               onSpaceDelete?.(space);
@@ -615,16 +617,16 @@ const FolderTree: React.FC<FolderTreeProps> = ({
           <Alert
             type="error"
             showIcon
-            message="Space 목록을 불러오지 못했습니다."
+            message={t('folderTree.spaceListLoadFailed')}
             description={spaceError.message}
           />
-          <Button size="small" onClick={retryTreeLoad}>다시 시도</Button>
+          <Button size="small" onClick={retryTreeLoad}>{t('folderTree.retry')}</Button>
         </div>
       );
     }
     return (
       <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ant-color-text-secondary, #778da9)', fontSize: '12px' }}>
-        Space를 선택하세요
+        {t('folderTree.selectSpace')}
       </div>
     );
   }
@@ -643,10 +645,10 @@ const FolderTree: React.FC<FolderTreeProps> = ({
         <Alert
           type="error"
           showIcon
-          message="폴더 트리를 불러오지 못했습니다."
+          message={t('folderTree.folderTreeLoadFailed')}
           description={browseError.message}
         />
-        <Button size="small" onClick={retryTreeLoad}>다시 시도</Button>
+        <Button size="small" onClick={retryTreeLoad}>{t('folderTree.retry')}</Button>
       </div>
     );
   }
@@ -658,9 +660,9 @@ const FolderTree: React.FC<FolderTreeProps> = ({
           <Alert
             type="warning"
             showIcon
-            message="일부 폴더를 불러오지 못했습니다."
+            message={t('folderTree.partialFolderTreeLoadFailed')}
             description={browseError.message}
-            action={<Button size="small" onClick={retryTreeLoad}>재시도</Button>}
+            action={<Button size="small" onClick={retryTreeLoad}>{t('folderTree.retryShort')}</Button>}
           />
         </div>
       )}

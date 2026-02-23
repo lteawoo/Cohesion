@@ -8,7 +8,8 @@ import {
   RightOutlined,
 } from '@ant-design/icons';
 import type { ViewMode, SortConfig } from '../../types';
-import { SORT_OPTIONS } from '../../constants';
+import { buildSortOptions } from '../../constants';
+import { useTranslation } from 'react-i18next';
 
 interface FolderContentToolbarProps {
   viewMode: ViewMode;
@@ -37,6 +38,8 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
   onViewModeChange,
   onSortChange,
 }) => {
+  const { t } = useTranslation();
+  const sortOptions = buildSortOptions((key, options) => String(t(key, options)));
   const { token } = theme.useToken();
   const getViewModeStyle = (active: boolean) => (
     active
@@ -70,15 +73,15 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
           icon={<LeftOutlined />}
           onClick={onGoBack}
           disabled={!canGoBack}
-          aria-label="이전 폴더"
-          title="이전 폴더"
+          aria-label={t('folderContentToolbar.prevFolder')}
+          title={t('folderContentToolbar.prevFolder')}
         />
         <Button
           icon={<RightOutlined />}
           onClick={onGoForward}
           disabled={!canGoForward}
-          aria-label="다음 폴더"
-          title="다음 폴더"
+          aria-label={t('folderContentToolbar.nextFolder')}
+          title={t('folderContentToolbar.nextFolder')}
         />
       </AntSpace.Compact>
       <div style={{ marginLeft: 'auto', minWidth: 0 }}>
@@ -87,8 +90,8 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
             <Button
               icon={<UploadOutlined />}
               onClick={onUpload}
-              aria-label="업로드"
-              title="업로드"
+              aria-label={t('folderContentToolbar.upload')}
+              title={t('folderContentToolbar.upload')}
             />
           )}
           <Select
@@ -102,7 +105,7 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
               ];
               onSortChange({ sortBy, sortOrder });
             }}
-            options={SORT_OPTIONS}
+            options={sortOptions}
           />
           <AntSpace.Compact>
             <Button
@@ -110,16 +113,16 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
               onClick={() => onViewModeChange('table')}
               type="default"
               style={getViewModeStyle(viewMode === 'table')}
-              aria-label="테이블 뷰"
-              title="테이블 뷰"
+              aria-label={t('folderContentToolbar.tableView')}
+              title={t('folderContentToolbar.tableView')}
             />
             <Button
               icon={<AppstoreOutlined />}
               onClick={() => onViewModeChange('grid')}
               type="default"
               style={getViewModeStyle(viewMode === 'grid')}
-              aria-label="그리드 뷰"
-              title="그리드 뷰"
+              aria-label={t('folderContentToolbar.gridView')}
+              title={t('folderContentToolbar.gridView')}
             />
           </AntSpace.Compact>
         </AntSpace>

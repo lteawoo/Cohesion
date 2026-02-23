@@ -1,6 +1,115 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **언어 설정(i18n) 실제 반영 4차 (#141, 2026-02-23)**:
+    - 프론트:
+      - 설정 상세 섹션 하드코딩 문구를 번역 키 기반으로 전환.
+        - `ProfileSettings`, `AppearanceSettings`, `FileSettings`
+        - `ServerSettings`, `SpaceSettings`
+        - `PermissionSettings`, `AccountSettings`
+      - API/store/search fallback 메시지를 i18n 키 기반으로 전환.
+        - `api/auth.ts`, `api/setup.ts`, `api/config.ts`
+        - `browseStore.ts`, `spaceStore.ts`
+        - `searchApi.ts`, `useSearchExplorerSource.ts`
+      - 탐색기 업로드 오버레이 텍스트(`파일을 놓아 업로드`)를 `folderContent.dropToUpload` 키로 전환.
+      - `resources.ts`에 설정/API/store/search 관련 네임스페이스 및 키를 확장하고 `dropToUpload` 키를 추가.
+      - 구현 파일:
+        - `apps/frontend/src/i18n/resources.ts`
+        - `apps/frontend/src/pages/Settings/sections/ProfileSettings.tsx`
+        - `apps/frontend/src/pages/Settings/sections/AppearanceSettings.tsx`
+        - `apps/frontend/src/pages/Settings/sections/FileSettings.tsx`
+        - `apps/frontend/src/pages/Settings/sections/ServerSettings.tsx`
+        - `apps/frontend/src/pages/Settings/sections/SpaceSettings.tsx`
+        - `apps/frontend/src/pages/Settings/sections/PermissionSettings.tsx`
+        - `apps/frontend/src/pages/Settings/sections/AccountSettings.tsx`
+        - `apps/frontend/src/api/auth.ts`
+        - `apps/frontend/src/api/setup.ts`
+        - `apps/frontend/src/api/config.ts`
+        - `apps/frontend/src/stores/browseStore.ts`
+        - `apps/frontend/src/stores/spaceStore.ts`
+        - `apps/frontend/src/features/search/api/searchApi.ts`
+        - `apps/frontend/src/features/search/hooks/useSearchExplorerSource.ts`
+        - `apps/frontend/src/features/browse/components/FolderContent/UploadOverlay.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+      - 브라우저 실측(EN 전환) 스크린샷:
+        - `/tmp/cohesion-i18n-settings4-en.png`
+
+- **언어 설정(i18n) 실제 반영 3차 (#141, 2026-02-23)**:
+    - 프론트:
+      - 훅/연산 레이어의 사용자 노출 메시지 하드코딩 제거.
+      - `useFileOperations`의 충돌 모달/업로드/다운로드/이동·복사/휴지통 액션 메시지들을 번역 키 기반으로 전환.
+      - `useDragAndDrop` 이동 확인 모달 문구를 번역 키 기반으로 전환.
+      - `useBrowseApi` 기본 에러 fallback 메시지를 번역 키 기반으로 전환.
+      - `constants.tsx`의 테이블 컬럼 라벨을 `browseTable` 키 기반(옵션 translator)으로 전환.
+      - `resources.ts`에 `fileOperations`, `dragAndDrop`, `browseApi`, `browseTable` 네임스페이스 추가.
+      - 구현 파일:
+        - `apps/frontend/src/i18n/resources.ts`
+        - `apps/frontend/src/features/browse/hooks/useFileOperations.tsx`
+        - `apps/frontend/src/features/browse/hooks/useDragAndDrop.ts`
+        - `apps/frontend/src/features/browse/hooks/useBrowseApi.ts`
+        - `apps/frontend/src/features/browse/constants.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
+- **언어 설정(i18n) 실제 반영 2차 (#141, 2026-02-23)**:
+    - 프론트:
+      - 번역 범위를 로그인/탐색기/휴지통 화면으로 확장.
+      - `FolderContent`의 검색/빈상태/에러/선택바/휴지통 확인 모달 문구를 번역 키로 전환.
+      - `FolderTree`의 에러/재시도/스페이스 선택 안내/우클릭 삭제 라벨을 번역 키로 전환.
+      - `FolderContentTable`, `FolderContentGrid`의 빈 상태/더보기/액션 메뉴 라벨을 번역 키로 전환.
+      - `TrashExplorer` 전체 문구(확인 모달, 충돌정책, 결과 요약, 컬럼/버튼/빈상태)를 번역 키로 전환.
+      - `resources.ts`에 `trashExplorer` 네임스페이스 및 관련 키를 추가.
+      - 구현 파일:
+        - `apps/frontend/src/i18n/resources.ts`
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+        - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+        - `apps/frontend/src/features/browse/components/TrashExplorer.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent/FolderContentTable.tsx`
+        - `apps/frontend/src/features/browse/components/FolderContent/FolderContentGrid.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+      - 브라우저 실측(영문 전환 후 확인) 스크린샷:
+        - `/tmp/cohesion-i18n-expand-trash-en.png`
+        - `/tmp/cohesion-i18n-expand-search-en.png`
+
+- **언어 설정(i18n) 실제 반영 1차 (#141, 2026-02-23)**:
+    - 프론트:
+      - `i18next`, `react-i18next` 도입 및 번역 리소스/초기화 파일 추가.
+      - `RootProviders`에서 설정 언어(`ko|en`)를 `i18n.changeLanguage`와 `antd ConfigProvider locale`(`ko_KR`/`en_US`)에 연동.
+      - 설정 > 일반의 언어 선택 UI를 번역 키 기반으로 전환하고, 변경 시 즉시 반영되도록 구성.
+      - 핵심 공통 영역 번역 키 적용:
+        - 메인 헤더 검색/버튼 라벨
+        - 사이드패널 스페이스/휴지통/스페이스 삭제 모달
+        - Status 팝오버(호스트/프로토콜/상태 라벨)
+        - 설정 페이지 사이드 메뉴/헤더 라벨
+      - 구현 파일:
+        - `apps/frontend/src/i18n/index.ts`
+        - `apps/frontend/src/i18n/resources.ts`
+        - `apps/frontend/src/RootProviders.tsx`
+        - `apps/frontend/src/components/layout/MainLayout/index.tsx`
+        - `apps/frontend/src/components/layout/MainLayout/MainSider.tsx`
+        - `apps/frontend/src/components/layout/MainLayout/ServerStatus.tsx`
+        - `apps/frontend/src/pages/Settings/index.tsx`
+        - `apps/frontend/src/pages/Settings/sections/GeneralSettings.tsx`
+        - `apps/frontend/package.json`
+        - `pnpm-lock.yaml`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - 브라우저 실측:
+        - 언어 변경 즉시 UI 전환 확인(ko↔en)
+        - 새로고침 후 선택 언어 유지 확인
+      - 스크린샷:
+        - `/tmp/cohesion-i18n-main-en.png`
+        - `/tmp/cohesion-i18n-settings-ko.png`
+
 - **프론트 lint 경고(`baseline-browser-mapping`) 제거 (2026-02-23)**:
     - 프론트:
       - `apps/frontend`에 `baseline-browser-mapping@^2.10.0`를 devDependency로 명시 추가.

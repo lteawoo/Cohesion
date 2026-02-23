@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Space } from '@/features/space/types';
 import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
+import i18n from '@/i18n';
 
 interface SpaceStore {
   spaces: Space[];
@@ -33,12 +34,12 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
     try {
       const response = await apiFetch('/api/spaces');
       if (!response.ok) {
-        throw await toApiError(response, 'Space 목록을 불러오지 못했습니다.');
+        throw await toApiError(response, i18n.t('storeErrors.loadSpaceListFailed'));
       }
       const data: Space[] = await response.json();
       set({ spaces: data, isLoading: false });
     } catch (e) {
-      set({ error: normalizeUnknownError(e, 'Space 목록을 불러오지 못했습니다.'), isLoading: false });
+      set({ error: normalizeUnknownError(e, i18n.t('storeErrors.loadSpaceListFailed')), isLoading: false });
     }
   },
 
@@ -62,7 +63,7 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to create space');
+        throw new Error(error.message || i18n.t('storeErrors.createSpaceFailed'));
       }
 
       // Space 생성 후 목록 갱신
@@ -82,7 +83,7 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to delete space');
+        throw new Error(error.message || i18n.t('storeErrors.deleteSpaceFailed'));
       }
 
       // Space 삭제 후 목록 갱신

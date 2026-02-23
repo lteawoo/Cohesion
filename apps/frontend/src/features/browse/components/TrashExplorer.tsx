@@ -8,6 +8,7 @@ import { useBrowseStore } from '@/stores/browseStore';
 import { useSpaceStore } from '@/stores/spaceStore';
 import { formatDate, formatSize } from '../constants';
 import { FileTypeIcon } from './FileTypeIcon';
+import { useTranslation } from 'react-i18next';
 
 type TrashConflictPolicy = 'overwrite' | 'rename' | 'skip';
 
@@ -77,9 +78,9 @@ function isDestinationConflictFailure(item: TrashRestoreFailurePayload): boolean
   return item.code === 'destination_exists';
 }
 
-function summarizeTrashRestoreFailure(item: TrashRestoreFailurePayload): string {
+function summarizeTrashRestoreFailure(item: TrashRestoreFailurePayload, fallbackMessage: string): string {
   const targetPath = item.originalPath ?? `#${item.id ?? 'unknown'}`;
-  return `${targetPath}: ${item.reason ?? '복원 실패'}`;
+  return `${targetPath}: ${item.reason ?? fallbackMessage}`;
 }
 
 function parseDeletedAt(value: string): number {
@@ -101,6 +102,7 @@ function buildGroupedIds(targetItems: GlobalTrashItem[]): Map<number, number[]> 
 }
 
 const TrashExplorer: React.FC = () => {
+  const { t } = useTranslation();
   const { message, modal } = App.useApp();
 
   const spaces = useSpaceStore((state) => state.spaces);
@@ -137,7 +139,7 @@ const TrashExplorer: React.FC = () => {
             method: 'GET',
           });
           if (!response.ok) {
-            throw await toApiError(response, `[${space.space_name}] 휴지통 목록 조회 실패`);
+            throw await toApiError(response, t('trashExplorer.listLoadFailedBySpace', { spaceName: space.space_name }));
           }
           const payload = (await response.json()) as TrashListResponsePayload;
           return (payload.items ?? []).map((item) => ({
@@ -156,7 +158,7 @@ const TrashExplorer: React.FC = () => {
           merged.push(...result.value);
           return;
         }
-        failures.push(result.reason instanceof Error ? result.reason.message : '휴지통 목록 조회 실패');
+        failures.push(result.reason instanceof Error ? result.reason.message : t('trashExplorer.listLoadFailed'));
       });
 
       merged.sort((left, right) => parseDeletedAt(right.deletedAt) - parseDeletedAt(left.deletedAt));
@@ -169,15 +171,15 @@ const TrashExplorer: React.FC = () => {
 
       if (failures.length > 0) {
         if (failures.length === spaces.length) {
-          message.error(failures[0] ?? '휴지통 목록 조회 실패');
+          message.error(failures[0] ?? t('trashExplorer.listLoadFailed'));
         } else {
-          message.warning(`일부 Space 휴지통 조회 실패 (${failures.length}개)`);
+          message.warning(t('trashExplorer.partialListLoadFailed', { count: failures.length }));
         }
       }
     } finally {
       setLoading(false);
     }
-  }, [message, spaces]);
+  }, [message, spaces, t]);
 
   useEffect(() => {
     if (spaces.length === 0) {
@@ -209,10 +211,10 @@ const TrashExplorer: React.FC = () => {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      throw await toApiError(response, '휴지통 복원 실패');
+      throw await toApiError(response, t('trashExplorer.restoreFailed'));
     }
     return (await response.json()) as TrashRestoreResponsePayload;
-  }, []);
+  }, [t]);
 
   const requestTrashDelete = useCallback(async (
     spaceId: number,
@@ -224,10 +226,10 @@ const TrashExplorer: React.FC = () => {
       body: JSON.stringify({ ids }),
     });
     if (!response.ok) {
-      throw await toApiError(response, '휴지통 영구 삭제 실패');
+      throw await toApiError(response, t('trashExplorer.permanentDeleteFailed'));
     }
     return (await response.json()) as TrashDeleteResponsePayload;
-  }, []);
+  }, [t]);
 
   const requestTrashEmpty = useCallback(async (spaceId: number): Promise<TrashEmptyResponsePayload> => {
     const response = await apiFetch(`/api/spaces/${spaceId}/files/trash-empty`, {
@@ -235,10 +237,10 @@ const TrashExplorer: React.FC = () => {
       headers: { 'Content-Type': 'application/json' },
     });
     if (!response.ok) {
-      throw await toApiError(response, '휴지통 비우기 실패');
+      throw await toApiError(response, t('trashExplorer.emptyFailed'));
     }
     return (await response.json()) as TrashEmptyResponsePayload;
-  }, []);
+  }, [t]);
 
   const promptTrashConflictPolicy = useCallback((conflictCount: number): Promise<TrashConflictPolicy | null> => {
     return new Promise((resolve) => {
@@ -253,14 +255,14 @@ const TrashExplorer: React.FC = () => {
       };
 
       modal.confirm({
-        title: '복원 충돌 처리',
+        title: t('trashExplorer.conflictPolicyTitle'),
         content: (
           <AntSpace direction="vertical" size={12} style={{ width: '100%' }}>
             <Typography.Text>
-              복원 대상 중 {conflictCount}개 항목이 기존 경로와 충돌합니다.
+              {t('trashExplorer.conflictDetected', { count: conflictCount })}
             </Typography.Text>
             <Typography.Text type="secondary">
-              충돌 항목 처리 정책을 선택하세요.
+              {t('trashExplorer.conflictPolicyDescription')}
             </Typography.Text>
             <Radio.Group
               defaultValue="overwrite"
@@ -269,15 +271,15 @@ const TrashExplorer: React.FC = () => {
               }}
             >
               <AntSpace direction="vertical" size={8}>
-                <Radio value="overwrite">덮어쓰기</Radio>
-                <Radio value="rename">이름 변경</Radio>
-                <Radio value="skip">건너뛰기</Radio>
+                <Radio value="overwrite">{t('trashExplorer.overwrite')}</Radio>
+                <Radio value="rename">{t('trashExplorer.rename')}</Radio>
+                <Radio value="skip">{t('trashExplorer.skip')}</Radio>
               </AntSpace>
             </Radio.Group>
           </AntSpace>
         ),
-        okText: '적용',
-        cancelText: '복원 중단',
+        okText: t('trashExplorer.apply'),
+        cancelText: t('trashExplorer.stopRestore'),
         onOk: () => {
           settle(selectedPolicy);
         },
@@ -286,19 +288,19 @@ const TrashExplorer: React.FC = () => {
         },
       });
     });
-  }, [modal]);
+  }, [modal, t]);
 
   const handleRestoreConfirm = useCallback(() => {
     if (selectedItems.length === 0) {
-      message.warning('복원할 항목을 선택하세요');
+      message.warning(t('folderContent.selectRestoreItems'));
       return;
     }
 
     modal.confirm({
-      title: '복원 확인',
-      content: `선택한 ${selectedItems.length}개 항목을 복원하시겠습니까?`,
-      okText: '복원',
-      cancelText: '취소',
+      title: t('folderContent.restoreConfirmTitle'),
+      content: t('folderContent.restoreConfirmContent', { count: selectedItems.length }),
+      okText: t('folderContent.restore'),
+      cancelText: t('folderContent.cancel'),
       onOk: async () => {
         setProcessing(true);
         try {
@@ -330,10 +332,10 @@ const TrashExplorer: React.FC = () => {
                   unresolvedConflicts.push(item);
                   return;
                 }
-                failedReasons.push(summarizeTrashRestoreFailure(item));
+                failedReasons.push(summarizeTrashRestoreFailure(item, t('trashExplorer.restoreFailure')));
               });
             } catch (error) {
-              failedReasons.push(error instanceof Error ? error.message : '휴지통 복원 실패');
+              failedReasons.push(error instanceof Error ? error.message : t('trashExplorer.restoreFailed'));
             }
           }
 
@@ -341,23 +343,27 @@ const TrashExplorer: React.FC = () => {
           if (conflictCount > 0) {
             const policy = await promptTrashConflictPolicy(conflictCount);
             if (!policy) {
-              failedReasons.push(...unresolvedConflicts.map(summarizeTrashRestoreFailure));
+              failedReasons.push(...unresolvedConflicts.map((item) => summarizeTrashRestoreFailure(item, t('trashExplorer.restoreFailure'))));
             } else {
               for (const [spaceId, ids] of conflictIdsBySpace.entries()) {
                 try {
                   const retried = await requestTrashRestore(spaceId, ids, policy);
                   succeededCount += retried.succeeded?.length ?? 0;
                   skippedCount += retried.skipped?.length ?? 0;
-                  failedReasons.push(...(retried.failed ?? []).map(summarizeTrashRestoreFailure));
+                  failedReasons.push(...(retried.failed ?? []).map((item) => summarizeTrashRestoreFailure(item, t('trashExplorer.restoreFailure'))));
                 } catch (error) {
-                  failedReasons.push(error instanceof Error ? error.message : '휴지통 복원 실패');
+                  failedReasons.push(error instanceof Error ? error.message : t('trashExplorer.restoreFailed'));
                 }
               }
             }
           }
 
           const failedCount = failedReasons.length;
-          const summaryMessage = `복원 결과: 성공 ${succeededCount}개 / 건너뜀 ${skippedCount}개 / 실패 ${failedCount}개`;
+          const summaryMessage = t('trashExplorer.restoreSummary', {
+            succeeded: succeededCount,
+            skipped: skippedCount,
+            failed: failedCount,
+          });
           if (failedCount > 0) {
             const firstFailure = failedReasons[0] ? ` - ${failedReasons[0]}` : '';
             message.warning(`${summaryMessage}${firstFailure}`);
@@ -379,20 +385,21 @@ const TrashExplorer: React.FC = () => {
     refreshSelectedFolder,
     requestTrashRestore,
     selectedItems,
+    t,
   ]);
 
   const handleDeleteConfirm = useCallback(() => {
     if (selectedItems.length === 0) {
-      message.warning('영구 삭제할 항목을 선택하세요');
+      message.warning(t('folderContent.selectPermanentDeleteItems'));
       return;
     }
 
     modal.confirm({
-      title: '영구 삭제 확인',
-      content: `선택한 ${selectedItems.length}개 항목을 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`,
-      okText: '영구 삭제',
+      title: t('folderContent.permanentDeleteConfirmTitle'),
+      content: t('folderContent.permanentDeleteConfirmContent', { count: selectedItems.length }),
+      okText: t('folderContent.permanentDelete'),
       okType: 'danger',
-      cancelText: '취소',
+      cancelText: t('folderContent.cancel'),
       onOk: async () => {
         setProcessing(true);
         try {
@@ -405,18 +412,21 @@ const TrashExplorer: React.FC = () => {
               const payload = await requestTrashDelete(spaceId, ids);
               succeededCount += payload.succeeded?.length ?? 0;
               (payload.failed ?? []).forEach((item) => {
-                failedReasons.push(item.reason ?? `#${item.id ?? 'unknown'} 영구 삭제 실패`);
+                failedReasons.push(item.reason ?? t('trashExplorer.permanentDeleteReasonFallback', { id: item.id ?? 'unknown' }));
               });
             } catch (error) {
-              failedReasons.push(error instanceof Error ? error.message : '휴지통 영구 삭제 실패');
+              failedReasons.push(error instanceof Error ? error.message : t('trashExplorer.permanentDeleteFailed'));
             }
           }
 
           if (failedReasons.length > 0) {
             const firstFailure = failedReasons[0] ? ` - ${failedReasons[0]}` : '';
-            message.warning(`영구 삭제 결과: 성공 ${succeededCount}개 / 실패 ${failedReasons.length}개${firstFailure}`);
+            message.warning(`${t('trashExplorer.permanentDeleteSummary', {
+              succeeded: succeededCount,
+              failed: failedReasons.length,
+            })}${firstFailure}`);
           } else {
-            message.success(`${succeededCount}개 항목을 영구 삭제했습니다`);
+            message.success(t('trashExplorer.permanentDeleteSuccess', { count: succeededCount }));
           }
 
           await Promise.all([loadTrashItems(), refreshSelectedFolder()]);
@@ -425,20 +435,20 @@ const TrashExplorer: React.FC = () => {
         }
       },
     });
-  }, [loadTrashItems, message, modal, refreshSelectedFolder, requestTrashDelete, selectedItems]);
+  }, [loadTrashItems, message, modal, refreshSelectedFolder, requestTrashDelete, selectedItems, t]);
 
   const handleEmptyConfirm = useCallback(() => {
     if (items.length === 0) {
-      message.info('휴지통이 비어 있습니다');
+      message.info(t('folderContent.trashEmptyInfo'));
       return;
     }
 
     modal.confirm({
-      title: '휴지통 비우기',
-      content: `휴지통 항목 ${items.length}개를 모두 영구 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`,
-      okText: '비우기',
+      title: t('folderContent.emptyTrashConfirmTitle'),
+      content: t('folderContent.emptyTrashConfirmContent', { count: items.length }),
+      okText: t('folderContent.emptyTrash'),
       okType: 'danger',
-      cancelText: '취소',
+      cancelText: t('folderContent.cancel'),
       onOk: async () => {
         setProcessing(true);
         try {
@@ -451,18 +461,21 @@ const TrashExplorer: React.FC = () => {
               const payload = await requestTrashEmpty(spaceId);
               removedCount += typeof payload.removed === 'number' ? payload.removed : 0;
               (payload.failed ?? []).forEach((item) => {
-                failedReasons.push(item.reason ?? `#${item.id ?? 'unknown'} 비우기 실패`);
+                failedReasons.push(item.reason ?? t('trashExplorer.emptyReasonFallback', { id: item.id ?? 'unknown' }));
               });
             } catch (error) {
-              failedReasons.push(error instanceof Error ? error.message : '휴지통 비우기 실패');
+              failedReasons.push(error instanceof Error ? error.message : t('trashExplorer.emptyFailed'));
             }
           }
 
           if (failedReasons.length > 0) {
             const firstFailure = failedReasons[0] ? ` - ${failedReasons[0]}` : '';
-            message.warning(`휴지통 비우기 결과: 제거 ${removedCount}개 / 실패 ${failedReasons.length}개${firstFailure}`);
+            message.warning(`${t('trashExplorer.emptySummary', {
+              removed: removedCount,
+              failed: failedReasons.length,
+            })}${firstFailure}`);
           } else {
-            message.success(`휴지통 비우기 완료 (${removedCount}개)`);
+            message.success(t('trashExplorer.emptySuccess', { count: removedCount }));
           }
 
           await Promise.all([loadTrashItems(), refreshSelectedFolder()]);
@@ -471,12 +484,12 @@ const TrashExplorer: React.FC = () => {
         }
       },
     });
-  }, [items, loadTrashItems, message, modal, refreshSelectedFolder, requestTrashEmpty]);
+  }, [items, loadTrashItems, message, modal, refreshSelectedFolder, requestTrashEmpty, t]);
 
   const columns = useMemo<TableColumnsType<GlobalTrashItem>>(() => {
     return [
       {
-        title: '이름',
+        title: t('trashExplorer.name'),
         dataIndex: 'itemName',
         key: 'itemName',
         ellipsis: true,
@@ -492,33 +505,33 @@ const TrashExplorer: React.FC = () => {
         ),
       },
       {
-        title: 'Space',
+        title: t('trashExplorer.space'),
         dataIndex: 'spaceName',
         key: 'spaceName',
         width: 140,
         ellipsis: true,
       },
       {
-        title: '원래 경로',
+        title: t('trashExplorer.originalPath'),
         dataIndex: 'originalPath',
         key: 'originalPath',
         ellipsis: true,
       },
       {
-        title: '삭제 시각',
+        title: t('trashExplorer.deletedAt'),
         dataIndex: 'deletedAt',
         key: 'deletedAt',
         width: 180,
         render: (value: string) => formatDate(value),
       },
       {
-        title: '삭제자',
+        title: t('trashExplorer.deletedBy'),
         dataIndex: 'deletedBy',
         key: 'deletedBy',
         width: 120,
       },
       {
-        title: '크기',
+        title: t('trashExplorer.size'),
         dataIndex: 'itemSize',
         key: 'itemSize',
         width: 120,
@@ -526,12 +539,12 @@ const TrashExplorer: React.FC = () => {
         render: (size: number, record: GlobalTrashItem) => (record.isDir ? '-' : formatSize(size)),
       },
     ];
-  }, []);
+  }, [t]);
 
   if (spaces.length === 0 && !loading) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Empty description="연결된 Space가 없습니다." />
+        <Empty description={t('trashExplorer.noConnectedSpace')} />
       </div>
     );
   }
@@ -548,17 +561,17 @@ const TrashExplorer: React.FC = () => {
         }}
       >
         <Typography.Title level={5} style={{ margin: 0 }}>
-          휴지통
+          {t('trashExplorer.title')}
         </Typography.Title>
         <AntSpace wrap>
           <Button icon={<RollbackOutlined />} onClick={handleRestoreConfirm} disabled={selectedItems.length === 0 || loading || processing}>
-            복원
+            {t('trashExplorer.restore')}
           </Button>
           <Button icon={<DeleteOutlined />} danger onClick={handleDeleteConfirm} disabled={selectedItems.length === 0 || loading || processing}>
-            영구 삭제
+            {t('trashExplorer.permanentDelete')}
           </Button>
           <Button danger onClick={handleEmptyConfirm} disabled={items.length === 0 || loading || processing}>
-            비우기
+            {t('trashExplorer.empty')}
           </Button>
         </AntSpace>
       </div>
@@ -578,7 +591,7 @@ const TrashExplorer: React.FC = () => {
             },
           }}
           scroll={{ y: 'calc(100vh - 260px)' }}
-          locale={{ emptyText: <Empty description="휴지통이 비어 있습니다." /> }}
+          locale={{ emptyText: <Empty description={t('trashExplorer.emptyText')} /> }}
         />
       </div>
     </div>

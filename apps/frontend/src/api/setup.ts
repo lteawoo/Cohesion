@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import i18n from '@/i18n';
 
 export interface SetupStatusResponse {
   requiresSetup: boolean;
@@ -38,7 +39,7 @@ async function throwResponseError(response: Response, fallback: string): Promise
 export async function getSetupStatus(): Promise<SetupStatusResponse> {
   const response = await apiFetch('/api/setup/status', undefined, { skipAuthHandling: true });
   if (!response.ok) {
-    await throwResponseError(response, '초기 설정 상태 조회에 실패했습니다');
+    await throwResponseError(response, i18n.t('apiErrors.setupStatusFailed'));
   }
   return response.json();
 }
@@ -52,6 +53,6 @@ export async function bootstrapAdmin(payload: BootstrapAdminRequest): Promise<vo
     body: JSON.stringify(payload),
   }, { skipAuthHandling: true });
   if (!response.ok) {
-    await throwResponseError(response, '관리자 초기 설정에 실패했습니다');
+    await throwResponseError(response, i18n.t('apiErrors.setupAdminFailed'));
   }
 }

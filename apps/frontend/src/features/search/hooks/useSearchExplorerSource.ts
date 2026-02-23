@@ -4,6 +4,7 @@ import { searchFiles } from "@/features/search/api/searchApi";
 import type { SearchFileResult } from "@/features/search/types";
 import { useBrowseStore } from "@/stores/browseStore";
 import { useSpaceStore } from "@/stores/spaceStore";
+import { useTranslation } from "react-i18next";
 
 const MIN_SEARCH_QUERY_LENGTH = 2;
 const SEARCH_PAGE_LIMIT = 80;
@@ -27,6 +28,7 @@ export interface SearchExplorerSource {
 }
 
 export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const spaces = useSpaceStore((state) => state.spaces);
@@ -69,7 +71,7 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
         }
         if (!isDisposed) {
           setResults([]);
-          setErrorMessage(error instanceof Error ? error.message : "검색 결과를 불러오지 못했습니다.");
+          setErrorMessage(error instanceof Error ? error.message : t('search.loadResultsFailed'));
         }
       } finally {
         if (!isDisposed) {
@@ -82,7 +84,7 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
       isDisposed = true;
       controller.abort();
     };
-  }, [enabled, query]);
+  }, [enabled, query, t]);
 
   const openResult = useCallback((item: SearchFileResult) => {
     const targetSpace = spaces.find((space) => space.id === item.spaceId);

@@ -55,6 +55,59 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### 언어 설정 연동 방식 확정: Zustand 언어 상태를 i18n/Antd locale의 단일 소스로 사용 (#141, 2026-02-23)
+- **문제**:
+  - 설정의 `language` 값은 저장만 되고 실제 UI 문자열 및 Antd locale에는 연결되지 않아 설정이 동작하지 않았다.
+- **결정**:
+  - `i18next + react-i18next`를 도입해 프론트 번역 인프라를 추가한다.
+  - `RootProviders`에서 Zustand `language(ko|en)`를 구독해 `i18n.changeLanguage`와 `ConfigProvider locale(ko_KR/en_US)`를 함께 동기화한다.
+  - 1차 적용 범위는 공통 체감이 큰 영역(메인 헤더/사이드패널/Status/설정 기본 탭)으로 제한하고, 잔여 화면은 단계적으로 확장한다.
+- **이유**:
+  - 저장 상태를 단일 소스로 유지하면 새로고침 이후에도 언어 일관성을 보장할 수 있다.
+  - i18n(문자열)과 Antd locale(컴포넌트 기본 문구)을 동시에 연결해야 실제 사용자가 “언어 설정이 동작한다”고 체감한다.
+  - 점진적 치환으로 회귀 범위를 제어하면서 번역 커버리지를 확장할 수 있다.
+
+### 언어 설정 반영 2차 범위 확정: 탐색기/휴지통 사용자 동선 우선 치환 (#141, 2026-02-23)
+- **문제**:
+  - 1차 반영 이후에도 로그인/파일 탐색기/휴지통 핵심 화면에 하드코딩 문구가 남아, 언어 전환 시 화면 내 언어가 혼재됐다.
+- **결정**:
+  - 2차 범위를 `Login`, `FolderContent`, `FolderTree`, `FolderContentTable/Grid`, `TrashExplorer`로 고정한다.
+  - 번역 키를 기능 경계로 분리해 관리한다.
+    - 기존 공통 키(`folderContent`, `folderTree`, `browseMenu`) 재사용
+    - 휴지통 전용 화면 문구는 `trashExplorer` 네임스페이스로 신규 분리
+  - 동작 로직은 변경하지 않고, 사용자 노출 텍스트/버튼/확인 모달/요약 메시지만 번역 키로 치환한다.
+- **이유**:
+  - 가장 체감이 큰 동선(검색 결과 탐색, 파일 작업, 휴지통 복원/삭제)의 언어 일관성을 우선 확보할 수 있다.
+  - 키를 화면 단위로 분리하면 이후 3차 확장 시 키 충돌과 중복 정의를 줄일 수 있다.
+
+### 언어 설정 반영 3차 범위 확정: 훅/연산 레이어 메시지 치환 (#141, 2026-02-23)
+- **문제**:
+  - 2차 반영 후에도 `useFileOperations`, `useDragAndDrop`, `useBrowseApi`에 사용자 노출 메시지(모달/토스트/fallback)가 남아 언어 전환 시 일부 문구가 고정됐다.
+- **결정**:
+  - 사용자 상호작용이 발생하는 훅 레이어 문자열을 모두 i18n 키로 전환한다.
+  - 번역 키를 책임 단위로 분리한다.
+    - 파일 연산: `fileOperations`
+    - 드래그앤드롭 확인 모달: `dragAndDrop`
+    - 탐색 API fallback: `browseApi`
+    - 레거시 테이블 라벨: `browseTable`
+  - `constants.tsx`의 `buildTableColumns`는 translator 인자를 optional로 받아, 호출부가 없더라도 향후 재사용 시 바로 i18n 주입 가능하도록 확장한다.
+- **이유**:
+  - UI 컴포넌트뿐 아니라 훅 내부 메시지까지 전환해야 실제 다국어 UX가 완결된다.
+  - 기능 단위 네임스페이스 분리는 유지보수 시 키 검색성과 중복 방지에 유리하다.
+
+### 언어 설정 반영 4차 범위 확정: 설정 상세/네트워크 레이어 잔여 하드코딩 치환 (#141, 2026-02-23)
+- **문제**:
+  - 3차 반영 이후에도 설정 상세 섹션과 API/store/search fallback에 하드코딩 문구가 남아 언어 전환 시 일부 메시지가 고정됐다.
+  - 탐색기 업로드 오버레이 문구가 JSX 텍스트로 남아 화면 내 언어 일관성이 깨졌다.
+- **결정**:
+  - 4차 범위를 `Settings sections + API/store/search fallback + UploadOverlay`로 고정한다.
+  - 설정 섹션(`Profile/Appearance/File/Server/Space/Permission/Account`)의 사용자 노출 문구를 모두 번역 키로 전환한다.
+  - 네트워크/상태 레이어 fallback은 훅 의존 없이 사용할 수 있도록 `i18n.t(...)` 기반으로 전환한다.
+  - 업로드 오버레이 문구를 `folderContent.dropToUpload` 키로 통합해 탐색기 내 키 체계를 유지한다.
+- **이유**:
+  - 화면 컴포넌트와 네트워크 fallback을 함께 치환해야 언어 전환 시 사용자 체감 일관성이 확보된다.
+  - 누락 지점을 기능 경계(설정/API/store/search)로 정리하면 이후 다국어 확장 시 변경 지점 추적이 쉬워진다.
+
 ### lint baseline 데이터 경고 처리 정책 (2026-02-23)
 - **문제**:
   - `pnpm -C apps/frontend lint` 실행 시 `baseline-browser-mapping` 데이터가 오래되었다는 경고가 반복 출력되었다.

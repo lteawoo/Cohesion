@@ -4,6 +4,7 @@ import type { TableColumnsType } from 'antd';
 import { DeleteOutlined, RollbackOutlined, FolderFilled, FileOutlined } from '@ant-design/icons';
 import type { TrashItem } from '../../hooks/useFileOperations';
 import { formatDate, formatSize } from '../../constants';
+import { useTranslation } from 'react-i18next';
 
 interface TrashModalProps {
   open: boolean;
@@ -32,10 +33,11 @@ const TrashModal: React.FC<TrashModalProps> = ({
   onEmpty,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const columns = useMemo<TableColumnsType<TrashItem>>(() => {
     return [
       {
-        title: '이름',
+        title: t('trashModal.name'),
         dataIndex: 'itemName',
         key: 'itemName',
         ellipsis: true,
@@ -47,26 +49,26 @@ const TrashModal: React.FC<TrashModalProps> = ({
         ),
       },
       {
-        title: '원래 경로',
+        title: t('trashModal.originalPath'),
         dataIndex: 'originalPath',
         key: 'originalPath',
         ellipsis: true,
       },
       {
-        title: '삭제 시각',
+        title: t('trashModal.deletedAt'),
         dataIndex: 'deletedAt',
         key: 'deletedAt',
         width: 180,
         render: (value: string) => formatDate(value),
       },
       {
-        title: '삭제자',
+        title: t('trashModal.deletedBy'),
         dataIndex: 'deletedBy',
         key: 'deletedBy',
         width: 120,
       },
       {
-        title: '크기',
+        title: t('trashModal.size'),
         dataIndex: 'itemSize',
         key: 'itemSize',
         width: 120,
@@ -74,14 +76,14 @@ const TrashModal: React.FC<TrashModalProps> = ({
         render: (size: number, record: TrashItem) => (record.isDir ? '-' : formatSize(size)),
       },
     ];
-  }, []);
+  }, [t]);
 
   const hasSelection = selectedIds.length > 0;
   const hasItems = items.length > 0;
 
   return (
     <Modal
-      title={spaceName ? `휴지통 - ${spaceName}` : '휴지통'}
+      title={spaceName ? t('trashModal.titleWithSpace', { spaceName }) : t('trashModal.title')}
       open={open}
       onCancel={onClose}
       maskClosable={!processing}
@@ -95,7 +97,7 @@ const TrashModal: React.FC<TrashModalProps> = ({
           onClick={onRestore}
           disabled={!hasSelection || loading || processing}
         >
-          복원
+          {t('trashModal.restore')}
         </Button>,
         <Button
           key="delete"
@@ -104,7 +106,7 @@ const TrashModal: React.FC<TrashModalProps> = ({
           onClick={onDelete}
           disabled={!hasSelection || loading || processing}
         >
-          영구 삭제
+          {t('trashModal.permanentDelete')}
         </Button>,
         <Button
           key="empty"
@@ -112,10 +114,10 @@ const TrashModal: React.FC<TrashModalProps> = ({
           onClick={onEmpty}
           disabled={!hasItems || loading || processing}
         >
-          비우기
+          {t('trashModal.empty')}
         </Button>,
         <Button key="close" onClick={onClose} disabled={processing}>
-          닫기
+          {t('trashModal.close')}
         </Button>,
       ]}
     >
@@ -133,7 +135,7 @@ const TrashModal: React.FC<TrashModalProps> = ({
           },
         }}
         scroll={{ y: 420 }}
-        locale={{ emptyText: <Empty description="휴지통이 비어 있습니다." /> }}
+        locale={{ emptyText: <Empty description={t('trashModal.emptyText')} /> }}
       />
     </Modal>
   );

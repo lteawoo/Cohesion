@@ -1,6 +1,7 @@
 import { App, Popover, theme } from 'antd';
 import { useServerStatus } from '@/features/status/hooks/useServerStatus';
 import type { ProtocolStatus } from '@/features/status/types';
+import { useTranslation } from 'react-i18next';
 
 const PROTOCOL_LABELS: Record<string, string> = {
   http: 'WEB',
@@ -41,14 +42,14 @@ function getStatusColor(
   }
 }
 
-function getStatusLabel(status: ProtocolStatus['status']) {
+function getStatusLabel(status: ProtocolStatus['status'], t: (key: string) => unknown) {
   switch (status) {
     case 'healthy':
-      return '정상';
+      return String(t('serverStatus.status.healthy'));
     case 'unhealthy':
-      return '오류';
+      return String(t('serverStatus.status.unhealthy'));
     case 'unavailable':
-      return '중지';
+      return String(t('serverStatus.status.unavailable'));
   }
 }
 
@@ -92,6 +93,7 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
 }
 
 function PopoverContent({ protocols, hosts }: { protocols: Record<string, ProtocolStatus>; hosts?: string[] }) {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const { message } = App.useApp();
   const orderedProtocolEntries = [
@@ -123,7 +125,7 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
   return (
     <div style={{ minWidth: 180 }}>
       <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8 }}>
-        Hosts
+        {t('serverStatus.hosts')}
       </div>
       {webUrls.map((url) => (
         <div key={url} style={{ padding: '2px 0' }}>
@@ -133,12 +135,12 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
             onClick={async () => {
               const copied = await copyTextToClipboard(url);
               if (copied) {
-                message.success('호스트 주소를 복사했습니다');
+                message.success(t('serverStatus.hostCopied'));
                 return;
               }
-              message.error('주소 복사에 실패했습니다');
+              message.error(t('serverStatus.hostCopyFailed'));
             }}
-            title="클릭하여 주소 복사"
+            title={t('serverStatus.copyHostAddress')}
             style={{
               padding: 0,
               border: 0,
@@ -154,7 +156,7 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
         </div>
       ))}
       <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 12, marginBottom: 8 }}>
-        Protocols
+        {t('serverStatus.protocols')}
       </div>
       {orderedProtocolEntries.map(([key, proto]) => {
         const displayPort = key === 'http' ? webPort : proto.port;
@@ -178,7 +180,7 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
               )}
             </div>
             <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
-              {getStatusLabel(proto.status)}
+              {getStatusLabel(proto.status, t)}
             </span>
           </div>
         );
@@ -188,6 +190,7 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
 }
 
 export default function ServerStatus() {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const { status, isServerUp } = useServerStatus();
 
@@ -200,7 +203,7 @@ export default function ServerStatus() {
           <PopoverContent protocols={status.protocols} hosts={status.hosts} />
         ) : (
           <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
-            서버에 연결할 수 없습니다
+            {t('serverStatus.connectionUnavailable')}
           </div>
         )
       }
@@ -220,7 +223,9 @@ export default function ServerStatus() {
         }}
       >
         <StatusDot color={dotColor} />
-        <span style={{ fontSize: 13, color: token.colorTextSecondary, lineHeight: 'normal' }}>Status</span>
+        <span style={{ fontSize: 13, color: token.colorTextSecondary, lineHeight: 'normal' }}>
+          {t('serverStatus.triggerLabel')}
+        </span>
       </div>
     </Popover>
   );

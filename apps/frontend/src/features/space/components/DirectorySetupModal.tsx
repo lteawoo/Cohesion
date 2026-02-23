@@ -2,6 +2,7 @@ import { Modal, Input, App, theme } from "antd";
 import FolderTree from "../../browse/components/FolderTree";
 import { useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
+import { useTranslation } from "react-i18next";
 
 const { TextArea } = Input;
 
@@ -12,6 +13,7 @@ export default function DirectorySetupModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [spaceName, setSpaceName] = useState<string>('');
@@ -43,25 +45,25 @@ export default function DirectorySetupModal({
   const handleOk = async () => {
     // 유효성 검사
     if (!spaceName.trim()) {
-      message.error('Space 이름을 입력해주세요.');
+      message.error(t('directorySetup.spaceNameRequired'));
       return;
     }
 
     if (!selectedPath) {
-      message.error('폴더를 선택해주세요.');
+      message.error(t('directorySetup.folderRequired'));
       return;
     }
 
     setIsCreating(true);
     try {
       await createSpace(spaceName.trim(), selectedPath, spaceDesc);
-      message.success('Space가 성공적으로 생성되었습니다.');
+      message.success(t('directorySetup.createSuccess'));
       setSelectedPath('');
       setSpaceName('');
       setSpaceDesc('');
       onClose();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Space 생성에 실패했습니다.');
+      message.error(error instanceof Error ? error.message : t('directorySetup.createFailed'));
     } finally {
       setIsCreating(false);
     }
@@ -69,7 +71,7 @@ export default function DirectorySetupModal({
 
   return (
     <Modal
-      title="새 Space 생성"
+      title={t('directorySetup.title')}
       open={isOpen}
       onOk={handleOk}
       onCancel={handleClose}
@@ -83,10 +85,10 @@ export default function DirectorySetupModal({
     >
       <div style={{ marginBottom: 16 }}>
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-          Space 이름 <span style={{ color: token.colorError }}>*</span>
+          {t('directorySetup.spaceNameLabel')} <span style={{ color: token.colorError }}>*</span>
         </label>
         <Input
-          placeholder="Space 이름을 입력하세요"
+          placeholder={t('directorySetup.spaceNamePlaceholder')}
           value={spaceName}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSpaceName(e.target.value)}
           maxLength={100}
@@ -96,10 +98,10 @@ export default function DirectorySetupModal({
 
       <div style={{ marginBottom: 16 }}>
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-          설명 (선택)
+          {t('directorySetup.descriptionLabel')}
         </label>
         <TextArea
-          placeholder="Space에 대한 설명을 입력하세요"
+          placeholder={t('directorySetup.descriptionPlaceholder')}
           value={spaceDesc}
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSpaceDesc(e.target.value)}
           rows={3}
@@ -109,10 +111,10 @@ export default function DirectorySetupModal({
 
       <div style={{ marginBottom: 16 }}>
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-          폴더 선택 <span style={{ color: token.colorError }}>*</span>
+          {t('directorySetup.folderSelectLabel')} <span style={{ color: token.colorError }}>*</span>
         </label>
         <div style={{ fontStyle: 'italic', marginBottom: 8, fontSize: 12 }}>
-          선택된 폴더: {selectedPath || '없음'}
+          {t('directorySetup.selectedFolder')}: {selectedPath || t('directorySetup.none')}
         </div>
         <div
           style={{

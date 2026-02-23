@@ -2,10 +2,12 @@ import { Card, Radio, Typography, Space } from 'antd';
 import { useSettingsStore } from '@/stores/settingsStore';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import SettingRow from '../components/SettingRow';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
 const AppearanceSettings = () => {
+  const { t } = useTranslation();
   const theme = useSettingsStore((state) => state.theme);
   const setTheme = useSettingsStore((state) => state.setTheme);
   const defaultViewMode = useSettingsStore((state) => state.defaultViewMode);
@@ -13,12 +15,12 @@ const AppearanceSettings = () => {
 
   return (
     <Space vertical size="small" className="settings-section">
-      <SettingSectionHeader title="외관 설정" subtitle="테마 및 보기 옵션" />
+      <SettingSectionHeader title={t('appearanceSettings.sectionTitle')} subtitle={t('appearanceSettings.sectionSubtitle')} />
 
       <Card size="small">
         <Space vertical size="small" className="settings-stack-full">
           <SettingRow
-            left={<Text strong>테마</Text>}
+            left={<Text strong>{t('appearanceSettings.themeLabel')}</Text>}
             right={(
               <Radio.Group
                 value={theme}
@@ -26,14 +28,14 @@ const AppearanceSettings = () => {
                 buttonStyle="solid"
                 size="small"
               >
-                <Radio.Button value="light">라이트</Radio.Button>
-                <Radio.Button value="dark">다크</Radio.Button>
+                <Radio.Button value="light">{t('appearanceSettings.themeLight')}</Radio.Button>
+                <Radio.Button value="dark">{t('appearanceSettings.themeDark')}</Radio.Button>
               </Radio.Group>
             )}
           />
 
           <SettingRow
-            left={<Text strong>기본 뷰 모드</Text>}
+            left={<Text strong>{t('appearanceSettings.defaultViewModeLabel')}</Text>}
             right={(
               <Radio.Group
                 value={defaultViewMode}
@@ -41,8 +43,8 @@ const AppearanceSettings = () => {
                 buttonStyle="solid"
                 size="small"
               >
-                <Radio.Button value="grid">그리드</Radio.Button>
-                <Radio.Button value="table">테이블</Radio.Button>
+                <Radio.Button value="grid">{t('appearanceSettings.viewGrid')}</Radio.Button>
+                <Radio.Button value="table">{t('appearanceSettings.viewTable')}</Radio.Button>
               </Radio.Group>
             )}
           />

@@ -4,11 +4,13 @@ import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '@/features/auth/useAuth';
 import { bootstrapAdmin, getSetupStatus } from '@/api/setup';
+import { useTranslation } from 'react-i18next';
 import '@/assets/css/login.css';
 
 const { Title, Text } = Typography;
 
 const Login = () => {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,12 +33,12 @@ const Login = () => {
         const status = await getSetupStatus();
         setRequiresSetup(status.requiresSetup);
       } catch {
-        message.error('초기 설정 상태를 확인하지 못했습니다');
+        message.error(t('login.setupStatusFailed'));
       } finally {
         setSetupChecked(true);
       }
     })();
-  }, [isLoading, message, user]);
+  }, [isLoading, message, t, user]);
 
   if (!isLoading && user) {
     const state = location.state as { from?: string } | null;
@@ -48,7 +50,7 @@ const Login = () => {
     return (
       <div className="login-page">
         <Card className="login-card">
-          <Text type="secondary">로딩 중...</Text>
+          <Text type="secondary">{t('login.loading')}</Text>
         </Card>
       </div>
     );
@@ -58,11 +60,11 @@ const Login = () => {
     event.preventDefault();
 
     if (username.trim().length < 3) {
-      message.error('아이디는 3자 이상이어야 합니다');
+      message.error(t('login.usernameMinLength'));
       return;
     }
     if (password.trim().length < 1) {
-      message.error('비밀번호를 입력하세요');
+      message.error(t('login.passwordRequired'));
       return;
     }
 
@@ -72,7 +74,7 @@ const Login = () => {
       const state = location.state as { from?: string } | null;
       navigate(state?.from ?? '/', { replace: true });
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '로그인에 실패했습니다');
+      message.error(error instanceof Error ? error.message : t('login.loginFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -82,15 +84,15 @@ const Login = () => {
     event.preventDefault();
 
     if (username.trim().length < 3) {
-      message.error('아이디는 3자 이상이어야 합니다');
+      message.error(t('login.usernameMinLength'));
       return;
     }
     if (setupPasswordConfirm.trim().length < 8) {
-      message.error('비밀번호는 8자 이상이어야 합니다');
+      message.error(t('login.passwordMinLength8'));
       return;
     }
     if (password !== setupPasswordConfirm) {
-      message.error('비밀번호 확인이 일치하지 않습니다');
+      message.error(t('login.passwordMismatch'));
       return;
     }
 
@@ -101,13 +103,13 @@ const Login = () => {
         password: password,
         nickname: setupNickname.trim(),
       });
-      message.success('초기 관리자 계정이 생성되었습니다');
+      message.success(t('login.setupSucceeded'));
       setRequiresSetup(false);
 
       await login(username.trim(), password);
       navigate('/', { replace: true });
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '초기 설정에 실패했습니다');
+      message.error(error instanceof Error ? error.message : t('login.setupFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -120,7 +122,7 @@ const Login = () => {
           <div>
             <Title level={3} className="login-title">Cohesion</Title>
             <Text type="secondary">
-              {requiresSetup ? '초기 관리자 계정을 생성하세요' : '계정으로 로그인하세요'}
+              {requiresSetup ? t('login.setupSubtitle') : t('login.loginSubtitle')}
             </Text>
           </div>
 
@@ -130,31 +132,31 @@ const Login = () => {
                 <Input
                   autoComplete="username"
                   prefix={<UserOutlined />}
-                  placeholder="관리자 아이디"
+                  placeholder={t('login.adminUsernamePlaceholder')}
                   value={username}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => setUsername(event.target.value)}
                 />
                 <Input
-                  placeholder="닉네임 (선택)"
+                  placeholder={t('login.nicknameOptionalPlaceholder')}
                   value={setupNickname}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => setSetupNickname(event.target.value)}
                 />
                 <Input.Password
                   autoComplete="new-password"
                   prefix={<LockOutlined />}
-                  placeholder="비밀번호 (8자 이상)"
+                  placeholder={t('login.passwordMinPlaceholder')}
                   value={password}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value)}
                 />
                 <Input.Password
                   autoComplete="new-password"
                   prefix={<LockOutlined />}
-                  placeholder="비밀번호 확인"
+                  placeholder={t('login.passwordConfirmPlaceholder')}
                   value={setupPasswordConfirm}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => setSetupPasswordConfirm(event.target.value)}
                 />
                 <Button type="primary" htmlType="submit" loading={submitting} block>
-                  초기 설정 완료
+                  {t('login.setupSubmit')}
                 </Button>
               </Space>
             </form>
@@ -164,19 +166,19 @@ const Login = () => {
                 <Input
                   autoComplete="username"
                   prefix={<UserOutlined />}
-                  placeholder="아이디"
+                  placeholder={t('login.usernamePlaceholder')}
                   value={username}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => setUsername(event.target.value)}
                 />
                 <Input.Password
                   autoComplete="current-password"
                   prefix={<LockOutlined />}
-                  placeholder="비밀번호"
+                  placeholder={t('login.passwordPlaceholder')}
                   value={password}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value)}
                 />
                 <Button type="primary" htmlType="submit" loading={submitting} block>
-                  로그인
+                  {t('login.loginSubmit')}
                 </Button>
               </Space>
             </form>

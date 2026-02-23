@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getConfig, updateConfig, restartServer, waitForReconnect, type Config } from '@/api/config';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import SettingRow from '../components/SettingRow';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
@@ -21,18 +22,21 @@ function parsePortValue(value: string): number | null {
   return isValidPort(parsed) ? parsed : null;
 }
 
-function getServerConfigValidationError(server: Config['server']): string | null {
+function getServerConfigValidationError(
+  server: Config['server'],
+  t: (key: string, options?: Record<string, unknown>) => string
+): string | null {
   const webPort = parsePortValue(server.port);
   if (webPort === null) {
-    return 'WEB 포트는 1~65535 범위의 숫자여야 합니다.';
+    return t('serverSettings.validationWebPort');
   }
 
   if (server.sftpEnabled) {
     if (!isValidPort(server.sftpPort)) {
-      return 'SFTP 포트는 1~65535 범위의 숫자여야 합니다.';
+      return t('serverSettings.validationSftpPort');
     }
     if (server.sftpPort === webPort) {
-      return 'WEB 포트와 SFTP 포트는 서로 달라야 합니다.';
+      return t('serverSettings.validationPortConflict');
     }
   }
 
@@ -40,6 +44,7 @@ function getServerConfigValidationError(server: Config['server']): string | null
 }
 
 const ServerSettings = () => {
+  const { t } = useTranslation();
   const { message, modal } = App.useApp();
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,8 +55,8 @@ const ServerSettings = () => {
   // 개발 모드 여부
   const isDev = import.meta.env.DEV;
   const validationError = useMemo(
-    () => (config ? getServerConfigValidationError(config.server) : null),
-    [config]
+    () => (config ? getServerConfigValidationError(config.server, (key, options) => String(t(key, options))) : null),
+    [config, t]
   );
 
   const loadConfig = useCallback(async () => {
@@ -60,11 +65,11 @@ const ServerSettings = () => {
       setConfig(data);
       setHasChanges(false);
     } catch {
-      message.error('설정을 불러오는데 실패했습니다');
+      message.error(t('serverSettings.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [message]);
+  }, [message, t]);
 
   // 초기 설정 로드
   useEffect(() => {
@@ -81,10 +86,10 @@ const ServerSettings = () => {
     setSaving(true);
     try {
       await updateConfig(config);
-      message.success('설정이 저장되었습니다');
+      message.success(t('serverSettings.saveSuccess'));
       setHasChanges(false);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '설정 저장에 실패했습니다');
+      message.error(error instanceof Error ? error.message : t('serverSettings.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -92,10 +97,10 @@ const ServerSettings = () => {
 
   const handleRestart = async () => {
     modal.confirm({
-      title: '서버 재시작',
-      content: '서버를 재시작하시겠습니까? 잠시 연결이 끊어질 수 있습니다.',
-      okText: '재시작',
-      cancelText: '취소',
+      title: t('serverSettings.restartTitle'),
+      content: t('serverSettings.restartConfirmContent'),
+      okText: t('serverSettings.restartButton'),
+      cancelText: t('serverSettings.cancel'),
       onOk: async () => {
         if (!config) return;
         if (hasChanges && validationError) {
@@ -113,7 +118,7 @@ const ServerSettings = () => {
           const newPort = await restartServer();
 
           message.loading({
-            content: '서버 재시작 중...',
+            content: t('serverSettings.restarting'),
             key: 'restart',
             duration: 0,
           });
@@ -129,7 +134,7 @@ const ServerSettings = () => {
 
             if (success) {
               message.success({
-                content: '서버가 재시작되었습니다',
+                content: t('serverSettings.restartSucceeded'),
                 key: 'restart',
               });
               setTimeout(() => {
@@ -137,7 +142,7 @@ const ServerSettings = () => {
               }, 500);
             } else {
               message.error({
-                content: '서버 재시작 실패 또는 타임아웃',
+                content: t('serverSettings.restartFailedOrTimeout'),
                 key: 'restart',
               });
             }
@@ -152,7 +157,7 @@ const ServerSettings = () => {
 
               if (success) {
                 message.success({
-                  content: '서버가 재시작되었습니다',
+                  content: t('serverSettings.restartSucceeded'),
                   key: 'restart',
                 });
                 setTimeout(() => {
@@ -160,14 +165,14 @@ const ServerSettings = () => {
                 }, 500);
               } else {
                 message.error({
-                  content: '서버 재시작 실패 또는 타임아웃',
+                  content: t('serverSettings.restartFailedOrTimeout'),
                   key: 'restart',
                 });
               }
             } else {
               // 다른 포트: 리다이렉트
               message.success({
-                content: `서버가 포트 ${newPort}에서 재시작되었습니다`,
+                content: t('serverSettings.restartSucceededOnPort', { port: newPort }),
                 key: 'restart',
               });
 
@@ -180,7 +185,9 @@ const ServerSettings = () => {
           }
         } catch (error) {
           message.error({
-            content: `재시작 요청 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+            content: t('serverSettings.restartRequestFailed', {
+              error: error instanceof Error ? error.message : t('serverSettings.unknownError'),
+            }),
             key: 'restart',
           });
         } finally {
@@ -206,7 +213,7 @@ const ServerSettings = () => {
   };
 
   if (loading || !config) {
-    return <div>로딩 중...</div>;
+    return <div>{t('serverSettings.loading')}</div>;
   }
 
   const { server } = config;
@@ -214,10 +221,10 @@ const ServerSettings = () => {
 
   return (
     <Space vertical size="small" className="settings-section">
-      <SettingSectionHeader title="서버 설정" subtitle="서버 및 프로토콜 설정" />
+      <SettingSectionHeader title={t('serverSettings.sectionTitle')} subtitle={t('serverSettings.sectionSubtitle')} />
 
       <Alert
-        title="변경 후 재시작 필요"
+        title={t('serverSettings.restartRequired')}
         type="warning"
         showIcon
         className="settings-alert-compact"
@@ -241,7 +248,7 @@ const ServerSettings = () => {
           size="small"
           type="primary"
         >
-          저장
+          {t('serverSettings.save')}
         </Button>
         <Button
           icon={<ReloadOutlined />}
@@ -250,14 +257,14 @@ const ServerSettings = () => {
           disabled={Boolean(validationError)}
           size="small"
         >
-          재시작
+          {t('serverSettings.restartButton')}
         </Button>
       </Space>
 
-      <Card title="WEB 서버" size="small">
+      <Card title={t('serverSettings.webServerCard')} size="small">
         <Space vertical size="small" className="settings-stack-full">
           <SettingRow
-            left={<Text strong>포트</Text>}
+            left={<Text strong>{t('serverSettings.portLabel')}</Text>}
             right={(
               <InputNumber
                 size="small"
@@ -279,7 +286,7 @@ const ServerSettings = () => {
       <Card title="WebDAV" size="small">
         <Space vertical size="small" className="settings-stack-full">
           <SettingRow
-            left={<Text strong>활성화</Text>}
+            left={<Text strong>{t('serverSettings.enabledLabel')}</Text>}
             right={(
               <Switch
                 checked={server.webdavEnabled}
@@ -292,21 +299,21 @@ const ServerSettings = () => {
             <>
               <Divider className="settings-divider-compact" />
               <SettingRow
-                left={<Text strong>경로</Text>}
+                left={<Text strong>{t('serverSettings.pathLabel')}</Text>}
                 right={<Text code>/dav/</Text>}
               />
               <Text type="secondary" className="settings-text-xs">
-                HTTP 포트 {server.port} 사용
+                {t('serverSettings.httpPortInUse', { port: server.port })}
               </Text>
             </>
           )}
         </Space>
       </Card>
 
-      <Card title="SFTP 서버" size="small">
+      <Card title={t('serverSettings.sftpServerCard')} size="small">
         <Space vertical size="small" className="settings-stack-full">
           <SettingRow
-            left={<Text strong>활성화</Text>}
+            left={<Text strong>{t('serverSettings.enabledLabel')}</Text>}
             right={(
               <Switch
                 checked={server.sftpEnabled}
@@ -319,7 +326,7 @@ const ServerSettings = () => {
             <>
               <Divider className="settings-divider-compact" />
               <SettingRow
-                left={<Text strong>포트</Text>}
+                left={<Text strong>{t('serverSettings.portLabel')}</Text>}
                 right={(
                   <InputNumber
                     size="small"

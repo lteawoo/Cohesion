@@ -1,6 +1,7 @@
 import React from 'react';
 import { Space as AntSpace, Button } from 'antd';
 import { DownloadOutlined, CopyOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 
 interface FolderContentSelectionBarProps {
   selectedCount: number;
@@ -25,6 +26,7 @@ const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
   onDelete,
   onClear,
 }) => {
+  const { t } = useTranslation();
   if (selectedCount === 0) return null;
   const moveActionIcon = (
     <span
@@ -53,33 +55,35 @@ const FolderContentSelectionBar: React.FC<FolderContentSelectionBarProps> = ({
         gap: '16px',
       }}
     >
-      <span style={{ fontWeight: 'bold', color: 'var(--ant-color-primary, #415a77)' }}>✓ {selectedCount}개 선택됨</span>
+      <span style={{ fontWeight: 'bold', color: 'var(--ant-color-primary, #415a77)' }}>
+        ✓ {t('folderContent.selectedCount', { count: selectedCount })}
+      </span>
       <AntSpace size="small" wrap>
         <Button size="small" icon={<DownloadOutlined />} onClick={onDownload}>
-          다운로드
+          {t('folderContent.download')}
         </Button>
         {canWrite && (
           <Button size="small" icon={<CopyOutlined />} onClick={onCopy}>
-            복사
+            {t('folderContent.copy')}
           </Button>
         )}
         {canWrite && (
           <Button size="small" icon={moveActionIcon} onClick={onMove}>
-            이동
+            {t('folderContent.move')}
           </Button>
         )}
         {canWrite && showRename && onRename && (
           <Button size="small" icon={<EditOutlined />} onClick={onRename}>
-            이름 변경
+            {t('folderContent.rename')}
           </Button>
         )}
         {canWrite && (
           <Button size="small" icon={<DeleteOutlined />} danger onClick={onDelete}>
-            휴지통 이동
+            {t('folderContent.moveToTrash')}
           </Button>
         )}
         <Button size="small" onClick={onClear}>
-          선택 해제
+          {t('folderContent.clearSelection')}
         </Button>
       </AntSpace>
     </div>

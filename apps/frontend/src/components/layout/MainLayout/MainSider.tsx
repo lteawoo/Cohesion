@@ -10,6 +10,7 @@ import { useBrowseStore } from "@/stores/browseStore";
 import { useAuth } from "@/features/auth/useAuth";
 import SidePanelShell from "@/components/common/SidePanelShell";
 import { useLocation, useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 
 const { Sider } = Layout;
 
@@ -21,6 +22,7 @@ interface MainSiderProps {
 }
 
 export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, containerType = "sider" }: MainSiderProps) {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const { message, modal } = App.useApp();
   const location = useLocation();
@@ -53,18 +55,22 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
 
   const handleDeleteSpace = (space: Space) => {
     modal.confirm({
-      title: 'Space 삭제',
-      content: `"${space.space_name}" Space를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`,
-      okText: '삭제',
-      cancelText: '취소',
+      title: t("mainSider.deleteSpaceTitle"),
+      content: t("mainSider.deleteSpaceContent", { spaceName: space.space_name }),
+      okText: t("mainSider.delete"),
+      cancelText: t("mainSider.cancel"),
       okButtonProps: { danger: true, loading: isDeleting },
       onOk: async () => {
         try {
           setIsDeleting(true);
           await deleteSpaceAction(space.id);
-          message.success('Space가 삭제되었습니다.');
+          message.success(t("mainSider.deleteSuccess"));
         } catch (error) {
-          message.error(`Space 삭제 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+          message.error(
+            t("mainSider.deleteFailed", {
+              error: error instanceof Error ? error.message : t("mainSider.unknownError"),
+            })
+          );
         } finally {
           setIsDeleting(false);
         }
@@ -91,7 +97,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
         onClose={() => setIsOpen(false)}
       />
       <SidePanelShell
-        title="Spaces"
+        title={t("mainSider.spacesTitle")}
         leftAction={containerType === "panel" ? (
           <Button
             className="panel-close-btn"
@@ -99,8 +105,8 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
             icon={<CloseOutlined />}
             size="small"
             onClick={onClosePanel}
-            aria-label="탐색 닫기"
-            title="탐색 닫기"
+            aria-label={t("mainSider.closeNavigation")}
+            title={t("mainSider.closeNavigation")}
           />
         ) : null}
         rightAction={canWriteSpaces ? (
@@ -109,8 +115,8 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
             icon={<PlusOutlined />}
             size="small"
             onClick={() => setIsOpen(true)}
-            aria-label="Space 추가"
-            title="Space 추가"
+            aria-label={t("mainSider.addSpace")}
+            title={t("mainSider.addSpace")}
           />
         ) : null}
       >
@@ -136,7 +142,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
                   >
                     delete
                   </span>
-                  <span>휴지통</span>
+                  <span>{t("mainSider.trash")}</span>
                 </span>
               ),
               isLeaf: true,

@@ -1,11 +1,14 @@
 import React from 'react';
 import { InboxOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 
 interface UploadOverlayProps {
   visible: boolean;
 }
 
 const UploadOverlay: React.FC<UploadOverlayProps> = ({ visible }) => {
+  const { t } = useTranslation();
+
   if (!visible) return null;
 
   return (
@@ -29,7 +32,7 @@ const UploadOverlay: React.FC<UploadOverlayProps> = ({ visible }) => {
       <div style={{ textAlign: 'center' }}>
         <InboxOutlined style={{ fontSize: '64px', color: 'var(--ant-color-primary, #415a77)', marginBottom: '16px' }} />
         <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--ant-color-primary, #415a77)' }}>
-          파일을 놓아 업로드
+          {t('folderContent.dropToUpload')}
         </div>
       </div>
     </div>

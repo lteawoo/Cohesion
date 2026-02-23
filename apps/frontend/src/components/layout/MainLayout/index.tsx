@@ -14,6 +14,7 @@ import HeaderGroup from "@/components/common/HeaderGroup";
 import { searchFiles } from "@/features/search/api/searchApi";
 import type { SearchFileResult } from "@/features/search/types";
 import { FileTypeIcon } from "@/features/browse/components/FileTypeIcon";
+import { useTranslation } from "react-i18next";
 
 const { Header, Content } = Layout;
 const HEADER_SEARCH_RESULT_LIMIT = 8;
@@ -36,6 +37,7 @@ const HeaderSearch = memo(function HeaderSearch({
   isMobileSearchMode,
   onMobileSearchClose,
 }: HeaderSearchProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const spaces = useSpaceStore((state) => state.spaces);
   const setPath = useBrowseStore((state) => state.setPath);
@@ -103,7 +105,7 @@ const HeaderSearch = memo(function HeaderSearch({
         return;
       }
       setHeaderSearchResults([]);
-      setHeaderSearchError(error instanceof Error ? error.message : "검색 결과를 불러오지 못했습니다.");
+      setHeaderSearchError(error instanceof Error ? error.message : t("mainLayout.searchLoadFailed"));
     } finally {
       if (headerSearchAbortControllerRef.current === controller) {
         headerSearchAbortControllerRef.current = null;
@@ -112,7 +114,7 @@ const HeaderSearch = memo(function HeaderSearch({
         setIsHeaderSearchLoading(false);
       }
     }
-  }, []);
+  }, [t]);
 
   const handleHeaderSearchChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.target.value;
@@ -206,7 +208,7 @@ const HeaderSearch = memo(function HeaderSearch({
         value={headerSearchQuery}
         onChange={handleHeaderSearchChange}
         onPressEnter={() => handleHeaderSearchSubmit()}
-        placeholder="검색"
+        placeholder={t("mainLayout.searchPlaceholder")}
         prefix={<SearchOutlined />}
       />
       {showHeaderSearchDropdown && (
@@ -214,7 +216,7 @@ const HeaderSearch = memo(function HeaderSearch({
           {isHeaderSearchLoading ? (
             <div className="layout-header-search-status">
               <Spin size="small" />
-              <span>검색 중...</span>
+              <span>{t("mainLayout.searchLoading")}</span>
             </div>
           ) : headerSearchError ? (
             <div className="layout-header-search-status layout-header-search-status-error">
@@ -247,7 +249,7 @@ const HeaderSearch = memo(function HeaderSearch({
               ))}
             </div>
           ) : (
-            <div className="layout-header-search-status">검색 결과가 없습니다.</div>
+            <div className="layout-header-search-status">{t("mainLayout.searchNoResults")}</div>
           )}
           <button
             type="button"
@@ -255,7 +257,7 @@ const HeaderSearch = memo(function HeaderSearch({
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => handleHeaderSearchSubmit(normalizedHeaderSearchQuery)}
           >
-            Enter로 전체 결과 보기
+            {t("mainLayout.searchViewAll")}
           </button>
         </div>
       )}
@@ -264,6 +266,7 @@ const HeaderSearch = memo(function HeaderSearch({
 });
 
 const PageLayout = () => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
@@ -369,8 +372,8 @@ const PageLayout = () => {
             <Button
               type="text"
               icon={<CloseOutlined />}
-              aria-label="검색 닫기"
-              title="검색 닫기"
+              aria-label={t("mainLayout.closeSearch")}
+              title={t("mainLayout.closeSearch")}
               onClick={handleMobileSearchClose}
             />
             {headerSearchField}
@@ -389,8 +392,8 @@ const PageLayout = () => {
                   text="Cohesion"
                   color={token.colorText}
                   onClick={() => navigate("/")}
-                  ariaLabel="메인으로 이동"
-                  title="메인으로 이동"
+                  ariaLabel={t("mainLayout.goHome")}
+                  title={t("mainLayout.goHome")}
                 />
                 <ServerStatus />
             </HeaderGroup>
@@ -407,16 +410,16 @@ const PageLayout = () => {
                   type="text"
                   icon={<SearchOutlined />}
                   onClick={handleMobileSearchToggle}
-                  aria-label="검색"
-                  title="검색"
+                  aria-label={t("mainLayout.search")}
+                  title={t("mainLayout.search")}
                 />
               )}
               <Button
                 type="text"
                 icon={<SettingOutlined />}
                 onClick={() => navigate('/settings')}
-                aria-label="설정"
-                title="설정"
+                aria-label={t("mainLayout.settings")}
+                title={t("mainLayout.settings")}
               />
             </HeaderGroup>
           </>

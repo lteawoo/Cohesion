@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import i18n from '@/i18n';
 
 export interface ServerConfig {
   port: string;
@@ -30,7 +31,7 @@ async function extractErrorMessage(response: Response, fallbackMessage: string):
 export async function getConfig(): Promise<Config> {
   const response = await apiFetch('/api/config');
   if (!response.ok) {
-    throw new Error('Failed to fetch config');
+    throw new Error(i18n.t('apiErrors.configFetchFailed'));
   }
   return response.json();
 }
@@ -48,7 +49,7 @@ export async function updateConfig(config: Config): Promise<void> {
   });
 
   if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, '설정 저장에 실패했습니다'));
+    throw new Error(await extractErrorMessage(response, i18n.t('apiErrors.configSaveFailed')));
   }
 }
 
@@ -62,7 +63,7 @@ export async function restartServer(): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error('Failed to restart server');
+    throw new Error(i18n.t('apiErrors.serverRestartFailed'));
   }
 
   const data = await response.json();

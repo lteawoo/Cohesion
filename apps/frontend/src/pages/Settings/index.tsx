@@ -25,6 +25,7 @@ import ProfileSettings from './sections/ProfileSettings';
 import HeaderBrand from '@/components/common/HeaderBrand';
 import HeaderGroup from '@/components/common/HeaderGroup';
 import SidePanelShell from '@/components/common/SidePanelShell';
+import { useTranslation } from 'react-i18next';
 import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
@@ -32,6 +33,7 @@ const { Sider, Content, Header } = Layout;
 type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server' | 'spaces' | 'permissions' | 'accounts';
 
 const SettingsPage = () => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
@@ -49,44 +51,44 @@ const SettingsPage = () => {
     {
       key: 'profile',
       icon: <UserOutlined />,
-      label: '내 프로필',
+      label: t('settingsPage.sections.profile'),
     },
     {
       key: 'general',
       icon: <AppstoreOutlined />,
-      label: '일반',
+      label: t('settingsPage.sections.general'),
     },
     {
       key: 'appearance',
       icon: <BgColorsOutlined />,
-      label: '외관',
+      label: t('settingsPage.sections.appearance'),
     },
     {
       key: 'files',
       icon: <FileOutlined />,
-      label: '파일',
+      label: t('settingsPage.sections.files'),
     },
     ...(canAccessServerSettings ? [{
       key: 'server',
       icon: <GlobalOutlined />,
-      label: '서버',
+      label: t('settingsPage.sections.server'),
     }] : []),
     ...(canAccessSpaceSettings ? [{
       key: 'spaces',
       icon: <ClusterOutlined />,
-      label: '스페이스',
+      label: t('settingsPage.sections.spaces'),
     }] : []),
     ...(canAccessAccountSettings ? [{
       key: 'permissions',
       icon: <SafetyCertificateOutlined />,
-      label: '권한 관리',
+      label: t('settingsPage.sections.permissions'),
     }] : []),
     ...(canAccessAccountSettings ? [{
       key: 'accounts',
       icon: <TeamOutlined />,
-      label: '계정 관리',
+      label: t('settingsPage.sections.accounts'),
     }] : []),
-  ], [canAccessAccountSettings, canAccessServerSettings, canAccessSpaceSettings]);
+  ], [canAccessAccountSettings, canAccessServerSettings, canAccessSpaceSettings, t]);
 
   const effectiveSection: SettingsSection = (
     (selectedSection === 'server' && !canAccessServerSettings) ||
@@ -134,16 +136,16 @@ const SettingsPage = () => {
               type="text"
               icon={<MenuOutlined />}
               onClick={() => setIsNavOpen(true)}
-              aria-label="설정 메뉴 열기"
-              title="설정 메뉴"
+              aria-label={t('settingsPage.openMenu')}
+              title={t('settingsPage.menuTitle')}
             />
           )}
           <HeaderBrand
             text="Cohesion"
             color={token.colorText}
             onClick={() => navigate('/')}
-            ariaLabel="메인으로 이동"
-            title="메인으로 이동"
+            ariaLabel={t('mainLayout.goHome')}
+            title={t('mainLayout.goHome')}
           />
         </HeaderGroup>
       </Header>
@@ -157,7 +159,7 @@ const SettingsPage = () => {
               background: token.colorBgContainer,
             }}
           >
-            <SidePanelShell title="설정">
+            <SidePanelShell title={t('settingsPage.sideTitle')}>
               <Menu
                 className="settings-nav-menu settings-nav-menu-full"
                 mode="inline"
@@ -194,7 +196,7 @@ const SettingsPage = () => {
             }}
           >
             <SidePanelShell
-              title="설정"
+              title={t('settingsPage.sideTitle')}
               leftAction={(
                 <Button
                   className="panel-close-btn"
@@ -202,8 +204,8 @@ const SettingsPage = () => {
                   icon={<CloseOutlined />}
                   size="small"
                   onClick={() => setIsNavOpen(false)}
-                  aria-label="설정 메뉴 닫기"
-                  title="설정 메뉴 닫기"
+                  aria-label={t('settingsPage.closeMenu')}
+                  title={t('settingsPage.closeMenu')}
                 />
               )}
             >

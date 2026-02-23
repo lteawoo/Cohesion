@@ -19,6 +19,7 @@ import {
 import { listRoles } from '@/api/roles';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import type { Space as SpaceItem } from '@/features/space/types';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
@@ -43,6 +44,7 @@ const defaultCreateForm: CreateAccountForm = {
 };
 
 const AccountSettings = () => {
+  const { t } = useTranslation();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
   const { message } = App.useApp();
@@ -80,11 +82,11 @@ const AccountSettings = () => {
       const data = await listAccounts();
       setUsers(data);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '계정 목록을 불러오지 못했습니다');
+      message.error(error instanceof Error ? error.message : t('accountSettings.loadAccountsFailed'));
     } finally {
       setLoading(false);
     }
-  }, [message]);
+  }, [message, t]);
 
   useEffect(() => {
     void loadUsers();
@@ -98,9 +100,9 @@ const AccountSettings = () => {
         label: role.name,
       })));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Role 목록을 불러오지 못했습니다');
+      message.error(error instanceof Error ? error.message : t('accountSettings.loadRolesFailed'));
     }
-  }, [message]);
+  }, [message, t]);
 
   useEffect(() => {
     void loadRoles();
@@ -108,15 +110,15 @@ const AccountSettings = () => {
 
   const validateCreate = (): boolean => {
     if (createForm.username.trim().length < 3) {
-      message.error('아이디는 3자 이상이어야 합니다');
+      message.error(t('accountSettings.usernameMinLength'));
       return false;
     }
     if (createForm.password.trim().length < 6) {
-      message.error('비밀번호는 6자 이상이어야 합니다');
+      message.error(t('accountSettings.passwordMinLength'));
       return false;
     }
     if (createForm.nickname.trim().length === 0) {
-      message.error('닉네임을 입력하세요');
+      message.error(t('accountSettings.nicknameRequired'));
       return false;
     }
     return true;
@@ -135,12 +137,12 @@ const AccountSettings = () => {
         nickname: createForm.nickname.trim(),
         role: createForm.role,
       });
-      message.success('계정이 생성되었습니다');
+      message.success(t('accountSettings.createSuccess'));
       setIsCreateModalOpen(false);
       setCreateForm(defaultCreateForm);
       await loadUsers();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '계정을 생성하지 못했습니다');
+      message.error(error instanceof Error ? error.message : t('accountSettings.createFailed'));
     } finally {
       setCreating(false);
     }
@@ -157,11 +159,11 @@ const AccountSettings = () => {
 
   const validateEdit = (): boolean => {
     if (editForm.nickname.trim().length === 0) {
-      message.error('닉네임을 입력하세요');
+      message.error(t('accountSettings.nicknameRequired'));
       return false;
     }
     if (editForm.password.trim().length > 0 && editForm.password.trim().length < 6) {
-      message.error('비밀번호는 6자 이상이어야 합니다');
+      message.error(t('accountSettings.passwordMinLength'));
       return false;
     }
     return true;
@@ -179,11 +181,11 @@ const AccountSettings = () => {
         role: editForm.role,
         ...(editForm.password.trim().length > 0 ? { password: editForm.password } : {}),
       });
-      message.success('계정이 수정되었습니다');
+      message.success(t('accountSettings.editSuccess'));
       setEditTarget(null);
       await loadUsers();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '계정을 수정하지 못했습니다');
+      message.error(error instanceof Error ? error.message : t('accountSettings.editFailed'));
     } finally {
       setUpdatingId(null);
     }
@@ -193,10 +195,10 @@ const AccountSettings = () => {
     setDeletingId(user.id);
     try {
       await deleteAccount(user.id);
-      message.success('계정이 삭제되었습니다');
+      message.success(t('accountSettings.deleteSuccess'));
       await loadUsers();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '계정을 삭제하지 못했습니다');
+      message.error(error instanceof Error ? error.message : t('accountSettings.deleteFailed'));
     } finally {
       setDeletingId(null);
     }
@@ -220,11 +222,11 @@ const AccountSettings = () => {
       setSpacePermissionMap(permissionMap);
       setPermissionTarget(user);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Space 권한을 불러오지 못했습니다');
+      message.error(error instanceof Error ? error.message : t('accountSettings.loadSpacePermissionsFailed'));
     } finally {
       setPermissionLoading(false);
     }
-  }, [message]);
+  }, [message, t]);
 
   const handleSavePermissions = async () => {
     if (!permissionTarget) return;
@@ -239,12 +241,12 @@ const AccountSettings = () => {
         }));
 
       await updateAccountPermissions(permissionTarget.id, payload);
-      message.success('Space 권한이 저장되었습니다');
+      message.success(t('accountSettings.saveSpacePermissionsSuccess'));
       setPermissionTarget(null);
       setSpacePermissionMap({});
       setSpaceList([]);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Space 권한 저장에 실패했습니다');
+      message.error(error instanceof Error ? error.message : t('accountSettings.saveSpacePermissionsFailed'));
     } finally {
       setPermissionSaving(false);
     }
@@ -252,7 +254,7 @@ const AccountSettings = () => {
 
   const columns: ColumnsType<AccountUser> = [
     {
-      title: '아이디',
+      title: t('accountSettings.columnUsername'),
       dataIndex: 'username',
       key: 'username',
       width: isMobile ? 120 : 180,
@@ -260,14 +262,14 @@ const AccountSettings = () => {
       render: (value: string) => <Text code>{value}</Text>,
     },
     {
-      title: '닉네임',
+      title: t('accountSettings.columnNickname'),
       dataIndex: 'nickname',
       key: 'nickname',
       width: isMobile ? 120 : 180,
       ellipsis: true,
     },
     {
-      title: 'Role',
+      title: t('accountSettings.columnRole'),
       dataIndex: 'role',
       key: 'role',
       width: 110,
@@ -278,7 +280,7 @@ const AccountSettings = () => {
       ),
     },
     {
-      title: '작업',
+      title: t('accountSettings.columnActions'),
       key: 'actions',
       width: isMobile ? 220 : 280,
       render: (_: unknown, record: AccountUser) => (
@@ -287,20 +289,20 @@ const AccountSettings = () => {
             size="small"
             onClick={() => void loadAccountPermissions(record)}
           >
-            Space 권한
+            {t('accountSettings.spacePermissionsButton')}
           </Button>
           <Button
             size="small"
             icon={<EditOutlined />}
             onClick={() => handleOpenEdit(record)}
           >
-            수정
+            {t('accountSettings.edit')}
           </Button>
           <Popconfirm
-            title="계정 삭제"
-            description={`${record.username} 계정을 삭제하시겠습니까?`}
-            okText="삭제"
-            cancelText="취소"
+            title={t('accountSettings.deleteAccountTitle')}
+            description={t('accountSettings.deleteAccountDescription', { username: record.username })}
+            okText={t('accountSettings.delete')}
+            cancelText={t('accountSettings.cancel')}
             onConfirm={() => void handleDelete(record)}
           >
             <Button
@@ -309,7 +311,7 @@ const AccountSettings = () => {
               icon={<DeleteOutlined />}
               loading={deletingId === record.id}
             >
-              삭제
+              {t('accountSettings.delete')}
             </Button>
           </Popconfirm>
         </Space>
@@ -319,11 +321,11 @@ const AccountSettings = () => {
 
   return (
     <Space vertical size="small" className="settings-section">
-      <SettingSectionHeader title="계정 관리" subtitle="서비스 접근 계정을 관리합니다" />
+      <SettingSectionHeader title={t('accountSettings.sectionTitle')} subtitle={t('accountSettings.sectionSubtitle')} />
 
       <Space size="small">
         <Button icon={<ReloadOutlined />} onClick={() => void loadUsers()} size="small">
-          새로고침
+          {t('accountSettings.refresh')}
         </Button>
         <Button
           type="primary"
@@ -331,7 +333,7 @@ const AccountSettings = () => {
           size="small"
           onClick={() => setIsCreateModalOpen(true)}
         >
-          계정 추가
+          {t('accountSettings.addAccount')}
         </Button>
       </Space>
 
@@ -344,24 +346,24 @@ const AccountSettings = () => {
           dataSource={users}
           pagination={false}
           scroll={{ x: isMobile ? 580 : undefined }}
-          locale={{ emptyText: '등록된 계정이 없습니다' }}
+          locale={{ emptyText: t('accountSettings.emptyAccounts') }}
         />
       </Card>
 
       <Modal
-        title="계정 추가"
+        title={t('accountSettings.createModalTitle')}
         open={isCreateModalOpen}
         onCancel={() => {
           setIsCreateModalOpen(false);
           setCreateForm(defaultCreateForm);
         }}
         onOk={() => void handleCreate()}
-        okText="생성"
-        cancelText="취소"
+        okText={t('accountSettings.create')}
+        cancelText={t('accountSettings.cancel')}
         okButtonProps={{ loading: creating }}
       >
         <Space orientation="vertical" size="small" style={{ width: '100%' }}>
-          <Text strong>아이디</Text>
+          <Text strong>{t('accountSettings.fieldUsername')}</Text>
           <Input
             prefix={<UserOutlined />}
             autoComplete="username"
@@ -370,7 +372,7 @@ const AccountSettings = () => {
               setCreateForm((prev) => ({ ...prev, username: event.target.value }))
             }
           />
-          <Text strong>비밀번호</Text>
+          <Text strong>{t('accountSettings.fieldPassword')}</Text>
           <Input.Password
             autoComplete="new-password"
             value={createForm.password}
@@ -378,14 +380,14 @@ const AccountSettings = () => {
               setCreateForm((prev) => ({ ...prev, password: event.target.value }))
             }
           />
-          <Text strong>닉네임</Text>
+          <Text strong>{t('accountSettings.fieldNickname')}</Text>
           <Input
             value={createForm.nickname}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               setCreateForm((prev) => ({ ...prev, nickname: event.target.value }))
             }
           />
-          <Text strong>Role</Text>
+          <Text strong>{t('accountSettings.fieldRole')}</Text>
           <Select
             options={roleOptions}
             value={createForm.role}
@@ -395,37 +397,37 @@ const AccountSettings = () => {
       </Modal>
 
       <Modal
-        title="계정 수정"
+        title={t('accountSettings.editModalTitle')}
         open={Boolean(editTarget)}
         onCancel={() => {
           setEditTarget(null);
           setEditForm({ nickname: '', password: '', role: 'user' });
         }}
         onOk={() => void handleEdit()}
-        okText="저장"
-        cancelText="취소"
+        okText={t('accountSettings.save')}
+        cancelText={t('accountSettings.cancel')}
         okButtonProps={{ loading: updatingId !== null }}
       >
         <Space orientation="vertical" size="small" style={{ width: '100%' }}>
-          <Text strong>아이디</Text>
+          <Text strong>{t('accountSettings.fieldUsername')}</Text>
           <Input value={editTarget?.username} disabled />
-          <Text strong>닉네임</Text>
+          <Text strong>{t('accountSettings.fieldNickname')}</Text>
           <Input
             value={editForm.nickname}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               setEditForm((prev) => ({ ...prev, nickname: event.target.value }))
             }
           />
-          <Text strong>비밀번호 (선택)</Text>
+          <Text strong>{t('accountSettings.fieldPasswordOptional')}</Text>
           <Input.Password
-            placeholder="변경 시에만 입력"
+            placeholder={t('accountSettings.passwordOptionalPlaceholder')}
             autoComplete="new-password"
             value={editForm.password}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               setEditForm((prev) => ({ ...prev, password: event.target.value }))
             }
           />
-          <Text strong>Role</Text>
+          <Text strong>{t('accountSettings.fieldRole')}</Text>
           <Select
             options={roleOptions}
             value={editForm.role}
@@ -435,7 +437,9 @@ const AccountSettings = () => {
       </Modal>
 
       <Modal
-        title={permissionTarget ? `${permissionTarget.username} Space 권한` : 'Space 권한'}
+        title={permissionTarget
+          ? t('accountSettings.spacePermissionsModalTitleWithUser', { username: permissionTarget.username })
+          : t('accountSettings.spacePermissionsModalTitle')}
         open={Boolean(permissionTarget)}
         onCancel={() => {
           setPermissionTarget(null);
@@ -443,13 +447,13 @@ const AccountSettings = () => {
           setSpaceList([]);
         }}
         onOk={() => void handleSavePermissions()}
-        okText="저장"
-        cancelText="취소"
+        okText={t('accountSettings.save')}
+        cancelText={t('accountSettings.cancel')}
         confirmLoading={permissionSaving}
       >
         <Space orientation="vertical" size="small" className="settings-stack-full">
           {permissionLoading ? (
-            <Text type="secondary">불러오는 중...</Text>
+            <Text type="secondary">{t('accountSettings.loading')}</Text>
           ) : (
             spaceList.map((space) => (
                 <div key={space.id} style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
@@ -460,7 +464,7 @@ const AccountSettings = () => {
                   style={{ width: 140 }}
                   value={spacePermissionMap[space.id] ?? 'none'}
                   options={[
-                    { value: 'none', label: '없음' },
+                    { value: 'none', label: t('accountSettings.permissionNone') },
                     { value: 'read', label: 'read' },
                     { value: 'write', label: 'read + write' },
                   ]}
