@@ -39,7 +39,7 @@ const TrashModal: React.FC<TrashModalProps> = ({
         dataIndex: 'itemName',
         key: 'itemName',
         ellipsis: true,
-        render: (_, record) => (
+        render: (_: unknown, record: TrashItem) => (
           <AntSpace>
             {record.isDir ? <FolderFilled style={{ color: 'var(--app-folder-icon-color, #415a77)' }} /> : <FileOutlined />}
             <span>{record.itemName}</span>
@@ -71,7 +71,7 @@ const TrashModal: React.FC<TrashModalProps> = ({
         key: 'itemSize',
         width: 120,
         align: 'right',
-        render: (size: number, record) => (record.isDir ? '-' : formatSize(size)),
+        render: (size: number, record: TrashItem) => (record.isDir ? '-' : formatSize(size)),
       },
     ];
   }, []);
