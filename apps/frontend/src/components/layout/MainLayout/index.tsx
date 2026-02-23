@@ -385,7 +385,13 @@ const PageLayout = () => {
                     onClick={() => setIsNavOpen(true)}
                   />
                 )}
-                <HeaderBrand text="Cohesion" color={token.colorText} />
+                <HeaderBrand
+                  text="Cohesion"
+                  color={token.colorText}
+                  onClick={() => navigate("/")}
+                  ariaLabel="메인으로 이동"
+                  title="메인으로 이동"
+                />
                 <ServerStatus />
             </HeaderGroup>
             <div className="layout-header-center">

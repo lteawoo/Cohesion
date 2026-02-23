@@ -1,11 +1,43 @@
 import { Card, Switch, InputNumber, Typography, Space, Alert, Divider, Button, App } from 'antd';
 import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getConfig, updateConfig, restartServer, waitForReconnect, type Config } from '@/api/config';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import SettingRow from '../components/SettingRow';
 
 const { Text } = Typography;
+
+function isValidPort(value: number): boolean {
+  return Number.isInteger(value) && value >= 1 && value <= 65535;
+}
+
+function parsePortValue(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return isValidPort(parsed) ? parsed : null;
+}
+
+function getServerConfigValidationError(server: Config['server']): string | null {
+  const webPort = parsePortValue(server.port);
+  if (webPort === null) {
+    return 'WEB 포트는 1~65535 범위의 숫자여야 합니다.';
+  }
+
+  if (server.sftpEnabled) {
+    if (!isValidPort(server.sftpPort)) {
+      return 'SFTP 포트는 1~65535 범위의 숫자여야 합니다.';
+    }
+    if (server.sftpPort === webPort) {
+      return 'WEB 포트와 SFTP 포트는 서로 달라야 합니다.';
+    }
+  }
+
+  return null;
+}
 
 const ServerSettings = () => {
   const { message, modal } = App.useApp();
@@ -17,6 +49,10 @@ const ServerSettings = () => {
 
   // 개발 모드 여부
   const isDev = import.meta.env.DEV;
+  const validationError = useMemo(
+    () => (config ? getServerConfigValidationError(config.server) : null),
+    [config]
+  );
 
   const loadConfig = useCallback(async () => {
     try {
@@ -37,14 +73,18 @@ const ServerSettings = () => {
 
   const handleSave = async () => {
     if (!config) return;
+    if (validationError) {
+      message.error(validationError);
+      return;
+    }
 
     setSaving(true);
     try {
       await updateConfig(config);
       message.success('설정이 저장되었습니다');
       setHasChanges(false);
-    } catch {
-      message.error('설정 저장에 실패했습니다');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '설정 저장에 실패했습니다');
     } finally {
       setSaving(false);
     }
@@ -58,6 +98,10 @@ const ServerSettings = () => {
       cancelText: '취소',
       onOk: async () => {
         if (!config) return;
+        if (hasChanges && validationError) {
+          message.error(validationError);
+          return;
+        }
 
         setRestarting(true);
         try {
@@ -166,6 +210,7 @@ const ServerSettings = () => {
   }
 
   const { server } = config;
+  const serverPortValue = parsePortValue(server.port);
 
   return (
     <Space vertical size="small" className="settings-section">
@@ -178,12 +223,21 @@ const ServerSettings = () => {
         className="settings-alert-compact"
       />
 
+      {validationError && (
+        <Alert
+          title={validationError}
+          type="error"
+          showIcon
+          className="settings-alert-compact"
+        />
+      )}
+
       <Space size="small">
         <Button
           icon={<SaveOutlined />}
           onClick={handleSave}
           loading={saving}
-          disabled={!hasChanges}
+          disabled={!hasChanges || Boolean(validationError)}
           size="small"
           type="primary"
         >
@@ -193,6 +247,7 @@ const ServerSettings = () => {
           icon={<ReloadOutlined />}
           onClick={handleRestart}
           loading={restarting}
+          disabled={Boolean(validationError)}
           size="small"
         >
           재시작
@@ -208,8 +263,12 @@ const ServerSettings = () => {
                 size="small"
                 min={1}
                 max={65535}
-                value={parseInt(server.port)}
-                onChange={(value: number | null) => value && updateServerConfig('port', value.toString())}
+                value={serverPortValue}
+                onChange={(value: number | null) => {
+                  if (value !== null) {
+                    updateServerConfig('port', value.toString());
+                  }
+                }}
                 className="settings-port-input"
               />
             )}
@@ -267,7 +326,11 @@ const ServerSettings = () => {
                     min={1}
                     max={65535}
                     value={server.sftpPort}
-                    onChange={(value: number | null) => value && updateServerConfig('sftpPort', value)}
+                    onChange={(value: number | null) => {
+                      if (value !== null) {
+                        updateServerConfig('sftpPort', value);
+                      }
+                    }}
                     className="settings-port-input"
                   />
                 )}

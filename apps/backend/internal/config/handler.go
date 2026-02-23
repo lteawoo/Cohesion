@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -174,6 +176,29 @@ type UpdateConfigRequest struct {
 	Server Server `json:"server"`
 }
 
+func validateServerConfig(server Server) *web.Error {
+	serverPort := strings.TrimSpace(server.Port)
+	if serverPort == "" {
+		return &web.Error{Code: http.StatusBadRequest, Message: "server.port is required"}
+	}
+
+	webPort, err := strconv.Atoi(serverPort)
+	if err != nil || webPort < 1 || webPort > 65535 {
+		return &web.Error{Code: http.StatusBadRequest, Message: "server.port must be an integer between 1 and 65535"}
+	}
+
+	if server.SftpEnabled {
+		if server.SftpPort < 1 || server.SftpPort > 65535 {
+			return &web.Error{Code: http.StatusBadRequest, Message: "server.sftpPort must be an integer between 1 and 65535 when sftp is enabled"}
+		}
+		if server.SftpPort == webPort {
+			return &web.Error{Code: http.StatusBadRequest, Message: "server.sftpPort must be different from server.port"}
+		}
+	}
+
+	return nil
+}
+
 func NewHandler() *Handler {
 	return &Handler{}
 }
@@ -203,8 +228,9 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 		return &web.Error{Err: err, Code: http.StatusBadRequest, Message: "Invalid config format"}
 	}
 
-	if req.Server.Port == "" {
-		return &web.Error{Code: http.StatusBadRequest, Message: "server.port is required"}
+	req.Server.Port = strings.TrimSpace(req.Server.Port)
+	if validationErr := validateServerConfig(req.Server); validationErr != nil {
+		return validationErr
 	}
 
 	// 설정 업데이트 (민감정보를 포함하는 datasource는 API로 변경하지 않음)

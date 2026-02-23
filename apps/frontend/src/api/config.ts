@@ -11,6 +11,19 @@ export interface Config {
   server: ServerConfig;
 }
 
+async function extractErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
+  try {
+    const payload = (await response.json()) as { error?: string; message?: string };
+    const message = payload.error ?? payload.message;
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+  } catch {
+    // ignore parse errors and use fallback message
+  }
+  return fallbackMessage;
+}
+
 /**
  * 현재 서버 설정을 조회합니다
  */
@@ -35,7 +48,7 @@ export async function updateConfig(config: Config): Promise<void> {
   });
 
   if (!response.ok) {
-    throw new Error('Failed to update config');
+    throw new Error(await extractErrorMessage(response, '설정 저장에 실패했습니다'));
   }
 }
 
