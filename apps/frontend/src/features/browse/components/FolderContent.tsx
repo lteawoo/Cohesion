@@ -1364,9 +1364,6 @@ const FolderContent: React.FC = () => {
         loading={isTrashLoading}
         processing={isTrashProcessing}
         onSelectionChange={(ids) => setSelectedTrashIds(ids)}
-        onRefresh={() => {
-          void loadTrashItems();
-        }}
         onRestore={handleTrashRestoreConfirm}
         onDelete={handleTrashDeleteConfirm}
         onEmpty={handleTrashEmptyConfirm}

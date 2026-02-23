@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Modal, Table, Space as AntSpace, Button, Empty } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { DeleteOutlined, RollbackOutlined, ReloadOutlined, FolderFilled, FileOutlined } from '@ant-design/icons';
+import { DeleteOutlined, RollbackOutlined, FolderFilled, FileOutlined } from '@ant-design/icons';
 import type { TrashItem } from '../../hooks/useFileOperations';
 import { formatDate, formatSize } from '../../constants';
 
@@ -13,7 +13,6 @@ interface TrashModalProps {
   loading: boolean;
   processing: boolean;
   onSelectionChange: (ids: number[]) => void;
-  onRefresh: () => void;
   onRestore: () => void;
   onDelete: () => void;
   onEmpty: () => void;
@@ -28,7 +27,6 @@ const TrashModal: React.FC<TrashModalProps> = ({
   loading,
   processing,
   onSelectionChange,
-  onRefresh,
   onRestore,
   onDelete,
   onEmpty,
@@ -91,14 +89,6 @@ const TrashModal: React.FC<TrashModalProps> = ({
       destroyOnClose
       styles={{ mask: { pointerEvents: 'auto' } }}
       footer={[
-        <Button
-          key="refresh"
-          icon={<ReloadOutlined />}
-          onClick={onRefresh}
-          disabled={loading || processing}
-        >
-          새로고침
-        </Button>,
         <Button
           key="restore"
           icon={<RollbackOutlined />}
