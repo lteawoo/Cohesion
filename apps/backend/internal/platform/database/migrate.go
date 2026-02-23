@@ -14,8 +14,13 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	if err := migrateUsersRoleConstraint(ctx, db); err != nil {
 		return err
 	}
-	_, err := db.ExecContext(ctx, schemaDDL)
-	return err
+	if _, err := db.ExecContext(ctx, schemaDDL); err != nil {
+		return err
+	}
+	if err := migrateSpaceQuotaColumn(ctx, db); err != nil {
+		return err
+	}
+	return nil
 }
 
 func migrateUsersRoleConstraint(ctx context.Context, db *sql.DB) error {
@@ -75,4 +80,40 @@ func migrateUsersRoleConstraint(ctx context.Context, db *sql.DB) error {
 	}
 
 	return tx.Commit()
+}
+
+func migrateSpaceQuotaColumn(ctx context.Context, db *sql.DB) error {
+	rows, err := db.QueryContext(ctx, "PRAGMA table_info(space)")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	hasQuotaColumn := false
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			columnType string
+			notNull    int
+			defaultVal sql.NullString
+			pk         int
+		)
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultVal, &pk); err != nil {
+			return err
+		}
+		if name == "quota_bytes" {
+			hasQuotaColumn = true
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if hasQuotaColumn {
+		return nil
+	}
+
+	_, err = db.ExecContext(ctx, "ALTER TABLE space ADD COLUMN quota_bytes INTEGER")
+	return err
 }

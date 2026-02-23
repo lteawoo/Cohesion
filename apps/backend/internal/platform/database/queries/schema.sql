@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS space (
     space_path      TEXT NOT NULL,
     icon            TEXT,
     space_category  TEXT,
+    quota_bytes     INTEGER,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_user_id TEXT,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

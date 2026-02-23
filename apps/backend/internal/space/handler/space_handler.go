@@ -30,6 +30,7 @@ type SpaceAccessService interface {
 
 type Handler struct {
 	spaceService      *space.Service
+	quotaService      *space.QuotaService
 	trashService      *space.TrashService
 	browseService     BrowseService
 	accountService    SpaceAccessService
@@ -47,6 +48,7 @@ func NewHandler(spaceService *space.Service, browseService BrowseService, accoun
 
 	return &Handler{
 		spaceService:      spaceService,
+		quotaService:      space.NewQuotaService(spaceService),
 		trashService:      resolvedTrashService,
 		browseService:     browseService,
 		accountService:    accountService,
@@ -119,6 +121,7 @@ func (h *Handler) handleGetSpaces(w http.ResponseWriter, r *http.Request) *web.E
 		SpaceDesc     *string `json:"space_desc,omitempty"`
 		Icon          *string `json:"icon,omitempty"`
 		SpaceCategory *string `json:"space_category,omitempty"`
+		QuotaBytes    *int64  `json:"quota_bytes,omitempty"`
 	}
 	response := make([]listSpaceResponse, 0, len(filteredSpaces))
 	for _, item := range filteredSpaces {
@@ -128,6 +131,7 @@ func (h *Handler) handleGetSpaces(w http.ResponseWriter, r *http.Request) *web.E
 			SpaceDesc:     item.SpaceDesc,
 			Icon:          item.Icon,
 			SpaceCategory: item.SpaceCategory,
+			QuotaBytes:    item.QuotaBytes,
 		})
 	}
 
@@ -200,6 +204,10 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 	pathParts := strings.TrimPrefix(r.URL.Path, "/api/spaces/")
 	parts := strings.Split(pathParts, "/")
 
+	if len(parts) > 0 && parts[0] == "usage" {
+		return h.handleSpaceUsage(w, r)
+	}
+
 	// 빈 ID 체크
 	if len(parts) == 0 || parts[0] == "" {
 		return &web.Error{
@@ -222,6 +230,10 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 	// 액션 확인 (/api/spaces/{id}/browse)
 	if len(parts) > 1 && parts[1] == "browse" {
 		return h.handleSpaceBrowse(w, r, id)
+	}
+
+	if len(parts) > 1 && parts[1] == "quota" {
+		return h.handleSpaceQuota(w, r, id)
 	}
 
 	// 파일 작업 (/api/spaces/{id}/files/{action})

@@ -1,6 +1,65 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **이동/복사 대상 모달 Space 루트 선택 허용 보정 (2026-02-23)**:
+    - 프론트:
+      - 대상 선택 모달이 Space 루트(`''`)를 미선택으로 오판하던 검증 로직을 수정.
+      - 루트 선택 시에도 `선택된 경로` 표시가 보이도록 UI 조건 보정.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/DestinationPickerModal.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+
+- **Space 쿼터/사용량 대시보드 구현 완료 (#125, 2026-02-22)**:
+    - 백엔드:
+      - `space` 스키마에 `quota_bytes` 컬럼 추가 및 기존 DB 자동 마이그레이션(`ALTER TABLE`) 적용.
+      - 사용량 집계 서비스(`QuotaService`) 추가:
+        - Space 경로 재귀 스캔 기반 사용량 계산
+        - 짧은 TTL 캐시 + write 성공 시 invalidate
+      - API 추가:
+        - `GET /api/spaces/usage` (접근 가능한 Space별 `used/quota/over/scannedAt`)
+        - `PATCH /api/spaces/{id}/quota` (Space 쿼터 설정/해제)
+      - 쓰기 경로 쿼터 가드 추가(목적지 Space 기준):
+        - 폴더 생성, 업로드, 이동, 복사
+        - 초과 시 `507 Insufficient Storage` 또는 항목 실패코드 `quota_exceeded` 반환
+      - 휴지통 복원/영구삭제/비우기 후 사용량 캐시 invalidate 연동.
+      - 구현 파일:
+        - `apps/backend/internal/platform/database/queries/schema.sql`
+        - `apps/backend/internal/platform/database/migrate.go`
+        - `apps/backend/internal/space/space.go`
+        - `apps/backend/internal/space/service.go`
+        - `apps/backend/internal/space/store/space_store.go`
+        - `apps/backend/internal/space/quota_service.go`
+        - `apps/backend/internal/space/handler/space_handler.go`
+        - `apps/backend/internal/space/handler/space_quota_handler.go`
+        - `apps/backend/internal/space/handler/file_handler.go`
+        - `apps/backend/internal/auth/permissions.go`
+    - 프론트:
+      - Settings에 `스페이스` 전용 섹션을 추가하고, `Space 쿼터/사용량` UI를 서버 섹션에서 분리.
+      - 접근 권한을 `space.read|space.write` 기준으로 분리하고, 쿼터 수정 컨트롤은 `space.write`에서만 활성화.
+      - 쿼터 입력 단위를 `GB`에서 `MB`로 전환.
+      - Space별 사용량/쿼터/사용률(Progress) 표시, 인라인 쿼터 저장 및 무제한 설정 지원.
+      - 파일 작업 에러 파서가 `error` 필드도 읽도록 보강해 쿼터 초과 메시지 노출 정합화.
+      - 구현 파일:
+        - `apps/frontend/src/pages/Settings/index.tsx`
+        - `apps/frontend/src/pages/Settings/sections/SpaceSettings.tsx`
+        - `apps/frontend/src/pages/Settings/sections/ServerSettings.tsx`
+        - `apps/frontend/src/features/browse/hooks/useFileOperations.tsx`
+        - `apps/frontend/src/features/space/types.ts`
+    - 테스트:
+      - 백엔드: 업로드/복사 쿼터 초과 테스트 추가
+        - `apps/backend/internal/space/handler/file_handler_quota_test.go`
+      - 권한 매핑 테스트 추가:
+        - `/api/spaces/usage`, `/api/spaces/{id}/quota`
+        - `apps/backend/internal/auth/permissions_test.go`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend exec tsc --noEmit` 통과.
+      - 브라우저 실측 스크린샷:
+        - `/tmp/cohesion-space-quota-dashboard.png`
+
 - **휴지통 진입 UI/범위 재구성 (2026-02-22)**:
     - 프론트:
       - 스페이스 트리 내부 휴지통 노드를 제거하고, 사이드패널 최하단 고정 `휴지통` 버튼으로 진입점을 이동.

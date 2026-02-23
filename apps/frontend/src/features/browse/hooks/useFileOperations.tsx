@@ -201,6 +201,9 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       if (error?.message && typeof error.message === 'string') {
         return error.message;
       }
+      if (error?.error && typeof error.error === 'string') {
+        return error.error;
+      }
     } catch {
       // ignore parse errors and fallback to default message
     }

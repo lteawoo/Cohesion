@@ -12,6 +12,7 @@ export interface Space {
   space_path?: string;
   icon?: string;
   space_category?: string;
+  quota_bytes?: number | null;
   created_at?: string;
   created_user_id?: string;
   updated_at?: string;
