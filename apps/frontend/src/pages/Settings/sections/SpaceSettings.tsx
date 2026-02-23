@@ -210,7 +210,7 @@ const SpaceSettings = () => {
       >
         <Table<SpaceUsageItem>
           size="small"
-          rowKey={(item) => item.spaceId}
+          rowKey={(item: SpaceUsageItem) => item.spaceId}
           loading={usageLoading}
           columns={spaceUsageColumns}
           dataSource={spaceUsages}

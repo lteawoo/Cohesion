@@ -55,6 +55,26 @@
 - **특수 케이스**: `showBaseDirectories` 플래그로 모달에서는 시스템 디렉토리 탐색 가능.
 
 ## 개발 프로세스
+### 프론트 타입 검증 명령 표준화 (`tsc -b`) 및 CI 단계 분리 (2026-02-23)
+- **문제**:
+  - `pnpm -C apps/frontend exec tsc --noEmit`는 루트 `tsconfig` references 구조에서 CI의 실제 빌드 경로(`tsc -b`)와 동일하지 않아, 일부 타입 오류를 사전에 놓칠 수 있었다.
+- **결정**:
+  - 프론트 패키지에 `typecheck` 스크립트(`tsc -b --pretty false`)를 추가한다.
+  - 루트 스크립트로 `pnpm typecheck`를 제공해 동일 경로를 단일 명령으로 실행 가능하게 한다.
+  - CI에 `Run typecheck` 단계를 `Run lint` 다음에 명시적으로 추가한다.
+- **이유**:
+  - lint/타입체크/빌드의 책임을 분리하면서도, 타입 검증은 CI 빌드와 동일한 컴파일 경로를 강제해 누락 위험을 줄이기 위함.
+
+### 프론트 타입 오류 정리(휴지통/설정 테이블) (2026-02-23)
+- **문제**:
+  - `typecheck(tsc -b)` 적용 후 휴지통/설정 테이블 렌더 콜백에서 `implicit any`와 `FileTypeIcon` prop 불일치가 드러났다.
+- **결정**:
+  - `TrashModal`, `TrashExplorer`의 `render`/`rowKey` 콜백에 명시 타입을 부여한다.
+  - `TrashExplorer`의 디렉터리 아이콘 렌더를 `FileTypeIcon` prop 계약에 맞게 분기(`FolderFilled` vs `FileTypeIcon`) 처리한다.
+  - `SpaceSettings` `rowKey` 콜백 파라미터 타입을 명시한다.
+- **이유**:
+  - CI 타입체크 통과를 복구하면서도 런타임 동작을 바꾸지 않는 최소 수정으로 안정성을 확보하기 위함.
+
 ### 휴지통 트리 `noop switcher` 여백 제거 방식 확정 (2026-02-23)
 - **문제**:
   - `휴지통` 항목은 leaf 노드지만, `.folder-tree .ant-tree-switcher` 공통 규칙이 동일하게 적용되어 `ant-tree-switcher-noop` 슬롯 폭(20px)이 남아 아이콘 좌측 여백이 과도했다.

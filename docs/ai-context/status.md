@@ -1,6 +1,19 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **프론트 타입체크 명령/CI 검증 경로 정합화 (2026-02-23)**:
+    - 프론트:
+      - `apps/frontend/package.json`에 `typecheck` 스크립트(`tsc -b --pretty false`) 추가.
+      - 루트 `package.json`에 `typecheck` 스크립트(`pnpm -C apps/frontend typecheck`) 추가.
+      - `TrashModal`, `TrashExplorer`, `SpaceSettings`의 `implicit any` 및 아이콘 prop 타입 불일치 수정.
+    - CI:
+      - `.github/workflows/ci.yml`의 `Run lint` 다음에 `Run typecheck` 단계 추가.
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
 - **사이드패널 휴지통 진입점 스타일 통합 (2026-02-23)**:
     - 프론트:
       - `SidePanelShell` footer 버튼 방식을 제거하고, 스페이스 트리 하단에 트리 스타일의 `휴지통` 항목을 배치.

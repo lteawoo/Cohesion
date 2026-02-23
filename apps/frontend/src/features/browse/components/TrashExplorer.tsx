@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { App, Button, Empty, Radio, Space as AntSpace, Table, Typography } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { DeleteOutlined, RollbackOutlined } from '@ant-design/icons';
+import { DeleteOutlined, FolderFilled, RollbackOutlined } from '@ant-design/icons';
 import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
 import { useBrowseStore } from '@/stores/browseStore';
@@ -480,9 +480,13 @@ const TrashExplorer: React.FC = () => {
         dataIndex: 'itemName',
         key: 'itemName',
         ellipsis: true,
-        render: (_, record) => (
+        render: (_: unknown, record: GlobalTrashItem) => (
           <AntSpace>
-            <FileTypeIcon filename={record.itemName} isDirectory={record.isDir} size={16} />
+            {record.isDir ? (
+              <FolderFilled style={{ color: 'var(--app-folder-icon-color, #415a77)', fontSize: 16 }} />
+            ) : (
+              <FileTypeIcon filename={record.itemName} size={16} />
+            )}
             <span>{record.itemName}</span>
           </AntSpace>
         ),
@@ -519,7 +523,7 @@ const TrashExplorer: React.FC = () => {
         key: 'itemSize',
         width: 120,
         align: 'right',
-        render: (size: number, record) => (record.isDir ? '-' : formatSize(size)),
+        render: (size: number, record: GlobalTrashItem) => (record.isDir ? '-' : formatSize(size)),
       },
     ];
   }, []);
@@ -562,7 +566,7 @@ const TrashExplorer: React.FC = () => {
       <div style={{ minHeight: 0, flex: 1 }}>
         <Table<GlobalTrashItem>
           size="small"
-          rowKey={(record) => record.rowKey}
+          rowKey={(record: GlobalTrashItem) => record.rowKey}
           dataSource={items}
           columns={columns}
           loading={loading || processing}
