@@ -1,6 +1,6 @@
 import { Card, Select, Typography, Space, Button, Popconfirm, App } from 'antd';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ReloadOutlined } from '@ant-design/icons';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import SettingRow from '../components/SettingRow';
 import { useTranslation } from 'react-i18next';
@@ -17,10 +17,6 @@ const GeneralSettings = () => {
   const handleReset = () => {
     resetToDefaults();
     message.success(t('generalSettings.resetSuccess'));
-  };
-
-  const handleClearCache = () => {
-    message.success(t('generalSettings.clearCacheSuccess'));
   };
 
   return (
@@ -53,18 +49,6 @@ const GeneralSettings = () => {
       <Card size="small" title={t('generalSettings.dataCardTitle')}>
         <Space vertical size={4} className="settings-stack-full">
           <Text type="secondary">{t('generalSettings.dataDescription')}</Text>
-          <SettingRow
-            left={<Text strong>{t('generalSettings.clearCacheLabel')}</Text>}
-            right={(
-              <Button
-                size="small"
-                icon={<DeleteOutlined />}
-                onClick={handleClearCache}
-              >
-                {t('generalSettings.clearCacheButton')}
-              </Button>
-            )}
-          />
 
           <SettingRow
             left={<Text strong>{t('generalSettings.resetLabel')}</Text>}

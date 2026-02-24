@@ -1,77 +1,31 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type ViewMode = 'grid' | 'table';
-export type SortBy = 'name' | 'modTime' | 'size';
-export type SortOrder = 'ascend' | 'descend';
 export type Language = 'ko' | 'en';
-
-interface ServerSettings {
-  httpPort: number;
-
-  // WebDAV
-  webdavEnabled: boolean;
-  webdavPort: number;
-
-  // SFTP
-  sftpEnabled: boolean;
-  sftpPort: number;
-}
 
 interface UISettings {
   // Theme
   theme: 'light' | 'dark';
 
-  // File browser defaults
-  defaultViewMode: ViewMode;
-  defaultSortBy: SortBy;
-  defaultSortOrder: SortOrder;
-  showHiddenFiles: boolean;
-
   // General
   language: Language;
 }
 
-interface SettingsStore extends UISettings, ServerSettings {
+interface SettingsStore extends UISettings {
   // UI Actions
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
-  setDefaultViewMode: (mode: ViewMode) => void;
-  setDefaultSort: (sortBy: SortBy, sortOrder: SortOrder) => void;
-  setShowHiddenFiles: (show: boolean) => void;
   setLanguage: (lang: Language) => void;
-
-  // Server Actions
-  setHttpPort: (port: number) => void;
-  setWebdavEnabled: (enabled: boolean) => void;
-  setWebdavPort: (port: number) => void;
-  setSftpEnabled: (enabled: boolean) => void;
-  setSftpPort: (port: number) => void;
 
   resetToDefaults: () => void;
 }
 
-const defaultServerSettings: ServerSettings = {
-  httpPort: 3000,
-  webdavEnabled: true,
-  webdavPort: 3000, // WebDAV uses same port as HTTP (path: /dav/)
-  sftpEnabled: false,
-  sftpPort: 22,
-};
-
 const defaultUISettings: UISettings = {
   theme: 'dark',
-  defaultViewMode: 'grid',
-  defaultSortBy: 'name',
-  defaultSortOrder: 'ascend',
-  showHiddenFiles: false,
   language: 'ko',
 };
 
-const defaultSettings = {
-  ...defaultUISettings,
-  ...defaultServerSettings,
-};
+const defaultSettings = defaultUISettings;
 
 export const useSettingsStore = create<SettingsStore>()(
   persist(
@@ -83,21 +37,7 @@ export const useSettingsStore = create<SettingsStore>()(
       toggleTheme: () =>
         set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
 
-      setDefaultViewMode: (mode) => set({ defaultViewMode: mode }),
-
-      setDefaultSort: (sortBy, sortOrder) =>
-        set({ defaultSortBy: sortBy, defaultSortOrder: sortOrder }),
-
-      setShowHiddenFiles: (show) => set({ showHiddenFiles: show }),
-
       setLanguage: (lang) => set({ language: lang }),
-
-      // Server actions
-      setHttpPort: (port) => set({ httpPort: port }),
-      setWebdavEnabled: (enabled) => set({ webdavEnabled: enabled }),
-      setWebdavPort: (port) => set({ webdavPort: port }),
-      setSftpEnabled: (enabled) => set({ sftpEnabled: enabled }),
-      setSftpPort: (port) => set({ sftpPort: port }),
 
       resetToDefaults: () => set(defaultSettings),
     }),

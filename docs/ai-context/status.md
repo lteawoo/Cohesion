@@ -1,6 +1,28 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **설정 UI 미사용 항목 정리 (2026-02-24)**:
+    - 프론트:
+      - Settings에서 실사용되지 않는 옵션 제거.
+        - `파일` 섹션 제거 (`FileSettings` 삭제, 설정 메뉴/라우팅 정리)
+        - `일반 > 캐시 삭제` 제거
+        - `외관 > 기본 뷰 모드` 제거
+      - `settingsStore`에서 미사용 설정 필드/액션 정리.
+        - 제거: `defaultViewMode`, `defaultSortBy`, `defaultSortOrder`, `showHiddenFiles`
+        - 제거: `httpPort`, `webdavEnabled`, `webdavPort`, `sftpEnabled`, `sftpPort` 및 관련 setter
+      - i18n 리소스에서 제거된 설정 키 정리.
+      - 구현 파일:
+        - `apps/frontend/src/pages/Settings/index.tsx`
+        - `apps/frontend/src/pages/Settings/sections/GeneralSettings.tsx`
+        - `apps/frontend/src/pages/Settings/sections/AppearanceSettings.tsx`
+        - `apps/frontend/src/pages/Settings/sections/FileSettings.tsx` (삭제)
+        - `apps/frontend/src/stores/settingsStore.ts`
+        - `apps/frontend/src/i18n/resources.ts`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
 - **파일 익스플로러 입력 모드 분리(레이아웃 vs 상호작용) 적용 (2026-02-24)**:
     - 프론트:
       - `FolderContent`에서 화면 폭 기준 레이아웃 모드와 터치 입력 기준 상호작용 모드를 분리.

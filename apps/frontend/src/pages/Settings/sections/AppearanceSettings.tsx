@@ -10,8 +10,6 @@ const AppearanceSettings = () => {
   const { t } = useTranslation();
   const theme = useSettingsStore((state) => state.theme);
   const setTheme = useSettingsStore((state) => state.setTheme);
-  const defaultViewMode = useSettingsStore((state) => state.defaultViewMode);
-  const setDefaultViewMode = useSettingsStore((state) => state.setDefaultViewMode);
 
   return (
     <Space vertical size="small" className="settings-section">
@@ -30,21 +28,6 @@ const AppearanceSettings = () => {
               >
                 <Radio.Button value="light">{t('appearanceSettings.themeLight')}</Radio.Button>
                 <Radio.Button value="dark">{t('appearanceSettings.themeDark')}</Radio.Button>
-              </Radio.Group>
-            )}
-          />
-
-          <SettingRow
-            left={<Text strong>{t('appearanceSettings.defaultViewModeLabel')}</Text>}
-            right={(
-              <Radio.Group
-                value={defaultViewMode}
-                onChange={(e) => setDefaultViewMode(e.target.value)}
-                buttonStyle="solid"
-                size="small"
-              >
-                <Radio.Button value="grid">{t('appearanceSettings.viewGrid')}</Radio.Button>
-                <Radio.Button value="table">{t('appearanceSettings.viewTable')}</Radio.Button>
               </Radio.Group>
             )}
           />

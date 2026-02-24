@@ -3,7 +3,6 @@ import {
   UserOutlined,
   AppstoreOutlined,
   BgColorsOutlined,
-  FileOutlined,
   GlobalOutlined,
   ClusterOutlined,
   SafetyCertificateOutlined,
@@ -16,7 +15,6 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@/features/auth/useAuth';
 import GeneralSettings from './sections/GeneralSettings';
 import AppearanceSettings from './sections/AppearanceSettings';
-import FileSettings from './sections/FileSettings';
 import ServerSettings from './sections/ServerSettings';
 import SpaceSettings from './sections/SpaceSettings';
 import AccountSettings from './sections/AccountSettings';
@@ -30,7 +28,7 @@ import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
 
-type SettingsSection = 'profile' | 'general' | 'appearance' | 'files' | 'server' | 'spaces' | 'permissions' | 'accounts';
+type SettingsSection = 'profile' | 'general' | 'appearance' | 'server' | 'spaces' | 'permissions' | 'accounts';
 
 const SettingsPage = () => {
   const { t } = useTranslation();
@@ -62,11 +60,6 @@ const SettingsPage = () => {
       key: 'appearance',
       icon: <BgColorsOutlined />,
       label: t('settingsPage.sections.appearance'),
-    },
-    {
-      key: 'files',
-      icon: <FileOutlined />,
-      label: t('settingsPage.sections.files'),
     },
     ...(canAccessServerSettings ? [{
       key: 'server',
@@ -107,8 +100,6 @@ const SettingsPage = () => {
         return <GeneralSettings />;
       case 'appearance':
         return <AppearanceSettings />;
-      case 'files':
-        return <FileSettings />;
       case 'server':
         return canAccessServerSettings ? <ServerSettings /> : <ProfileSettings />;
       case 'spaces':
