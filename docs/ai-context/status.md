@@ -1,6 +1,25 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **설정 About/버전 정보 섹션 추가 및 구조 정리 (2026-02-24)**:
+    - 프론트:
+      - Settings 좌측 메뉴 하단에 `About` 섹션을 추가.
+      - `AboutSettings` 섹션 신설:
+        - `Cohesion` 카드(서비스 설명 + GitHub 링크)
+        - `버전 정보` 카드(현재/최신 버전, 릴리즈 링크)
+      - 시스템 버전 조회 훅 `useSystemVersion` 추가(`GET /api/system/version` 연동).
+      - 상태 타입에 `SystemVersionResponse` 추가.
+      - i18n 리소스에 `settingsPage.sections.about`, `aboutSettings.*` 키(ko/en) 추가.
+      - 구현 파일:
+        - `apps/frontend/src/pages/Settings/index.tsx`
+        - `apps/frontend/src/pages/Settings/sections/AboutSettings.tsx`
+        - `apps/frontend/src/features/status/hooks/useSystemVersion.ts`
+        - `apps/frontend/src/features/status/types.ts`
+        - `apps/frontend/src/i18n/resources.ts`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+
 - **릴리즈 업데이트 체크 1차 구현 (#146, 2026-02-24)**:
     - 백엔드:
       - 빌드 메타데이터 주입 변수 추가(`appVersion`, `appCommit`, `appBuildDate`).

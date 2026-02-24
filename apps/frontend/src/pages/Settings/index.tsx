@@ -3,6 +3,7 @@ import {
   UserOutlined,
   AppstoreOutlined,
   BgColorsOutlined,
+  InfoCircleOutlined,
   GlobalOutlined,
   ClusterOutlined,
   SafetyCertificateOutlined,
@@ -20,6 +21,7 @@ import SpaceSettings from './sections/SpaceSettings';
 import AccountSettings from './sections/AccountSettings';
 import PermissionSettings from './sections/PermissionSettings';
 import ProfileSettings from './sections/ProfileSettings';
+import AboutSettings from './sections/AboutSettings';
 import HeaderBrand from '@/components/common/HeaderBrand';
 import HeaderGroup from '@/components/common/HeaderGroup';
 import SidePanelShell from '@/components/common/SidePanelShell';
@@ -28,7 +30,7 @@ import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
 
-type SettingsSection = 'profile' | 'general' | 'appearance' | 'server' | 'spaces' | 'permissions' | 'accounts';
+type SettingsSection = 'profile' | 'general' | 'appearance' | 'server' | 'spaces' | 'permissions' | 'accounts' | 'about';
 
 const SettingsPage = () => {
   const { t } = useTranslation();
@@ -81,6 +83,11 @@ const SettingsPage = () => {
       icon: <TeamOutlined />,
       label: t('settingsPage.sections.accounts'),
     }] : []),
+    {
+      key: 'about',
+      icon: <InfoCircleOutlined />,
+      label: t('settingsPage.sections.about'),
+    },
   ], [canAccessAccountSettings, canAccessServerSettings, canAccessSpaceSettings, t]);
 
   const effectiveSection: SettingsSection = (
@@ -108,6 +115,8 @@ const SettingsPage = () => {
         return canAccessAccountSettings ? <PermissionSettings /> : <ProfileSettings />;
       case 'accounts':
         return canAccessAccountSettings ? <AccountSettings /> : <ProfileSettings />;
+      case 'about':
+        return <AboutSettings />;
       default:
         return <ProfileSettings />;
     }
