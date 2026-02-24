@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -10,20 +11,73 @@ import (
 	"taeu.kr/cohesion/internal/platform/web"
 )
 
-// Handler는 system API 핸들러입니다
-type Handler struct {
-	restartChan chan bool
+type Meta struct {
+	Version   string
+	Commit    string
+	BuildDate string
 }
 
-func NewHandler(restartChan chan bool) *Handler {
+// Handler는 system API 핸들러입니다
+type Handler struct {
+	restartChan   chan bool
+	meta          Meta
+	updateChecker *UpdateChecker
+}
+
+func NewHandler(restartChan chan bool, meta Meta) *Handler {
+	version := strings.TrimSpace(meta.Version)
+	if version == "" {
+		version = "dev"
+	}
+
 	return &Handler{
 		restartChan: restartChan,
+		meta: Meta{
+			Version:   version,
+			Commit:    strings.TrimSpace(meta.Commit),
+			BuildDate: strings.TrimSpace(meta.BuildDate),
+		},
+		updateChecker: NewUpdateChecker(UpdateCheckerConfig{
+			RepoOwner:      "lteawoo",
+			RepoName:       "Cohesion",
+			CacheTTL:       10 * time.Minute,
+			RequestTimeout: 3 * time.Second,
+		}),
 	}
 }
 
 // RegisterRoutes는 라우트를 등록합니다
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.Handle("GET /api/system/version", web.Handler(h.GetVersion))
+	mux.Handle("GET /api/system/update-check", web.Handler(h.GetUpdateCheck))
 	mux.Handle("POST /api/system/restart", web.Handler(h.RestartServer))
+}
+
+func (h *Handler) GetVersion(w http.ResponseWriter, r *http.Request) *web.Error {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{
+		"version":   h.meta.Version,
+		"commit":    h.meta.Commit,
+		"buildDate": h.meta.BuildDate,
+	}); err != nil {
+		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to encode version response"}
+	}
+	return nil
+}
+
+func (h *Handler) GetUpdateCheck(w http.ResponseWriter, r *http.Request) *web.Error {
+	w.Header().Set("Content-Type", "application/json")
+
+	result, err := h.updateChecker.Check(r.Context(), h.meta.Version)
+	if err != nil {
+		log.Warn().Err(err).Msg("[System] update check failed")
+		result.Error = "Failed to check latest release"
+	}
+
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to encode update check response"}
+	}
+	return nil
 }
 
 // RestartServer는 서버를 재시작합니다

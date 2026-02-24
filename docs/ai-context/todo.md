@@ -21,6 +21,7 @@
 - [x] 언어 설정 실제 반영 3차 (파일연산/드래그드롭/탐색 API 훅 메시지 i18n 전환 + browse table 라벨 키 전환) (#141)
 - [x] 언어 설정 실제 반영 4차 (설정 상세 섹션 + API/store/search fallback + 업로드 오버레이 문구 i18n 전환) (#141)
 - [x] 설정 UI 미사용 항목 정리 (파일 섹션/캐시 삭제/기본 뷰 모드 제거 + settingsStore 미사용 필드 정리)
+- [x] 릴리즈 업데이트 체크 1차 (버전 API + 최신 릴리즈 비교 API + 상태 팝오버 업데이트 배지/링크 노출) (#146)
 - [x] 파일 익스플로러 상호작용 모드 분리 (PC 해상도 터치 입력 시 모바일 규칙 적용)
 - [x] GoReleaser changelog 생성 방식 전환 (`.goreleaser.yaml`: `changelog.use=github-native`, `.github/release.yml` 카테고리 반영)
 - [x] GitHub Actions 자동 릴리즈 워크플로 추가 (`.github/workflows/release.yml`, 태그 `v*` 트리거 + GoReleaser 실행)

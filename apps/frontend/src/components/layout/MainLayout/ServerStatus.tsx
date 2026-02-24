@@ -1,6 +1,7 @@
 import { App, Popover, theme } from 'antd';
 import { useServerStatus } from '@/features/status/hooks/useServerStatus';
-import type { ProtocolStatus } from '@/features/status/types';
+import { useUpdateCheck } from '@/features/status/hooks/useUpdateCheck';
+import type { ProtocolStatus, UpdateCheckResponse } from '@/features/status/types';
 import { useTranslation } from 'react-i18next';
 
 const PROTOCOL_LABELS: Record<string, string> = {
@@ -66,6 +67,19 @@ function normalizeProtocolPath(path?: string) {
   return trimmed.replace(/\/+$/, '');
 }
 
+function formatCheckedAt(checkedAt?: string) {
+  if (!checkedAt) {
+    return '';
+  }
+
+  const parsed = new Date(checkedAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return '';
+  }
+
+  return parsed.toLocaleString();
+}
+
 async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
@@ -92,7 +106,15 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
   }
 }
 
-function PopoverContent({ protocols, hosts }: { protocols: Record<string, ProtocolStatus>; hosts?: string[] }) {
+function PopoverContent({
+  protocols,
+  hosts,
+  updateInfo,
+}: {
+  protocols: Record<string, ProtocolStatus>;
+  hosts?: string[];
+  updateInfo: UpdateCheckResponse | null;
+}) {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const { message } = App.useApp();
@@ -124,6 +146,41 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
 
   return (
     <div style={{ minWidth: 180 }}>
+      <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8 }}>
+        {t('serverStatus.update')}
+      </div>
+      {updateInfo ? (
+        <>
+          <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 2 }}>
+            {updateInfo.currentVersion}
+            {updateInfo.latestVersion ? ` → ${updateInfo.latestVersion}` : ''}
+          </div>
+          {updateInfo.updateAvailable ? (
+            <a
+              href={updateInfo.releaseUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 12 }}
+            >
+              {t('serverStatus.updateAvailable')}
+            </a>
+          ) : (
+            <div style={{ fontSize: 12, color: token.colorTextTertiary }}>
+              {updateInfo.error ? t('serverStatus.updateCheckFailed') : t('serverStatus.upToDate')}
+            </div>
+          )}
+          {formatCheckedAt(updateInfo.checkedAt) && (
+            <div style={{ fontSize: 11, color: token.colorTextTertiary, marginTop: 2, marginBottom: 10 }}>
+              {t('serverStatus.checkedAt', { value: formatCheckedAt(updateInfo.checkedAt) })}
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: token.colorTextTertiary, marginBottom: 10 }}>
+          {t('serverStatus.updateCheckUnavailable')}
+        </div>
+      )}
+
       <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8 }}>
         {t('serverStatus.hosts')}
       </div>
@@ -193,6 +250,7 @@ export default function ServerStatus() {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const { status, isServerUp } = useServerStatus();
+  const { updateInfo } = useUpdateCheck();
 
   const dotColor = isServerUp ? token.colorSuccess : token.colorError;
 
@@ -200,7 +258,7 @@ export default function ServerStatus() {
     <Popover
       content={
         status?.protocols ? (
-          <PopoverContent protocols={status.protocols} hosts={status.hosts} />
+          <PopoverContent protocols={status.protocols} hosts={status.hosts} updateInfo={updateInfo} />
         ) : (
           <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
             {t('serverStatus.connectionUnavailable')}
@@ -226,6 +284,21 @@ export default function ServerStatus() {
         <span style={{ fontSize: 13, color: token.colorTextSecondary, lineHeight: 'normal' }}>
           {t('serverStatus.triggerLabel')}
         </span>
+        {updateInfo?.updateAvailable && (
+          <span
+            style={{
+              fontSize: 11,
+              color: token.colorWarningText,
+              background: token.colorWarningBg,
+              border: `1px solid ${token.colorWarningBorder}`,
+              borderRadius: 999,
+              padding: '0 6px',
+              lineHeight: '16px',
+            }}
+          >
+            {t('serverStatus.updateBadge')}
+          </span>
+        )}
       </div>
     </Popover>
   );

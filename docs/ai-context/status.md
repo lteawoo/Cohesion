@@ -1,6 +1,40 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **릴리즈 업데이트 체크 1차 구현 (#146, 2026-02-24)**:
+    - 백엔드:
+      - 빌드 메타데이터 주입 변수 추가(`appVersion`, `appCommit`, `appBuildDate`).
+      - GoReleaser ldflags에 버전/커밋/빌드시각 주입 추가.
+      - 시스템 API 확장:
+        - `GET /api/system/version`
+        - `GET /api/system/update-check`
+      - GitHub 최신 릴리즈 조회 + semver 비교 + 캐시(TTL) 기반 `UpdateChecker` 추가.
+      - 조회 실패 시 `200 + error 필드`로 graceful fallback 처리.
+      - 구현 파일:
+        - `.goreleaser.yaml`
+        - `apps/backend/main.go`
+        - `apps/backend/internal/system/handler.go`
+        - `apps/backend/internal/system/update_checker.go`
+        - `apps/backend/internal/system/handler_test.go`
+        - `apps/backend/internal/system/update_checker_test.go`
+    - 프론트:
+      - 상태 영역 업데이트 체크 훅 추가(`useUpdateCheck`).
+      - `ServerStatus` 팝오버에 업데이트 섹션(현재/최신 버전, 업데이트 링크, 확인 시각) 추가.
+      - 업데이트 가능 시 헤더 상태 트리거에 `업데이트` 배지 노출.
+      - i18n 키 추가(ko/en).
+      - 구현 파일:
+        - `apps/frontend/src/features/status/hooks/useUpdateCheck.ts`
+        - `apps/frontend/src/features/status/types.ts`
+        - `apps/frontend/src/components/layout/MainLayout/ServerStatus.tsx`
+        - `apps/frontend/src/i18n/resources.ts`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+      - `cd apps/backend && go test ./...` 통과.
+      - 브라우저 실측 스크린샷:
+        - `/tmp/cohesion-update-check-status-popover.png`
+
 - **설정 UI 미사용 항목 정리 (2026-02-24)**:
     - 프론트:
       - Settings에서 실사용되지 않는 옵션 제거.

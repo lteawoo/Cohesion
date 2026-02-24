@@ -9,3 +9,12 @@ export interface StatusResponse {
   protocols: Record<string, ProtocolStatus>;
   hosts: string[];
 }
+
+export interface UpdateCheckResponse {
+  currentVersion: string;
+  latestVersion?: string;
+  updateAvailable: boolean;
+  releaseUrl: string;
+  checkedAt: string;
+  error?: string;
+}

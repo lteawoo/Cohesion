@@ -37,7 +37,12 @@ import (
 	webdavHandler "taeu.kr/cohesion/internal/webdav/handler"
 )
 
-var goEnv string = "development"
+var (
+	goEnv        = "development"
+	appVersion   = "dev"
+	appCommit    = "local"
+	appBuildDate = ""
+)
 
 // 재시작 신호를 받기 위한 채널
 var restartChan = make(chan bool, 1)
@@ -79,7 +84,11 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *sftpserver.
 	sftpService := sftpserver.NewService(spaceService, accountService, config.Conf.Server.SftpEnabled, config.Conf.Server.SftpPort)
 	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 	configHandler := config.NewHandler()
-	systemHandler := system.NewHandler(restartChan)
+	systemHandler := system.NewHandler(restartChan, system.Meta{
+		Version:   appVersion,
+		Commit:    appCommit,
+		BuildDate: appBuildDate,
+	})
 
 	// 라우터 생성
 	mux := http.NewServeMux()

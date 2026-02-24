@@ -19,7 +19,7 @@ builds:
     flags:
       - -tags=production
     ldflags:
-      - -s -w -X main.goEnv=production
+      - -s -w -X main.goEnv=production -X main.appVersion={{.Version}} -X main.appCommit={{.Commit}} -X main.appBuildDate={{.Date}}
     goos:
       - darwin
       - linux
