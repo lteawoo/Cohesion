@@ -67,19 +67,6 @@ function normalizeProtocolPath(path?: string) {
   return trimmed.replace(/\/+$/, '');
 }
 
-function formatCheckedAt(checkedAt?: string) {
-  if (!checkedAt) {
-    return '';
-  }
-
-  const parsed = new Date(checkedAt);
-  if (Number.isNaN(parsed.getTime())) {
-    return '';
-  }
-
-  return parsed.toLocaleString();
-}
-
 async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
@@ -143,44 +130,15 @@ function PopoverContent({
 
     return [...new Set(urls)];
   })();
+  const versionText = updateInfo?.currentVersion ?? 'dev';
+  const updateStatusText = updateInfo
+    ? (updateInfo.error
+      ? t('serverStatus.updateStatusUnknown')
+      : (updateInfo.updateAvailable ? t('serverStatus.updateStatusUpdate') : t('serverStatus.updateStatusLatest')))
+    : t('serverStatus.updateStatusUnknown');
 
   return (
     <div style={{ minWidth: 180 }}>
-      <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8 }}>
-        {t('serverStatus.update')}
-      </div>
-      {updateInfo ? (
-        <>
-          <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 2 }}>
-            {updateInfo.currentVersion}
-            {updateInfo.latestVersion ? ` → ${updateInfo.latestVersion}` : ''}
-          </div>
-          {updateInfo.updateAvailable ? (
-            <a
-              href={updateInfo.releaseUrl}
-              target="_blank"
-              rel="noreferrer"
-              style={{ fontSize: 12 }}
-            >
-              {t('serverStatus.updateAvailable')}
-            </a>
-          ) : (
-            <div style={{ fontSize: 12, color: token.colorTextTertiary }}>
-              {updateInfo.error ? t('serverStatus.updateCheckFailed') : t('serverStatus.upToDate')}
-            </div>
-          )}
-          {formatCheckedAt(updateInfo.checkedAt) && (
-            <div style={{ fontSize: 11, color: token.colorTextTertiary, marginTop: 2, marginBottom: 10 }}>
-              {t('serverStatus.checkedAt', { value: formatCheckedAt(updateInfo.checkedAt) })}
-            </div>
-          )}
-        </>
-      ) : (
-        <div style={{ fontSize: 12, color: token.colorTextTertiary, marginBottom: 10 }}>
-          {t('serverStatus.updateCheckUnavailable')}
-        </div>
-      )}
-
       <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8 }}>
         {t('serverStatus.hosts')}
       </div>
@@ -242,6 +200,9 @@ function PopoverContent({
           </div>
         );
       })}
+      <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 12 }}>
+        {versionText} - {updateStatusText}
+      </div>
     </div>
   );
 }
