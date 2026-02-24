@@ -37,6 +37,19 @@ type NavigationState = { entries: string[]; index: number };
 type BrowseLocationState = { fromSearchQuery?: string };
 const EMPTY_SELECTION = new Set<string>();
 
+function detectTouchInputSupport(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const maxTouchPoints = navigator.maxTouchPoints ?? 0;
+  const hasCoarsePointer =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(any-pointer: coarse)').matches;
+
+  return maxTouchPoints > 0 || hasCoarsePointer;
+}
+
 const FolderContent: React.FC = () => {
   const { t } = useTranslation();
   const { message, modal } = App.useApp();
@@ -44,7 +57,7 @@ const FolderContent: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const screens = Grid.useBreakpoint();
-  const isMobile = !screens.lg;
+  const layoutMode = screens.lg ? 'desktop' : 'mobile';
   const isSearchMode = location.pathname === '/search';
   const locationState = location.state as BrowseLocationState | null;
   const incomingSearchQuery = typeof locationState?.fromSearchQuery === 'string'
@@ -89,6 +102,7 @@ const FolderContent: React.FC = () => {
   const [selectedTrashIds, setSelectedTrashIds] = useState<number[]>([]);
   const [isTrashLoading, setIsTrashLoading] = useState(false);
   const [isTrashProcessing, setIsTrashProcessing] = useState(false);
+  const [hasTouchInput, setHasTouchInput] = useState<boolean>(() => detectTouchInputSupport());
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
   const suppressTapUntilRef = useRef(0);
@@ -97,6 +111,9 @@ const FolderContent: React.FC = () => {
   const selectedItemsRef = useRef<Set<string>>(new Set());
   const historySpaceIdRef = useRef<number | undefined>(undefined);
   const isHistoryTraversalRef = useRef(false);
+  const interactionMode = hasTouchInput ? 'touch' : 'pointer';
+  const isMobileLayout = layoutMode === 'mobile';
+  const isTouchInteraction = interactionMode === 'touch';
 
   // Modal management
   const { modals, openModal, closeModal, updateModalData } = useModalManager();
@@ -352,7 +369,7 @@ const FolderContent: React.FC = () => {
 
   // Box selection (Grid 뷰 전용)
   const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
-    enabled: !isSearchMode && viewMode === 'grid' && !isMobile && !isAnyModalOpen,
+    enabled: !isSearchMode && viewMode === 'grid' && !isTouchInteraction && !isAnyModalOpen,
     startAreaRef: rootContainerRef,
     startAreaOutsetPx: 16,
     containerRef: selectionContainerRef,
@@ -391,6 +408,34 @@ const FolderContent: React.FC = () => {
       clearLongPressTimer();
     };
   }, [clearLongPressTimer]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const media = window.matchMedia('(any-pointer: coarse)');
+    const updateTouchCapability = () => {
+      const maxTouchPoints = typeof navigator !== 'undefined' ? (navigator.maxTouchPoints ?? 0) : 0;
+      setHasTouchInput(maxTouchPoints > 0 || media.matches);
+    };
+
+    updateTouchCapability();
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', updateTouchCapability);
+      return () => {
+        media.removeEventListener('change', updateTouchCapability);
+      };
+    }
+
+    if (typeof media.addListener === 'function') {
+      media.addListener(updateTouchCapability);
+      return () => {
+        media.removeListener(updateTouchCapability);
+      };
+    }
+  }, []);
 
   useLayoutEffect(() => {
     const viewport = pathBarViewportRef.current;
@@ -506,9 +551,9 @@ const FolderContent: React.FC = () => {
     : (browseError?.message ?? null);
   const activeLoading = isSearchMode ? isSearching : isLoading;
   const showMobileSelectionBar =
-    !isSearchMode && isMobile && selectedItems.size > 0;
-  const showDesktopSelectionBar = !isSearchMode && !isMobile && selectedItems.size > 0;
-  const topRowHeight = isMobile ? 44 : 52;
+    !isSearchMode && isTouchInteraction && selectedItems.size > 0;
+  const showDesktopSelectionBar = !isSearchMode && !isTouchInteraction && selectedItems.size > 0;
+  const topRowHeight = isMobileLayout ? 44 : 52;
   const topRowOffset = 8;
   const topRowSlotHeight = topRowHeight + topRowOffset;
   const moveActionIcon = (
@@ -538,7 +583,7 @@ const FolderContent: React.FC = () => {
   }, [fetchSpaceContents, isSearchMode, selectedPath, selectedSpace]);
 
   const handleMobileLongPressStart = useCallback((record: FileNode) => {
-    if (isSearchMode || !isMobile || isMobileSelectionMode) {
+    if (isSearchMode || !isTouchInteraction || isMobileSelectionMode) {
       return;
     }
     clearLongPressTimer();
@@ -550,14 +595,14 @@ const FolderContent: React.FC = () => {
       setIsMobileSelectionMode(true);
       setSelection(new Set([record.path]));
     }, LONG_PRESS_DURATION_MS);
-  }, [isMobile, isMobileSelectionMode, isSearchMode, clearLongPressTimer, setSelection]);
+  }, [isMobileSelectionMode, isSearchMode, isTouchInteraction, clearLongPressTimer, setSelection]);
 
   const handleMobileLongPressEnd = useCallback(() => {
     clearLongPressTimer();
   }, [clearLongPressTimer]);
 
   const handleSelectionTouchStartCapture = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
-    if (!isMobile) {
+    if (!isTouchInteraction) {
       return;
     }
     const touch = event.touches[0];
@@ -566,10 +611,10 @@ const FolderContent: React.FC = () => {
     }
     touchStartPointRef.current = { x: touch.clientX, y: touch.clientY };
     isTouchPanningRef.current = false;
-  }, [isMobile]);
+  }, [isTouchInteraction]);
 
   const handleSelectionTouchMoveCapture = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
-    if (!isMobile) {
+    if (!isTouchInteraction) {
       return;
     }
     const touch = event.touches[0];
@@ -583,10 +628,10 @@ const FolderContent: React.FC = () => {
       isTouchPanningRef.current = true;
       clearLongPressTimer();
     }
-  }, [isMobile, clearLongPressTimer]);
+  }, [isTouchInteraction, clearLongPressTimer]);
 
   const handleSelectionTouchEndCapture = useCallback(() => {
-    if (!isMobile) {
+    if (!isTouchInteraction) {
       return;
     }
     clearLongPressTimer();
@@ -595,7 +640,7 @@ const FolderContent: React.FC = () => {
     }
     isTouchPanningRef.current = false;
     touchStartPointRef.current = null;
-  }, [isMobile, clearLongPressTimer]);
+  }, [isTouchInteraction, clearLongPressTimer]);
 
   const handleItemTap = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode, index: number) => {
     if (Date.now() < suppressTapUntilRef.current) {
@@ -615,7 +660,7 @@ const FolderContent: React.FC = () => {
       return;
     }
 
-    if (!isMobile) {
+    if (!isTouchInteraction) {
       handleItemClick(e, record, index, sortedContent);
       return;
     }
@@ -644,7 +689,7 @@ const FolderContent: React.FC = () => {
     }
   }, [
     isAnyModalOpen,
-    isMobile,
+    isTouchInteraction,
     isMobileSelectionMode,
     isSearchMode,
     handleClearSelection,
@@ -656,20 +701,20 @@ const FolderContent: React.FC = () => {
   ]);
 
   const handleItemContextMenu = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode) => {
-    if (isSearchMode || isMobile || isAnyModalOpen) {
+    if (isSearchMode || isTouchInteraction || isAnyModalOpen) {
       e.preventDefault();
       return;
     }
     handleContextMenu(e, record);
-  }, [isSearchMode, isMobile, isAnyModalOpen, handleContextMenu]);
+  }, [isSearchMode, isTouchInteraction, isAnyModalOpen, handleContextMenu]);
 
   const handleContainerContextMenu = useCallback((e: React.MouseEvent) => {
-    if (isSearchMode || isMobile || isAnyModalOpen) {
+    if (isSearchMode || isTouchInteraction || isAnyModalOpen) {
       e.preventDefault();
       return;
     }
     handleEmptyAreaContextMenu(e);
-  }, [isSearchMode, isMobile, isAnyModalOpen, handleEmptyAreaContextMenu]);
+  }, [isSearchMode, isTouchInteraction, isAnyModalOpen, handleEmptyAreaContextMenu]);
 
   // Modal wrapper handlers
   const handleRenameConfirm = async () => {
@@ -888,7 +933,7 @@ const FolderContent: React.FC = () => {
     }
 
     // 모바일 선택모드에서는 배경 탭으로 선택 해제하지 않는다.
-    if (isMobile && isMobileSelectionMode) {
+    if (isTouchInteraction && isMobileSelectionMode) {
       return;
     }
 
@@ -1152,11 +1197,11 @@ const FolderContent: React.FC = () => {
 
       <div
         ref={selectionContainerRef}
-        onScroll={isMobile ? handleMobileLongPressEnd : undefined}
-        onTouchStartCapture={isMobile ? handleSelectionTouchStartCapture : undefined}
-        onTouchMoveCapture={isMobile ? handleSelectionTouchMoveCapture : undefined}
-        onTouchEndCapture={isMobile ? handleSelectionTouchEndCapture : undefined}
-        onTouchCancelCapture={isMobile ? handleSelectionTouchEndCapture : undefined}
+        onScroll={isTouchInteraction ? handleMobileLongPressEnd : undefined}
+        onTouchStartCapture={isTouchInteraction ? handleSelectionTouchStartCapture : undefined}
+        onTouchMoveCapture={isTouchInteraction ? handleSelectionTouchMoveCapture : undefined}
+        onTouchEndCapture={isTouchInteraction ? handleSelectionTouchEndCapture : undefined}
+        onTouchCancelCapture={isTouchInteraction ? handleSelectionTouchEndCapture : undefined}
         style={{
           position: 'relative',
           flex: 1,
@@ -1164,7 +1209,7 @@ const FolderContent: React.FC = () => {
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
-          touchAction: isMobile ? 'pan-y' : undefined,
+          touchAction: isTouchInteraction ? 'pan-y' : undefined,
           WebkitOverflowScrolling: 'touch',
           paddingBottom: PATH_BAR_CONTENT_OVERLAY_HEIGHT + 6,
         }}
@@ -1255,7 +1300,7 @@ const FolderContent: React.FC = () => {
                 onFolderDragLeave={handleFolderDragLeave}
                 onFolderDrop={handleFolderDrop}
                 itemsRef={itemsRef}
-                disableDraggable={isSearchMode || isSelecting || isMobile || !canWriteFiles}
+                disableDraggable={isSearchMode || isSelecting || isTouchInteraction || !canWriteFiles}
                 spaceId={isSearchMode ? undefined : selectedSpace?.id}
               />
             )}
