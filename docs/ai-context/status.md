@@ -1,6 +1,19 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **파일 익스플로러 입력 모드 분리(레이아웃 vs 상호작용) 적용 (2026-02-24)**:
+    - 프론트:
+      - `FolderContent`에서 화면 폭 기준 레이아웃 모드와 터치 입력 기준 상호작용 모드를 분리.
+      - `layoutMode(desktop/mobile)`는 UI 배치에만 사용하고, `interactionMode(pointer/touch)`는 선택/탭/컨텍스트메뉴/드래그 동작 분기에 사용.
+      - 터치 입력 환경(PC 해상도 포함)에서는 모바일 상호작용 규칙(탭 진입/롱프레스 선택/팬 억제 로직)을 적용.
+      - 터치 입력 환경에서는 박스선택 및 내부 드래그 이동을 비활성화해 마우스 규칙과의 충돌을 방지.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
 - **언어 설정(i18n) 실제 반영 4차 (#141, 2026-02-23)**:
     - 프론트:
       - 설정 상세 섹션 하드코딩 문구를 번역 키 기반으로 전환.
