@@ -2,6 +2,7 @@ package webdav
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 	"taeu.kr/cohesion/internal/account"
@@ -22,6 +23,17 @@ func NewHandler(webDavService *webdav.Service, accountService *account.Service) 
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) *web.Error {
+	// 루트 OPTIONS(/dav, /dav/)는 무인증으로 허용해 DAV 핸드셰이크를 통과시킨다.
+	// 하위 경로 OPTIONS는 기존 인증 경로를 유지한다.
+	if r.Method == http.MethodOptions && isWebDAVRootPath(r.URL.Path) {
+		if h.webDavService != nil {
+			h.webDavService.GetRootHandler().ServeHTTP(w, r)
+			return nil
+		}
+		writeWebDAVRootOptionsFallback(w)
+		return nil
+	}
+
 	username, password, ok := r.BasicAuth()
 	if !ok {
 		writeWebDAVUnauthorized(w)
@@ -106,4 +118,15 @@ func writeWebDAVUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", `Basic realm="Cohesion WebDAV"`)
 	w.WriteHeader(http.StatusUnauthorized)
 	_, _ = w.Write([]byte("Unauthorized"))
+}
+
+func isWebDAVRootPath(path string) bool {
+	trimmed := strings.TrimRight(strings.TrimSpace(path), "/")
+	return trimmed == "/dav"
+}
+
+func writeWebDAVRootOptionsFallback(w http.ResponseWriter) {
+	w.Header().Set("DAV", "1, 2")
+	w.Header().Set("MS-Author-Via", "DAV")
+	w.WriteHeader(http.StatusOK)
 }
