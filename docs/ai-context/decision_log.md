@@ -78,6 +78,22 @@
 - **이유**:
   - 일반 탐색 모드의 불필요 중복 선택 최적화는 유지하면서, 화면 모드 전환이 핵심인 검색/휴지통 모드에서는 의도된 내비게이션 이벤트를 보장할 수 있다.
 
+### Windows browse 경로 정규화 계층 적용 (2026-02-25)
+- **문제**:
+  - Windows에서 `C:`는 루트(`C:\`)가 아니라 드라이브 현재 작업 디렉터리로 해석될 수 있어, browse API가 `C:`를 그대로 읽으면 C 드라이브 하위 목록이 실제 루트와 달라질 수 있다.
+  - 또한 입력 경로가 `C:foo`(drive-relative), `C:/foo`, UNC(`\\server\share`) 형태로 혼재하면 해석 일관성이 깨질 수 있다.
+- **결정**:
+  - `browse.Service`에 OS별 경로 정규화 계층(`normalizeBrowsePathForOS`)을 추가한다.
+  - Windows 경로는 별도 파서(`normalizeWindowsBrowsePath`)로 처리해 아래를 일관화한다:
+    - drive root (`C:`, `C:/`, `C:\.`)
+    - drive-relative (`C:foo` -> `C:\foo`)
+    - UNC (`\\server\share\...`)
+  - mountpoint dedupe 키는 Windows에서만 소문자 비교를 적용하고, 비-Windows에서는 대소문자/공백을 포함한 원문 경로를 유지한다.
+  - 비-Windows 경로 정규화에는 전역 `TrimSpace`를 적용하지 않는다.
+  - 파티션 mountpoint 초기화 시점과 `ListDirectory` 경로 처리 시점 모두 동일 정규화를 적용한다.
+- **이유**:
+  - 프론트/OS/라이브러리에서 전달되는 Windows 경로 표기 차이를 서버에서 흡수해야, 사용자에게 일관된 드라이브/네트워크 경로 탐색 결과를 제공할 수 있다.
+
 ### DB 재생성 이후 stale JWT 차단을 위한 사용자 실체 검증 추가 (2026-02-25)
 - **문제**:
   - JWT는 서명/만료만 유효하면 통과해, DB 삭제/재생성 이후에도 기존 세션이 일부 API를 호출할 수 있었다.
