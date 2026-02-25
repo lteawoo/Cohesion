@@ -125,6 +125,7 @@ export default function MainSider({ onPathSelect, onAfterSelect, onClosePanel, c
           onSpaceDelete={canWriteSpaces ? handleDeleteSpace : undefined}
           selectedKeys={treeSelectedKeys}
           isSearchMode={isSearchMode}
+          bypassSameSelectionGuard={isSearchMode || isTrashMode}
         />
         <Tree.DirectoryTree
           className="folder-tree layout-sider-tree-action"
