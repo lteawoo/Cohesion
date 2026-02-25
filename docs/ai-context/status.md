@@ -1,6 +1,37 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **PID 파일 + 종료 스크립트(Shutdown 파일) 추가 (2026-02-25)**:
+    - 백엔드:
+      - 실행 시 실행파일 루트에 `cohesion.pid`를 기록하고 종료 시 정리하도록 적용.
+      - 구현 파일:
+        - `apps/backend/main.go`
+    - 릴리즈 스크립트:
+      - macOS/Linux용 `stop-cohesion.command` 추가 (PID 기반 graceful 종료, 필요 시 강제 종료).
+      - Windows용 `stop-cohesion.bat` 추가 (PID 기반 종료).
+      - GoReleaser 아카이브에 두 스크립트 포함.
+      - 구현 파일:
+        - `apps/backend/scripts/release/stop-cohesion.command`
+        - `apps/backend/scripts/release/stop-cohesion.bat`
+        - `.goreleaser.yaml`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+
+- **실행파일 루트 `logs` 디렉터리 로그 통합 (2026-02-25)**:
+    - 백엔드:
+      - 서버 시작 시 실행파일 경로 기준 `logs/app.log`를 자동 생성하고 로그를 append로 기록.
+      - 개발 모드에서는 기존 콘솔 로그를 유지하면서 `app.log`에도 동시 기록.
+      - 프로덕션 모드에서는 `app.log`를 기본 로그 출력으로 사용.
+      - 구현 파일:
+        - `apps/backend/main.go`
+    - 업데이터:
+      - 업데이터 실행 로그를 실행파일 루트 `logs/updater.log`에 append 기록.
+      - 업데이트 완료 후 재시작되는 앱 프로세스의 `stdout/stderr`를 `logs/app.log`로 리다이렉트.
+      - 구현 파일:
+        - `apps/backend/cmd/updater/main.go`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+
 - **DB 초기화 후 stale 인증 세션 허용 버그 수정 (2026-02-25)**:
     - 문제:
       - DB 삭제/재생성 이후에도 기존 JWT가 유효해 `/api/auth/me`와 일부 API가 인증된 것처럼 동작.

@@ -6,11 +6,13 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -50,6 +52,71 @@ var shutdownChan = make(chan struct{}, 1)
 
 func init() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+}
+
+func resolveExecutableDir() (string, error) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	executablePath = filepath.Clean(executablePath)
+	if resolvedPath, err := filepath.EvalSymlinks(executablePath); err == nil && strings.TrimSpace(resolvedPath) != "" {
+		executablePath = resolvedPath
+	}
+	return filepath.Dir(executablePath), nil
+}
+
+func openRootLogFile(fileName string) (*os.File, string, error) {
+	executableDir, err := resolveExecutableDir()
+	if err != nil {
+		return nil, "", err
+	}
+	logsDir := filepath.Join(executableDir, "logs")
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		return nil, "", err
+	}
+	logPath := filepath.Join(logsDir, fileName)
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, "", err
+	}
+	return logFile, logPath, nil
+}
+
+func configureRootLogger() (*os.File, string, error) {
+	logFile, logPath, err := openRootLogFile("app.log")
+	if err != nil {
+		return nil, "", err
+	}
+
+	if goEnv == "production" {
+		zerolog.TimestampFunc = func() time.Time {
+			return time.Now().UTC()
+		}
+		log.Logger = log.Output(logFile)
+		return logFile, logPath, nil
+	}
+
+	log.Logger = log.Output(zerolog.MultiLevelWriter(
+		zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339},
+		logFile,
+	))
+	return logFile, logPath, nil
+}
+
+func writePIDFile() (func(), string, error) {
+	executableDir, err := resolveExecutableDir()
+	if err != nil {
+		return func() {}, "", err
+	}
+	pidPath := filepath.Join(executableDir, "cohesion.pid")
+	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
+		return func() {}, "", err
+	}
+	cleanup := func() {
+		_ = os.Remove(pidPath)
+	}
+	return cleanup, pidPath, nil
 }
 
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
@@ -151,13 +218,20 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 }
 
 func main() {
-	// Zerolog 전역 로거 설정
-	if goEnv == "production" {
-		zerolog.TimestampFunc = func() time.Time {
-			return time.Now().UTC()
-		}
+	logFile, logPath, loggerErr := configureRootLogger()
+	if loggerErr != nil {
+		fmt.Fprintf(os.Stderr, "[Main] failed to initialize file logger: %v\n", loggerErr)
 	} else {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+		defer logFile.Close()
+		log.Info().Str("path", logPath).Msg("[Main] App log file initialized")
+	}
+
+	pidCleanup, pidPath, pidErr := writePIDFile()
+	if pidErr != nil {
+		log.Warn().Err(pidErr).Msg("[Main] Failed to write PID file")
+	} else {
+		defer pidCleanup()
+		log.Info().Str("path", pidPath).Int("pid", os.Getpid()).Msg("[Main] PID file initialized")
 	}
 
 	log.Info().Msg("[Main] Starting Server...")

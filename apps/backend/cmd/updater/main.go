@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,29 @@ type updaterArgs struct {
 	cleanupDir  string
 }
 
+type updaterLogger struct {
+	out io.Writer
+}
+
+func (l updaterLogger) logf(format string, args ...any) {
+	_, _ = fmt.Fprintf(l.out, "[updater] %s\n", fmt.Sprintf(format, args...))
+}
+
+func openRootLogFile(targetPath, fileName string) (*os.File, string, error) {
+	targetDir := filepath.Dir(filepath.Clean(targetPath))
+	logsDir := filepath.Join(targetDir, "logs")
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		return nil, "", err
+	}
+
+	logPath := filepath.Join(logsDir, fileName)
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, "", err
+	}
+	return logFile, logPath, nil
+}
+
 func main() {
 	args, err := parseFlags()
 	if err != nil {
@@ -28,10 +52,23 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(args); err != nil {
-		fmt.Fprintf(os.Stderr, "[updater] failed: %v\n", err)
+	logger := updaterLogger{out: os.Stderr}
+	logFile, updaterLogPath, logErr := openRootLogFile(args.target, "updater.log")
+	if logErr != nil {
+		fmt.Fprintf(os.Stderr, "[updater] failed to initialize updater.log: %v\n", logErr)
+	} else {
+		defer logFile.Close()
+		logger.out = io.MultiWriter(os.Stderr, logFile)
+		logger.logf("updater log initialized: %s", updaterLogPath)
+	}
+
+	appLogPath := filepath.Join(filepath.Dir(args.target), "logs", "app.log")
+	logger.logf("starting update flow (pid=%d, target=%s, replacement=%s)", args.pid, args.target, args.replacement)
+	if err := run(args, appLogPath, logger); err != nil {
+		logger.logf("failed: %v", err)
 		os.Exit(1)
 	}
+	logger.logf("completed successfully")
 }
 
 func parseFlags() (updaterArgs, error) {
@@ -68,7 +105,7 @@ func parseFlags() (updaterArgs, error) {
 	return parsed, nil
 }
 
-func run(args updaterArgs) error {
+func run(args updaterArgs, appLogPath string, logger updaterLogger) error {
 	if args.cleanupDir != "" {
 		defer os.RemoveAll(args.cleanupDir)
 	}
@@ -87,7 +124,7 @@ func run(args updaterArgs) error {
 		return err
 	}
 
-	if err := restartApplication(args.target, args.workdir, appArgs); err != nil {
+	if err := restartApplication(args.target, args.workdir, appArgs, appLogPath, logger); err != nil {
 		_ = rollbackBinary(args.target, backupPath)
 		return err
 	}
@@ -154,11 +191,20 @@ func rollbackBinary(targetPath, backupPath string) error {
 	return os.Rename(backupPath, targetPath)
 }
 
-func restartApplication(targetPath, workdir string, appArgs []string) error {
+func restartApplication(targetPath, workdir string, appArgs []string, appLogPath string, logger updaterLogger) error {
 	cmd := exec.Command(targetPath, appArgs...)
 	cmd.Dir = workdir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	appLogFile, err := openAppLogFile(appLogPath)
+	if err != nil {
+		logger.logf("failed to open app log file (%s), fallback to stdio: %v", appLogPath, err)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		defer appLogFile.Close()
+		cmd.Stdout = appLogFile
+		cmd.Stderr = appLogFile
+		logger.logf("restarted app logs redirected to: %s", appLogPath)
+	}
 	cmd.Stdin = nil
 	cmd.Env = os.Environ()
 
@@ -167,4 +213,11 @@ func restartApplication(targetPath, workdir string, appArgs []string) error {
 	}
 
 	return nil
+}
+
+func openAppLogFile(appLogPath string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(appLogPath), 0o755); err != nil {
+		return nil, err
+	}
+	return os.OpenFile(appLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 }

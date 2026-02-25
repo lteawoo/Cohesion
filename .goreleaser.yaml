@@ -58,11 +58,15 @@ archives:
       - goos: windows
         formats:
           - zip
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ if eq .Os \"darwin\" }}apple_{{ .Os }}{{ else }}{{ .Os }}{{ end }}_{{ .Arch }}"
     files:
       - README.md
       - src: apps/backend/config/config.prod.yaml
         dst: config/config.prod.yaml
+      - src: apps/backend/scripts/release/stop-cohesion.command
+        dst: stop-cohesion.command
+      - src: apps/backend/scripts/release/stop-cohesion.bat
+        dst: stop-cohesion.bat
 
 checksum:
   name_template: checksums.txt

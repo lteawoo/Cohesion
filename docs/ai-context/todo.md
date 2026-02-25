@@ -156,6 +156,8 @@
   - [ ] 검색 결과 키워드 하이라이트
 - [x] 스페이스 0개 + 휴지통 경로에서 Space 생성 모달 트리 확장 불가 루프 수정 (`TrashExplorer` fetch 루프 제거 + `FolderTree` 초기화 effect 분리)
 - [x] DB 삭제/재생성 후 stale JWT 세션 차단 (미들웨어 사용자 실체 검증 + refresh 경로 동일 검증 + 회귀 테스트)
+- [x] 실행파일 루트 로그 통합 (`logs/app.log`, `logs/updater.log` 생성 및 업데이터 재시작 stdout/stderr 리다이렉트)
+- [x] 실행파일 루트 PID 파일(`cohesion.pid`) 기록 + 릴리즈용 shutdown 스크립트(`stop-cohesion.command`, `stop-cohesion.bat`) 추가
 - [ ] 텍스트 파일 미리보기
 - [x] 휴지통(Soft Delete) + 복원 기능 (#123)
 - [x] 휴지통 진입 위치를 사이드패널 최하단 고정 버튼으로 이동 + `/trash` 전역(모든 Space) 통합 화면 전환
