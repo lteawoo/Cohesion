@@ -1,6 +1,20 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **WebDAV 루트 `/dav` 301 리다이렉트로 인한 405 회귀 수정 (2026-02-25)**:
+    - 문제:
+      - 서버가 `/dav/`만 등록되어 있어 `/dav` 요청이 `301 -> /dav/`로 리다이렉트됨.
+      - 일부 WebDAV 클라이언트가 리다이렉트 이후 메서드(`PROPFIND`/`OPTIONS`)를 `GET`으로 바꿔 재요청해 `405 Method Not Allowed`가 발생.
+      - 결과적으로 DAV 루트 연결 시 Space 목록 조회가 실패할 수 있었음.
+    - 백엔드:
+      - WebDAV 라우트를 `/dav`와 `/dav/` 모두 등록해 리다이렉트를 제거.
+      - `registerWebDAVRoutes` 헬퍼 분리 및 `/dav`·`/dav/`·`/dav/{space}` 회귀 테스트 추가.
+      - 구현 파일:
+        - `apps/backend/main.go`
+        - `apps/backend/main_test.go`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+
 - **Windows C 드라이브 경로 정규화 보강 (2026-02-25)**:
     - 문제:
       - Windows에서 `C:` 형태 경로가 들어오면 드라이브 루트(`C:\`)가 아닌 드라이브 현재 작업 디렉터리로 해석될 수 있어, C 드라이브 하위 폴더 목록이 실제와 다를 수 있었다.

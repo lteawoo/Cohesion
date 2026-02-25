@@ -50,6 +50,8 @@
 - [x] 모노레포 전역 `config/secrets` Git ignore 보강 (`.gitignore`에 `**/config/secrets/` 추가)
 - [x] 전체 보안점검 수행 (코드/설정/의존성 점검 및 취약점 우선순위 도출)
 - [x] WebDAV 보안 하드닝 (Basic Auth 강제 + Space 권한 체크 + `webdav_enabled` 플래그 적용)
+- [x] WebDAV 루트 라우트 `/dav` + `/dav/` 이중 등록으로 리다이렉트(301) 제거 및 루트 연결 405 회귀 방지
+- [x] WebDAV 루트 라우트 회귀 테스트 추가 (`main_test.go`: `/dav`·`/dav/`·`/dav/{space}` PROPFIND 비리다이렉트 검증)
 - [x] 기본 관리자 초기값 하드닝 (프로덕션 기본 계정/비밀번호 fallback 금지)
 - [x] 초기 관리자 보안 부팅 전환 (기본 fallback 제거 + 최초 실행 setup API/화면 도입)
 - [x] JWT/SQLite 로컬 비밀값 하드닝 (JWT 랜덤 시크릿 파일 생성, DB 파일 권한 제한)
