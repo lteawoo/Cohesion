@@ -9,6 +9,7 @@
 - [x] 백엔드 테스트 최소 세트 확장 (`auth/service_test`, `auth/middleware_test`, `account/service_permissions_test`, `auth/test_helpers_test`)
 - [x] 프론트 탐색 상태 처리 일관화 (로딩/에러/빈 상태 UI + 재시도 동선 정리, `api/error.ts` 추가)
 - [x] PR CI 기본 파이프라인 추가 (`.github/workflows/ci.yml`, `lint + build + go test`)
+- [x] GitHub Actions Go 캐시 의존 파일 경로 고정 (`cache-dependency-path: apps/backend/go.sum`, CI/Release 공통)
 - [x] 프론트 `typecheck` 스크립트 추가 및 CI에 `Run typecheck` 단계 반영 (`tsc -b` 경로 표준화)
 - [x] 프론트 타입체크 오류 정리 (`TrashModal`/`TrashExplorer`/`SpaceSettings` 콜백 타입 및 아이콘 prop 정합)
 - [x] `v0.1.0` 릴리즈 노트 문서 작성 (`docs/releases/v0.1.0.md`, 영문 카테고리 기반)

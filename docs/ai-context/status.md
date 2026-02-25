@@ -1,6 +1,15 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **GitHub Actions Go 캐시 경로 보정 (2026-02-26)**:
+    - 문제:
+      - 모노레포 구조에서 `go.sum`이 루트가 아닌 `apps/backend/go.sum`에 위치해 `actions/setup-go` 캐시 복원 단계에서 실패 메시지가 발생할 수 있었다.
+    - CI/Release:
+      - `Setup Go` 단계에 `cache-dependency-path: apps/backend/go.sum`을 추가해 캐시 의존 파일 경로를 명시.
+      - 구현 파일:
+        - `.github/workflows/ci.yml`
+        - `.github/workflows/release.yml`
+
 - **WebDAV OPTIONS 401 차단 완화 (2026-02-26)**:
     - 문제:
       - WebDAV 핸들러가 메서드 구분 없이 Basic Auth를 먼저 검사해, 인증 헤더 없는 `OPTIONS` 요청도 즉시 `401`로 차단됐다.
