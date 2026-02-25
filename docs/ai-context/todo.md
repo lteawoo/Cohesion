@@ -155,6 +155,7 @@
   - [x] 검색 모드에서도 뷰 토글(`table/grid`) 재허용 (강제 table 고정 해제)
   - [ ] 검색 결과 키워드 하이라이트
 - [x] 스페이스 0개 + 휴지통 경로에서 Space 생성 모달 트리 확장 불가 루프 수정 (`TrashExplorer` fetch 루프 제거 + `FolderTree` 초기화 effect 분리)
+- [x] 스페이스 0개에서도 `/trash` 기본 레이아웃 유지 + `/trash`에서 동일 Space 재클릭 시 `/` 전환 보장 (`FolderTree` same-selection guard 우회 옵션)
 - [x] DB 삭제/재생성 후 stale JWT 세션 차단 (미들웨어 사용자 실체 검증 + refresh 경로 동일 검증 + 회귀 테스트)
 - [x] 실행파일 루트 로그 통합 (`logs/app.log`, `logs/updater.log` 생성 및 업데이터 재시작 stdout/stderr 리다이렉트)
 - [x] 실행파일 루트 PID 파일(`cohesion.pid`) 기록 + 릴리즈용 shutdown 스크립트(`stop-cohesion.command`, `stop-cohesion.bat`) 추가

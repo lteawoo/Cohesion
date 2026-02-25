@@ -37,6 +37,7 @@ interface FolderTreeProps {
   onSpaceDelete?: (space: Space) => void;
   selectedKeys?: React.Key[];
   isSearchMode?: boolean;
+  bypassSameSelectionGuard?: boolean;
 }
 
 function resolveTargetKey(
@@ -208,6 +209,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
   onSpaceDelete,
   selectedKeys,
   isSearchMode = false,
+  bypassSameSelectionGuard = false,
 }) => {
   const { t } = useTranslation();
   const spaces = useSpaceStore((state) => state.spaces);
@@ -556,19 +558,19 @@ const FolderTree: React.FC<FolderTreeProps> = ({
         if (sepIndex >= 0) {
           // Space 하위 노드 선택 — 실제 경로와 space 정보 전달
           const nextPath = key.substring(sepIndex + 2);
-          if (!isSameSelection(nextPath, space)) {
+          if (bypassSameSelectionGuard || !isSameSelection(nextPath, space)) {
             onSelect(nextPath, space);
           }
         } else {
           // Space 루트 노드 선택
           if (space) {
-            if (!isSameSelection('', space)) {
+            if (bypassSameSelectionGuard || !isSameSelection('', space)) {
               onSelect('', space);
             }
           }
         }
       } else {
-        if (!isSameSelection(key)) {
+        if (bypassSameSelectionGuard || !isSameSelection(key)) {
           onSelect(key);
         }
       }

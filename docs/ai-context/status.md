@@ -1,6 +1,22 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **휴지통 화면/트리 전환 UX 버그 수정 (2026-02-25)**:
+    - 문제:
+      - Space가 0개일 때 `/trash`가 조기 `Empty` 반환으로 인해 휴지통 기본 레이아웃 없이 보임.
+      - `/trash`에서 Space 트리를 클릭해도 기존 선택과 동일하면 `onSelect`가 생략되어 `/` 전환이 막힘.
+    - 프론트:
+      - `TrashExplorer`의 Space 0개 조기 반환 제거, 테이블 empty 상태에서만 `noConnectedSpace` 문구 노출.
+      - `FolderTree`에 `bypassSameSelectionGuard` 옵션 추가, `MainSider`에서 검색/휴지통 모드일 때 활성화.
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/TrashExplorer.tsx`
+        - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+        - `apps/frontend/src/components/layout/MainLayout/MainSider.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
 - **PID 파일 + 종료 스크립트(Shutdown 파일) 추가 (2026-02-25)**:
     - 백엔드:
       - 실행 시 실행파일 루트에 `cohesion.pid`를 기록하고 종료 시 정리하도록 적용.

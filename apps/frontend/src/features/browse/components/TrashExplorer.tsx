@@ -541,14 +541,6 @@ const TrashExplorer: React.FC = () => {
     ];
   }, [t]);
 
-  if (spaces.length === 0 && !loading) {
-    return (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Empty description={t('trashExplorer.noConnectedSpace')} />
-      </div>
-    );
-  }
-
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 12, padding: 16 }}>
       <div
@@ -591,7 +583,9 @@ const TrashExplorer: React.FC = () => {
             },
           }}
           scroll={{ y: 'calc(100vh - 260px)' }}
-          locale={{ emptyText: <Empty description={t('trashExplorer.emptyText')} /> }}
+          locale={{
+            emptyText: <Empty description={t('trashExplorer.emptyText')} />,
+          }}
         />
       </div>
     </div>
