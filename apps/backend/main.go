@@ -119,6 +119,11 @@ func writePIDFile() (func(), string, error) {
 	return cleanup, pidPath, nil
 }
 
+func registerWebDAVRoutes(mux *http.ServeMux, handler http.Handler) {
+	mux.Handle("/dav", handler)
+	mux.Handle("/dav/", handler)
+}
+
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
 func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{}) (*http.Server, *sftpserver.Service, error) {
 	// 의존성 주입
@@ -179,7 +184,10 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 
 	// WebDAV 핸들러 등록
 	if config.Conf.Server.WebdavEnabled {
-		mux.Handle("/dav/", web.Handler(func(w http.ResponseWriter, r *http.Request) *web.Error {
+		// 일부 DAV 클라이언트는 "/dav" -> "/dav/" 리다이렉트 시 메서드를 보존하지 않아
+		// PROPFIND/OPTIONS 대신 GET으로 재요청할 수 있다. (결과: 405)
+		// 두 경로를 모두 직접 등록해 리다이렉트를 피한다.
+		registerWebDAVRoutes(mux, web.Handler(func(w http.ResponseWriter, r *http.Request) *web.Error {
 			return webDavHandler.ServeHTTP(w, r)
 		}))
 	}
