@@ -19,7 +19,23 @@ builds:
     flags:
       - -tags=production
     ldflags:
-      - -s -w -X main.goEnv=production
+      - -s -w -X main.goEnv=production -X main.appVersion={{.Version}} -X main.appCommit={{.Commit}} -X main.appBuildDate={{.Date}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+  - id: updater
+    dir: ./apps/backend
+    main: ./cmd/updater
+    binary: cohesion-updater
+    env:
+      - CGO_ENABLED=0
     goos:
       - darwin
       - linux
@@ -35,17 +51,22 @@ archives:
   - id: backend
     ids:
       - backend
+      - updater
     formats:
       - tar.gz
     format_overrides:
       - goos: windows
         formats:
           - zip
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ if eq .Os \"darwin\" }}apple_{{ .Os }}{{ else }}{{ .Os }}{{ end }}_{{ .Arch }}"
     files:
       - README.md
       - src: apps/backend/config/config.prod.yaml
         dst: config/config.prod.yaml
+      - src: apps/backend/scripts/release/stop-cohesion.command
+        dst: stop-cohesion.command
+      - src: apps/backend/scripts/release/stop-cohesion.bat
+        dst: stop-cohesion.bat
 
 checksum:
   name_template: checksums.txt

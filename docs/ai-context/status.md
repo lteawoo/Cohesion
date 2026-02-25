@@ -1,6 +1,167 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **PID 파일 + 종료 스크립트(Shutdown 파일) 추가 (2026-02-25)**:
+    - 백엔드:
+      - 실행 시 실행파일 루트에 `cohesion.pid`를 기록하고 종료 시 정리하도록 적용.
+      - 구현 파일:
+        - `apps/backend/main.go`
+    - 릴리즈 스크립트:
+      - macOS/Linux용 `stop-cohesion.command` 추가 (PID 기반 graceful 종료, 필요 시 강제 종료).
+      - Windows용 `stop-cohesion.bat` 추가 (PID 기반 종료).
+      - GoReleaser 아카이브에 두 스크립트 포함.
+      - 구현 파일:
+        - `apps/backend/scripts/release/stop-cohesion.command`
+        - `apps/backend/scripts/release/stop-cohesion.bat`
+        - `.goreleaser.yaml`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+
+- **실행파일 루트 `logs` 디렉터리 로그 통합 (2026-02-25)**:
+    - 백엔드:
+      - 서버 시작 시 실행파일 경로 기준 `logs/app.log`를 자동 생성하고 로그를 append로 기록.
+      - 개발 모드에서는 기존 콘솔 로그를 유지하면서 `app.log`에도 동시 기록.
+      - 프로덕션 모드에서는 `app.log`를 기본 로그 출력으로 사용.
+      - 구현 파일:
+        - `apps/backend/main.go`
+    - 업데이터:
+      - 업데이터 실행 로그를 실행파일 루트 `logs/updater.log`에 append 기록.
+      - 업데이트 완료 후 재시작되는 앱 프로세스의 `stdout/stderr`를 `logs/app.log`로 리다이렉트.
+      - 구현 파일:
+        - `apps/backend/cmd/updater/main.go`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+
+- **DB 초기화 후 stale 인증 세션 허용 버그 수정 (2026-02-25)**:
+    - 문제:
+      - DB 삭제/재생성 이후에도 기존 JWT가 유효해 `/api/auth/me`와 일부 API가 인증된 것처럼 동작.
+      - 역할 기반 API(`/api/spaces` 등)는 통과하지만, space 리소스 권한 API(`.../browse`)는 사용자 조회 실패로 막혀 UI가 비정상 상태로 보임.
+    - 백엔드:
+      - 인증 미들웨어에서 토큰 파싱 후 현재 DB 사용자 실체를 강제 검증.
+      - 검증 성공 시 claims를 DB 사용자 정보로 동기화(닉네임/역할 포함)하여 stale 클레임 의존도를 낮춤.
+      - refresh 토큰 경로에도 동일 사용자 검증 로직 적용.
+      - 재생성 사용자와 기존 토큰 구분을 위해 `created_at` vs token `issuedAt`(초 단위) 검증 추가.
+      - 구현 파일:
+        - `apps/backend/internal/auth/service.go`
+        - `apps/backend/internal/auth/middleware.go`
+        - `apps/backend/internal/auth/middleware_test.go`
+        - `apps/backend/internal/auth/service_test.go`
+    - 검증:
+      - `cd apps/backend && go test ./internal/auth/...` 통과.
+      - `cd apps/backend && go test ./...` 통과.
+
+- **휴지통 + Space 생성 모달 트리 확장 루프 수정 (2026-02-25)**:
+    - 문제:
+      - 스페이스가 0개인 상태에서 `/trash` 진입 시 `TrashExplorer`가 `fetchSpaces()`를 반복 호출.
+      - 이로 인해 `FolderTree(showBaseDirectories)` 초기화 effect가 반복 실행되며 모달 트리 확장 상태가 즉시 초기화됨.
+    - 프론트:
+      - `TrashExplorer`에서 빈 스페이스일 때 반복 `fetchSpaces()`를 제거하고 로컬 selection/state만 정리하도록 변경.
+      - `FolderTree` 초기화 effect를 분리:
+        - `showBaseDirectories=true` 전용 effect (base dirs 로드)
+        - 일반 스페이스 트리 전용 effect
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/TrashExplorer.tsx`
+        - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
+- **별도 업데이터 1차(MVP) 구현 (2026-02-24)**:
+    - 백엔드:
+      - `system` API 확장:
+        - `POST /api/system/update/start`
+        - `GET /api/system/update/status`
+      - `SelfUpdateManager` 추가:
+        - 최신 릴리즈/자산 조회
+        - 현재 OS/아키텍처용 아카이브 선택
+        - `checksums.txt` 기반 SHA-256 검증
+        - 새 바이너리 추출 후 별도 업데이터 프로세스 실행
+        - 업데이트 API 권한 매핑(`server.config.read/write`) 보강
+        - 전환 상태(`switching`)에서는 중복 시작이 되지 않도록 러닝 상태 유지
+        - 임시 디렉토리 정리를 업데이터 프로세스로 위임(`--cleanup-dir`)
+      - 업데이터 연동용 종료 채널(`shutdownChan`)을 메인 루프에 추가해, 업데이터 실행 후 서버를 정상 종료하도록 구성.
+      - 구현 파일:
+        - `apps/backend/internal/system/handler.go`
+        - `apps/backend/internal/system/self_update.go`
+        - `apps/backend/main.go`
+        - `apps/backend/cmd/updater/main.go`
+        - `apps/backend/internal/system/self_update_test.go`
+        - `apps/backend/internal/system/handler_test.go`
+    - 릴리즈:
+      - GoReleaser에 `updater` 빌드 타깃 추가(`cohesion-updater`) 및 아카이브 동봉.
+      - 구현 파일:
+        - `.goreleaser.yaml`
+    - 프론트:
+      - `About` 섹션에서 업데이트 시작 API 호출/상태 폴링 훅 추가.
+      - 업데이트 가능 시 `업데이트` 버튼으로 self-update 시작.
+      - 업데이트가 없을 때도 테스트 목적으로 동일 버전 강제 재설치(`force`) 시작 지원.
+      - update-check 실패(`updateInfo=null`) 시 강제재설치 오판이 발생하지 않도록 force 조건 보정.
+      - 구현 파일:
+        - `apps/frontend/src/api/config.ts`
+        - `apps/frontend/src/features/status/hooks/useSelfUpdate.ts`
+        - `apps/frontend/src/pages/Settings/sections/AboutSettings.tsx`
+        - `apps/frontend/src/i18n/resources.ts`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+      - `pnpm release:check` 통과.
+
+- **설정 About/버전 정보 섹션 추가 및 구조 정리 (2026-02-24)**:
+    - 프론트:
+      - Settings 좌측 메뉴 하단에 `About` 섹션을 추가.
+      - `AboutSettings` 섹션 신설:
+        - `Cohesion` 카드(서비스 설명 + GitHub 링크)
+        - `버전 정보` 카드(현재/최신 버전, 릴리즈 링크)
+      - 시스템 버전 조회 훅 `useSystemVersion` 추가(`GET /api/system/version` 연동).
+      - 상태 타입에 `SystemVersionResponse` 추가.
+      - i18n 리소스에 `settingsPage.sections.about`, `aboutSettings.*` 키(ko/en) 추가.
+      - 구현 파일:
+        - `apps/frontend/src/pages/Settings/index.tsx`
+        - `apps/frontend/src/pages/Settings/sections/AboutSettings.tsx`
+        - `apps/frontend/src/features/status/hooks/useSystemVersion.ts`
+        - `apps/frontend/src/features/status/types.ts`
+        - `apps/frontend/src/i18n/resources.ts`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+
+- **릴리즈 업데이트 체크 1차 구현 (#146, 2026-02-24)**:
+    - 백엔드:
+      - 빌드 메타데이터 주입 변수 추가(`appVersion`, `appCommit`, `appBuildDate`).
+      - GoReleaser ldflags에 버전/커밋/빌드시각 주입 추가.
+      - 시스템 API 확장:
+        - `GET /api/system/version`
+        - `GET /api/system/update-check`
+      - GitHub 최신 릴리즈 조회 + semver 비교 + 캐시(TTL) 기반 `UpdateChecker` 추가.
+      - 조회 실패 시 `200 + error 필드`로 graceful fallback 처리.
+      - 구현 파일:
+        - `.goreleaser.yaml`
+        - `apps/backend/main.go`
+        - `apps/backend/internal/system/handler.go`
+        - `apps/backend/internal/system/update_checker.go`
+        - `apps/backend/internal/system/handler_test.go`
+        - `apps/backend/internal/system/update_checker_test.go`
+    - 프론트:
+      - 상태 영역 업데이트 체크 훅 추가(`useUpdateCheck`).
+      - `ServerStatus` 팝오버에 업데이트 섹션(현재/최신 버전, 업데이트 링크, 확인 시각) 추가.
+      - 업데이트 가능 시 헤더 상태 트리거에 `업데이트` 배지 노출.
+      - i18n 키 추가(ko/en).
+      - 구현 파일:
+        - `apps/frontend/src/features/status/hooks/useUpdateCheck.ts`
+        - `apps/frontend/src/features/status/types.ts`
+        - `apps/frontend/src/components/layout/MainLayout/ServerStatus.tsx`
+        - `apps/frontend/src/i18n/resources.ts`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+      - `cd apps/backend && go test ./...` 통과.
+      - 브라우저 실측 스크린샷:
+        - `/tmp/cohesion-update-check-status-popover.png`
+
 - **설정 UI 미사용 항목 정리 (2026-02-24)**:
     - 프론트:
       - Settings에서 실사용되지 않는 옵션 제거.

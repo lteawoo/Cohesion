@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -66,7 +67,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*TokenPair,
 		return nil, nil, ErrInvalidToken
 	}
 
-	user, err := s.accountService.GetUserByID(ctx, claims.UserID)
+	user, err := s.resolveCurrentUserFromClaims(ctx, claims)
 	if err != nil {
 		return nil, nil, ErrInvalidToken
 	}
@@ -77,6 +78,28 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*TokenPair,
 	}
 
 	return tokenPair, user, nil
+}
+
+func (s *Service) resolveCurrentUserFromClaims(ctx context.Context, claims *Claims) (*account.User, error) {
+	user, err := s.accountService.GetUserByID(ctx, claims.UserID)
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+
+	// Subject/username mismatch means token owner and current DB user are different.
+	if claims.Subject != "" && !strings.EqualFold(claims.Subject, user.Username) {
+		return nil, ErrInvalidToken
+	}
+	if claims.Username != "" && !strings.EqualFold(claims.Username, user.Username) {
+		return nil, ErrInvalidToken
+	}
+
+	// If issued-at exists and user was created later, treat as invalid token.
+	if claims.IssuedAt != nil && user.CreatedAt.Unix() > claims.IssuedAt.Time.Unix() {
+		return nil, ErrInvalidToken
+	}
+
+	return user, nil
 }
 
 func (s *Service) IssueTokenPair(user *account.User) (*TokenPair, error) {

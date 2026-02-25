@@ -6,11 +6,13 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -37,17 +39,88 @@ import (
 	webdavHandler "taeu.kr/cohesion/internal/webdav/handler"
 )
 
-var goEnv string = "development"
+var (
+	goEnv        = "development"
+	appVersion   = "dev"
+	appCommit    = "local"
+	appBuildDate = ""
+)
 
 // 재시작 신호를 받기 위한 채널
 var restartChan = make(chan bool, 1)
+var shutdownChan = make(chan struct{}, 1)
 
 func init() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 }
 
+func resolveExecutableDir() (string, error) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	executablePath = filepath.Clean(executablePath)
+	if resolvedPath, err := filepath.EvalSymlinks(executablePath); err == nil && strings.TrimSpace(resolvedPath) != "" {
+		executablePath = resolvedPath
+	}
+	return filepath.Dir(executablePath), nil
+}
+
+func openRootLogFile(fileName string) (*os.File, string, error) {
+	executableDir, err := resolveExecutableDir()
+	if err != nil {
+		return nil, "", err
+	}
+	logsDir := filepath.Join(executableDir, "logs")
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		return nil, "", err
+	}
+	logPath := filepath.Join(logsDir, fileName)
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, "", err
+	}
+	return logFile, logPath, nil
+}
+
+func configureRootLogger() (*os.File, string, error) {
+	logFile, logPath, err := openRootLogFile("app.log")
+	if err != nil {
+		return nil, "", err
+	}
+
+	if goEnv == "production" {
+		zerolog.TimestampFunc = func() time.Time {
+			return time.Now().UTC()
+		}
+		log.Logger = log.Output(logFile)
+		return logFile, logPath, nil
+	}
+
+	log.Logger = log.Output(zerolog.MultiLevelWriter(
+		zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339},
+		logFile,
+	))
+	return logFile, logPath, nil
+}
+
+func writePIDFile() (func(), string, error) {
+	executableDir, err := resolveExecutableDir()
+	if err != nil {
+		return func() {}, "", err
+	}
+	pidPath := filepath.Join(executableDir, "cohesion.pid")
+	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
+		return func() {}, "", err
+	}
+	cleanup := func() {
+		_ = os.Remove(pidPath)
+	}
+	return cleanup, pidPath, nil
+}
+
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
-func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *sftpserver.Service, error) {
+func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{}) (*http.Server, *sftpserver.Service, error) {
 	// 의존성 주입
 	accountRepo := accountStore.NewStore(db)
 	accountService := account.NewService(accountRepo)
@@ -79,7 +152,11 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *sftpserver.
 	sftpService := sftpserver.NewService(spaceService, accountService, config.Conf.Server.SftpEnabled, config.Conf.Server.SftpPort)
 	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 	configHandler := config.NewHandler()
-	systemHandler := system.NewHandler(restartChan)
+	systemHandler := system.NewHandler(restartChan, shutdownChan, system.Meta{
+		Version:   appVersion,
+		Commit:    appCommit,
+		BuildDate: appBuildDate,
+	})
 
 	// 라우터 생성
 	mux := http.NewServeMux()
@@ -141,13 +218,20 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *sftpserver.
 }
 
 func main() {
-	// Zerolog 전역 로거 설정
-	if goEnv == "production" {
-		zerolog.TimestampFunc = func() time.Time {
-			return time.Now().UTC()
-		}
+	logFile, logPath, loggerErr := configureRootLogger()
+	if loggerErr != nil {
+		fmt.Fprintf(os.Stderr, "[Main] failed to initialize file logger: %v\n", loggerErr)
 	} else {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+		defer logFile.Close()
+		log.Info().Str("path", logPath).Msg("[Main] App log file initialized")
+	}
+
+	pidCleanup, pidPath, pidErr := writePIDFile()
+	if pidErr != nil {
+		log.Warn().Err(pidErr).Msg("[Main] Failed to write PID file")
+	} else {
+		defer pidCleanup()
+		log.Info().Str("path", pidPath).Int("pid", os.Getpid()).Msg("[Main] PID file initialized")
 	}
 
 	log.Info().Msg("[Main] Starting Server...")
@@ -171,7 +255,7 @@ func main() {
 	// 서버 시작/재시작 루프
 	for {
 		// 서버 생성
-		server, sftpService, err := createServer(db, restartChan)
+		server, sftpService, err := createServer(db, restartChan, shutdownChan)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to create server")
 		}
@@ -222,6 +306,19 @@ func main() {
 			config.SetConfig(goEnv)
 			log.Info().Msgf("[Main] Restarting with new port: %s", config.Conf.Server.Port)
 		// 루프 계속 (재시작)
+
+		case <-shutdownChan:
+			log.Info().Msg("[Main] Shutdown signal received from updater")
+			if err := sftpService.Stop(); err != nil {
+				log.Error().Err(err).Msg("SFTP server shutdown error")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := server.Shutdown(ctx); err != nil {
+				log.Error().Err(err).Msg("Server shutdown error")
+			}
+			log.Info().Msg("[Main] Server stopped for self-update")
+			return
 
 		case err := <-serverErr:
 			if stopErr := sftpService.Stop(); stopErr != nil {

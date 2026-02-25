@@ -41,6 +41,9 @@ func TestLogin_IssuesTokenPair_OnValidCredentials(t *testing.T) {
 	if accessClaims.Username != seededUser.Username {
 		t.Fatalf("expected access token username %q, got %q", seededUser.Username, accessClaims.Username)
 	}
+	if accessClaims.UserID != seededUser.ID {
+		t.Fatalf("expected access token user id %d, got %d", seededUser.ID, accessClaims.UserID)
+	}
 
 	refreshClaims, err := authSvc.ParseToken(tokenPair.RefreshToken, "refresh")
 	if err != nil {
@@ -48,6 +51,9 @@ func TestLogin_IssuesTokenPair_OnValidCredentials(t *testing.T) {
 	}
 	if refreshClaims.Username != seededUser.Username {
 		t.Fatalf("expected refresh token username %q, got %q", seededUser.Username, refreshClaims.Username)
+	}
+	if refreshClaims.UserID != seededUser.ID {
+		t.Fatalf("expected refresh token user id %d, got %d", seededUser.ID, refreshClaims.UserID)
 	}
 }
 
@@ -97,5 +103,29 @@ func TestRefresh_IssuesNewPair_WithRefreshToken(t *testing.T) {
 	}
 	if refreshedUser == nil || refreshedUser.ID != loggedInUser.ID {
 		t.Fatalf("expected refreshed user id %d, got %#v", loggedInUser.ID, refreshedUser)
+	}
+}
+
+func TestRefresh_Rejects_WhenUserCreatedAfterTokenIssued(t *testing.T) {
+	authSvc, accountSvc, db := setupAuthTestService(t)
+	defer db.Close()
+	_, seededUser := seedAuthUsers(t, accountSvc)
+
+	tokenPair, _, err := authSvc.Login(context.Background(), testUserUsername, testUserPassword)
+	if err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+
+	if _, err := db.ExecContext(
+		context.Background(),
+		"UPDATE users SET created_at = datetime('now', '+1 day') WHERE id = ?",
+		seededUser.ID,
+	); err != nil {
+		t.Fatalf("shift user created_at: %v", err)
+	}
+
+	_, _, err = authSvc.Refresh(context.Background(), tokenPair.RefreshToken)
+	if !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("expected ErrInvalidToken, got %v", err)
 	}
 }

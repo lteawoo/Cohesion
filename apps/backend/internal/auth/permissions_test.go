@@ -92,6 +92,44 @@ func TestRequiredPermissionForRequest_SpaceUsageAndQuota(t *testing.T) {
 	}
 }
 
+func TestRequiredPermissionForRequest_SystemUpdateEndpoints(t *testing.T) {
+	tests := []struct {
+		name     string
+		method   string
+		path     string
+		expected string
+	}{
+		{
+			name:     "get update status",
+			method:   http.MethodGet,
+			path:     "/api/system/update/status",
+			expected: PermissionServerRead,
+		},
+		{
+			name:     "start update",
+			method:   http.MethodPost,
+			path:     "/api/system/update/start",
+			expected: PermissionServerWrite,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &http.Request{
+				Method: tc.method,
+				URL:    &url.URL{Path: tc.path},
+			}
+			got, ok := requiredPermissionForRequest(req)
+			if !ok {
+				t.Fatalf("expected permission mapping for %s %s", tc.method, tc.path)
+			}
+			if got != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestRequiredSpacePermissionForRequest_SpaceQuotaPatch(t *testing.T) {
 	req := &http.Request{
 		Method: http.MethodPatch,

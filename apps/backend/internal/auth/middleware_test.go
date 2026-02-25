@@ -71,6 +71,33 @@ func TestMiddleware_DeniesWithoutAccessCookie(t *testing.T) {
 	}
 }
 
+func TestMiddleware_DeniesWhenTokenUserNoLongerExists(t *testing.T) {
+	authSvc, accountSvc, db := setupAuthTestService(t)
+	defer db.Close()
+	_, user := seedAuthUsers(t, accountSvc)
+
+	userToken := issueAccessTokenForTestUser(t, authSvc, testUserUsername)
+	if err := accountSvc.DeleteUser(context.Background(), user.ID); err != nil {
+		t.Fatalf("delete user: %v", err)
+	}
+
+	called := false
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces", nil)
+	req.AddCookie(&http.Cookie{Name: auth.AccessCookieName, Value: userToken})
+
+	rec := executeMiddlewareRequest(t, authSvc, req, func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	if called {
+		t.Fatal("did not expect next handler to be called")
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+	}
+}
+
 func TestMiddleware_DeniesWhenRolePermissionIsMissing(t *testing.T) {
 	authSvc, accountSvc, db := setupAuthTestService(t)
 	defer db.Close()

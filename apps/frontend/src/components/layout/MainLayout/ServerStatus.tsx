@@ -1,6 +1,7 @@
 import { App, Popover, theme } from 'antd';
 import { useServerStatus } from '@/features/status/hooks/useServerStatus';
-import type { ProtocolStatus } from '@/features/status/types';
+import { useUpdateCheck } from '@/features/status/hooks/useUpdateCheck';
+import type { ProtocolStatus, UpdateCheckResponse } from '@/features/status/types';
 import { useTranslation } from 'react-i18next';
 
 const PROTOCOL_LABELS: Record<string, string> = {
@@ -92,7 +93,15 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
   }
 }
 
-function PopoverContent({ protocols, hosts }: { protocols: Record<string, ProtocolStatus>; hosts?: string[] }) {
+function PopoverContent({
+  protocols,
+  hosts,
+  updateInfo,
+}: {
+  protocols: Record<string, ProtocolStatus>;
+  hosts?: string[];
+  updateInfo: UpdateCheckResponse | null;
+}) {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const { message } = App.useApp();
@@ -121,6 +130,12 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
 
     return [...new Set(urls)];
   })();
+  const versionText = updateInfo?.currentVersion ?? 'dev';
+  const updateStatusText = updateInfo
+    ? (updateInfo.error
+      ? t('serverStatus.updateStatusUnknown')
+      : (updateInfo.updateAvailable ? t('serverStatus.updateStatusUpdate') : t('serverStatus.updateStatusLatest')))
+    : t('serverStatus.updateStatusUnknown');
 
   return (
     <div style={{ minWidth: 180 }}>
@@ -185,6 +200,9 @@ function PopoverContent({ protocols, hosts }: { protocols: Record<string, Protoc
           </div>
         );
       })}
+      <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 12 }}>
+        {versionText} - {updateStatusText}
+      </div>
     </div>
   );
 }
@@ -193,6 +211,7 @@ export default function ServerStatus() {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const { status, isServerUp } = useServerStatus();
+  const { updateInfo } = useUpdateCheck();
 
   const dotColor = isServerUp ? token.colorSuccess : token.colorError;
 
@@ -200,7 +219,7 @@ export default function ServerStatus() {
     <Popover
       content={
         status?.protocols ? (
-          <PopoverContent protocols={status.protocols} hosts={status.hosts} />
+          <PopoverContent protocols={status.protocols} hosts={status.hosts} updateInfo={updateInfo} />
         ) : (
           <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
             {t('serverStatus.connectionUnavailable')}
@@ -226,6 +245,21 @@ export default function ServerStatus() {
         <span style={{ fontSize: 13, color: token.colorTextSecondary, lineHeight: 'normal' }}>
           {t('serverStatus.triggerLabel')}
         </span>
+        {updateInfo?.updateAvailable && (
+          <span
+            style={{
+              fontSize: 11,
+              color: token.colorWarningText,
+              background: token.colorWarningBg,
+              border: `1px solid ${token.colorWarningBorder}`,
+              borderRadius: 999,
+              padding: '0 6px',
+              lineHeight: '16px',
+            }}
+          >
+            {t('serverStatus.updateBadge')}
+          </span>
+        )}
       </div>
     </Popover>
   );
