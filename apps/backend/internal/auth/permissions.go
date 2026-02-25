@@ -122,6 +122,14 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 		if method == http.MethodPost {
 			return PermissionServerWrite, true
 		}
+	case "/api/system/update/status":
+		if method == http.MethodGet {
+			return PermissionServerRead, true
+		}
+	case "/api/system/update/start":
+		if method == http.MethodPost {
+			return PermissionServerWrite, true
+		}
 	}
 
 	return "", false

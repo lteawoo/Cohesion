@@ -12,6 +12,17 @@ export interface Config {
   server: ServerConfig;
 }
 
+export interface SelfUpdateStatus {
+  state: string;
+  message?: string;
+  currentVersion?: string;
+  targetVersion?: string;
+  releaseUrl?: string;
+  startedAt?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
 async function extractErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
   try {
     const payload = (await response.json()) as { error?: string; message?: string };
@@ -68,6 +79,26 @@ export async function restartServer(): Promise<string> {
 
   const data = await response.json();
   return data.new_port;
+}
+
+export async function startSelfUpdate(force = false): Promise<void> {
+  const query = force ? '?force=1' : '';
+  const response = await apiFetch(`/api/system/update/start${query}`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response, i18n.t('apiErrors.selfUpdateStartFailed')));
+  }
+}
+
+export async function getSelfUpdateStatus(): Promise<SelfUpdateStatus> {
+  const response = await apiFetch('/api/system/update/status');
+  if (!response.ok) {
+    throw new Error(i18n.t('apiErrors.selfUpdateStatusFetchFailed'));
+  }
+
+  return response.json();
 }
 
 /**

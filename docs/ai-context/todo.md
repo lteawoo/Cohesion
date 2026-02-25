@@ -23,6 +23,9 @@
 - [x] 설정 UI 미사용 항목 정리 (파일 섹션/캐시 삭제/기본 뷰 모드 제거 + settingsStore 미사용 필드 정리)
 - [x] 릴리즈 업데이트 체크 1차 (버전 API + 최신 릴리즈 비교 API + 상태 팝오버 업데이트 배지/링크 노출) (#146)
 - [x] Settings `About` 섹션 추가 (Cohesion 소개 + 버전 정보 카드 + `/api/system/version` 연동)
+- [x] 별도 업데이터 1차(MVP) 구현 (`/api/system/update/start|status` + `cohesion-updater` 프로세스 분리 + 체크섬 검증/바이너리 교체)
+- [x] 자동업데이트 테스트 편의: 동일 버전 강제 재설치(`force`) 경로 추가
+- [x] 자동업데이트 안정화: 업데이트 API RBAC 매핑 + switching 중복 시작 차단 + 임시 디렉토리 정리 보강
 - [x] 파일 익스플로러 상호작용 모드 분리 (PC 해상도 터치 입력 시 모바일 규칙 적용)
 - [x] GoReleaser changelog 생성 방식 전환 (`.goreleaser.yaml`: `changelog.use=github-native`, `.github/release.yml` 카테고리 반영)
 - [x] GitHub Actions 자동 릴리즈 워크플로 추가 (`.github/workflows/release.yml`, 태그 `v*` 트리거 + GoReleaser 실행)

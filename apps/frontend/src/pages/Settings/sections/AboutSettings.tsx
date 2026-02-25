@@ -1,18 +1,20 @@
-import { Button, Card, Descriptions, Space, Typography } from 'antd';
+import { App, Button, Card, Descriptions, Space, Typography } from 'antd';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import { useUpdateCheck } from '@/features/status/hooks/useUpdateCheck';
 import { useSystemVersion } from '@/features/status/hooks/useSystemVersion';
+import { useSelfUpdate } from '@/features/status/hooks/useSelfUpdate';
 
 const { Text } = Typography;
 const REPO_URL = 'https://github.com/lteawoo/Cohesion';
-const RELEASES_URL = 'https://github.com/lteawoo/Cohesion/releases';
 
 export default function AboutSettings() {
   const { t } = useTranslation();
+  const { message } = App.useApp();
   const { updateInfo } = useUpdateCheck();
   const { versionInfo } = useSystemVersion();
+  const { status: selfUpdateStatus, isStarting, isUpdating, startUpdate } = useSelfUpdate();
 
   const currentVersion = useMemo(() => {
     if (updateInfo?.currentVersion) {
@@ -25,6 +27,17 @@ export default function AboutSettings() {
   }, [updateInfo?.currentVersion, versionInfo?.version]);
 
   const latestVersion = updateInfo?.latestVersion ?? '-';
+  const canStartUpdate = currentVersion !== 'dev';
+  const isForceUpdate = canStartUpdate && updateInfo !== null && !updateInfo.updateAvailable;
+
+  const handleStartUpdate = async () => {
+    try {
+      await startUpdate(isForceUpdate);
+      message.info(isForceUpdate ? t('aboutSettings.reinstallStartHint') : t('aboutSettings.updateStartHint'));
+    } catch (error) {
+      message.error((error as Error).message || t('aboutSettings.updateFailed'));
+    }
+  };
 
   return (
     <Space vertical size="small" className="settings-section">
@@ -75,8 +88,20 @@ export default function AboutSettings() {
               },
             ]}
           />
-          <Button href={RELEASES_URL} target="_blank" rel="noreferrer">
-            {t('aboutSettings.openReleases')}
+          {selfUpdateStatus?.message && (
+            <Text type={selfUpdateStatus.state === 'failed' ? 'danger' : 'secondary'}>
+              {selfUpdateStatus.message}
+            </Text>
+          )}
+          <Button
+            type="primary"
+            disabled={!canStartUpdate}
+            loading={isStarting || isUpdating}
+            onClick={handleStartUpdate}
+          >
+            {isStarting || isUpdating
+              ? t('aboutSettings.updateInProgress')
+              : (isForceUpdate ? t('aboutSettings.reinstallNow') : t('aboutSettings.updateNow'))}
           </Button>
         </Space>
       </Card>

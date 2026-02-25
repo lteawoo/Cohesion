@@ -2,6 +2,7 @@ package system
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -20,18 +21,21 @@ type Meta struct {
 // Handler는 system API 핸들러입니다
 type Handler struct {
 	restartChan   chan bool
+	shutdownChan  chan struct{}
 	meta          Meta
 	updateChecker *UpdateChecker
+	updateManager *SelfUpdateManager
 }
 
-func NewHandler(restartChan chan bool, meta Meta) *Handler {
+func NewHandler(restartChan chan bool, shutdownChan chan struct{}, meta Meta) *Handler {
 	version := strings.TrimSpace(meta.Version)
 	if version == "" {
 		version = "dev"
 	}
 
 	return &Handler{
-		restartChan: restartChan,
+		restartChan:  restartChan,
+		shutdownChan: shutdownChan,
 		meta: Meta{
 			Version:   version,
 			Commit:    strings.TrimSpace(meta.Commit),
@@ -43,6 +47,11 @@ func NewHandler(restartChan chan bool, meta Meta) *Handler {
 			CacheTTL:       10 * time.Minute,
 			RequestTimeout: 3 * time.Second,
 		}),
+		updateManager: NewSelfUpdateManager(SelfUpdateManagerConfig{
+			RepoOwner:      "lteawoo",
+			RepoName:       "Cohesion",
+			RequestTimeout: 30 * time.Second,
+		}, shutdownChan),
 	}
 }
 
@@ -50,6 +59,8 @@ func NewHandler(restartChan chan bool, meta Meta) *Handler {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/system/version", web.Handler(h.GetVersion))
 	mux.Handle("GET /api/system/update-check", web.Handler(h.GetUpdateCheck))
+	mux.Handle("GET /api/system/update/status", web.Handler(h.GetUpdateStatus))
+	mux.Handle("POST /api/system/update/start", web.Handler(h.StartUpdate))
 	mux.Handle("POST /api/system/restart", web.Handler(h.RestartServer))
 }
 
@@ -76,6 +87,43 @@ func (h *Handler) GetUpdateCheck(w http.ResponseWriter, r *http.Request) *web.Er
 
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to encode update check response"}
+	}
+	return nil
+}
+
+func (h *Handler) GetUpdateStatus(w http.ResponseWriter, r *http.Request) *web.Error {
+	w.Header().Set("Content-Type", "application/json")
+	status := h.updateManager.GetStatus()
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to encode update status response"}
+	}
+	return nil
+}
+
+func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error {
+	w.Header().Set("Content-Type", "application/json")
+	force := false
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("force"))) {
+	case "1", "true", "yes", "y":
+		force = true
+	}
+
+	if err := h.updateManager.Start(h.meta.Version, force); err != nil {
+		switch {
+		case errors.Is(err, ErrSelfUpdateUnsupportedBuild):
+			return &web.Error{Err: err, Code: http.StatusBadRequest, Message: "Self-update is only available in release builds"}
+		case errors.Is(err, ErrSelfUpdateAlreadyRunning):
+			return &web.Error{Err: err, Code: http.StatusConflict, Message: "Update is already in progress"}
+		default:
+			return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to start update"}
+		}
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+	if err := json.NewEncoder(w).Encode(map[string]string{
+		"message": "Update started",
+	}); err != nil {
+		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to encode update start response"}
 	}
 	return nil
 }

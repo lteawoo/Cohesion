@@ -46,13 +46,14 @@ var (
 
 // 재시작 신호를 받기 위한 채널
 var restartChan = make(chan bool, 1)
+var shutdownChan = make(chan struct{}, 1)
 
 func init() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 }
 
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
-func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *sftpserver.Service, error) {
+func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{}) (*http.Server, *sftpserver.Service, error) {
 	// 의존성 주입
 	accountRepo := accountStore.NewStore(db)
 	accountService := account.NewService(accountRepo)
@@ -84,7 +85,7 @@ func createServer(db *sql.DB, restartChan chan bool) (*http.Server, *sftpserver.
 	sftpService := sftpserver.NewService(spaceService, accountService, config.Conf.Server.SftpEnabled, config.Conf.Server.SftpPort)
 	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 	configHandler := config.NewHandler()
-	systemHandler := system.NewHandler(restartChan, system.Meta{
+	systemHandler := system.NewHandler(restartChan, shutdownChan, system.Meta{
 		Version:   appVersion,
 		Commit:    appCommit,
 		BuildDate: appBuildDate,
@@ -180,7 +181,7 @@ func main() {
 	// 서버 시작/재시작 루프
 	for {
 		// 서버 생성
-		server, sftpService, err := createServer(db, restartChan)
+		server, sftpService, err := createServer(db, restartChan, shutdownChan)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to create server")
 		}
@@ -231,6 +232,19 @@ func main() {
 			config.SetConfig(goEnv)
 			log.Info().Msgf("[Main] Restarting with new port: %s", config.Conf.Server.Port)
 		// 루프 계속 (재시작)
+
+		case <-shutdownChan:
+			log.Info().Msg("[Main] Shutdown signal received from updater")
+			if err := sftpService.Stop(); err != nil {
+				log.Error().Err(err).Msg("SFTP server shutdown error")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := server.Shutdown(ctx); err != nil {
+				log.Error().Err(err).Msg("Server shutdown error")
+			}
+			log.Info().Msg("[Main] Server stopped for self-update")
+			return
 
 		case err := <-serverErr:
 			if stopErr := sftpService.Stop(); stopErr != nil {

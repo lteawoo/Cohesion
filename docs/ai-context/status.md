@@ -1,6 +1,48 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **별도 업데이터 1차(MVP) 구현 (2026-02-24)**:
+    - 백엔드:
+      - `system` API 확장:
+        - `POST /api/system/update/start`
+        - `GET /api/system/update/status`
+      - `SelfUpdateManager` 추가:
+        - 최신 릴리즈/자산 조회
+        - 현재 OS/아키텍처용 아카이브 선택
+        - `checksums.txt` 기반 SHA-256 검증
+        - 새 바이너리 추출 후 별도 업데이터 프로세스 실행
+        - 업데이트 API 권한 매핑(`server.config.read/write`) 보강
+        - 전환 상태(`switching`)에서는 중복 시작이 되지 않도록 러닝 상태 유지
+        - 임시 디렉토리 정리를 업데이터 프로세스로 위임(`--cleanup-dir`)
+      - 업데이터 연동용 종료 채널(`shutdownChan`)을 메인 루프에 추가해, 업데이터 실행 후 서버를 정상 종료하도록 구성.
+      - 구현 파일:
+        - `apps/backend/internal/system/handler.go`
+        - `apps/backend/internal/system/self_update.go`
+        - `apps/backend/main.go`
+        - `apps/backend/cmd/updater/main.go`
+        - `apps/backend/internal/system/self_update_test.go`
+        - `apps/backend/internal/system/handler_test.go`
+    - 릴리즈:
+      - GoReleaser에 `updater` 빌드 타깃 추가(`cohesion-updater`) 및 아카이브 동봉.
+      - 구현 파일:
+        - `.goreleaser.yaml`
+    - 프론트:
+      - `About` 섹션에서 업데이트 시작 API 호출/상태 폴링 훅 추가.
+      - 업데이트 가능 시 `업데이트` 버튼으로 self-update 시작.
+      - 업데이트가 없을 때도 테스트 목적으로 동일 버전 강제 재설치(`force`) 시작 지원.
+      - update-check 실패(`updateInfo=null`) 시 강제재설치 오판이 발생하지 않도록 force 조건 보정.
+      - 구현 파일:
+        - `apps/frontend/src/api/config.ts`
+        - `apps/frontend/src/features/status/hooks/useSelfUpdate.ts`
+        - `apps/frontend/src/pages/Settings/sections/AboutSettings.tsx`
+        - `apps/frontend/src/i18n/resources.ts`
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+      - `pnpm release:check` 통과.
+
 - **설정 About/버전 정보 섹션 추가 및 구조 정리 (2026-02-24)**:
     - 프론트:
       - Settings 좌측 메뉴 하단에 `About` 섹션을 추가.
