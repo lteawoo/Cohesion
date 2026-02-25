@@ -1,6 +1,26 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Windows C 드라이브 경로 정규화 보강 (2026-02-25)**:
+    - 문제:
+      - Windows에서 `C:` 형태 경로가 들어오면 드라이브 루트(`C:\`)가 아닌 드라이브 현재 작업 디렉터리로 해석될 수 있어, C 드라이브 하위 폴더 목록이 실제와 다를 수 있었다.
+      - 경로 입력이 `C:foo`(drive-relative), `C:/...`, UNC(`\\server\share`) 등으로 섞이면 OS/입력 형태에 따라 해석이 달라질 수 있었다.
+    - 백엔드:
+      - `browse.Service`에 OS별 경로 정규화 계층 추가(`normalizeBrowsePathForOS`).
+      - Windows 경로 정규화에서 아래 케이스를 일관 처리:
+        - drive root: `C:`, `C:/`, `C:\.`
+        - drive-relative: `C:foo` -> `C:\foo`
+        - UNC: `\\server\share\...`
+      - mountpoint dedupe는 Windows에서만 case-insensitive로 처리하고, 비-Windows는 원문 case를 유지.
+      - 비-Windows 경로는 `TrimSpace`를 적용하지 않고 원문 경로 의미를 보존.
+      - 파티션 mountpoint 초기화 및 `ListDirectory` 진입 경로에 동일 정규화 적용.
+      - 구현 파일:
+        - `apps/backend/internal/browse/service.go`
+        - `apps/backend/internal/browse/service_test.go`
+    - 검증:
+      - `cd apps/backend && go test ./internal/browse/...` 통과.
+      - `cd apps/backend && go test ./...` 통과.
+
 - **휴지통 화면/트리 전환 UX 버그 수정 (2026-02-25)**:
     - 문제:
       - Space가 0개일 때 `/trash`가 조기 `Empty` 반환으로 인해 휴지통 기본 레이아웃 없이 보임.

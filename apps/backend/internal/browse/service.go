@@ -3,7 +3,9 @@ package browse
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -23,6 +25,106 @@ type FileInfo struct {
 type Service struct {
 	initialBrowseRoot string     // 사용자의 홈 디렉토리 저장
 	baseDirectories   []FileInfo // User home, disks list
+}
+
+func normalizeBrowsePath(pathValue string) string {
+	return normalizeBrowsePathForOS(pathValue, runtime.GOOS)
+}
+
+func normalizeBrowsePathForOS(pathValue string, osName string) string {
+	if pathValue == "" {
+		return filepath.Clean(pathValue)
+	}
+	if osName == "windows" {
+		return normalizeWindowsBrowsePath(pathValue)
+	}
+	return filepath.Clean(pathValue)
+}
+
+func normalizeWindowsBrowsePath(pathValue string) string {
+	slashPath := strings.ReplaceAll(pathValue, `\`, "/")
+	if slashPath == "" {
+		return "."
+	}
+
+	// UNC 경로: //server/share[/...]
+	if strings.HasPrefix(slashPath, "//") {
+		return normalizeWindowsUNCPath(slashPath)
+	}
+
+	// 드라이브 절대/상대 경로: C:, C:\, C:/, C:foo, C:/foo
+	if len(slashPath) >= 2 && slashPath[1] == ':' && isWindowsDriveLetter(slashPath[0]) {
+		drive := strings.ToUpper(string(slashPath[0])) + ":"
+		rest := slashPath[2:]
+
+		if rest == "" || rest == "/" || rest == "/." {
+			return drive + `\`
+		}
+		if !strings.HasPrefix(rest, "/") {
+			// Windows의 drive-relative(C:foo)를 절대 루트 기준(C:\foo)으로 강제 정규화.
+			rest = "/" + rest
+		}
+		cleanedRest := path.Clean(rest)
+		if cleanedRest == "." || cleanedRest == "/" {
+			return drive + `\`
+		}
+		return drive + `\` + strings.ReplaceAll(strings.TrimPrefix(cleanedRest, "/"), "/", `\`)
+	}
+
+	// 루트 상대(\foo)나 일반 경로는 구분자만 Windows 스타일로 통일.
+	cleaned := path.Clean(strings.ReplaceAll(slashPath, `\`, "/"))
+	if cleaned == "." {
+		return "."
+	}
+	return strings.ReplaceAll(cleaned, "/", `\`)
+}
+
+func normalizeWindowsUNCPath(slashPath string) string {
+	parts := strings.Split(strings.TrimPrefix(slashPath, "//"), "/")
+	segments := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == "" || part == "." {
+			continue
+		}
+		segments = append(segments, part)
+	}
+
+	if len(segments) == 0 {
+		return `\\`
+	}
+	if len(segments) == 1 {
+		return `\\` + segments[0]
+	}
+
+	server := segments[0]
+	share := segments[1]
+	stack := make([]string, 0, len(segments)-2)
+	for _, segment := range segments[2:] {
+		if segment == ".." {
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+			continue
+		}
+		stack = append(stack, segment)
+	}
+
+	base := `\\` + server + `\` + share
+	if len(stack) == 0 {
+		return base
+	}
+	return base + `\` + strings.Join(stack, `\`)
+}
+
+func isWindowsDriveLetter(ch byte) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+}
+
+func mountpointDedupKey(pathValue string, osName string) string {
+	if osName == "windows" {
+		return strings.ToLower(pathValue)
+	}
+	return pathValue
 }
 
 func NewService() *Service {
@@ -52,15 +154,18 @@ func NewService() *Service {
 		IsDir: true,
 	})
 
+	osName := runtime.GOOS
 	seen := make(map[string]bool)
 	for _, p := range partitions {
-		if seen[p.Mountpoint] {
+		mountpoint := normalizeBrowsePathForOS(p.Mountpoint, osName)
+		seenKey := mountpointDedupKey(mountpoint, osName)
+		if seen[seenKey] {
 			continue
 		}
-		seen[p.Mountpoint] = true
+		seen[seenKey] = true
 		baseDirectories = append(baseDirectories, FileInfo{
-			Name:  p.Mountpoint,
-			Path:  p.Mountpoint,
+			Name:  mountpoint,
+			Path:  mountpoint,
 			IsDir: true,
 		})
 	}
@@ -77,7 +182,7 @@ func (s *Service) GetBaseDirectories() []FileInfo {
 }
 
 func (s *Service) ListDirectory(isOnlyDir bool, path string) ([]FileInfo, error) {
-	cleanPath := filepath.Clean(path)
+	cleanPath := normalizeBrowsePath(path)
 
 	// 디렉토리 읽기
 	entries, err := os.ReadDir(cleanPath)
