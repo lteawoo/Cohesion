@@ -1,6 +1,41 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **DB 초기화 후 stale 인증 세션 허용 버그 수정 (2026-02-25)**:
+    - 문제:
+      - DB 삭제/재생성 이후에도 기존 JWT가 유효해 `/api/auth/me`와 일부 API가 인증된 것처럼 동작.
+      - 역할 기반 API(`/api/spaces` 등)는 통과하지만, space 리소스 권한 API(`.../browse`)는 사용자 조회 실패로 막혀 UI가 비정상 상태로 보임.
+    - 백엔드:
+      - 인증 미들웨어에서 토큰 파싱 후 현재 DB 사용자 실체를 강제 검증.
+      - 검증 성공 시 claims를 DB 사용자 정보로 동기화(닉네임/역할 포함)하여 stale 클레임 의존도를 낮춤.
+      - refresh 토큰 경로에도 동일 사용자 검증 로직 적용.
+      - 재생성 사용자와 기존 토큰 구분을 위해 `created_at` vs token `issuedAt`(초 단위) 검증 추가.
+      - 구현 파일:
+        - `apps/backend/internal/auth/service.go`
+        - `apps/backend/internal/auth/middleware.go`
+        - `apps/backend/internal/auth/middleware_test.go`
+        - `apps/backend/internal/auth/service_test.go`
+    - 검증:
+      - `cd apps/backend && go test ./internal/auth/...` 통과.
+      - `cd apps/backend && go test ./...` 통과.
+
+- **휴지통 + Space 생성 모달 트리 확장 루프 수정 (2026-02-25)**:
+    - 문제:
+      - 스페이스가 0개인 상태에서 `/trash` 진입 시 `TrashExplorer`가 `fetchSpaces()`를 반복 호출.
+      - 이로 인해 `FolderTree(showBaseDirectories)` 초기화 effect가 반복 실행되며 모달 트리 확장 상태가 즉시 초기화됨.
+    - 프론트:
+      - `TrashExplorer`에서 빈 스페이스일 때 반복 `fetchSpaces()`를 제거하고 로컬 selection/state만 정리하도록 변경.
+      - `FolderTree` 초기화 effect를 분리:
+        - `showBaseDirectories=true` 전용 effect (base dirs 로드)
+        - 일반 스페이스 트리 전용 effect
+      - 구현 파일:
+        - `apps/frontend/src/features/browse/components/TrashExplorer.tsx`
+        - `apps/frontend/src/features/browse/components/FolderTree.tsx`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
 - **별도 업데이터 1차(MVP) 구현 (2026-02-24)**:
     - 백엔드:
       - `system` API 확장:

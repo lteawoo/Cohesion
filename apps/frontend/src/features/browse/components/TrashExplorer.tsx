@@ -106,7 +106,6 @@ const TrashExplorer: React.FC = () => {
   const { message, modal } = App.useApp();
 
   const spaces = useSpaceStore((state) => state.spaces);
-  const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
   const selectedPath = useBrowseStore((state) => state.selectedPath);
   const selectedSpace = useBrowseStore((state) => state.selectedSpace);
   const fetchSpaceContents = useBrowseStore((state) => state.fetchSpaceContents);
@@ -183,11 +182,12 @@ const TrashExplorer: React.FC = () => {
 
   useEffect(() => {
     if (spaces.length === 0) {
-      void fetchSpaces();
+      setItems((previous) => (previous.length === 0 ? previous : []));
+      setSelectedRowKeys((previous) => (previous.length === 0 ? previous : []));
       return;
     }
     void loadTrashItems();
-  }, [fetchSpaces, loadTrashItems, spaces.length]);
+  }, [loadTrashItems, spaces.length]);
 
   const refreshSelectedFolder = useCallback(async () => {
     if (!selectedSpace) {

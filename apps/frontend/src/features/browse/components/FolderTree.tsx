@@ -351,61 +351,65 @@ const FolderTree: React.FC<FolderTreeProps> = ({
     [fetchDirectoryContents, fetchSpaceDirectoryContents, showBaseDirectories, spaces, loadedKeys]
   );
 
-  // 초기 트리 데이터를 로드합니다.
+  // Space 생성 모달 등에서 사용하는 시스템 디렉터리 트리를 초기화합니다.
   useEffect(() => {
+    if (!showBaseDirectories) {
+      return;
+    }
     let isMounted = true;
-    const loadInitialData = async () => {
+    const loadBaseDirectories = async () => {
       try {
-        // showBaseDirectories가 true면 파일 시스템을 최우선으로 표시
-        if (showBaseDirectories) {
-          // base directories 로드 (Space 생성 모달 등에서 사용)
-          const baseDirs = await fetchBaseDirectories();
-          if (isMounted) {
-            setTreeData(convertToFileTreeData(baseDirs));
-            setLoadedKeys([]);
-            setExpandedKeys([]);
-          }
-        } else if (rootPath && rootName) {
-          // 단일 Space를 루트 노드로 표시
-          if (isMounted) {
-            setTreeData([{
-              title: rootName,
-              key: rootPath,
-              isLeaf: false,
-            }]);
-            setLoadedKeys([]);
-            setExpandedKeys([]);
-          }
-        } else if (spaces && spaces.length > 0) {
-          // Spaces를 루트 노드로 표시 (메인 사이드바에서 사용)
-          if (isMounted) {
-            setTreeData(spaces.map(space => ({
-              title: space.space_name,
-              key: `space-${space.id}`,
-              isLeaf: false,
-            })));
-            setLoadedKeys([]);
-            setExpandedKeys([]);
-          }
-        } else {
-          // 트리를 비움
-          if (isMounted) {
-            setTreeData([]);
-            setLoadedKeys([]);
-            setExpandedKeys([]);
-          }
+        const baseDirs = await fetchBaseDirectories();
+        if (!isMounted) {
+          return;
         }
+        setTreeData(convertToFileTreeData(baseDirs));
+        setLoadedKeys([]);
+        setExpandedKeys([]);
       } catch {
-        if (isMounted) {
-          setTreeData([]);
-          setLoadedKeys([]);
-          setExpandedKeys([]);
+        if (!isMounted) {
+          return;
         }
+        setTreeData([]);
+        setLoadedKeys([]);
+        setExpandedKeys([]);
       }
     };
-    loadInitialData();
-    return () => { isMounted = false; };
-  }, [rootPath, rootName, showBaseDirectories, spaces, fetchBaseDirectories, reloadNonce]);
+    void loadBaseDirectories();
+    return () => {
+      isMounted = false;
+    };
+  }, [showBaseDirectories, fetchBaseDirectories, reloadNonce]);
+
+  // 일반 트리(스페이스/단일 스페이스)를 초기화합니다.
+  useEffect(() => {
+    if (showBaseDirectories) {
+      return;
+    }
+    if (rootPath && rootName) {
+      setTreeData([{
+        title: rootName,
+        key: rootPath,
+        isLeaf: false,
+      }]);
+      setLoadedKeys([]);
+      setExpandedKeys([]);
+      return;
+    }
+    if (spaces && spaces.length > 0) {
+      setTreeData(spaces.map(space => ({
+        title: space.space_name,
+        key: `space-${space.id}`,
+        isLeaf: false,
+      })));
+      setLoadedKeys([]);
+      setExpandedKeys([]);
+      return;
+    }
+    setTreeData([]);
+    setLoadedKeys([]);
+    setExpandedKeys([]);
+  }, [rootPath, rootName, showBaseDirectories, spaces, reloadNonce]);
 
   // 트리 전체 초기화 요청(legacy fallback)
   useEffect(() => {
