@@ -1,6 +1,21 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **WebDAV OPTIONS 401 차단 완화 (2026-02-26)**:
+    - 문제:
+      - WebDAV 핸들러가 메서드 구분 없이 Basic Auth를 먼저 검사해, 인증 헤더 없는 `OPTIONS` 요청도 즉시 `401`로 차단됐다.
+      - 일부 클라이언트에서는 핸드셰이크 단계에서 자격증명 입력 흐름이 시작되지 않아 연결 UX가 저하됐다.
+    - 백엔드:
+      - 루트 경로(`OPTIONS /dav`, `OPTIONS /dav/`)만 무인증 `200`으로 허용해 WebDAV 핸드셰이크를 통과시킴.
+      - 하위 경로 `OPTIONS`와 실제 리소스 접근 메서드(`PROPFIND/GET/PUT...`)는 기존대로 Basic Auth를 강제.
+      - 루트 `OPTIONS` 응답은 WebDAV root handler로 위임해 경로/서버 동작과 일치한 capability 헤더를 사용.
+      - 구현 파일:
+        - `apps/backend/internal/webdav/handler/webdav_handler.go`
+        - `apps/backend/internal/webdav/handler/webdav_handler_test.go`
+    - 검증:
+      - `cd apps/backend && go test ./internal/webdav/...` 통과.
+      - `cd apps/backend && go test ./...` 통과.
+
 - **WebDAV 루트 `/dav` 301 리다이렉트로 인한 405 회귀 수정 (2026-02-25)**:
     - 문제:
       - 서버가 `/dav/`만 등록되어 있어 `/dav` 요청이 `301 -> /dav/`로 리다이렉트됨.
