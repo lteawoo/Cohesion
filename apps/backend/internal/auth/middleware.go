@@ -43,6 +43,15 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 			writeUnauthorized(w)
 			return
 		}
+		currentUser, err := s.resolveCurrentUserFromClaims(r.Context(), claims)
+		if err != nil {
+			writeUnauthorized(w)
+			return
+		}
+		claims.UserID = currentUser.ID
+		claims.Username = currentUser.Username
+		claims.Nickname = currentUser.Nickname
+		claims.Role = currentUser.Role
 
 		if requiredPermission, ok := requiredPermissionForRequest(r); ok {
 			allowed, err := s.HasPermission(r.Context(), claims.Role, requiredPermission)
