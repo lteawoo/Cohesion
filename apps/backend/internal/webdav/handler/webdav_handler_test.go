@@ -66,3 +66,34 @@ func TestServeHTTP_PROPFIND_NoAuthUnauthorized(t *testing.T) {
 		t.Fatalf("expected WWW-Authenticate header")
 	}
 }
+
+func TestNormalizePROPFINDDepth(t *testing.T) {
+	tests := []struct {
+		name     string
+		method   string
+		input    string
+		expected string
+	}{
+		{name: "keep depth 0", method: "PROPFIND", input: "0", expected: "0"},
+		{name: "keep depth 1", method: "PROPFIND", input: "1", expected: "1"},
+		{name: "infinity to 1", method: "PROPFIND", input: "infinity", expected: "1"},
+		{name: "empty to 1", method: "PROPFIND", input: "", expected: "1"},
+		{name: "invalid to 1", method: "PROPFIND", input: "2", expected: "1"},
+		{name: "non propfind untouched", method: http.MethodGet, input: "infinity", expected: "infinity"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, "/dav/test-space", nil)
+			if tt.input != "" {
+				req.Header.Set("Depth", tt.input)
+			}
+
+			normalizePROPFINDDepth(req)
+
+			if got := req.Header.Get("Depth"); got != tt.expected {
+				t.Fatalf("expected depth %q, got %q", tt.expected, got)
+			}
+		})
+	}
+}

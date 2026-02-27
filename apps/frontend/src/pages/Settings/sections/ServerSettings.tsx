@@ -31,11 +31,23 @@ function getServerConfigValidationError(
     return t('serverSettings.validationWebPort');
   }
 
+  if (server.ftpEnabled) {
+    if (!isValidPort(server.ftpPort)) {
+      return t('serverSettings.validationFtpPort');
+    }
+    if (server.ftpPort === webPort) {
+      return t('serverSettings.validationPortConflict');
+    }
+  }
+
   if (server.sftpEnabled) {
     if (!isValidPort(server.sftpPort)) {
       return t('serverSettings.validationSftpPort');
     }
     if (server.sftpPort === webPort) {
+      return t('serverSettings.validationPortConflict');
+    }
+    if (server.ftpEnabled && server.sftpPort === server.ftpPort) {
       return t('serverSettings.validationPortConflict');
     }
   }
@@ -310,6 +322,46 @@ const ServerSettings = () => {
         </Space>
       </Card>
 
+      <Card title={t('serverSettings.ftpServerCard')} size="small">
+        <Space vertical size="small" className="settings-stack-full">
+          <SettingRow
+            left={<Text strong>{t('serverSettings.enabledLabel')}</Text>}
+            right={(
+              <Switch
+                checked={server.ftpEnabled}
+                onChange={(checked: boolean) => updateServerConfig('ftpEnabled', checked)}
+              />
+            )}
+          />
+
+          {server.ftpEnabled && (
+            <>
+              <Divider className="settings-divider-compact" />
+              <SettingRow
+                left={<Text strong>{t('serverSettings.portLabel')}</Text>}
+                right={(
+                  <InputNumber
+                    size="small"
+                    min={1}
+                    max={65535}
+                    value={server.ftpPort}
+                    onChange={(value: number | null) => {
+                      if (value !== null) {
+                        updateServerConfig('ftpPort', value);
+                      }
+                    }}
+                    className="settings-port-input"
+                  />
+                )}
+              />
+              <Text type="warning" className="settings-text-xs">
+                {t('serverSettings.ftpSecurityWarning')}
+              </Text>
+            </>
+          )}
+        </Space>
+      </Card>
+
       <Card title={t('serverSettings.sftpServerCard')} size="small">
         <Space vertical size="small" className="settings-stack-full">
           <SettingRow
@@ -344,6 +396,27 @@ const ServerSettings = () => {
               />
             </>
           )}
+        </Space>
+      </Card>
+
+      <Card title={t('serverSettings.smbGatewayCard')} size="small">
+        <Space vertical size="small" className="settings-stack-full">
+          <SettingRow
+            left={<Text strong>{t('serverSettings.smbGatewayModeLabel')}</Text>}
+            right={<Text>{t('serverSettings.smbGatewayModeValue')}</Text>}
+          />
+          <Divider className="settings-divider-compact" />
+          <SettingRow
+            left={<Text strong>{t('serverSettings.smbWindowsPathLabel')}</Text>}
+            right={<Text code>{'\\\\<host>\\<share>'}</Text>}
+          />
+          <SettingRow
+            left={<Text strong>{t('serverSettings.smbMacPathLabel')}</Text>}
+            right={<Text code>{'smb://<host>/<share>'}</Text>}
+          />
+          <Text type="secondary" className="settings-text-xs">
+            {t('serverSettings.smbGuide')}
+          </Text>
         </Space>
       </Card>
     </Space>

@@ -98,6 +98,8 @@ func defaultConfigForEnv(goEnv string) Config {
 		Server: Server{
 			Port:          "3000",
 			WebdavEnabled: true,
+			FtpEnabled:    false,
+			FtpPort:       2121,
 			SftpEnabled:   false,
 			SftpPort:      2222,
 		},
@@ -185,6 +187,18 @@ func validateServerConfig(server Server) *web.Error {
 	webPort, err := strconv.Atoi(serverPort)
 	if err != nil || webPort < 1 || webPort > 65535 {
 		return &web.Error{Code: http.StatusBadRequest, Message: "server.port must be an integer between 1 and 65535"}
+	}
+
+	if server.FtpEnabled {
+		if server.FtpPort < 1 || server.FtpPort > 65535 {
+			return &web.Error{Code: http.StatusBadRequest, Message: "server.ftpPort must be an integer between 1 and 65535 when ftp is enabled"}
+		}
+		if server.FtpPort == webPort {
+			return &web.Error{Code: http.StatusBadRequest, Message: "server.ftpPort must be different from server.port"}
+		}
+		if server.SftpEnabled && server.FtpPort == server.SftpPort {
+			return &web.Error{Code: http.StatusBadRequest, Message: "server.ftpPort must be different from server.sftpPort"}
+		}
 	}
 
 	if server.SftpEnabled {
