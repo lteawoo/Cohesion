@@ -9,9 +9,8 @@ const PROTOCOL_LABELS: Record<string, string> = {
   webdav: 'WebDAV',
   ftp: 'FTP',
   sftp: 'SFTP',
-  smb: 'SMB',
 };
-const PROTOCOL_ORDER = ['http', 'webdav', 'ftp', 'sftp', 'smb'] as const;
+const PROTOCOL_ORDER = ['http', 'webdav', 'ftp', 'sftp'] as const;
 
 function StatusDot({ color, size = 8 }: { color: string; size?: number }) {
   return (
@@ -33,7 +32,6 @@ function getStatusColor(
     healthy: string;
     unhealthy: string;
     unavailable: string;
-    external: string;
   }
 ) {
   switch (status) {
@@ -43,8 +41,6 @@ function getStatusColor(
       return colors.unhealthy;
     case 'unavailable':
       return colors.unavailable;
-    case 'external':
-      return colors.external;
   }
 }
 
@@ -56,8 +52,6 @@ function getStatusLabel(status: ProtocolStatus['status'], t: (key: string) => un
       return String(t('serverStatus.status.unhealthy'));
     case 'unavailable':
       return String(t('serverStatus.status.unavailable'));
-    case 'external':
-      return String(t('serverStatus.status.external'));
   }
 }
 
@@ -120,7 +114,6 @@ function PopoverContent({
     healthy: token.colorSuccess,
     unhealthy: token.colorError,
     unavailable: token.colorTextTertiary,
-    external: token.colorTextTertiary,
   };
   const webUrl = `${window.location.origin}/`;
   const webPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');

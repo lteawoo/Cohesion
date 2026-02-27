@@ -399,26 +399,6 @@ const ServerSettings = () => {
         </Space>
       </Card>
 
-      <Card title={t('serverSettings.smbGatewayCard')} size="small">
-        <Space vertical size="small" className="settings-stack-full">
-          <SettingRow
-            left={<Text strong>{t('serverSettings.smbGatewayModeLabel')}</Text>}
-            right={<Text>{t('serverSettings.smbGatewayModeValue')}</Text>}
-          />
-          <Divider className="settings-divider-compact" />
-          <SettingRow
-            left={<Text strong>{t('serverSettings.smbWindowsPathLabel')}</Text>}
-            right={<Text code>{'\\\\<host>\\<share>'}</Text>}
-          />
-          <SettingRow
-            left={<Text strong>{t('serverSettings.smbMacPathLabel')}</Text>}
-            right={<Text code>{'smb://<host>/<share>'}</Text>}
-          />
-          <Text type="secondary" className="settings-text-xs">
-            {t('serverSettings.smbGuide')}
-          </Text>
-        </Space>
-      </Card>
     </Space>
   );
 };

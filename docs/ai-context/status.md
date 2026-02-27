@@ -1,19 +1,15 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
-- **SMB 게이트웨이 1차 적용 완료 (#161, 2026-02-27)**:
-    - 백엔드:
-      - `/api/status` 프로토콜 목록에 `smb` 상태(`external`)를 추가해 코어 내장 서버가 아닌 외부 게이트웨이 모델을 명시.
-      - FTP 서비스 시작 판정을 타이머 기반에서 포트 프로빙 + settle 재확인 방식으로 보강.
-      - FTP 경계 테스트 추가(`driver_test`, `service_test`).
-      - 개발 기본 설정의 FTP 기본값을 `false`로 고정.
-    - 프론트:
-      - 상태 팝오버 프로토콜 순서/라벨에 `SMB` 추가(`WEB -> WebDAV -> FTP -> SFTP -> SMB`).
-      - `serverStatus.status.external` 상태 라벨(ko/en) 추가.
-      - Settings > 서버에 `SMB 게이트웨이` 안내 카드 추가(Windows/macOS 연결 경로, 운영 가이드 링크).
-    - 문서:
-      - SMB 운영 문서 신규 추가: `docs/smb_gateway.md` (Samba 예시, 보안 가드, Windows/macOS 연결 절차).
-      - README에 SMB(외부 게이트웨이) 지원 경로 및 운영 가이드 링크 반영.
+- **SMB 게이트웨이 노출 제거 (2026-02-27)**:
+    - 배경:
+      - #161에서 SMB 게이트웨이 1차 작업을 완료했지만, SMB를 코어에 내장하지 않는 상태에서 안내 중심 UX는 사용자 기대와 맞지 않아 제품 노출을 후속 조정하기로 결정.
+    - 적용:
+      - 백엔드 `/api/status`에서 `smb` 프로토콜 상태 제거.
+      - 프론트 상태 팝오버에서 SMB 라벨/순서/`external` 상태 제거.
+      - Settings > 서버의 SMB 안내 카드 제거.
+      - README의 SMB 지원 표기 제거.
+      - `docs/smb_gateway.md` 제거.
     - 검증:
       - `cd apps/backend && go test ./...` 통과.
       - `pnpm -C apps/frontend lint` 통과.
@@ -48,7 +44,7 @@
       - `#158` 부모 이슈: 완료
       - `#159` 정책 확정: 완료
       - `#160` FTP 1차: 완료
-      - `#161` SMB 게이트웨이 1차: 완료
+      - `#161` SMB 게이트웨이 1차: 완료(후속 변경으로 제품 노출 제거 반영)
 
 - **WebDAV PROPFIND 깊이 제한으로 과부하 방지 (2026-02-26)**:
     - 문제:
