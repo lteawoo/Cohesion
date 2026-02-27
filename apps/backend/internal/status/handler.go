@@ -63,7 +63,6 @@ func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) *web.Erro
 
 	protocols["ftp"] = h.checkFTP()
 	protocols["sftp"] = h.checkSFTP()
-	protocols["smb"] = h.checkSMB()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(StatusResponse{
@@ -189,13 +188,6 @@ func (h *Handler) checkSFTP() ProtocolStatus {
 		Status:  "healthy",
 		Message: "정상",
 		Port:    port,
-	}
-}
-
-func (h *Handler) checkSMB() ProtocolStatus {
-	return ProtocolStatus{
-		Status:  "external",
-		Message: "외부 게이트웨이",
 	}
 }
 

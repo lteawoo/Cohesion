@@ -1,5 +1,5 @@
 export interface ProtocolStatus {
-  status: 'healthy' | 'unhealthy' | 'unavailable' | 'external';
+  status: 'healthy' | 'unhealthy' | 'unavailable';
   message: string;
   port?: string;
   path?: string;
