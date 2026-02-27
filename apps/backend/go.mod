@@ -5,6 +5,7 @@ go 1.25.7
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/gliderlabs/ssh v0.3.8
+	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/ncruces/go-sqlite3 v0.30.3
 	github.com/pkg/sftp v1.13.7
@@ -22,6 +23,8 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/goftp/file-driver v0.0.0-20180502053751-5d604a0fc0c9 // indirect
+	github.com/jlaffaye/ftp v0.2.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect

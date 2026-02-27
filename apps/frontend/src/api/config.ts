@@ -4,6 +4,8 @@ import i18n from '@/i18n';
 export interface ServerConfig {
   port: string;
   webdavEnabled: boolean;
+  ftpEnabled: boolean;
+  ftpPort: number;
   sftpEnabled: boolean;
   sftpPort: number;
 }

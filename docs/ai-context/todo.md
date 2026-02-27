@@ -54,6 +54,7 @@
 - [x] WebDAV 루트 라우트 `/dav` + `/dav/` 이중 등록으로 리다이렉트(301) 제거 및 루트 연결 405 회귀 방지
 - [x] WebDAV 루트 라우트 회귀 테스트 추가 (`main_test.go`: `/dav`·`/dav/`·`/dav/{space}` PROPFIND 비리다이렉트 검증)
 - [x] WebDAV 루트 OPTIONS 무인증 허용 (`/dav`,`/dav/`만 200 + 하위 경로/리소스 메서드 인증 유지)
+- [x] WebDAV PROPFIND Depth 제한 적용 (`0|1` 허용, 나머지 `1` 강제)으로 재귀 전체 스캔 과부하 완화
 - [x] 기본 관리자 초기값 하드닝 (프로덕션 기본 계정/비밀번호 fallback 금지)
 - [x] 초기 관리자 보안 부팅 전환 (기본 fallback 제거 + 최초 실행 setup API/화면 도입)
 - [x] JWT/SQLite 로컬 비밀값 하드닝 (JWT 랜덤 시크릿 파일 생성, DB 파일 권한 제한)
@@ -165,6 +166,10 @@
 - [x] 실행파일 루트 로그 통합 (`logs/app.log`, `logs/updater.log` 생성 및 업데이터 재시작 stdout/stderr 리다이렉트)
 - [x] 실행파일 루트 PID 파일(`cohesion.pid`) 기록 + 릴리즈용 shutdown 스크립트(`stop-cohesion.command`, `stop-cohesion.bat`) 추가
 - [ ] 텍스트 파일 미리보기
+- [x] FTP/SMB 프로토콜 확장 운영 모델 확정 및 단계별 도입 계획 수립 (#158, #160/#161 진행 후 완료)
+- [x] FTP/SMB 정책 매트릭스/아키텍처 결정 문서화 (#159)
+- [x] FTP 서버 재도입 1차 구현 (기본 비활성 + 권한/상태/설정 연동) (#160)
+- [x] SMB 네트워크 드라이브 1차 지원 (게이트웨이 방식) (#161)
 - [x] 휴지통(Soft Delete) + 복원 기능 (#123)
 - [x] 휴지통 진입 위치를 사이드패널 최하단 고정 버튼으로 이동 + `/trash` 전역(모든 Space) 통합 화면 전환
 - [x] 업로드 충돌 정책(덮어쓰기/이름변경/건너뛰기) (#124)

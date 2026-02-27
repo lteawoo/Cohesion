@@ -8,7 +8,7 @@ This project is built around the following goals:
 
 - Keep installation and operation simple
 - Browse and manage files directly in the browser
-- Integrate with existing clients via protocols such as WebDAV and SFTP
+- Integrate with existing clients via protocols such as WebDAV, SFTP, and SMB gateway
 - Enforce access control with account/role/permission policies
 
 ## Key Features
@@ -20,6 +20,7 @@ This project is built around the following goals:
 - Image thumbnails and extension-based file icons
 - WebDAV Basic Auth with Space permission checks
 - Optional SFTP server with account authentication and permission checks
+- SMB network drive support via external gateway (Samba)
 - JWT cookie authentication with initial admin setup flow
 - Account/role/permission (RBAC) management UI
 
@@ -28,6 +29,7 @@ This project is built around the following goals:
 - WEB: `http://<host>:<port>` (UI + API)
 - WebDAV: `http://<host>:<port>/dav`
 - SFTP: `<host>:<sftp_port>` (when enabled)
+- SMB: `\\\\<host>\\<share>` / `smb://<host>/<share>` (via external Samba gateway, see `docs/smb_gateway.md`)
 
 ## Tech Stack
 
@@ -139,6 +141,7 @@ On first run, Cohesion creates a default config file when missing. The default p
 
 - The default transport is HTTP. For internet exposure, use a reverse proxy (Caddy/Nginx) with TLS.
 - WebDAV should be used with both Basic Auth and Space permission checks.
+- For SMB network drives, follow the external gateway guide: `docs/smb_gateway.md`.
 
 ## License
 

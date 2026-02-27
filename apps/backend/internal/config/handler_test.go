@@ -12,19 +12,23 @@ func TestValidateServerConfig(t *testing.T) {
 		wantMessage string
 	}{
 		{
-			name: "valid config without sftp",
+			name: "valid config without ftp and sftp",
 			server: Server{
 				Port:          "3000",
 				WebdavEnabled: true,
+				FtpEnabled:    false,
+				FtpPort:       2121,
 				SftpEnabled:   false,
 				SftpPort:      2222,
 			},
 		},
 		{
-			name: "valid config with trimmed port and sftp",
+			name: "valid config with trimmed port and ftp/sftp",
 			server: Server{
 				Port:          " 3000 ",
 				WebdavEnabled: true,
+				FtpEnabled:    true,
+				FtpPort:       2121,
 				SftpEnabled:   true,
 				SftpPort:      2222,
 			},
@@ -34,6 +38,8 @@ func TestValidateServerConfig(t *testing.T) {
 			server: Server{
 				Port:          "",
 				WebdavEnabled: true,
+				FtpEnabled:    false,
+				FtpPort:       2121,
 				SftpEnabled:   false,
 				SftpPort:      2222,
 			},
@@ -44,6 +50,8 @@ func TestValidateServerConfig(t *testing.T) {
 			server: Server{
 				Port:          "abc",
 				WebdavEnabled: true,
+				FtpEnabled:    false,
+				FtpPort:       2121,
 				SftpEnabled:   false,
 				SftpPort:      2222,
 			},
@@ -54,16 +62,56 @@ func TestValidateServerConfig(t *testing.T) {
 			server: Server{
 				Port:          "65536",
 				WebdavEnabled: true,
+				FtpEnabled:    false,
+				FtpPort:       2121,
 				SftpEnabled:   false,
 				SftpPort:      2222,
 			},
 			wantMessage: "server.port must be an integer between 1 and 65535",
 		},
 		{
+			name: "invalid ftp port when enabled",
+			server: Server{
+				Port:          "3000",
+				WebdavEnabled: true,
+				FtpEnabled:    true,
+				FtpPort:       0,
+				SftpEnabled:   false,
+				SftpPort:      2222,
+			},
+			wantMessage: "server.ftpPort must be an integer between 1 and 65535 when ftp is enabled",
+		},
+		{
+			name: "ftp port must differ from web port",
+			server: Server{
+				Port:          "3000",
+				WebdavEnabled: true,
+				FtpEnabled:    true,
+				FtpPort:       3000,
+				SftpEnabled:   false,
+				SftpPort:      2222,
+			},
+			wantMessage: "server.ftpPort must be different from server.port",
+		},
+		{
+			name: "ftp port must differ from sftp port",
+			server: Server{
+				Port:          "3000",
+				WebdavEnabled: true,
+				FtpEnabled:    true,
+				FtpPort:       2222,
+				SftpEnabled:   true,
+				SftpPort:      2222,
+			},
+			wantMessage: "server.ftpPort must be different from server.sftpPort",
+		},
+		{
 			name: "invalid sftp port when enabled",
 			server: Server{
 				Port:          "3000",
 				WebdavEnabled: true,
+				FtpEnabled:    false,
+				FtpPort:       2121,
 				SftpEnabled:   true,
 				SftpPort:      0,
 			},
@@ -74,6 +122,8 @@ func TestValidateServerConfig(t *testing.T) {
 			server: Server{
 				Port:          "3000",
 				WebdavEnabled: true,
+				FtpEnabled:    false,
+				FtpPort:       2121,
 				SftpEnabled:   true,
 				SftpPort:      3000,
 			},

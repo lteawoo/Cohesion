@@ -1,6 +1,69 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **SMB 게이트웨이 1차 적용 완료 (#161, 2026-02-27)**:
+    - 백엔드:
+      - `/api/status` 프로토콜 목록에 `smb` 상태(`external`)를 추가해 코어 내장 서버가 아닌 외부 게이트웨이 모델을 명시.
+      - FTP 서비스 시작 판정을 타이머 기반에서 포트 프로빙 + settle 재확인 방식으로 보강.
+      - FTP 경계 테스트 추가(`driver_test`, `service_test`).
+      - 개발 기본 설정의 FTP 기본값을 `false`로 고정.
+    - 프론트:
+      - 상태 팝오버 프로토콜 순서/라벨에 `SMB` 추가(`WEB -> WebDAV -> FTP -> SFTP -> SMB`).
+      - `serverStatus.status.external` 상태 라벨(ko/en) 추가.
+      - Settings > 서버에 `SMB 게이트웨이` 안내 카드 추가(Windows/macOS 연결 경로, 운영 가이드 링크).
+    - 문서:
+      - SMB 운영 문서 신규 추가: `docs/smb_gateway.md` (Samba 예시, 보안 가드, Windows/macOS 연결 절차).
+      - README에 SMB(외부 게이트웨이) 지원 경로 및 운영 가이드 링크 반영.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
+- **FTP 서버 재도입 1차 완료 (#160, 2026-02-26)**:
+    - 백엔드:
+      - `internal/ftp` 모듈 복원 및 `main` lifecycle(start/stop/restart/shutdown) 연동.
+      - 설정 모델/기본 config에 `ftp_enabled`, `ftp_port` 복원(기본 비활성).
+      - 설정 검증에 FTP 포트 범위/포트 충돌(`WEB`, `SFTP`) 규칙 추가.
+      - `/api/status`에 FTP 헬스체크 복원.
+    - 프론트:
+      - 설정 화면에 FTP 카드(활성화/포트) 및 평문 보안 경고 추가.
+      - 상태 팝오버 프로토콜 순서에 FTP 복원(`WEB -> WebDAV -> FTP -> SFTP`).
+      - 설정 API 타입/다국어 리소스(ko/en) FTP 키 확장.
+    - 검증:
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
+- **FTP/SMB 정책/아키텍처 1차 확정 (#159, 2026-02-26)**:
+    - 배경:
+      - 사용자 요청(네트워크 드라이브 UX)과 기존 `FTP 제거 + SFTP 단일화` 결정 간 충돌이 발생.
+    - 결정:
+      - 기본 프로토콜 범위는 `WEB/WebDAV/SFTP` 유지.
+      - FTP는 기본 비활성(옵트인) 재도입 정책으로 전환.
+      - SMB는 코어 내장 대신 외부 게이트웨이(Samba) 방식으로 1차 추진.
+      - 실행 순서를 `#159 -> #160 -> #161`로 고정.
+    - 이슈 상태:
+      - `#158` 부모 이슈: 완료
+      - `#159` 정책 확정: 완료
+      - `#160` FTP 1차: 완료
+      - `#161` SMB 게이트웨이 1차: 완료
+
+- **WebDAV PROPFIND 깊이 제한으로 과부하 방지 (2026-02-26)**:
+    - 문제:
+      - 일부 WebDAV 클라이언트의 `PROPFIND`가 `Depth: infinity`(또는 Depth 생략)로 들어오며 하위 전체 재귀 스캔이 발생해 서비스 과부하를 유발할 수 있었다.
+    - 백엔드:
+      - 인증 이후 `PROPFIND` 요청의 Depth를 정규화:
+        - 허용: `0`, `1`
+        - 그 외(`infinity`/생략/비정상 값): `1`로 강제
+      - 구현 파일:
+        - `apps/backend/internal/webdav/handler/webdav_handler.go`
+        - `apps/backend/internal/webdav/handler/webdav_handler_test.go`
+    - 검증:
+      - `cd apps/backend && go test ./internal/webdav/...` 통과.
+      - `cd apps/backend && go test ./...` 통과.
+
 - **GitHub Actions Go 캐시 경로 보정 (2026-02-26)**:
     - 문제:
       - 모노레포 구조에서 `go.sum`이 루트가 아닌 `apps/backend/go.sum`에 위치해 `actions/setup-go` 캐시 복원 단계에서 실패 메시지가 발생할 수 있었다.

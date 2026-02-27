@@ -52,6 +52,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) *web.Error {
 		return nil
 	}
 
+	normalizePROPFINDDepth(r)
+
 	ctx := webdav.WithUsername(r.Context(), username)
 
 	// URL 경로에서 space 이름 추출
@@ -129,4 +131,19 @@ func writeWebDAVRootOptionsFallback(w http.ResponseWriter) {
 	w.Header().Set("DAV", "1, 2")
 	w.Header().Set("MS-Author-Via", "DAV")
 	w.WriteHeader(http.StatusOK)
+}
+
+func normalizePROPFINDDepth(r *http.Request) {
+	if r.Method != "PROPFIND" {
+		return
+	}
+
+	depth := strings.ToLower(strings.TrimSpace(r.Header.Get("Depth")))
+	switch depth {
+	case "0", "1":
+		return
+	default:
+		// 무한/생략/비정상 Depth는 1로 고정해 재귀 전체 스캔을 방지한다.
+		r.Header.Set("Depth", "1")
+	}
 }

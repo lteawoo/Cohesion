@@ -1,6 +1,8 @@
 server:
     port: "3000"
     webdav_enabled: true
+    ftp_enabled: false
+    ftp_port: 2121
     sftp_enabled: true
     sftp_port: 2222
 database:
