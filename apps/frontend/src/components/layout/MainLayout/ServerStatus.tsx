@@ -27,7 +27,7 @@ function StatusDot({ color, size = 8 }: { color: string; size?: number }) {
 }
 
 function getStatusColor(
-  status: ProtocolStatus['status'],
+  status: ProtocolStatus['status'] | string,
   colors: {
     healthy: string;
     unhealthy: string;
@@ -41,16 +41,20 @@ function getStatusColor(
       return colors.unhealthy;
     case 'unavailable':
       return colors.unavailable;
+    default:
+      return colors.unavailable;
   }
 }
 
-function getStatusLabel(status: ProtocolStatus['status'], t: (key: string) => unknown) {
+function getStatusLabel(status: ProtocolStatus['status'] | string, t: (key: string) => unknown) {
   switch (status) {
     case 'healthy':
       return String(t('serverStatus.status.healthy'));
     case 'unhealthy':
       return String(t('serverStatus.status.unhealthy'));
     case 'unavailable':
+      return String(t('serverStatus.status.unavailable'));
+    default:
       return String(t('serverStatus.status.unavailable'));
   }
 }

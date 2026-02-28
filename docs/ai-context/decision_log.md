@@ -1071,6 +1071,17 @@
 - **이유**:
   - 현재 제품의 실제 제공 기능과 노출 범위를 일치시켜 사용자 혼선을 줄이기 위함.
 
+### Status 응답의 unknown 상태값 방어 처리 + 계약 회귀 테스트 추가 (2026-02-27)
+- **문제**:
+  - SMB 제거 이후 프론트 타입은 `healthy|unhealthy|unavailable`로 축소되었지만, 혼합 배포나 예기치 않은 응답으로 unknown 상태값이 들어오면 상태 점/라벨이 비정상 렌더될 수 있었다.
+  - `/api/status`의 프로토콜 키 계약(`smb` 미노출)에 대한 자동 회귀 테스트가 없어 재유입을 조기에 잡기 어려웠다.
+- **결정**:
+  - 프론트 `ServerStatus`에 상태 라벨/색상 default fallback(`unavailable`)을 추가한다.
+  - 프론트 `useServerStatus`에서 `/api/status` 응답을 런타임 정규화해 unknown 상태값을 `unavailable`로 강제한다.
+  - 백엔드 `internal/status/handler_test.go`를 추가해 `smb` 키 미포함 및 `POST /api/status` 405를 검증한다.
+- **이유**:
+  - API 계약 변화나 버전 스큐 상황에서 UI 저하를 방지하고, 상태 계약 회귀를 테스트로 고정하기 위함.
+
 ### Status 프로토콜 렌더 순서 고정 (2026-02-19)
 - **문제**:
   - 서버 상태 팝오버가 `Object.entries(protocols)` 순회에 의존해 프로토콜 표시 순서가 의도와 다르게 보일 수 있음.

@@ -1,6 +1,20 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **Status unknown 상태값 fallback 보강 + status 회귀 테스트 추가 (2026-02-27)**:
+    - 프론트:
+      - `ServerStatus`의 상태 라벨/색상 계산에 default fallback(`unavailable`) 추가.
+      - `useServerStatus`에서 `/api/status` 응답을 런타임 정규화해 구버전/예상외 상태값(예: `external`)을 안전하게 `unavailable`로 처리.
+    - 백엔드:
+      - `internal/status/handler_test.go` 추가.
+      - `/api/status` 응답에서 `smb` 키 미포함 계약과 `POST /api/status` `405`를 회귀 테스트로 고정.
+    - 검증:
+      - `cd apps/backend && go test ./internal/status/...` 통과.
+      - `cd apps/backend && go test ./...` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
 - **SMB 게이트웨이 노출 제거 (2026-02-27)**:
     - 배경:
       - #161에서 SMB 게이트웨이 1차 작업을 완료했지만, SMB를 코어에 내장하지 않는 상태에서 안내 중심 UX는 사용자 기대와 맞지 않아 제품 노출을 후속 조정하기로 결정.
