@@ -159,3 +159,53 @@ func TestHandleSearchFiles_InvalidLimit(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, webErr.Code)
 	}
 }
+
+func TestHandleSearchFiles_ExcludesPathOnlyMatches(t *testing.T) {
+	root := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(root, "project-report"), 0o755); err != nil {
+		t.Fatalf("failed to create report directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "project-report", "notes.txt"), []byte("memo"), 0o644); err != nil {
+		t.Fatalf("failed to create notes.txt: %v", err)
+	}
+
+	store := &fakeSearchSpaceStore{
+		spaces: []*space.Space{
+			{ID: 11, SpaceName: "Design", SpacePath: root},
+		},
+	}
+	access := &fakeSearchSpaceAccessService{
+		allowedBySpace: map[int64]bool{
+			11: true,
+		},
+	}
+	h := NewHandler(space.NewService(store), nil, access)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/search/files?q=report&limit=10", nil)
+	req = withClaims(req, "tester")
+	rec := httptest.NewRecorder()
+
+	webErr := h.handleSearchFiles(rec, req)
+	if webErr != nil {
+		t.Fatalf("expected no error, got %+v", webErr)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var got []fileSearchResult
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(got) == 0 {
+		t.Fatal("expected at least one name-match result")
+	}
+
+	for _, item := range got {
+		if item.Path == "project-report/notes.txt" {
+			t.Fatal("path-only match must be excluded from search results")
+		}
+	}
+}

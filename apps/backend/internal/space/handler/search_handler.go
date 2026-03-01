@@ -174,7 +174,7 @@ func searchFilesInSpace(spaceData *space.Space, queryLower string, limit int) ([
 		}
 
 		relativePath = filepath.ToSlash(relativePath)
-		if !isSearchHit(queryLower, entry.Name(), relativePath) {
+		if !isSearchHit(queryLower, entry.Name()) {
 			return nil
 		}
 
@@ -214,10 +214,9 @@ func searchFilesInSpace(spaceData *space.Space, queryLower string, limit int) ([
 	return results, nil
 }
 
-func isSearchHit(queryLower, name, relativePath string) bool {
+func isSearchHit(queryLower, name string) bool {
 	nameLower := strings.ToLower(name)
-	pathLower := strings.ToLower(relativePath)
-	return strings.Contains(nameLower, queryLower) || strings.Contains(pathLower, queryLower)
+	return strings.Contains(nameLower, queryLower)
 }
 
 func sortSearchResults(results []fileSearchResult, queryLower string) {
@@ -242,7 +241,6 @@ func sortSearchResults(results []fileSearchResult, queryLower string) {
 
 func searchRank(item fileSearchResult, queryLower string) int {
 	nameLower := strings.ToLower(item.Name)
-	pathLower := strings.ToLower(item.Path)
 
 	switch {
 	case nameLower == queryLower:
@@ -251,9 +249,7 @@ func searchRank(item fileSearchResult, queryLower string) int {
 		return 1
 	case strings.Contains(nameLower, queryLower):
 		return 2
-	case strings.Contains(pathLower, queryLower):
-		return 3
 	default:
-		return 4
+		return 3
 	}
 }
