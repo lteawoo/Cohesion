@@ -32,6 +32,7 @@ interface FolderContentTableProps {
   onItemDelete?: (record: FileNode) => void;
   showActions?: boolean;
   rowKeyResolver?: (record: FileNode) => string;
+  renderName?: (record: FileNode) => React.ReactNode;
   renderMeta?: (record: FileNode) => React.ReactNode;
   emptyText?: React.ReactNode;
 }
@@ -61,6 +62,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
   onItemDelete,
   showActions = true,
   rowKeyResolver,
+  renderName,
   renderMeta,
   emptyText,
 }) => {
@@ -120,7 +122,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
               )}
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div title={record.name} style={{ fontWeight: 500, color: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {record.name}
+                  {renderName ? renderName(record) : record.name}
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.72 }}>
                   {renderMeta

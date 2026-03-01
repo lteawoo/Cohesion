@@ -264,6 +264,13 @@ body.browse-shell-active .ant-select-dropdown [contenteditable] {
   white-space: nowrap;
 }
 
+.search-match-highlight {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ant-color-warning, #faad14) 28%, transparent);
+  color: inherit;
+}
+
 .layout-header-search-submit {
   width: 100%;
   min-height: 30px;

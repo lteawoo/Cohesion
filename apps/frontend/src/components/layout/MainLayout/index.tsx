@@ -13,6 +13,7 @@ import HeaderBrand from "@/components/common/HeaderBrand";
 import HeaderGroup from "@/components/common/HeaderGroup";
 import { searchFiles } from "@/features/search/api/searchApi";
 import type { SearchFileResult } from "@/features/search/types";
+import { highlightQueryMatch } from "@/features/search/utils/highlightQueryMatch";
 import { FileTypeIcon } from "@/features/browse/components/FileTypeIcon";
 import { useTranslation } from "react-i18next";
 
@@ -240,7 +241,9 @@ const HeaderSearch = memo(function HeaderSearch({
                     )}
                   </span>
                   <span className="layout-header-search-result-main">
-                    <span className="layout-header-search-result-name">{item.name}</span>
+                    <span className="layout-header-search-result-name">
+                      {highlightQueryMatch(item.name, normalizedHeaderSearchQuery)}
+                    </span>
                     <span className="layout-header-search-result-meta">
                       {item.spaceName}
                     </span>

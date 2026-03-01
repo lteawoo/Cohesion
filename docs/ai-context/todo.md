@@ -141,7 +141,7 @@
 - [x] Grid 뷰 이미지 썸네일 표시 기능 (ImageThumbnail 컴포넌트, fileTypeUtils)
 - [x] 이동/복사 모달 Space 트리 구조 개선 (모든 Space 표시)
 - [x] 이동/복사 모달 폴더 선택 시 선택 해제 버그 수정 (Portal 이벤트 버블링 차단)
-- [ ] 검색 기능 (#122)
+- [x] 검색 기능 (#122)
   - [x] 헤더 검색 UI 시안 1차 반영 (데스크톱 중앙 입력 + 모바일 검색 토글)
   - [x] 검색 API 연동 (연결된 전체 Space 대상, 파일명/경로 검색)
   - [x] 헤더 즉시결과(상위 8개) + 클릭 이동 + Enter 전용 화면(`/search`) 연결
@@ -162,7 +162,7 @@
   - [x] 검색 결과 클릭 전환 시 트리 자동 동기화를 경로 중심으로 경량화하고(`/search` limit 80) 전환 지연 완화
   - [x] 불필요 변경 정리: `FolderContent` 검색 모드 dead code 제거 + 백엔드 검색 최적화 변경은 별도 범위로 분리
   - [x] 검색 모드에서도 뷰 토글(`table/grid`) 재허용 (강제 table 고정 해제)
-  - [ ] 검색 결과 키워드 하이라이트 (#166)
+  - [x] 검색 결과 키워드 하이라이트 (#166)
 - [x] 스페이스 0개 + 휴지통 경로에서 Space 생성 모달 트리 확장 불가 루프 수정 (`TrashExplorer` fetch 루프 제거 + `FolderTree` 초기화 effect 분리)
 - [x] 스페이스 0개에서도 `/trash` 기본 레이아웃 유지 + `/trash`에서 동일 Space 재클릭 시 `/` 전환 보장 (`FolderTree` same-selection guard 우회 옵션)
 - [x] Windows browse 경로 정규화 계층 보강 (`C:` 루트/drive-relative/UNC 경로를 일관 정규화해 드라이브 하위 폴더 조회 오차 방지)

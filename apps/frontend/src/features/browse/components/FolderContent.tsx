@@ -116,6 +116,7 @@ const FolderContent: React.FC = () => {
     searchSource,
     sourceContent,
     openSearchResultByRecordPath,
+    renderSearchName,
     renderSearchMeta,
     activeErrorMessage,
     activeLoading,
@@ -1034,6 +1035,7 @@ const FolderContent: React.FC = () => {
                 onItemDelete={isSearchMode ? undefined : handleDelete}
                 showActions={!isSearchMode}
                 rowKeyResolver={isSearchMode ? ((record) => record.path) : undefined}
+                renderName={isSearchMode ? renderSearchName : undefined}
                 renderMeta={isSearchMode ? renderSearchMeta : undefined}
                 emptyText={isSearchMode ? (searchSource.hasEnoughQuery ? t('folderContent.noSearchResults') : searchModeHelpText) : undefined}
               />
@@ -1056,6 +1058,7 @@ const FolderContent: React.FC = () => {
                 onFolderDrop={handleFolderDrop}
                 itemsRef={itemsRef}
                 disableDraggable={isSearchMode || isSelecting || isTouchInteraction || !canWriteFiles}
+                renderName={isSearchMode ? renderSearchName : undefined}
                 spaceId={isSearchMode ? undefined : selectedSpace?.id}
               />
             )}

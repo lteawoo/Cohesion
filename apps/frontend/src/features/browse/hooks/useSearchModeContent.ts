@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { useSearchExplorerSource } from '@/features/search/hooks/useSearchExplorerSource';
 import type { SearchFileResult } from '@/features/search/types';
+import { highlightQueryMatch } from '@/features/search/utils/highlightQueryMatch';
 import { formatDate, formatSize } from '../constants';
 import type { FileNode } from '../types';
 
@@ -15,6 +17,7 @@ interface UseSearchModeContentResult {
   searchSource: ReturnType<typeof useSearchExplorerSource>;
   sourceContent: FileNode[];
   openSearchResultByRecordPath: (recordPath: string) => void;
+  renderSearchName: (record: FileNode) => ReactNode;
   renderSearchMeta: (record: FileNode) => string;
   activeErrorMessage: string | null;
   activeLoading: boolean;
@@ -64,6 +67,12 @@ export function useSearchModeContent({
     searchSource.openResult(item);
   }, [resolveSearchResult, searchSource]);
 
+  const renderSearchName = useCallback((record: FileNode) => {
+    const item = resolveSearchResult(record.path);
+    const name = item?.name ?? record.name;
+    return highlightQueryMatch(name, searchSource.query);
+  }, [resolveSearchResult, searchSource.query]);
+
   const renderSearchMeta = useCallback((record: FileNode) => {
     const item = resolveSearchResult(record.path);
     if (!item) {
@@ -81,6 +90,7 @@ export function useSearchModeContent({
     searchSource,
     sourceContent,
     openSearchResultByRecordPath,
+    renderSearchName,
     renderSearchMeta,
     activeErrorMessage,
     activeLoading,

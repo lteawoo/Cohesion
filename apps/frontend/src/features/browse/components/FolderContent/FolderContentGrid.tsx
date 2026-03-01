@@ -27,6 +27,7 @@ interface FolderContentGridProps {
   onFolderDrop: (e: React.DragEvent<HTMLElement>, record: FileNode) => void;
   itemsRef?: React.MutableRefObject<Map<string, HTMLElement>>;
   disableDraggable?: boolean;
+  renderName?: (record: FileNode) => React.ReactNode;
 }
 
 const FolderContentGrid: React.FC<FolderContentGridProps> = ({
@@ -47,6 +48,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   onFolderDrop,
   itemsRef,
   disableDraggable = false,
+  renderName,
   spaceId,
 }) => {
   const { t } = useTranslation();
@@ -151,7 +153,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                     marginBottom: '4px',
                   }}
                 >
-                  {item.name}
+                  {renderName ? renderName(item) : item.name}
                 </div>
                 {!item.isDir && (
                   <div style={{ fontSize: '11px', color: 'var(--ant-color-text-secondary, #778da9)' }}>

@@ -1,6 +1,29 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **검색 결과 키워드 하이라이트 완료 (#166, 2026-03-01)**:
+    - 프론트:
+      - 검색어 하이라이트 공통 유틸 `highlightQueryMatch`를 추가하고, 헤더 검색 드롭다운 결과 이름에 적용.
+      - `/search` 결과 렌더 경로(`FolderContent` 검색 모드)에 `renderSearchName`을 추가해 테이블/그리드 뷰 이름 텍스트에 동일 하이라이트를 적용.
+      - `FolderContentTable`, `FolderContentGrid`에 `renderName` 확장 prop을 추가해 검색 모드에서만 하이라이트 렌더를 주입.
+      - 하이라이트 스타일(`search-match-highlight`)을 전역 CSS에 추가해 라이트/다크 테마에서 기본 텍스트 대비를 유지.
+    - 구현 파일:
+      - `apps/frontend/src/features/search/utils/highlightQueryMatch.tsx`
+      - `apps/frontend/src/components/layout/MainLayout/index.tsx`
+      - `apps/frontend/src/features/browse/hooks/useSearchModeContent.ts`
+      - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+      - `apps/frontend/src/features/browse/components/FolderContent/FolderContentTable.tsx`
+      - `apps/frontend/src/features/browse/components/FolderContent/FolderContentGrid.tsx`
+      - `apps/frontend/src/assets/css/global.css`
+    - 검증:
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+      - 시각 검증 스크린샷:
+        - `.playwright-mcp/search-header-highlight-166.png`
+        - `.playwright-mcp/search-results-highlight-table-166.png`
+        - `.playwright-mcp/search-results-highlight-grid-166.png`
+
 - **FolderContent 책임 분리 리팩토링 2차 (#165, 2026-03-01)**:
     - 프론트:
       - `FolderContent`에서 검색 모드 브릿지 로직(결과 매핑/메타 렌더/오류·로딩 상태 전환)을 `useSearchModeContent` 훅으로 추출.
@@ -2320,7 +2343,6 @@
 
 ## 다음 작업 (Next Steps)
 - **FolderContent.tsx 리팩토링** (Phase 4: 검증 및 테스트).
-- 검색 기능 구현.
 - 이미지/텍스트 파일 미리보기 기능 구현.
 
 - **이동/복사 모달 source selection 안정성 보강 완료** (2026-02-13):
