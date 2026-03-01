@@ -78,3 +78,12 @@ playwright-report/
 blob-report/
 .playwright-mcp/
 .serena
+
+.claude
+.codex
+.gemini
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+docs/ai-context
+docs/master_rule_v2.md
