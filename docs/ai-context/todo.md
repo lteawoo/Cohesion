@@ -124,11 +124,15 @@
   - [x] Phase 2: Context Menu Store (ContextMenuContext 제거)
   - [x] Phase 3: Space Store (Props drilling 제거, CRUD actions)
   - [x] Phase 4: Browse Store (파일 탐색 경로, 컨텐츠)
-- [ ] **FolderContent.tsx 리팩토링** (진행 중)
+- [ ] **FolderContent.tsx 리팩토링** (#165, 진행 중)
   - [x] Phase 1: constants.ts, types.ts, hooks 생성
   - [x] Phase 2: Modal 상태 관리 통합 (useModalManager)
   - [x] Phase 3: 정렬 로직 분리 (useSortedContent)
   - [x] Phase 4: 검증 및 테스트 (`lint/build/go test` 기준)
+  - [x] 검색 소스/메타 렌더링 로직 훅 분리 (`useSearchModeContent`)
+  - [x] 경로 히스토리 이전/다음 로직 훅 분리 (`useBrowseHistoryNavigation`)
+  - [x] 휴지통 모달 상태/액션 로직 훅 분리 (`useTrashModalManager`)
+  - [x] `#165` 범위 외 하이라이트(`#166`) 변경 분리
 - [x] 박스 선택 버그 수정 (익스플로러 바깥 동작, 다중선택 안 됨)
 - [x] 박스 선택 기능 사용자 테스트 및 검증
 - [x] 박스 선택 후 선택 해제 버그 수정
@@ -137,7 +141,7 @@
 - [x] Grid 뷰 이미지 썸네일 표시 기능 (ImageThumbnail 컴포넌트, fileTypeUtils)
 - [x] 이동/복사 모달 Space 트리 구조 개선 (모든 Space 표시)
 - [x] 이동/복사 모달 폴더 선택 시 선택 해제 버그 수정 (Portal 이벤트 버블링 차단)
-- [ ] 검색 기능 (#122)
+- [x] 검색 기능 (#122)
   - [x] 헤더 검색 UI 시안 1차 반영 (데스크톱 중앙 입력 + 모바일 검색 토글)
   - [x] 검색 API 연동 (연결된 전체 Space 대상, 파일명/경로 검색)
   - [x] 헤더 즉시결과(상위 8개) + 클릭 이동 + Enter 전용 화면(`/search`) 연결
@@ -158,14 +162,14 @@
   - [x] 검색 결과 클릭 전환 시 트리 자동 동기화를 경로 중심으로 경량화하고(`/search` limit 80) 전환 지연 완화
   - [x] 불필요 변경 정리: `FolderContent` 검색 모드 dead code 제거 + 백엔드 검색 최적화 변경은 별도 범위로 분리
   - [x] 검색 모드에서도 뷰 토글(`table/grid`) 재허용 (강제 table 고정 해제)
-  - [ ] 검색 결과 키워드 하이라이트
+  - [x] 검색 결과 키워드 하이라이트 (#166)
 - [x] 스페이스 0개 + 휴지통 경로에서 Space 생성 모달 트리 확장 불가 루프 수정 (`TrashExplorer` fetch 루프 제거 + `FolderTree` 초기화 effect 분리)
 - [x] 스페이스 0개에서도 `/trash` 기본 레이아웃 유지 + `/trash`에서 동일 Space 재클릭 시 `/` 전환 보장 (`FolderTree` same-selection guard 우회 옵션)
 - [x] Windows browse 경로 정규화 계층 보강 (`C:` 루트/drive-relative/UNC 경로를 일관 정규화해 드라이브 하위 폴더 조회 오차 방지)
 - [x] DB 삭제/재생성 후 stale JWT 세션 차단 (미들웨어 사용자 실체 검증 + refresh 경로 동일 검증 + 회귀 테스트)
 - [x] 실행파일 루트 로그 통합 (`logs/app.log`, `logs/updater.log` 생성 및 업데이터 재시작 stdout/stderr 리다이렉트)
 - [x] 실행파일 루트 PID 파일(`cohesion.pid`) 기록 + 릴리즈용 shutdown 스크립트(`stop-cohesion.command`, `stop-cohesion.bat`) 추가
-- [ ] 텍스트 파일 미리보기
+- [ ] 텍스트 파일 미리보기 (#167)
 - [x] FTP/SMB 프로토콜 확장 운영 모델 확정 및 단계별 도입 계획 수립 (#158, #160/#161 완료)
 - [x] FTP/SMB 정책 매트릭스/아키텍처 결정 문서화 (#159)
 - [x] FTP 서버 재도입 1차 구현 (기본 비활성 + 권한/상태/설정 연동) (#160)

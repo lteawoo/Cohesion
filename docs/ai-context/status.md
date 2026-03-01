@@ -1,6 +1,57 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- **검색 결과 키워드 하이라이트 완료 (#166, 2026-03-01)**:
+    - 프론트:
+      - 검색어 하이라이트 공통 유틸 `highlightQueryMatch`를 추가하고, 헤더 검색 드롭다운 결과 이름에 적용.
+      - `/search` 결과 렌더 경로(`FolderContent` 검색 모드)에 `renderSearchName`을 추가해 테이블/그리드 뷰 이름 텍스트에 동일 하이라이트를 적용.
+      - `FolderContentTable`, `FolderContentGrid`에 `renderName` 확장 prop을 추가해 검색 모드에서만 하이라이트 렌더를 주입.
+      - 하이라이트 스타일(`search-match-highlight`)을 전역 CSS에 추가해 라이트/다크 테마에서 기본 텍스트 대비를 유지.
+    - 구현 파일:
+      - `apps/frontend/src/features/search/utils/highlightQueryMatch.tsx`
+      - `apps/frontend/src/components/layout/MainLayout/index.tsx`
+      - `apps/frontend/src/features/browse/hooks/useSearchModeContent.ts`
+      - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+      - `apps/frontend/src/features/browse/components/FolderContent/FolderContentTable.tsx`
+      - `apps/frontend/src/features/browse/components/FolderContent/FolderContentGrid.tsx`
+      - `apps/frontend/src/assets/css/global.css`
+    - 검증:
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+      - 시각 검증 스크린샷:
+        - `.playwright-mcp/search-header-highlight-166.png`
+        - `.playwright-mcp/search-results-highlight-table-166.png`
+        - `.playwright-mcp/search-results-highlight-grid-166.png`
+
+- **FolderContent 책임 분리 리팩토링 2차 (#165, 2026-03-01)**:
+    - 프론트:
+      - `FolderContent`에서 검색 모드 브릿지 로직(결과 매핑/메타 렌더/오류·로딩 상태 전환)을 `useSearchModeContent` 훅으로 추출.
+      - `FolderContent`에서 경로 히스토리 이전/다음 로직을 `useBrowseHistoryNavigation` 훅으로 추출.
+      - `FolderContent`의 휴지통 모달 상태/액션/확인 다이얼로그 흐름을 `useTrashModalManager` 훅으로 추출.
+      - 툴바의 뒤로/앞으로 enable 조건을 훅 반환값으로 일원화해 기존 동작을 유지하면서 컴포넌트 책임을 축소.
+      - `#165` 스코프 정리를 위해 검색 키워드 하이라이트(`#166`) 관련 변경을 분리(롤백)해 리팩토링 범위를 고정.
+    - 구현 파일:
+      - `apps/frontend/src/features/browse/components/FolderContent.tsx`
+      - `apps/frontend/src/features/browse/hooks/useSearchModeContent.ts`
+      - `apps/frontend/src/features/browse/hooks/useBrowseHistoryNavigation.ts`
+      - `apps/frontend/src/features/browse/hooks/useTrashModalManager.ts`
+    - 검증:
+      - `pnpm -C apps/frontend lint` 통과.
+      - `pnpm -C apps/frontend typecheck` 통과.
+      - `pnpm -C apps/frontend build` 통과.
+
+- **다음 개발 이슈 스코핑 및 등록 (2026-02-28)**:
+    - 사용자 요청 순서(4 -> 2 -> 3)에 맞춰 다음 작업 이슈를 생성하고 범위를 분석함.
+    - 생성 이슈:
+      - `#165` `[refactor] FolderContent.tsx 책임 분리 리팩토링 2차`
+      - `#166` `[feat] 검색 결과 키워드 하이라이트 지원`
+      - `#167` `[feat] 텍스트 파일 미리보기(읽기 전용) 지원`
+    - 분석 요약:
+      - `#165`는 `FolderContent.tsx` 단일 파일 집중도를 낮춰 후속 기능 회귀 리스크를 줄이는 선행 작업.
+      - `#166`은 검색 UX의 즉시 가독성 개선(헤더 드롭다운 + `/search` 결과 하이라이트) 작업.
+      - `#167`은 텍스트 파일 확인 동선을 다운로드 중심에서 인앱 읽기 전용 미리보기로 개선하는 작업.
+
 - **Status unknown 상태값 fallback 보강 + status 회귀 테스트 추가 (2026-02-27)**:
     - 프론트:
       - `ServerStatus`의 상태 라벨/색상 계산에 default fallback(`unavailable`) 추가.
@@ -2292,7 +2343,6 @@
 
 ## 다음 작업 (Next Steps)
 - **FolderContent.tsx 리팩토링** (Phase 4: 검증 및 테스트).
-- 검색 기능 구현.
 - 이미지/텍스트 파일 미리보기 기능 구현.
 
 - **이동/복사 모달 source selection 안정성 보강 완료** (2026-02-13):

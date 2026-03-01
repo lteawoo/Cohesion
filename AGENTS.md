@@ -1,5 +1,6 @@
 **필수적으로 따라야함**
 1. docs/master_rule_v2.md (작업 규칙)
+2. Call serena.activate_project, serena.check_onboarding_performed and serena.initial_instructions
 
 ## 프로젝트 구조
 

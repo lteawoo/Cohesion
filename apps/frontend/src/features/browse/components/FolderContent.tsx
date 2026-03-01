@@ -6,12 +6,15 @@ import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
 import { useFileSelection } from '../hooks/useFileSelection';
 import { useBreadcrumb } from '../hooks/useBreadcrumb';
-import { useFileOperations, type TrashItem } from '../hooks/useFileOperations';
+import { useFileOperations } from '../hooks/useFileOperations';
 import { useDragAndDrop } from '../hooks/useDragAndDrop';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useBoxSelection } from '../hooks/useBoxSelection';
 import { useModalManager } from '../hooks/useModalManager';
 import { useSortedContent } from '../hooks/useSortedContent';
+import { useBrowseHistoryNavigation } from '../hooks/useBrowseHistoryNavigation';
+import { useSearchModeContent } from '../hooks/useSearchModeContent';
+import { useTrashModalManager } from '../hooks/useTrashModalManager';
 import DestinationPickerModal from './DestinationPickerModal';
 import FolderContentToolbar from './FolderContent/FolderContentToolbar';
 import FolderContentTable from './FolderContent/FolderContentTable';
@@ -23,9 +26,6 @@ import UploadOverlay from './FolderContent/UploadOverlay';
 import BoxSelectionOverlay from './FolderContent/BoxSelectionOverlay';
 import { useAuth } from '@/features/auth/useAuth';
 import BottomSheet from '@/components/common/BottomSheet';
-import { formatDate, formatSize } from '../constants';
-import { useSearchExplorerSource } from '@/features/search/hooks/useSearchExplorerSource';
-import type { SearchFileResult } from '@/features/search/types';
 import { useTranslation } from 'react-i18next';
 
 const LONG_PRESS_DURATION_MS = 420;
@@ -33,7 +33,6 @@ const TOUCH_PAN_THRESHOLD_PX = 8;
 const PATH_BAR_HEIGHT = 36;
 const EXPLORER_SIDE_PADDING = 16;
 const PATH_BAR_CONTENT_OVERLAY_HEIGHT = PATH_BAR_HEIGHT - EXPLORER_SIDE_PADDING;
-type NavigationState = { entries: string[]; index: number };
 type BrowseLocationState = { fromSearchQuery?: string };
 const EMPTY_SELECTION = new Set<string>();
 
@@ -52,7 +51,7 @@ function detectTouchInputSupport(): boolean {
 
 const FolderContent: React.FC = () => {
   const { t } = useTranslation();
-  const { message, modal } = App.useApp();
+  const { message } = App.useApp();
   const { token } = theme.useToken();
   const location = useLocation();
   const navigate = useNavigate();
@@ -96,12 +95,6 @@ const FolderContent: React.FC = () => {
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const [isPathOverflow, setIsPathOverflow] = useState(false);
   const [overlayOffset, setOverlayOffset] = useState({ x: 0, y: 0 });
-  const [navigationState, setNavigationState] = useState<NavigationState>({ entries: [], index: -1 });
-  const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
-  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
-  const [selectedTrashIds, setSelectedTrashIds] = useState<number[]>([]);
-  const [isTrashLoading, setIsTrashLoading] = useState(false);
-  const [isTrashProcessing, setIsTrashProcessing] = useState(false);
   const [hasTouchInput, setHasTouchInput] = useState<boolean>(() => detectTouchInputSupport());
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
@@ -109,8 +102,6 @@ const FolderContent: React.FC = () => {
   const touchStartPointRef = useRef<{ x: number; y: number } | null>(null);
   const isTouchPanningRef = useRef(false);
   const selectedItemsRef = useRef<Set<string>>(new Set());
-  const historySpaceIdRef = useRef<number | undefined>(undefined);
-  const isHistoryTraversalRef = useRef(false);
   const interactionMode = hasTouchInput ? 'touch' : 'pointer';
   const isMobileLayout = layoutMode === 'mobile';
   const isTouchInteraction = interactionMode === 'touch';
@@ -121,24 +112,20 @@ const FolderContent: React.FC = () => {
 
   // Custom hooks
   const { selectedItems, handleItemClick, setSelection, clearSelection } = useFileSelection();
-  const searchSource = useSearchExplorerSource(isSearchMode);
-  const searchItemsByRowPath = useMemo(() => {
-    const next = new Map<string, SearchFileResult>();
-    searchSource.results.forEach((item) => {
-      next.set(`${item.spaceId}::${item.path}`, item);
-    });
-    return next;
-  }, [searchSource.results]);
-  const searchContent = useMemo<FileNode[]>(() => {
-    return searchSource.results.map((item) => ({
-      name: item.name,
-      path: `${item.spaceId}::${item.path}`,
-      isDir: item.isDir,
-      modTime: item.modTime,
-      size: item.size,
-    }));
-  }, [searchSource.results]);
-  const sourceContent = isSearchMode ? searchContent : content;
+  const {
+    searchSource,
+    sourceContent,
+    openSearchResultByRecordPath,
+    renderSearchName,
+    renderSearchMeta,
+    activeErrorMessage,
+    activeLoading,
+  } = useSearchModeContent({
+    isSearchMode,
+    browseContent: content,
+    browseErrorMessage: browseError?.message ?? null,
+    browseLoading: isLoading,
+  });
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current) {
@@ -271,98 +258,53 @@ const FolderContent: React.FC = () => {
     prevNavRef.current = currentNav;
   }, [selectedPath, selectedSpace, handleClearSelection, isSearchMode, modals.destination.visible]);
 
-  useEffect(() => {
-    let frame: number | null = null;
-    const scheduleNavigationUpdate = (updater: React.SetStateAction<NavigationState>) => {
-      frame = window.requestAnimationFrame(() => {
-        setNavigationState(updater);
-      });
-    };
+  const handleNavigateSearch = useCallback((query: string) => {
+    navigate(`/search?q=${encodeURIComponent(query)}`);
+  }, [navigate]);
 
-    if (isSearchMode) {
-      scheduleNavigationUpdate({ entries: [], index: -1 });
-      historySpaceIdRef.current = undefined;
-      return () => {
-        if (frame !== null) {
-          window.cancelAnimationFrame(frame);
-        }
-      };
-    }
+  const {
+    canGoBack,
+    canGoForward,
+    goBack: handleGoBack,
+    goForward: handleGoForward,
+  } = useBrowseHistoryNavigation({
+    isSearchMode,
+    selectedPath,
+    selectedSpaceId: selectedSpace?.id,
+    incomingSearchQuery,
+    onNavigate: handleNavigate,
+    onNavigateSearch: handleNavigateSearch,
+  });
 
-    if (!selectedSpace) {
-      scheduleNavigationUpdate({ entries: [], index: -1 });
-      historySpaceIdRef.current = undefined;
-      return () => {
-        if (frame !== null) {
-          window.cancelAnimationFrame(frame);
-        }
-      };
-    }
-
-    if (historySpaceIdRef.current !== selectedSpace.id) {
-      historySpaceIdRef.current = selectedSpace.id;
-      scheduleNavigationUpdate({ entries: [selectedPath], index: 0 });
-      isHistoryTraversalRef.current = false;
-      return () => {
-        if (frame !== null) {
-          window.cancelAnimationFrame(frame);
-        }
-      };
-    }
-
-    if (isHistoryTraversalRef.current) {
-      isHistoryTraversalRef.current = false;
-      return () => {
-        if (frame !== null) {
-          window.cancelAnimationFrame(frame);
-        }
-      };
-    }
-
-    scheduleNavigationUpdate((prev) => {
-      if (prev.index >= 0 && prev.entries[prev.index] === selectedPath) {
-        return prev;
-      }
-      const entries = prev.index >= 0
-        ? [...prev.entries.slice(0, prev.index + 1), selectedPath]
-        : [selectedPath];
-      return { entries, index: entries.length - 1 };
-    });
-
-    return () => {
-      if (frame !== null) {
-        window.cancelAnimationFrame(frame);
-      }
-    };
-  }, [isSearchMode, selectedPath, selectedSpace]);
-
-  const handleGoBack = useCallback(() => {
-    if (navigationState.index > 0) {
-      const nextIndex = navigationState.index - 1;
-      const targetPath = navigationState.entries[nextIndex];
-      isHistoryTraversalRef.current = true;
-      setNavigationState((prev) => ({ ...prev, index: nextIndex }));
-      handleNavigate(targetPath);
+  const refreshCurrentFolder = useCallback(async () => {
+    if (!selectedSpace || isSearchMode) {
       return;
     }
+    await fetchSpaceContents(selectedSpace.id, selectedPath);
+  }, [fetchSpaceContents, isSearchMode, selectedPath, selectedSpace]);
 
-    if (!incomingSearchQuery) {
-      return;
-    }
-
-    navigate(`/search?q=${encodeURIComponent(incomingSearchQuery)}`);
-  }, [handleNavigate, incomingSearchQuery, navigate, navigationState]);
-
-  const handleGoForward = useCallback(() => {
-    if (navigationState.index < 0 || navigationState.index >= navigationState.entries.length - 1) {
-      return;
-    }
-    const nextIndex = navigationState.index + 1;
-    const targetPath = navigationState.entries[nextIndex];
-    isHistoryTraversalRef.current = true;
-    setNavigationState((prev) => ({ ...prev, index: nextIndex }));
-    handleNavigate(targetPath);
-  }, [navigationState, handleNavigate]);
+  const {
+    isTrashModalOpen,
+    trashItems,
+    selectedTrashIds,
+    isTrashLoading,
+    isTrashProcessing,
+    setSelectedTrashIds,
+    handleCloseTrash,
+    handleTrashRestoreConfirm,
+    handleTrashDeleteConfirm,
+    handleTrashEmptyConfirm,
+  } = useTrashModalManager({
+    selectedSpace,
+    isSearchMode,
+    trashOpenRequest,
+    clearTrashOpenRequest,
+    fetchTrashItems,
+    handleTrashRestore,
+    handleTrashDelete,
+    handleTrashEmpty,
+    refreshCurrentFolder,
+  });
 
   const isAnyModalOpen =
     modals.destination.visible || modals.rename.visible || modals.createFolder.visible || isTrashModalOpen;
@@ -394,14 +336,6 @@ const FolderContent: React.FC = () => {
   useEffect(() => {
     selectedItemsRef.current = selectedItems;
   }, [selectedItems]);
-
-  useEffect(() => {
-    if (!selectedSpace || isSearchMode) {
-      setIsTrashModalOpen(false);
-      setTrashItems([]);
-      setSelectedTrashIds([]);
-    }
-  }, [isSearchMode, selectedSpace]);
 
   useEffect(() => {
     return () => {
@@ -524,32 +458,6 @@ const FolderContent: React.FC = () => {
     suppressTapUntilRef.current = Date.now() + 700;
   }, []);
 
-  const resolveSearchResult = useCallback((recordPath: string): SearchFileResult | null => {
-    return searchItemsByRowPath.get(recordPath) ?? null;
-  }, [searchItemsByRowPath]);
-
-  const openSearchResultByRecordPath = useCallback((recordPath: string) => {
-    const item = resolveSearchResult(recordPath);
-    if (!item) {
-      return;
-    }
-    searchSource.openResult(item);
-  }, [resolveSearchResult, searchSource]);
-
-  const renderSearchMeta = useCallback((record: FileNode) => {
-    const item = resolveSearchResult(record.path);
-    if (!item) {
-      return `${record.isDir ? '-' : formatSize(record.size)} | ${formatDate(record.modTime)}`;
-    }
-    const sizeText = item.isDir ? '-' : formatSize(item.size);
-    return `${sizeText} | ${formatDate(item.modTime)} | ${item.spaceName}`;
-  }, [resolveSearchResult]);
-
-  const isSearching = isSearchMode && searchSource.isSearching;
-  const activeErrorMessage = isSearchMode
-    ? searchSource.errorMessage
-    : (browseError?.message ?? null);
-  const activeLoading = isSearchMode ? isSearching : isLoading;
   const showMobileSelectionBar =
     !isSearchMode && isTouchInteraction && selectedItems.size > 0;
   const showDesktopSelectionBar = !isSearchMode && !isTouchInteraction && selectedItems.size > 0;
@@ -760,158 +668,6 @@ const FolderContent: React.FC = () => {
       setSelection(new Set(preservedSources));
     }, 0);
   };
-
-  const refreshCurrentFolder = useCallback(async () => {
-    if (!selectedSpace || isSearchMode) {
-      return;
-    }
-    await fetchSpaceContents(selectedSpace.id, selectedPath);
-  }, [fetchSpaceContents, isSearchMode, selectedPath, selectedSpace]);
-
-  const loadTrashItems = useCallback(async () => {
-    if (!selectedSpace) {
-      return;
-    }
-    setIsTrashLoading(true);
-    try {
-      const items = await fetchTrashItems();
-      setTrashItems(items);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : t('folderContent.trashListLoadFailed'));
-    } finally {
-      setIsTrashLoading(false);
-    }
-  }, [fetchTrashItems, message, selectedSpace, t]);
-
-  const handleOpenTrash = useCallback(() => {
-    if (!selectedSpace) {
-      message.error(t('folderContent.noSelectedSpace'));
-      return;
-    }
-    setIsTrashModalOpen(true);
-    setSelectedTrashIds([]);
-    void loadTrashItems();
-  }, [loadTrashItems, message, selectedSpace, t]);
-
-  useEffect(() => {
-    if (!trashOpenRequest || !selectedSpace) {
-      return;
-    }
-    if (trashOpenRequest.spaceId !== selectedSpace.id) {
-      return;
-    }
-    handleOpenTrash();
-    clearTrashOpenRequest();
-  }, [clearTrashOpenRequest, handleOpenTrash, selectedSpace, trashOpenRequest]);
-
-  const handleCloseTrash = useCallback(() => {
-    if (isTrashProcessing) {
-      return;
-    }
-    setIsTrashModalOpen(false);
-    setSelectedTrashIds([]);
-  }, [isTrashProcessing]);
-
-  const handleTrashRestoreConfirm = useCallback(() => {
-    if (selectedTrashIds.length === 0) {
-      message.warning(t('folderContent.selectRestoreItems'));
-      return;
-    }
-
-    modal.confirm({
-      title: t('folderContent.restoreConfirmTitle'),
-      content: t('folderContent.restoreConfirmContent', { count: selectedTrashIds.length }),
-      okText: t('folderContent.restore'),
-      cancelText: t('folderContent.cancel'),
-      onOk: async () => {
-        setIsTrashProcessing(true);
-        try {
-          await handleTrashRestore(selectedTrashIds);
-          await loadTrashItems();
-          await refreshCurrentFolder();
-          setSelectedTrashIds([]);
-        } finally {
-          setIsTrashProcessing(false);
-        }
-      },
-    });
-  }, [
-    handleTrashRestore,
-    loadTrashItems,
-    message,
-    modal,
-    refreshCurrentFolder,
-    selectedTrashIds,
-    t,
-  ]);
-
-  const handleTrashDeleteConfirm = useCallback(() => {
-    if (selectedTrashIds.length === 0) {
-      message.warning(t('folderContent.selectPermanentDeleteItems'));
-      return;
-    }
-
-    modal.confirm({
-      title: t('folderContent.permanentDeleteConfirmTitle'),
-      content: t('folderContent.permanentDeleteConfirmContent', { count: selectedTrashIds.length }),
-      okText: t('folderContent.permanentDelete'),
-      okType: 'danger',
-      cancelText: t('folderContent.cancel'),
-      onOk: async () => {
-        setIsTrashProcessing(true);
-        try {
-          await handleTrashDelete(selectedTrashIds);
-          await loadTrashItems();
-          await refreshCurrentFolder();
-          setSelectedTrashIds([]);
-        } finally {
-          setIsTrashProcessing(false);
-        }
-      },
-    });
-  }, [
-    handleTrashDelete,
-    loadTrashItems,
-    message,
-    modal,
-    refreshCurrentFolder,
-    selectedTrashIds,
-    t,
-  ]);
-
-  const handleTrashEmptyConfirm = useCallback(() => {
-    if (trashItems.length === 0) {
-      message.info(t('folderContent.trashEmptyInfo'));
-      return;
-    }
-
-    modal.confirm({
-      title: t('folderContent.emptyTrashConfirmTitle'),
-      content: t('folderContent.emptyTrashConfirmContent', { count: trashItems.length }),
-      okText: t('folderContent.emptyTrash'),
-      okType: 'danger',
-      cancelText: t('folderContent.cancel'),
-      onOk: async () => {
-        setIsTrashProcessing(true);
-        try {
-          await handleTrashEmpty();
-          await loadTrashItems();
-          await refreshCurrentFolder();
-          setSelectedTrashIds([]);
-        } finally {
-          setIsTrashProcessing(false);
-        }
-      },
-    });
-  }, [
-    handleTrashEmpty,
-    loadTrashItems,
-    message,
-    modal,
-    refreshCurrentFolder,
-    trashItems.length,
-    t,
-  ]);
 
   // File input handlers
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1182,8 +938,8 @@ const FolderContent: React.FC = () => {
                 viewMode={effectiveViewMode}
                 sortConfig={sortConfig}
                 canUpload={canWriteFiles}
-                canGoBack={navigationState.index > 0 || (!isSearchMode && Boolean(incomingSearchQuery))}
-                canGoForward={navigationState.index >= 0 && navigationState.index < navigationState.entries.length - 1}
+                canGoBack={canGoBack}
+                canGoForward={canGoForward}
                 compact
                 onGoBack={handleGoBack}
                 onGoForward={handleGoForward}
@@ -1279,6 +1035,7 @@ const FolderContent: React.FC = () => {
                 onItemDelete={isSearchMode ? undefined : handleDelete}
                 showActions={!isSearchMode}
                 rowKeyResolver={isSearchMode ? ((record) => record.path) : undefined}
+                renderName={isSearchMode ? renderSearchName : undefined}
                 renderMeta={isSearchMode ? renderSearchMeta : undefined}
                 emptyText={isSearchMode ? (searchSource.hasEnoughQuery ? t('folderContent.noSearchResults') : searchModeHelpText) : undefined}
               />
@@ -1301,6 +1058,7 @@ const FolderContent: React.FC = () => {
                 onFolderDrop={handleFolderDrop}
                 itemsRef={itemsRef}
                 disableDraggable={isSearchMode || isSelecting || isTouchInteraction || !canWriteFiles}
+                renderName={isSearchMode ? renderSearchName : undefined}
                 spaceId={isSearchMode ? undefined : selectedSpace?.id}
               />
             )}
