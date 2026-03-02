@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog"
+	"taeu.kr/cohesion/internal/platform/logging"
 )
 
 type updaterArgs struct {
@@ -20,14 +23,6 @@ type updaterArgs struct {
 	workdir     string
 	argsFile    string
 	cleanupDir  string
-}
-
-type updaterLogger struct {
-	out io.Writer
-}
-
-func (l updaterLogger) logf(format string, args ...any) {
-	_, _ = fmt.Fprintf(l.out, "[updater] %s\n", fmt.Sprintf(format, args...))
 }
 
 func openRootLogFile(targetPath, fileName string) (*os.File, string, error) {
@@ -48,27 +43,47 @@ func openRootLogFile(targetPath, fileName string) (*os.File, string, error) {
 func main() {
 	args, err := parseFlags()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[updater] invalid arguments: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s ERROR [updater] fatal.updater.invalid_args - invalid updater arguments err=%q\n", time.Now().UTC().Format(time.RFC3339), err.Error())
 		os.Exit(2)
 	}
 
-	logger := updaterLogger{out: os.Stderr}
+	logger := newUpdaterLogger(logging.NewMirroredWriter(io.Discard, os.Stderr))
 	logFile, updaterLogPath, logErr := openRootLogFile(args.target, "updater.log")
 	if logErr != nil {
-		fmt.Fprintf(os.Stderr, "[updater] failed to initialize updater.log: %v\n", logErr)
+		logging.Event(logger.Error(), logging.ComponentUpdater, "error.updater.log_sink_init_failed").
+			Err(logErr).
+			Msg("failed to initialize updater log sink")
 	} else {
 		defer logFile.Close()
-		logger.out = io.MultiWriter(os.Stderr, logFile)
-		logger.logf("updater log initialized: %s", updaterLogPath)
+		logger = newUpdaterLogger(logging.NewMirroredWriter(logFile, os.Stderr))
+		logging.Event(logger.Info(), logging.ComponentUpdater, logging.EventServiceReady).
+			Str("service", "updater-log").
+			Str("path", updaterLogPath).
+			Msg("service log sink ready")
 	}
 
 	appLogPath := filepath.Join(filepath.Dir(args.target), "logs", "app.log")
-	logger.logf("starting update flow (pid=%d, target=%s, replacement=%s)", args.pid, args.target, args.replacement)
+	logging.Event(logger.Info(), logging.ComponentUpdater, logging.EventBootStart).
+		Int("pid", args.pid).
+		Str("target", args.target).
+		Str("replacement", args.replacement).
+		Msg("updater flow started")
 	if err := run(args, appLogPath, logger); err != nil {
-		logger.logf("failed: %v", err)
+		logging.Event(logger.Error(), logging.ComponentUpdater, "error.updater.run_failed").
+			Err(err).
+			Msg("updater flow failed")
 		os.Exit(1)
 	}
-	logger.logf("completed successfully")
+	logging.Event(logger.Info(), logging.ComponentUpdater, "updater.completed").
+		Msg("updater flow completed")
+}
+
+func newUpdaterLogger(out io.Writer) zerolog.Logger {
+	return zerolog.New(out).
+		With().
+		Timestamp().
+		Str(logging.FieldComponent, logging.ComponentUpdater).
+		Logger()
 }
 
 func parseFlags() (updaterArgs, error) {
@@ -105,7 +120,7 @@ func parseFlags() (updaterArgs, error) {
 	return parsed, nil
 }
 
-func run(args updaterArgs, appLogPath string, logger updaterLogger) error {
+func run(args updaterArgs, appLogPath string, logger zerolog.Logger) error {
 	if args.cleanupDir != "" {
 		defer os.RemoveAll(args.cleanupDir)
 	}
@@ -191,19 +206,25 @@ func rollbackBinary(targetPath, backupPath string) error {
 	return os.Rename(backupPath, targetPath)
 }
 
-func restartApplication(targetPath, workdir string, appArgs []string, appLogPath string, logger updaterLogger) error {
+func restartApplication(targetPath, workdir string, appArgs []string, appLogPath string, logger zerolog.Logger) error {
 	cmd := exec.Command(targetPath, appArgs...)
 	cmd.Dir = workdir
 	appLogFile, err := openAppLogFile(appLogPath)
 	if err != nil {
-		logger.logf("failed to open app log file (%s), fallback to stdio: %v", appLogPath, err)
+		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.app_log_open_failed").
+			Str("path", appLogPath).
+			Err(err).
+			Msg("failed to open app log file, falling back to stdio")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
 		defer appLogFile.Close()
 		cmd.Stdout = appLogFile
 		cmd.Stderr = appLogFile
-		logger.logf("restarted app logs redirected to: %s", appLogPath)
+		logging.Event(logger.Info(), logging.ComponentUpdater, logging.EventServiceReady).
+			Str("service", "app-log-redirect").
+			Str("path", appLogPath).
+			Msg("service status updated")
 	}
 	cmd.Stdin = nil
 	cmd.Env = os.Environ()

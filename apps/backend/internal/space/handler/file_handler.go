@@ -9,15 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/auth"
+	"taeu.kr/cohesion/internal/platform/logging"
 	"taeu.kr/cohesion/internal/platform/web"
 	"taeu.kr/cohesion/internal/space"
 )
@@ -125,7 +126,11 @@ func moveWithDestinationSwap(srcPath, destPath string) error {
 	}
 
 	if removeErr := os.RemoveAll(backupPath); removeErr != nil {
-		log.Printf("[WARN] move overwrite backup cleanup failed: %s: %v", backupPath, removeErr)
+		logging.Event(log.Warn(), logging.ComponentStorage, "warn.storage.cleanup_failed").
+			Str("operation", "move-overwrite-backup-cleanup").
+			Str("path", backupPath).
+			Err(removeErr).
+			Msg("cleanup failed")
 	}
 
 	return nil
@@ -164,13 +169,21 @@ func copyWithDestinationSwap(srcPath, destPath string, isDir bool) error {
 			return fmt.Errorf("failed to finalize copied data: %v; additionally failed to restore destination backup %q: %v", err, backupPath, restoreErr)
 		}
 		if cleanupErr := os.RemoveAll(stagedPath); cleanupErr != nil {
-			log.Printf("[WARN] copy overwrite staging cleanup failed: %s: %v", stagedPath, cleanupErr)
+			logging.Event(log.Warn(), logging.ComponentStorage, "warn.storage.cleanup_failed").
+				Str("operation", "copy-overwrite-stage-cleanup").
+				Str("path", stagedPath).
+				Err(cleanupErr).
+				Msg("cleanup failed")
 		}
 		return err
 	}
 
 	if removeErr := os.RemoveAll(backupPath); removeErr != nil {
-		log.Printf("[WARN] copy overwrite backup cleanup failed: %s: %v", backupPath, removeErr)
+		logging.Event(log.Warn(), logging.ComponentStorage, "warn.storage.cleanup_failed").
+			Str("operation", "copy-overwrite-backup-cleanup").
+			Str("path", backupPath).
+			Err(removeErr).
+			Msg("cleanup failed")
 	}
 
 	return nil
@@ -950,7 +963,10 @@ func (h *Handler) handleTrashRestore(w http.ResponseWriter, r *http.Request, spa
 					continue
 				}
 				if deleteErr := h.trashService.DeleteTrashItem(r.Context(), item.ID); deleteErr != nil {
-					log.Printf("[WARN] restore metadata cleanup failed (id=%d): %v", item.ID, deleteErr)
+					logging.Event(log.Warn(), logging.ComponentStorage, "warn.trash.metadata_cleanup_failed").
+						Int64("trash_id", item.ID).
+						Err(deleteErr).
+						Msg("trash metadata cleanup failed")
 				}
 				succeeded = append(succeeded, restoreSuccess{ID: item.ID, OriginalPath: item.OriginalPath})
 				continue
@@ -987,7 +1003,10 @@ func (h *Handler) handleTrashRestore(w http.ResponseWriter, r *http.Request, spa
 			continue
 		}
 		if deleteErr := h.trashService.DeleteTrashItem(r.Context(), item.ID); deleteErr != nil {
-			log.Printf("[WARN] restore metadata cleanup failed (id=%d): %v", item.ID, deleteErr)
+			logging.Event(log.Warn(), logging.ComponentStorage, "warn.trash.metadata_cleanup_failed").
+				Int64("trash_id", item.ID).
+				Err(deleteErr).
+				Msg("trash metadata cleanup failed")
 		}
 		succeeded = append(succeeded, restoreSuccess{ID: item.ID, OriginalPath: item.OriginalPath})
 	}
@@ -1810,7 +1829,10 @@ func (h *Handler) handleFileDownloadMultiple(w http.ResponseWriter, r *http.Requ
 	return h.streamZipDownload(w, zipFileName, func(zipWriter *zip.Writer) *web.Error {
 		for i, absPath := range absPaths {
 			if err := addToZip(zipWriter, absPath, filepath.Base(req.Paths[i])); err != nil {
-				log.Printf("Failed to add %s to ZIP: %v", absPath, err)
+				logging.Event(log.Warn(), logging.ComponentStorage, "warn.archive.zip_entry_failed").
+					Str("path", absPath).
+					Err(err).
+					Msg("failed to add zip entry")
 			}
 		}
 		return nil
@@ -1866,7 +1888,10 @@ func (h *Handler) handleFileDownloadMultipleTicket(w http.ResponseWriter, r *htt
 	zipTempPath, zipSize, zipErr := h.buildZipTempArchive(func(zipWriter *zip.Writer) *web.Error {
 		for i, absPath := range absPaths {
 			if err := addToZip(zipWriter, absPath, filepath.Base(req.Paths[i])); err != nil {
-				log.Printf("Failed to add %s to ZIP: %v", absPath, err)
+				logging.Event(log.Warn(), logging.ComponentStorage, "warn.archive.zip_entry_failed").
+					Str("path", absPath).
+					Err(err).
+					Msg("failed to add zip entry")
 			}
 		}
 		return nil
@@ -1908,7 +1933,10 @@ func (h *Handler) downloadFolderAsZip(w http.ResponseWriter, folderPath string, 
 func (h *Handler) writeFolderToZip(folderPath string, zipWriter *zip.Writer) *web.Error {
 	err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			log.Printf("Skipping file due to error: %s - %v", path, err)
+			logging.Event(log.Warn(), logging.ComponentStorage, "warn.archive.walk_skip").
+				Str("path", path).
+				Err(err).
+				Msg("skipping path during archive walk")
 			return nil
 		}
 		if info.Mode()&os.ModeSymlink != 0 {

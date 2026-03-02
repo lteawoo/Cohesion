@@ -6,7 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
-	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -28,6 +28,7 @@ import (
 	"taeu.kr/cohesion/internal/config"
 	"taeu.kr/cohesion/internal/ftp"
 	"taeu.kr/cohesion/internal/platform/database"
+	"taeu.kr/cohesion/internal/platform/logging"
 	"taeu.kr/cohesion/internal/platform/web"
 	sftpserver "taeu.kr/cohesion/internal/sftp"
 	"taeu.kr/cohesion/internal/spa"
@@ -45,6 +46,11 @@ var (
 	appVersion   = "dev"
 	appCommit    = "local"
 	appBuildDate = ""
+	accessLogger = zerolog.New(io.Discard).
+			With().
+			Timestamp().
+			Str(logging.FieldComponent, logging.ComponentAccess).
+			Logger()
 )
 
 // 재시작 신호를 받기 위한 채널
@@ -52,7 +58,9 @@ var restartChan = make(chan bool, 1)
 var shutdownChan = make(chan struct{}, 1)
 
 func init() {
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	zerolog.TimeFieldFormat = time.RFC3339
+	zerolog.TimestampFieldName = logging.FieldTimestamp
+	zerolog.MessageFieldName = logging.FieldMessage
 }
 
 func resolveExecutableDir() (string, error) {
@@ -84,25 +92,58 @@ func openRootLogFile(fileName string) (*os.File, string, error) {
 	return logFile, logPath, nil
 }
 
-func configureRootLogger() (*os.File, string, error) {
-	logFile, logPath, err := openRootLogFile("app.log")
+func configureRootLoggers() (*os.File, *os.File, string, string, error) {
+	appLogFile, appLogPath, err := openRootLogFile("app.log")
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", "", err
+	}
+	accessLogFile, accessLogPath, err := openRootLogFile("access.log")
+	if err != nil {
+		_ = appLogFile.Close()
+		return nil, nil, "", "", err
 	}
 
-	if goEnv == "production" {
-		zerolog.TimestampFunc = func() time.Time {
-			return time.Now().UTC()
-		}
-		log.Logger = log.Output(logFile)
-		return logFile, logPath, nil
+	operationalWriter := logging.NewOperationalWriter(appLogFile, os.Stderr)
+	log.Logger = newOperationalLogger(operationalWriter)
+	accessLogger = newAccessLogger(accessLogFile)
+
+	return appLogFile, accessLogFile, appLogPath, accessLogPath, nil
+}
+
+func configureFallbackLoggers() {
+	// Keep terminal operational policy even when file sinks cannot be initialized.
+	log.Logger = newOperationalLogger(logging.NewOperationalWriter(io.Discard, os.Stderr))
+	// Do not drop access logs on sink initialization failures.
+	accessLogger = newAccessLogger(os.Stderr)
+}
+
+func newOperationalLogger(out io.Writer) zerolog.Logger {
+	return zerolog.New(out).With().Timestamp().Logger()
+}
+
+func newAccessLogger(out io.Writer) zerolog.Logger {
+	return zerolog.New(logging.NewKeyValueWriter(out)).
+		With().
+		Timestamp().
+		Str(logging.FieldComponent, logging.ComponentAccess).
+		Logger()
+}
+
+func emitAccessLog(r *http.Request, status, size int, duration time.Duration) {
+	event := accessLogger.Info().
+		Str(logging.FieldEvent, logging.EventHTTPAccess).
+		Str("method", r.Method).
+		Str("path", r.URL.Path)
+
+	if rawQuery := strings.TrimSpace(r.URL.RawQuery); rawQuery != "" {
+		event = event.Str("query", rawQuery)
 	}
 
-	log.Logger = log.Output(zerolog.MultiLevelWriter(
-		zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339},
-		logFile,
-	))
-	return logFile, logPath, nil
+	event.
+		Int("status", status).
+		Int("size", size).
+		Int64("duration_ms", duration.Milliseconds()).
+		Msg("http request served")
 }
 
 func writePIDFile() (func(), string, error) {
@@ -209,13 +250,7 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 	finalHandler := authService.Middleware(mux)
 
 	finalLogHandler := hlogHandler(hlog.AccessHandler(func(r *http.Request, status, size int, duration time.Duration) {
-		hlog.FromRequest(r).Info().
-			Str("method", r.Method).
-			Str("url", r.URL.String()).
-			Int("status", status).
-			Int("size", size).
-			Dur("duration", duration).
-			Msg("Access log")
+		emitAccessLog(r, status, size, duration)
 	})(finalHandler))
 
 	port := ":" + config.Conf.Server.Port
@@ -228,35 +263,64 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 }
 
 func main() {
-	logFile, logPath, loggerErr := configureRootLogger()
+	appLogFile, accessLogFile, appLogPath, accessLogPath, loggerErr := configureRootLoggers()
 	if loggerErr != nil {
-		fmt.Fprintf(os.Stderr, "[Main] failed to initialize file logger: %v\n", loggerErr)
+		configureFallbackLoggers()
+		logging.Event(log.Error(), logging.ComponentMain, "error.logger.init_failed").
+			Err(loggerErr).
+			Msg("failed to initialize file log sinks; using stderr fallback")
 	} else {
-		defer logFile.Close()
-		log.Info().Str("path", logPath).Msg("[Main] App log file initialized")
+		defer appLogFile.Close()
+		defer accessLogFile.Close()
+		logging.Event(log.Info(), logging.ComponentMain, logging.EventServiceReady).
+			Str("service", "app-log").
+			Str("path", appLogPath).
+			Msg("service log sink ready")
+		logging.Event(log.Info(), logging.ComponentMain, logging.EventServiceReady).
+			Str("service", "access-log").
+			Str("path", accessLogPath).
+			Msg("service log sink ready")
 	}
 
 	pidCleanup, pidPath, pidErr := writePIDFile()
 	if pidErr != nil {
-		log.Warn().Err(pidErr).Msg("[Main] Failed to write PID file")
+		logging.Event(log.Warn(), logging.ComponentMain, "warn.pid.write_failed").
+			Err(pidErr).
+			Msg("failed to write pid file")
 	} else {
 		defer pidCleanup()
-		log.Info().Str("path", pidPath).Int("pid", os.Getpid()).Msg("[Main] PID file initialized")
+		logging.Event(log.Info(), logging.ComponentMain, logging.EventServiceReady).
+			Str("service", "pid-file").
+			Str("path", pidPath).
+			Int("pid", os.Getpid()).
+			Msg("service pid file ready")
 	}
 
-	log.Info().Msg("[Main] Starting Server...")
-	log.Info().Msgf("[Main] environment: %s", goEnv)
+	logging.Event(log.Info(), logging.ComponentMain, logging.EventBootStart).
+		Str("environment", goEnv).
+		Str("version", appVersion).
+		Str("commit", appCommit).
+		Str("build_date", appBuildDate).
+		Msg("server booting")
 
 	// 설정 로드
 	config.SetConfig(goEnv)
+	logging.Event(log.Info(), logging.ComponentConfig, logging.EventConfigLoaded).
+		Str("environment", goEnv).
+		Str("config_dir", config.ConfigDir()).
+		Msg("configuration loaded")
 
 	// 데이터베이스 연결 설정
 	db, err := database.NewDB()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to connect to database")
+		logging.Event(log.Fatal(), logging.ComponentDB, "fatal.db.connect_failed").
+			Err(err).
+			Msg("failed to connect database")
 	}
 	defer db.Close()
-	log.Info().Msg("Database connected successfully.")
+	logging.Event(log.Info(), logging.ComponentDB, logging.EventDatabaseReady).
+		Str("datasource_url", config.Conf.Datasource.URL).
+		Msg("database connected")
 
 	// OS 시그널 핸들링 (Ctrl+C)
 	sigChan := make(chan os.Signal, 1)
@@ -267,21 +331,53 @@ func main() {
 		// 서버 생성
 		server, ftpService, sftpService, err := createServer(db, restartChan, shutdownChan)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create server")
+			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.server.create_failed").
+				Err(err).
+				Msg("failed to create server")
 		}
 		if err := ftpService.Start(); err != nil {
-			log.Fatal().Err(err).Msg("Failed to start FTP server")
+			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.service.start_failed").
+				Str("service", "ftp").
+				Int("port", ftpService.Port()).
+				Err(err).
+				Msg("failed to start service")
 		}
+		logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
+			Str("service", "ftp").
+			Bool("enabled", ftpService.Enabled()).
+			Int("port", ftpService.Port()).
+			Msg("service status updated")
 		if err := sftpService.Start(); err != nil {
 			if stopErr := ftpService.Stop(); stopErr != nil {
-				log.Error().Err(stopErr).Msg("FTP server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "ftp").
+					Err(stopErr).
+					Msg("failed to stop service")
 			}
-			log.Fatal().Err(err).Msg("Failed to start SFTP server")
+			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.service.start_failed").
+				Str("service", "sftp").
+				Int("port", sftpService.Port()).
+				Err(err).
+				Msg("failed to start service")
 		}
+		logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
+			Str("service", "sftp").
+			Bool("enabled", sftpService.Enabled()).
+			Int("port", sftpService.Port()).
+			Msg("service status updated")
 
 		port := config.Conf.Server.Port
-		log.Info().Msgf("Server is running on port %s", port)
-		log.Info().Msg("Press Ctrl+C to stop")
+		logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
+			Str("service", "http").
+			Str("port", port).
+			Msg("service status updated")
+		logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
+			Str("service", "webdav").
+			Bool("enabled", config.Conf.Server.WebdavEnabled).
+			Msg("service status updated")
+		logging.Event(log.Info(), logging.ComponentServer, logging.EventServerReady).
+			Str("port", port).
+			Msg("server ready")
 
 		// 서버를 별도 고루틴에서 실행
 		serverErr := make(chan error, 1)
@@ -294,65 +390,111 @@ func main() {
 		// 재시작 또는 종료 신호 대기
 		select {
 		case <-sigChan:
-			log.Info().Msg("[Main] Shutdown signal received")
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerShutdownSignal).
+				Str("source", "signal").
+				Msg("shutdown requested")
 			if err := sftpService.Stop(); err != nil {
-				log.Error().Err(err).Msg("SFTP server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "sftp").
+					Err(err).
+					Msg("failed to stop service")
 			}
 			if err := ftpService.Stop(); err != nil {
-				log.Error().Err(err).Msg("FTP server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "ftp").
+					Err(err).
+					Msg("failed to stop service")
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := server.Shutdown(ctx); err != nil {
-				log.Error().Err(err).Msg("Server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.server.shutdown_failed").
+					Err(err).
+					Msg("failed to shutdown server")
 			}
-			log.Info().Msg("[Main] Server stopped")
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerShutdownDone).
+				Str("source", "signal").
+				Msg("server shutdown completed")
 			return
 
 		case <-restartChan:
-			log.Info().Msg("[Main] Restart signal received")
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerRestartRequest).
+				Msg("restart requested")
 			if err := sftpService.Stop(); err != nil {
-				log.Error().Err(err).Msg("SFTP server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "sftp").
+					Err(err).
+					Msg("failed to stop service")
 			}
 			if err := ftpService.Stop(); err != nil {
-				log.Error().Err(err).Msg("FTP server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "ftp").
+					Err(err).
+					Msg("failed to stop service")
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			if err := server.Shutdown(ctx); err != nil {
-				log.Error().Err(err).Msg("Server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.server.shutdown_failed").
+					Err(err).
+					Msg("failed to shutdown server")
 			}
 			cancel()
 
 			// 설정 다시 로드
-			log.Info().Msg("[Main] Reloading configuration...")
 			config.SetConfig(goEnv)
-			log.Info().Msgf("[Main] Restarting with new port: %s", config.Conf.Server.Port)
+			logging.Event(log.Info(), logging.ComponentConfig, logging.EventConfigLoaded).
+				Str("environment", goEnv).
+				Str("config_dir", config.ConfigDir()).
+				Msg("configuration loaded")
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerRestarted).
+				Str("port", config.Conf.Server.Port).
+				Msg("restart completed")
 		// 루프 계속 (재시작)
 
 		case <-shutdownChan:
-			log.Info().Msg("[Main] Shutdown signal received from updater")
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerShutdownSignal).
+				Str("source", "updater").
+				Msg("shutdown requested")
 			if err := sftpService.Stop(); err != nil {
-				log.Error().Err(err).Msg("SFTP server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "sftp").
+					Err(err).
+					Msg("failed to stop service")
 			}
 			if err := ftpService.Stop(); err != nil {
-				log.Error().Err(err).Msg("FTP server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "ftp").
+					Err(err).
+					Msg("failed to stop service")
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := server.Shutdown(ctx); err != nil {
-				log.Error().Err(err).Msg("Server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.server.shutdown_failed").
+					Err(err).
+					Msg("failed to shutdown server")
 			}
-			log.Info().Msg("[Main] Server stopped for self-update")
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerShutdownDone).
+				Str("source", "updater").
+				Msg("server shutdown completed")
 			return
 
 		case err := <-serverErr:
 			if stopErr := sftpService.Stop(); stopErr != nil {
-				log.Error().Err(stopErr).Msg("SFTP server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "sftp").
+					Err(stopErr).
+					Msg("failed to stop service")
 			}
 			if stopErr := ftpService.Stop(); stopErr != nil {
-				log.Error().Err(stopErr).Msg("FTP server shutdown error")
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "ftp").
+					Err(stopErr).
+					Msg("failed to stop service")
 			}
-			log.Fatal().Err(err).Msg("Server error")
+			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.server.runtime_failed").
+				Err(err).
+				Msg("server runtime failure")
 			return
 		}
 	}
@@ -389,7 +531,10 @@ func resolveJWTSecret() (string, error) {
 		return "", errors.New("COHESION_JWT_SECRET must be at least 32 characters in production")
 	}
 
-	log.Info().Str("path", secretFilePath).Msg("JWT secret loaded from file")
+	logging.Event(log.Info(), logging.ComponentAuth, logging.EventServiceReady).
+		Str("service", "jwt-secret").
+		Str("path", secretFilePath).
+		Msg("service status updated")
 	return secret, nil
 }
 
