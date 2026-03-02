@@ -138,7 +138,7 @@ func NewService() *Service {
 		}
 		userHomeDir = filepath.Dir(executablePath)
 	} else {
-		log.Info().Msgf("초기 디렉토리: %s", userHomeDir)
+		log.Info().Str("home_path", userHomeDir).Msg("Initial home directory resolved")
 	}
 
 	// 디스크 파티션 정보 가져오기

@@ -99,3 +99,66 @@ apps/backend/
     -   `SetConfig("production")`이 호출되어 `viper`가 `config.prod.yaml` 파일을 로드함.
     -   프로덕션용 설정으로 서버가 동작함.
     -   이 서버 하나가 API 요청(`_API 경로`)과 웹 UI(`/` 경로)를 모두 처리하는 독립 앱으로 기능함.
+
+---
+
+## 운영 로그 가이드 (Operational Logging)
+
+### 로그 채널
+
+- 운영 로그(Operational): 서비스 상태/라이프사이클/경고/오류
+- 접근 로그(Access): HTTP 요청/응답 메타데이터
+
+### 로그 파일 위치
+
+백엔드 실행파일 기준 `logs/` 디렉토리에 기록됨.
+
+- `logs/app.log`: 운영 로그 전체
+- `logs/access.log`: HTTP access 로그 전용
+- `logs/updater.log`: 업데이터 실행 로그
+
+### 터미널 출력 정책
+
+- 터미널에는 운영 상태 확인에 필요한 이벤트만 출력됨.
+- `INFO`: 필수 라이프사이클 이벤트(`boot.*`, `config.loaded`, `db.ready`, `service.ready`, `server.*`)
+- `WARN/ERROR/FATAL`: 항상 출력
+- `http.access` 이벤트는 터미널에 출력하지 않고 `logs/access.log`로만 기록
+
+### 로그 형식
+
+- 터미널(운영 로그): log4j2 유사 패턴 형식
+  - `<ts> <LEVEL> [<component>] <event> - <msg> <extras>`
+  - 예시:
+    - `2026-03-03T01:34:32+09:00 INFO [server] server.ready - server ready port=38080`
+    - `2026-03-03T01:34:33+09:00 INFO [server] server.shutdown_signal - shutdown requested source=signal`
+- 파일(`logs/app.log`, `logs/access.log`, `logs/updater.log`): 영문 `key=value` 단일 라인 형식 유지
+  - 공통 핵심 필드: `ts`, `level`, `event`, `component`, `msg`
+  - Access 추가 필드(선택): `query`
+  - 예시:
+    - `ts=2026-03-03T01:34:32+09:00 level=INFO event=server.ready component=server msg=\"server ready\" port=38080`
+    - `ts=2026-03-03T01:34:33+09:00 level=INFO event=http.access component=access msg=\"http request served\" method=GET path=/api/search query=\"q=hello&sort=asc\" status=200`
+
+### 트러블슈팅 명령
+
+```bash
+# 운영 라이프사이클 이벤트 추적 (파일 기준)
+rg "event=(boot\\.|config\\.loaded|db\\.ready|service\\.ready|server\\.)" logs/app.log
+
+# 오류/치명 로그 확인 (파일 기준)
+rg "level=(ERROR|FATAL)" logs/app.log
+
+# Access 로그 실시간 확인
+tail -f logs/access.log
+
+# 특정 API 요청 필터링 (예: restart)
+rg "event=http\\.access .*path=/api/system/restart" logs/access.log
+
+# updater 런타임 오류 확인
+rg "event=error\\.updater\\." logs/updater.log
+```
+
+### 운영자 확인 순서
+
+- 터미널에서 현재 상태를 빠르게 확인한다. (부팅/재시작/종료, WARN/ERROR/FATAL)
+- 상세 원인 분석이나 자동화 필터링은 파일 로그(`app.log`, `access.log`, `updater.log`)에서 수행한다.
+- `http.access`는 터미널에 출력되지 않으므로, 요청 단위 추적은 반드시 `logs/access.log`를 사용한다.
