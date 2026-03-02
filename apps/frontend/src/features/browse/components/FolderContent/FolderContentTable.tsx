@@ -152,7 +152,9 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
                   type="text"
                   size="small"
                   icon={<MoreOutlined />}
+                  data-item-action="true"
                   onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => e.stopPropagation()}
                   aria-label={t('browseMenu.more')}
                   title={t('browseMenu.more')}
                 />
@@ -184,7 +186,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
       }}
       onRow={(record: FileNode, index?: number) => ({
         onClick: (e: React.MouseEvent<HTMLElement>) => onItemClick(e, record, index ?? 0),
-        onDoubleClick: () => record.isDir && onItemDoubleClick(record.path),
+        onDoubleClick: () => onItemDoubleClick(record.path),
         onTouchStart: () => onItemTouchStart?.(record, index ?? 0),
         onTouchEnd: () => onItemTouchEnd?.(),
         onTouchCancel: () => onItemTouchCancel?.(),

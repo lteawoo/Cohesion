@@ -30,24 +30,14 @@ import { useTranslation } from 'react-i18next';
 
 const LONG_PRESS_DURATION_MS = 420;
 const TOUCH_PAN_THRESHOLD_PX = 8;
+const DESKTOP_TOUCH_DOUBLE_TAP_WINDOW_MS = 320;
+const DESKTOP_TOUCH_DOUBLE_CLICK_GUARD_MS = 480;
+const DESKTOP_TOUCH_EVENT_WINDOW_MS = 700;
 const PATH_BAR_HEIGHT = 36;
 const EXPLORER_SIDE_PADDING = 16;
 const PATH_BAR_CONTENT_OVERLAY_HEIGHT = PATH_BAR_HEIGHT - EXPLORER_SIDE_PADDING;
 type BrowseLocationState = { fromSearchQuery?: string };
 const EMPTY_SELECTION = new Set<string>();
-
-function detectTouchInputSupport(): boolean {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
-    return false;
-  }
-
-  const maxTouchPoints = navigator.maxTouchPoints ?? 0;
-  const hasCoarsePointer =
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(any-pointer: coarse)').matches;
-
-  return maxTouchPoints > 0 || hasCoarsePointer;
-}
 
 const FolderContent: React.FC = () => {
   const { t } = useTranslation();
@@ -95,16 +85,18 @@ const FolderContent: React.FC = () => {
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const [isPathOverflow, setIsPathOverflow] = useState(false);
   const [overlayOffset, setOverlayOffset] = useState({ x: 0, y: 0 });
-  const [hasTouchInput, setHasTouchInput] = useState<boolean>(() => detectTouchInputSupport());
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLongPressRef = useRef<{ path: string; expiresAt: number } | null>(null);
+  const desktopTouchTapRef = useRef<{ path: string; at: number } | null>(null);
+  const desktopTouchDoubleClickGuardRef = useRef<{ path: string; expiresAt: number } | null>(null);
+  const recentDesktopTouchRef = useRef(0);
   const suppressTapUntilRef = useRef(0);
   const touchStartPointRef = useRef<{ x: number; y: number } | null>(null);
   const isTouchPanningRef = useRef(false);
   const selectedItemsRef = useRef<Set<string>>(new Set());
-  const interactionMode = hasTouchInput ? 'touch' : 'pointer';
   const isMobileLayout = layoutMode === 'mobile';
-  const isTouchInteraction = interactionMode === 'touch';
+  const isTouchInteraction = isMobileLayout;
+  const isDesktopTouchFallbackEnabled = !isTouchInteraction && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
 
   // Modal management
   const { modals, openModal, closeModal, updateModalData } = useModalManager();
@@ -132,6 +124,10 @@ const FolderContent: React.FC = () => {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+  }, []);
+
+  const clearDesktopTouchTapState = useCallback(() => {
+    desktopTouchTapRef.current = null;
   }, []);
 
   const handleClearSelection = useCallback(() => {
@@ -215,6 +211,14 @@ const FolderContent: React.FC = () => {
 
   // 정렬된 콘텐츠 (폴더 우선 + sortConfig)
   const sortedContent = useSortedContent(sourceContent, sortConfig);
+
+  const contentByPath = useMemo(() => {
+    const next = new Map<string, FileNode>();
+    sortedContent.forEach((item) => {
+      next.set(item.path, item);
+    });
+    return next;
+  }, [sortedContent]);
   const effectiveViewMode: ViewMode = viewMode;
 
   const { handleContextMenu, handleEmptyAreaContextMenu } = useContextMenu({
@@ -340,36 +344,9 @@ const FolderContent: React.FC = () => {
   useEffect(() => {
     return () => {
       clearLongPressTimer();
+      clearDesktopTouchTapState();
     };
-  }, [clearLongPressTimer]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return;
-    }
-
-    const media = window.matchMedia('(any-pointer: coarse)');
-    const updateTouchCapability = () => {
-      const maxTouchPoints = typeof navigator !== 'undefined' ? (navigator.maxTouchPoints ?? 0) : 0;
-      setHasTouchInput(maxTouchPoints > 0 || media.matches);
-    };
-
-    updateTouchCapability();
-
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', updateTouchCapability);
-      return () => {
-        media.removeEventListener('change', updateTouchCapability);
-      };
-    }
-
-    if (typeof media.addListener === 'function') {
-      media.addListener(updateTouchCapability);
-      return () => {
-        media.removeListener(updateTouchCapability);
-      };
-    }
-  }, []);
+  }, [clearDesktopTouchTapState, clearLongPressTimer]);
 
   useLayoutEffect(() => {
     const viewport = pathBarViewportRef.current;
@@ -496,6 +473,7 @@ const FolderContent: React.FC = () => {
     }
     clearLongPressTimer();
     longPressTimerRef.current = setTimeout(() => {
+      clearDesktopTouchTapState();
       lastLongPressRef.current = {
         path: record.path,
         expiresAt: Date.now() + 900,
@@ -503,26 +481,29 @@ const FolderContent: React.FC = () => {
       setIsMobileSelectionMode(true);
       setSelection(new Set([record.path]));
     }, LONG_PRESS_DURATION_MS);
-  }, [isMobileSelectionMode, isSearchMode, isTouchInteraction, clearLongPressTimer, setSelection]);
+  }, [isMobileSelectionMode, isSearchMode, isTouchInteraction, clearLongPressTimer, clearDesktopTouchTapState, setSelection]);
 
-  const handleMobileLongPressEnd = useCallback(() => {
+  const handleTouchInteractionEnd = useCallback(() => {
     clearLongPressTimer();
   }, [clearLongPressTimer]);
 
   const handleSelectionTouchStartCapture = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
-    if (!isTouchInteraction) {
+    if (!isTouchInteraction && !isDesktopTouchFallbackEnabled) {
       return;
     }
     const touch = event.touches[0];
     if (!touch) {
       return;
     }
+    if (isDesktopTouchFallbackEnabled) {
+      recentDesktopTouchRef.current = Date.now();
+    }
     touchStartPointRef.current = { x: touch.clientX, y: touch.clientY };
     isTouchPanningRef.current = false;
-  }, [isTouchInteraction]);
+  }, [isDesktopTouchFallbackEnabled, isTouchInteraction]);
 
   const handleSelectionTouchMoveCapture = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
-    if (!isTouchInteraction) {
+    if (!isTouchInteraction && !isDesktopTouchFallbackEnabled) {
       return;
     }
     const touch = event.touches[0];
@@ -535,40 +516,98 @@ const FolderContent: React.FC = () => {
     if (deltaX > TOUCH_PAN_THRESHOLD_PX || deltaY > TOUCH_PAN_THRESHOLD_PX) {
       isTouchPanningRef.current = true;
       clearLongPressTimer();
+      clearDesktopTouchTapState();
     }
-  }, [isTouchInteraction, clearLongPressTimer]);
+  }, [isDesktopTouchFallbackEnabled, isTouchInteraction, clearDesktopTouchTapState, clearLongPressTimer]);
 
   const handleSelectionTouchEndCapture = useCallback(() => {
-    if (!isTouchInteraction) {
+    if (!isTouchInteraction && !isDesktopTouchFallbackEnabled) {
       return;
     }
     clearLongPressTimer();
     if (isTouchPanningRef.current) {
       suppressTapUntilRef.current = Math.max(suppressTapUntilRef.current, Date.now() + 250);
+      clearDesktopTouchTapState();
     }
     isTouchPanningRef.current = false;
     touchStartPointRef.current = null;
-  }, [isTouchInteraction, clearLongPressTimer]);
+  }, [isDesktopTouchFallbackEnabled, isTouchInteraction, clearDesktopTouchTapState, clearLongPressTimer]);
+
+  const handleItemActivate = useCallback((path: string) => {
+    const record = contentByPath.get(path);
+    if (!record) {
+      return;
+    }
+
+    if (record.isDir) {
+      handleNavigate(path);
+      return;
+    }
+
+    void handleBulkDownload([record.path]);
+  }, [contentByPath, handleBulkDownload, handleNavigate]);
+
+  const handleItemDoubleClick = useCallback((path: string) => {
+    const guard = desktopTouchDoubleClickGuardRef.current;
+    if (guard?.path === path) {
+      if (Date.now() <= guard.expiresAt) {
+        return;
+      }
+      desktopTouchDoubleClickGuardRef.current = null;
+    }
+
+    handleItemActivate(path);
+  }, [handleItemActivate]);
 
   const handleItemTap = useCallback((e: React.MouseEvent<HTMLElement>, record: FileNode, index: number) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-item-action="true"]')) {
+      clearDesktopTouchTapState();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
     if (Date.now() < suppressTapUntilRef.current) {
+      clearDesktopTouchTapState();
       e.preventDefault();
       e.stopPropagation();
       return;
     }
 
     if (isAnyModalOpen) {
+      clearDesktopTouchTapState();
       e.preventDefault();
       e.stopPropagation();
       return;
     }
 
     if (isSearchMode) {
+      clearDesktopTouchTapState();
       openSearchResultByRecordPath(record.path);
       return;
     }
 
     if (!isTouchInteraction) {
+      const isDesktopTouchEvent = isDesktopTouchFallbackEnabled
+        && (Date.now() - recentDesktopTouchRef.current <= DESKTOP_TOUCH_EVENT_WINDOW_MS);
+      const hasModifier = e.altKey || e.ctrlKey || e.metaKey || e.shiftKey;
+      if (isDesktopTouchEvent && !hasModifier) {
+        const now = Date.now();
+        const lastTap = desktopTouchTapRef.current;
+        if (lastTap && lastTap.path === record.path && (now - lastTap.at) <= DESKTOP_TOUCH_DOUBLE_TAP_WINDOW_MS) {
+          clearDesktopTouchTapState();
+          desktopTouchDoubleClickGuardRef.current = {
+            path: record.path,
+            expiresAt: now + DESKTOP_TOUCH_DOUBLE_CLICK_GUARD_MS,
+          };
+          handleItemActivate(record.path);
+          return;
+        }
+        desktopTouchTapRef.current = { path: record.path, at: now };
+      } else {
+        clearDesktopTouchTapState();
+      }
       handleItemClick(e, record, index, sortedContent);
       return;
     }
@@ -586,24 +625,34 @@ const FolderContent: React.FC = () => {
     }
 
     if (isMobileSelectionMode) {
+      clearDesktopTouchTapState();
       toggleMobileSelection(record.path);
       return;
     }
 
     if (record.isDir) {
+      clearDesktopTouchTapState();
       handleNavigate(record.path);
       handleClearSelection();
       return;
     }
+
+    clearDesktopTouchTapState();
+    setSelection(new Set([record.path]), index);
+    setIsMobileActionsOpen(false);
   }, [
+    clearDesktopTouchTapState,
     isAnyModalOpen,
+    isDesktopTouchFallbackEnabled,
     isTouchInteraction,
     isMobileSelectionMode,
     isSearchMode,
+    handleItemActivate,
     handleClearSelection,
     handleItemClick,
     handleNavigate,
     openSearchResultByRecordPath,
+    setSelection,
     sortedContent,
     toggleMobileSelection,
   ]);
@@ -953,11 +1002,11 @@ const FolderContent: React.FC = () => {
 
       <div
         ref={selectionContainerRef}
-        onScroll={isTouchInteraction ? handleMobileLongPressEnd : undefined}
-        onTouchStartCapture={isTouchInteraction ? handleSelectionTouchStartCapture : undefined}
-        onTouchMoveCapture={isTouchInteraction ? handleSelectionTouchMoveCapture : undefined}
-        onTouchEndCapture={isTouchInteraction ? handleSelectionTouchEndCapture : undefined}
-        onTouchCancelCapture={isTouchInteraction ? handleSelectionTouchEndCapture : undefined}
+        onScroll={isTouchInteraction || isDesktopTouchFallbackEnabled ? handleTouchInteractionEnd : undefined}
+        onTouchStartCapture={isTouchInteraction || isDesktopTouchFallbackEnabled ? handleSelectionTouchStartCapture : undefined}
+        onTouchMoveCapture={isTouchInteraction || isDesktopTouchFallbackEnabled ? handleSelectionTouchMoveCapture : undefined}
+        onTouchEndCapture={isTouchInteraction || isDesktopTouchFallbackEnabled ? handleSelectionTouchEndCapture : undefined}
+        onTouchCancelCapture={isTouchInteraction || isDesktopTouchFallbackEnabled ? handleSelectionTouchEndCapture : undefined}
         style={{
           position: 'relative',
           flex: 1,
@@ -1016,10 +1065,10 @@ const FolderContent: React.FC = () => {
                 selectedItems={isSearchMode ? EMPTY_SELECTION : selectedItems}
                 dragOverFolder={isSearchMode ? null : dragOverFolder}
                 onItemClick={handleItemTap}
-                onItemDoubleClick={isSearchMode ? openSearchResultByRecordPath : handleNavigate}
+                onItemDoubleClick={isSearchMode ? openSearchResultByRecordPath : handleItemDoubleClick}
                 onItemTouchStart={(record) => handleMobileLongPressStart(record)}
-                onItemTouchEnd={handleMobileLongPressEnd}
-                onItemTouchCancel={handleMobileLongPressEnd}
+                onItemTouchEnd={handleTouchInteractionEnd}
+                onItemTouchCancel={handleTouchInteractionEnd}
                 onContextMenu={handleItemContextMenu}
                 onItemDragStart={handleItemDragStart}
                 onItemDragEnd={handleItemDragEnd}
@@ -1046,10 +1095,10 @@ const FolderContent: React.FC = () => {
                 selectedItems={isSearchMode ? EMPTY_SELECTION : selectedItems}
                 dragOverFolder={isSearchMode ? null : dragOverFolder}
                 onItemClick={handleItemTap}
-                onItemDoubleClick={isSearchMode ? openSearchResultByRecordPath : handleNavigate}
+                onItemDoubleClick={isSearchMode ? openSearchResultByRecordPath : handleItemDoubleClick}
                 onItemTouchStart={(record) => handleMobileLongPressStart(record)}
-                onItemTouchEnd={handleMobileLongPressEnd}
-                onItemTouchCancel={handleMobileLongPressEnd}
+                onItemTouchEnd={handleTouchInteractionEnd}
+                onItemTouchCancel={handleTouchInteractionEnd}
                 onContextMenu={handleItemContextMenu}
                 onItemDragStart={handleItemDragStart}
                 onItemDragEnd={handleItemDragEnd}

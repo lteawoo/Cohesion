@@ -84,7 +84,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                 hoverable
                 draggable={!disableDraggable}
                 onClick={(e) => onItemClick(e, item, index)}
-                onDoubleClick={() => item.isDir && onItemDoubleClick(item.path)}
+                onDoubleClick={() => onItemDoubleClick(item.path)}
                 onTouchStart={() => onItemTouchStart?.(item, index)}
                 onTouchEnd={() => onItemTouchEnd?.()}
                 onTouchCancel={() => onItemTouchCancel?.()}
