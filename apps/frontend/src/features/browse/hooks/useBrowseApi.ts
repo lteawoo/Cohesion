@@ -30,15 +30,18 @@ export function useBrowseApi() {
   }, []);
 
   const fetchBaseDirectories = useCallback(async () => {
+    // System browse root candidates for Space creation flow.
     return await fetchData('/api/browse/base-directories', t('browseApi.loadBaseDirectoriesFailed'));
   }, [fetchData, t]);
 
-  const fetchDirectoryContents = useCallback(async (path: string, systemMode = false) => {
-    const url = `/api/browse?path=${encodeURIComponent(path)}${systemMode ? '&system=true' : ''}`;
+  const fetchDirectoryContents = useCallback(async (path: string) => {
+    // System browse endpoint. Not for space-scoped browsing.
+    const url = `/api/browse?path=${encodeURIComponent(path)}`;
     return await fetchData(url, t('browseApi.loadDirectoriesFailed'));
   }, [fetchData, t]);
 
   const fetchSpaceDirectoryContents = useCallback(async (spaceId: number, relativePath: string) => {
+    // Space-scoped browsing endpoint for main explorer flow.
     const url = `/api/spaces/${spaceId}/browse?path=${encodeURIComponent(relativePath)}`;
     return await fetchData(url, t('browseApi.loadSpaceDirectoriesFailed'));
   }, [fetchData, t]);

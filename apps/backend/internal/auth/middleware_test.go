@@ -134,6 +134,43 @@ func TestMiddleware_DeniesWhenSpacePermissionIsMissing(t *testing.T) {
 	}
 }
 
+func TestMiddleware_DeniesSystemBrowseEndpointsWithoutSpaceWrite(t *testing.T) {
+	authSvc, accountSvc, db := setupAuthTestService(t)
+	defer db.Close()
+	_, _ = seedAuthUsers(t, accountSvc)
+
+	userToken := issueAccessTokenForTestUser(t, authSvc, testUserUsername)
+
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{
+			name: "browse endpoint",
+			url:  "/api/browse?path=%2F",
+		},
+		{
+			name: "base directories endpoint",
+			url:  "/api/browse/base-directories",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.url, nil)
+			req.AddCookie(&http.Cookie{Name: auth.AccessCookieName, Value: userToken})
+
+			rec := executeMiddlewareRequest(t, authSvc, req, func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			})
+
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+			}
+		})
+	}
+}
+
 func TestMiddleware_AllowsAndInjectsClaims_WhenAuthorized(t *testing.T) {
 	authSvc, accountSvc, db := setupAuthTestService(t)
 	defer db.Close()

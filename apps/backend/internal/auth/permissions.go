@@ -56,10 +56,7 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 		return PermissionSpaceWrite, true
 	}
 	if path == "/api/browse" {
-		if r.URL.Query().Get("system") == "true" {
-			return PermissionSpaceWrite, true
-		}
-		return PermissionSpaceRead, true
+		return PermissionSpaceWrite, true
 	}
 	if path == "/api/search/files" && method == http.MethodGet {
 		return PermissionFileRead, true

@@ -15,18 +15,52 @@ import { useTranslation } from 'react-i18next';
 
 type DirectoryTreeProps = GetProps<typeof Tree.DirectoryTree>;
 const PATH_SYNC_PARTIAL_CHILD_THRESHOLD = 40;
+const BASE_DIRECTORY_KEY_PREFIX = 'base::';
+const SYSTEM_DIRECTORY_KEY_PREFIX = 'system::';
+
+function buildBaseDirectoryKey(path: string): string {
+  return `${BASE_DIRECTORY_KEY_PREFIX}${path}`;
+}
+
+function buildSystemDirectoryKey(path: string): string {
+  return `${SYSTEM_DIRECTORY_KEY_PREFIX}${path}`;
+}
+
+function decodeBrowsePathFromTreeKey(key: string): string {
+  if (key.startsWith(BASE_DIRECTORY_KEY_PREFIX)) {
+    return key.substring(BASE_DIRECTORY_KEY_PREFIX.length);
+  }
+  if (key.startsWith(SYSTEM_DIRECTORY_KEY_PREFIX)) {
+    return key.substring(SYSTEM_DIRECTORY_KEY_PREFIX.length);
+  }
+  return key;
+}
+
+function dedupeNodesByCanonicalKey(nodes: TreeDataNode[]): TreeDataNode[] {
+  const seen = new Set<string>();
+  const deduped: TreeDataNode[] = [];
+  for (const node of nodes) {
+    const key = String(node.key);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(node);
+  }
+  return deduped;
+}
 
 // API 응답(FileNode)을 Ant Design Tree가 요구하는 형식(TreeDataNode)으로 변환합니다.
 const convertToFileTreeData = (nodes: FileNode[]): TreeDataNode[] => {
   if (!nodes) return [];
 
-  return nodes
+  return dedupeNodesByCanonicalKey(nodes
     .filter(node => node.isDir) // 폴더만 필터링합니다.
     .map(node => ({
       title: node.name,
-      key: node.path,
+      key: buildBaseDirectoryKey(node.path),
       isLeaf: false, 
-    }));
+    })));
 };
 
 interface FolderTreeProps {
@@ -40,34 +74,34 @@ interface FolderTreeProps {
   bypassSameSelectionGuard?: boolean;
 }
 
-function resolveTargetKey(
+function resolveTargetKeys(
   target: TreeInvalidationTarget,
   spaces: Space[],
   rootPath?: string,
   showBaseDirectories?: boolean
-): string | null {
+): string[] {
   if (showBaseDirectories) {
-    return target.path;
+    return [buildBaseDirectoryKey(target.path), buildSystemDirectoryKey(target.path)];
   }
 
   if (rootPath) {
-    return target.path;
+    return [target.path];
   }
 
   if (!target.spaceId) {
-    return null;
+    return [];
   }
 
   const space = spaces.find((item) => item.id === target.spaceId);
   if (!space) {
-    return null;
+    return [];
   }
 
   if (!target.path) {
-    return `space-${space.id}`;
+    return [`space-${space.id}`];
   }
 
-  return `space-${space.id}::${target.path}`;
+  return [`space-${space.id}::${target.path}`];
 }
 
 function findNodeByKey(list: TreeDataNode[], key: React.Key): TreeDataNode | null {
@@ -313,8 +347,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({
           }
           contents = await fetchSpaceDirectoryContents(spaceId, path);
         } else {
-          path = keyStr;
-          contents = await fetchDirectoryContents(path, showBaseDirectories);
+          path = decodeBrowsePathFromTreeKey(keyStr);
+          contents = await fetchDirectoryContents(path);
         }
 
         const directoryNodes = (contents ?? [])
@@ -336,12 +370,16 @@ const FolderTree: React.FC<FolderTreeProps> = ({
           partialLoadedKeysRef.current.delete(keyStr);
         }
 
-        const directoryChildren = effectiveNodes
+        const directoryChildren = dedupeNodesByCanonicalKey(effectiveNodes
           .map((node) => ({
             title: node.name,
-            key: spacePrefix ? `${spacePrefix}::${node.path}` : node.path,
+            key: spacePrefix
+              ? `${spacePrefix}::${node.path}`
+              : showBaseDirectories
+                ? buildSystemDirectoryKey(node.path)
+                : node.path,
             isLeaf: false,
-          }));
+          })));
         setTreeData((origin) => updateTreeData(origin, key, directoryChildren));
         setLoadedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
       } catch {
@@ -440,7 +478,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
 
     const targetKeySet = new Set(
       treeInvalidationTargets
-        .map((target) => resolveTargetKey(target, spaces, rootPath, showBaseDirectories))
+        .flatMap((target) => resolveTargetKeys(target, spaces, rootPath, showBaseDirectories))
         .filter((target): target is string => Boolean(target))
     );
 
@@ -570,8 +608,9 @@ const FolderTree: React.FC<FolderTreeProps> = ({
           }
         }
       } else {
-        if (bypassSameSelectionGuard || !isSameSelection(key)) {
-          onSelect(key);
+        const nextPath = decodeBrowsePathFromTreeKey(key);
+        if (bypassSameSelectionGuard || !isSameSelection(nextPath)) {
+          onSelect(nextPath);
         }
       }
     }

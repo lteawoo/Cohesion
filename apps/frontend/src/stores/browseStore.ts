@@ -66,11 +66,11 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
     });
   },
 
-  // Space 등록 모달 전용 — Space 외부 시스템 탐색에서만 사용
+  // Space 등록 모달 전용 — 시스템 디렉터리 탐색에서만 사용
   fetchSystemContents: async (path: string) => {
     set({ isLoading: true, error: null });
     try {
-      const url = `/api/browse?path=${encodeURIComponent(path)}&system=true`;
+      const url = `/api/browse?path=${encodeURIComponent(path)}`;
       const response = await apiFetch(url);
       if (!response.ok) {
         throw await toApiError(response, i18n.t('storeErrors.loadDirectoryFailed'));
