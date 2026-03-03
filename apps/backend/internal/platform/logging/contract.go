@@ -24,6 +24,7 @@ const (
 	ComponentAccess  = "access"
 	ComponentUpdater = "updater"
 	ComponentStorage = "storage"
+	ComponentAudit   = "audit"
 )
 
 const (

@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"taeu.kr/cohesion/internal/account"
+	"taeu.kr/cohesion/internal/audit"
 )
 
 type Claims struct {
@@ -22,6 +23,7 @@ type Claims struct {
 type Service struct {
 	accountService *account.Service
 	config         Config
+	auditRecorder  audit.Recorder
 }
 
 func NewService(accountService *account.Service, config Config) *Service {
@@ -29,6 +31,10 @@ func NewService(accountService *account.Service, config Config) *Service {
 		accountService: accountService,
 		config:         config,
 	}
+}
+
+func (s *Service) SetAuditRecorder(recorder audit.Recorder) {
+	s.auditRecorder = recorder
 }
 
 func (s *Service) Login(ctx context.Context, username, password string) (*TokenPair, *account.User, error) {

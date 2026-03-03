@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"taeu.kr/cohesion/internal/audit"
 	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/platform/web"
 )
@@ -19,6 +20,8 @@ type downloadTicket struct {
 	Owner          string
 	FilePath       string
 	FileName       string
+	Action         string
+	SpaceID        *int64
 	ContentType    string
 	ContentSize    int64
 	RemoveAfterUse bool
@@ -37,6 +40,8 @@ func (h *Handler) issueDownloadTicket(
 	owner string,
 	filePath string,
 	fileName string,
+	action string,
+	spaceID *int64,
 	contentType string,
 	contentSize int64,
 	removeAfterUse bool,
@@ -52,10 +57,15 @@ func (h *Handler) issueDownloadTicket(
 		Owner:          owner,
 		FilePath:       filePath,
 		FileName:       fileName,
+		Action:         strings.TrimSpace(action),
+		SpaceID:        spaceID,
 		ContentType:    contentType,
 		ContentSize:    contentSize,
 		RemoveAfterUse: removeAfterUse,
 		ExpiresAt:      now.Add(h.downloadTicketTTL),
+	}
+	if ticket.Action == "" {
+		ticket.Action = "file.download-ticket"
 	}
 
 	h.ticketMu.Lock()
@@ -89,7 +99,8 @@ func (h *Handler) consumeDownloadTicketForOwner(token string, owner string) (*do
 		return nil, &web.Error{Code: http.StatusNotFound, Message: "Download ticket not found"}
 	}
 	if ticket.Owner != owner {
-		return nil, &web.Error{Code: http.StatusForbidden, Message: "Download ticket access denied"}
+		ticketCopy := ticket
+		return &ticketCopy, &web.Error{Code: http.StatusForbidden, Message: "Download ticket access denied"}
 	}
 
 	delete(h.downloadTickets, token)
@@ -113,6 +124,9 @@ func (h *Handler) handleDownloadByTicket(w http.ResponseWriter, r *http.Request)
 
 	ticket, webErr := h.consumeDownloadTicketForOwner(token, claims.Username)
 	if webErr != nil {
+		if webErr.Code == http.StatusForbidden {
+			r = h.recordDownloadTicketDeniedAudit(r, ticket)
+		}
 		return webErr
 	}
 	if ticket.RemoveAfterUse {
@@ -141,4 +155,42 @@ func (h *Handler) handleDownloadByTicket(w http.ResponseWriter, r *http.Request)
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to send download file", Err: err}
 	}
 	return nil
+}
+
+func (h *Handler) recordDownloadTicketDeniedAudit(r *http.Request, ticket *downloadTicket) *http.Request {
+	if h.auditRecorder == nil || auth.DeniedAuditRecorded(r.Context()) {
+		return r
+	}
+
+	action := "file.download-ticket"
+	target := "download-ticket"
+	var spaceID *int64
+	if ticket != nil {
+		if strings.TrimSpace(ticket.Action) != "" {
+			action = strings.TrimSpace(ticket.Action)
+		}
+		if strings.TrimSpace(ticket.FileName) != "" {
+			target = strings.TrimSpace(ticket.FileName)
+		}
+		spaceID = ticket.SpaceID
+	}
+
+	event := audit.Event{
+		Action:    action,
+		Result:    audit.ResultDenied,
+		Target:    target,
+		RequestID: strings.TrimSpace(r.Header.Get("X-Request-Id")),
+		SpaceID:   spaceID,
+		Metadata: map[string]any{
+			"reason": "ticket_access_denied",
+			"code":   "download.ticket_access_denied",
+			"status": http.StatusForbidden,
+		},
+	}
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok {
+		event.Actor = claims.Username
+	}
+
+	h.auditRecorder.RecordBestEffort(event)
+	return r.WithContext(auth.WithDeniedAuditRecorded(r.Context()))
 }

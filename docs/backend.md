@@ -173,3 +173,42 @@ rg "event=error\\.updater\\." logs/updater.log
   - 권한: Space 멤버십 기반 `read/write` 권한 검증
 
 정책적으로 `/api/browse`는 시스템 탐색 전용이며, Space 내부 탐색 대체 경로로 사용하지 않는다.
+
+## 감사로그 수동 점검 가이드 (실패/denied)
+
+`Settings > Audit Logs`에서 아래 순서로 점검한다.
+
+1. **실패 이벤트 추적 (`result=failure`)**
+   - 결과 필터를 `failure`로 설정하고 조회한다.
+   - 행을 선택해 상세 metadata의 `reason`/`code`를 확인한다.
+   - 예: `config.update` 실패 시 `reason=validation_failed` 또는 `reason=save_failed`.
+
+2. **권한 거부 이벤트 추적 (`result=denied`)**
+   - 결과 필터를 `denied`로 설정하고 조회한다.
+   - 대상(`target`)과 사용자(`actor`)를 기준으로 반복 거부 패턴을 확인한다.
+   - `metadata.reason` / `metadata.code`로 거부 원인을 분류한다.
+   - denied 이벤트가 없는 경우는 현재 관측 기간에 정책 대상 거부 이벤트가 발생하지 않은 상태다.
+
+3. **denied 수집 정책 확인 (대상/제외)**
+
+| 구분 | 경로/영역 | 감사로그 |
+|------|-----------|----------|
+| 포함 | 고위험 read (`GET /api/accounts`, `GET /api/roles`, `GET /api/permissions`, `GET /api/config`) | `result=denied` 기록 |
+| 포함 | 계정/권한/역할 변경 (`POST /api/accounts`, `PATCH/DELETE /api/accounts/{id}`, `PUT /api/accounts/{id}/permissions`, `POST /api/roles`, `DELETE /api/roles/{name}`, `PUT /api/roles/{name}/permissions`) | `result=denied` 기록 |
+| 포함 | 감사로그 조회 접근 (`/api/audit/logs*`) | `result=denied` 기록 |
+| 포함 | 서버 제어 변경 (`PUT /api/config`, `/api/system/restart`, `/api/system/update/start`) | `result=denied` 기록 |
+| 포함 | Space/파일 변경 및 다운로드 (`/api/spaces/{id}/files/{download,download-ticket,rename,delete,delete-multiple,create-folder,upload,move,copy,download-multiple,download-multiple-ticket}`, `/api/downloads/{ticket}`) | `result=denied` 기록 |
+| 제외 | Space 휴지통 경로 (`/api/spaces/{id}/files/{trash,trash-restore,trash-delete,trash-empty}`) | denied 감사 미기록 (access 로그로 확인) |
+| 제외 | 조회성 경로 (`/api/browse*`, `/api/spaces/{id}/browse`, `/api/search/files`) | denied 감사 미기록 (access 로그로 확인) |
+
+4. **API 직접 확인(운영 점검/자동화용)**
+
+```bash
+# 실패 이벤트 최근 20건
+curl -sS --cookie "cohesion_access=<ACCESS_COOKIE>" \
+  "http://localhost:3000/api/audit/logs?page=1&pageSize=20&result=failure"
+
+# denied 이벤트 최근 20건
+curl -sS --cookie "cohesion_access=<ACCESS_COOKIE>" \
+  "http://localhost:3000/api/audit/logs?page=1&pageSize=20&result=denied"
+```

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"taeu.kr/cohesion/internal/account"
+	"taeu.kr/cohesion/internal/audit"
 	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/browse"
 	"taeu.kr/cohesion/internal/platform/web"
@@ -37,6 +38,7 @@ type Handler struct {
 	ticketMu          sync.Mutex
 	downloadTickets   map[string]downloadTicket
 	downloadTicketTTL time.Duration
+	auditRecorder     audit.Recorder
 }
 
 // 의존성 주입 생성자 생성
@@ -55,6 +57,10 @@ func NewHandler(spaceService *space.Service, browseService BrowseService, accoun
 		downloadTickets:   make(map[string]downloadTicket),
 		downloadTicketTTL: 5 * time.Minute,
 	}
+}
+
+func (h *Handler) SetAuditRecorder(recorder audit.Recorder) {
+	h.auditRecorder = recorder
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {

@@ -42,7 +42,7 @@ const SpaceSettings = () => {
   const [quotaSaving, setQuotaSaving] = useState<Record<number, boolean>>({});
 
   const permissions = user?.permissions ?? [];
-  const canReadSpaceSettings = permissions.includes('space.read') || permissions.includes('space.write');
+  const canReadSpaceSettings = permissions.includes('space.read');
   const canWriteSpaceSettings = permissions.includes('space.write');
 
   const loadSpaceUsage = useCallback(async () => {

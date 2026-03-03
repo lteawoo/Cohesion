@@ -8,6 +8,7 @@ import {
   ClusterOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
+  AuditOutlined,
   MenuOutlined,
   CloseOutlined,
 } from '@ant-design/icons';
@@ -20,6 +21,7 @@ import ServerSettings from './sections/ServerSettings';
 import SpaceSettings from './sections/SpaceSettings';
 import AccountSettings from './sections/AccountSettings';
 import PermissionSettings from './sections/PermissionSettings';
+import AuditLogsSettings from './sections/AuditLogsSettings';
 import ProfileSettings from './sections/ProfileSettings';
 import AboutSettings from './sections/AboutSettings';
 import HeaderBrand from '@/components/common/HeaderBrand';
@@ -30,7 +32,16 @@ import '@/assets/css/settings.css';
 
 const { Sider, Content, Header } = Layout;
 
-type SettingsSection = 'profile' | 'general' | 'appearance' | 'server' | 'spaces' | 'permissions' | 'accounts' | 'about';
+type SettingsSection =
+  | 'profile'
+  | 'general'
+  | 'appearance'
+  | 'server'
+  | 'spaces'
+  | 'permissions'
+  | 'accounts'
+  | 'auditLogs'
+  | 'about';
 
 const SettingsPage = () => {
   const { t } = useTranslation();
@@ -43,9 +54,10 @@ const SettingsPage = () => {
   const [isNavOpen, setIsNavOpen] = useState(false);
 
   const permissions = user?.permissions ?? [];
-  const canAccessServerSettings = permissions.includes('server.config.read') || permissions.includes('server.config.write');
-  const canAccessSpaceSettings = permissions.includes('space.read') || permissions.includes('space.write');
-  const canAccessAccountSettings = permissions.includes('account.read') || permissions.includes('account.write');
+  const canAccessServerSettings = permissions.includes('server.config.read');
+  const canAccessSpaceSettings = permissions.includes('space.read');
+  const canAccessAccountSettings = permissions.includes('account.read');
+  const canAccessAuditLogs = permissions.includes('account.read');
 
   const menuItems = useMemo(() => [
     {
@@ -83,18 +95,24 @@ const SettingsPage = () => {
       icon: <TeamOutlined />,
       label: t('settingsPage.sections.accounts'),
     }] : []),
+    ...(canAccessAuditLogs ? [{
+      key: 'auditLogs',
+      icon: <AuditOutlined />,
+      label: t('settingsPage.sections.auditLogs'),
+    }] : []),
     {
       key: 'about',
       icon: <InfoCircleOutlined />,
       label: t('settingsPage.sections.about'),
     },
-  ], [canAccessAccountSettings, canAccessServerSettings, canAccessSpaceSettings, t]);
+  ], [canAccessAccountSettings, canAccessAuditLogs, canAccessServerSettings, canAccessSpaceSettings, t]);
 
   const effectiveSection: SettingsSection = (
     (selectedSection === 'server' && !canAccessServerSettings) ||
     (selectedSection === 'spaces' && !canAccessSpaceSettings) ||
     (selectedSection === 'permissions' && !canAccessAccountSettings) ||
-    (selectedSection === 'accounts' && !canAccessAccountSettings)
+    (selectedSection === 'accounts' && !canAccessAccountSettings) ||
+    (selectedSection === 'auditLogs' && !canAccessAuditLogs)
   )
     ? 'profile'
     : selectedSection;
@@ -115,6 +133,8 @@ const SettingsPage = () => {
         return canAccessAccountSettings ? <PermissionSettings /> : <ProfileSettings />;
       case 'accounts':
         return canAccessAccountSettings ? <AccountSettings /> : <ProfileSettings />;
+      case 'auditLogs':
+        return canAccessAuditLogs ? <AuditLogsSettings /> : <ProfileSettings />;
       case 'about':
         return <AboutSettings />;
       default:
