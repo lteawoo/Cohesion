@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"taeu.kr/cohesion/internal/audit"
+	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/config"
 	"taeu.kr/cohesion/internal/platform/web"
 )
@@ -25,6 +27,7 @@ type Handler struct {
 	meta          Meta
 	updateChecker *UpdateChecker
 	updateManager *SelfUpdateManager
+	auditRecorder audit.Recorder
 }
 
 func NewHandler(restartChan chan bool, shutdownChan chan struct{}, meta Meta) *Handler {
@@ -53,6 +56,10 @@ func NewHandler(restartChan chan bool, shutdownChan chan struct{}, meta Meta) *H
 			RequestTimeout: 30 * time.Second,
 		}, shutdownChan),
 	}
+}
+
+func (h *Handler) SetAuditRecorder(recorder audit.Recorder) {
+	h.auditRecorder = recorder
 }
 
 // RegisterRoutes는 라우트를 등록합니다
@@ -109,6 +116,15 @@ func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error
 	}
 
 	if err := h.updateManager.Start(h.meta.Version, force); err != nil {
+		h.recordAudit(r, audit.Event{
+			Action: "system.update.start",
+			Result: audit.ResultFailure,
+			Target: "self-update",
+			Metadata: map[string]any{
+				"force":  force,
+				"reason": "start_failed",
+			},
+		})
 		switch {
 		case errors.Is(err, ErrSelfUpdateUnsupportedBuild):
 			return &web.Error{Err: err, Code: http.StatusBadRequest, Message: "Self-update is only available in release builds"}
@@ -118,6 +134,14 @@ func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error
 			return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to start update"}
 		}
 	}
+	h.recordAudit(r, audit.Event{
+		Action: "system.update.start",
+		Result: audit.ResultSuccess,
+		Target: "self-update",
+		Metadata: map[string]any{
+			"force": force,
+		},
+	})
 
 	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(map[string]string{
@@ -131,6 +155,14 @@ func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error
 // RestartServer는 서버를 재시작합니다
 func (h *Handler) RestartServer(w http.ResponseWriter, r *http.Request) *web.Error {
 	log.Info().Msg("[System] Restart request received")
+	h.recordAudit(r, audit.Event{
+		Action: "system.restart",
+		Result: audit.ResultSuccess,
+		Target: "server",
+		Metadata: map[string]any{
+			"port": config.Conf.Server.Port,
+		},
+	})
 
 	// 응답 먼저 전송
 	w.Header().Set("Content-Type", "application/json")
@@ -158,4 +190,17 @@ func (h *Handler) RestartServer(w http.ResponseWriter, r *http.Request) *web.Err
 	}()
 
 	return nil
+}
+
+func (h *Handler) recordAudit(r *http.Request, event audit.Event) {
+	if h.auditRecorder == nil {
+		return
+	}
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok {
+		event.Actor = claims.Username
+	}
+	if event.RequestID == "" {
+		event.RequestID = strings.TrimSpace(r.Header.Get("X-Request-Id"))
+	}
+	h.auditRecorder.RecordBestEffort(event)
 }

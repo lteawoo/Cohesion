@@ -27,6 +27,11 @@ type spacePermissionRequirement struct {
 	required account.Permission
 }
 
+type deniedAuditRule struct {
+	Action            string
+	AllowUnauthorized bool
+}
+
 func (s *Service) PermissionsForRole(ctx context.Context, role account.Role) []string {
 	permissions, err := s.accountService.GetRolePermissionKeys(ctx, string(role))
 	if err != nil || len(permissions) == 0 {
@@ -95,6 +100,12 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	}
 
 	if strings.HasPrefix(path, "/api/accounts") {
+		if method == http.MethodGet {
+			return PermissionAccountRead, true
+		}
+		return PermissionAccountWrite, true
+	}
+	if path == "/api/audit/logs" || strings.HasPrefix(path, "/api/audit/logs/") {
 		if method == http.MethodGet {
 			return PermissionAccountRead, true
 		}
@@ -195,4 +206,140 @@ func extractSpaceFileAction(path string) (string, bool) {
 		return "", false
 	}
 	return parts[2], true
+}
+
+func deniedAuditRuleForRequest(r *http.Request) (deniedAuditRule, bool) {
+	method := r.Method
+	path := r.URL.Path
+
+	if path == "/api/accounts" {
+		switch method {
+		case http.MethodGet:
+			return deniedAuditRule{Action: "account.list", AllowUnauthorized: true}, true
+		case http.MethodPost:
+			return deniedAuditRule{Action: "account.create", AllowUnauthorized: true}, true
+		}
+	}
+	if strings.HasPrefix(path, "/api/accounts/") {
+		accountPath := strings.TrimPrefix(path, "/api/accounts/")
+		if strings.Trim(accountPath, "/") == "" && method == http.MethodGet {
+			return deniedAuditRule{Action: "account.list", AllowUnauthorized: true}, true
+		}
+		parts := strings.Split(accountPath, "/")
+		if len(parts) > 0 && parts[0] != "" {
+			if len(parts) == 1 && method == http.MethodPatch {
+				return deniedAuditRule{Action: "account.update", AllowUnauthorized: true}, true
+			}
+			if len(parts) == 1 && method == http.MethodDelete {
+				return deniedAuditRule{Action: "account.delete", AllowUnauthorized: true}, true
+			}
+			if len(parts) > 1 && parts[1] == "permissions" && method == http.MethodPut {
+				return deniedAuditRule{Action: "account.permissions.replace", AllowUnauthorized: true}, true
+			}
+		}
+	}
+
+	if path == "/api/roles" {
+		switch method {
+		case http.MethodGet:
+			return deniedAuditRule{Action: "role.list", AllowUnauthorized: true}, true
+		case http.MethodPost:
+			return deniedAuditRule{Action: "role.create", AllowUnauthorized: true}, true
+		}
+	}
+	if strings.HasPrefix(path, "/api/roles/") {
+		rolePath := strings.TrimPrefix(path, "/api/roles/")
+		if strings.Trim(rolePath, "/") == "" && method == http.MethodGet {
+			return deniedAuditRule{Action: "role.list", AllowUnauthorized: true}, true
+		}
+		parts := strings.Split(rolePath, "/")
+		if len(parts) > 0 && parts[0] != "" {
+			if len(parts) == 1 && method == http.MethodDelete {
+				return deniedAuditRule{Action: "role.delete", AllowUnauthorized: true}, true
+			}
+			if len(parts) > 1 && parts[1] == "permissions" && method == http.MethodPut {
+				return deniedAuditRule{Action: "role.permissions.replace", AllowUnauthorized: true}, true
+			}
+		}
+	}
+	if path == "/api/permissions" && method == http.MethodGet {
+		return deniedAuditRule{Action: "permission.list", AllowUnauthorized: true}, true
+	}
+
+	if (path == "/api/audit/logs" || strings.HasPrefix(path, "/api/audit/logs/")) && method == http.MethodGet {
+		return deniedAuditRule{Action: "audit.logs.read", AllowUnauthorized: true}, true
+	}
+
+	if path == "/api/config" {
+		if method == http.MethodGet {
+			return deniedAuditRule{Action: "config.read", AllowUnauthorized: true}, true
+		}
+		if method == http.MethodPut {
+			return deniedAuditRule{Action: "config.update", AllowUnauthorized: true}, true
+		}
+	}
+	if path == "/api/system/restart" && method == http.MethodPost {
+		return deniedAuditRule{Action: "system.restart", AllowUnauthorized: true}, true
+	}
+	if path == "/api/system/update/start" && method == http.MethodPost {
+		return deniedAuditRule{Action: "system.update.start", AllowUnauthorized: true}, true
+	}
+
+	if path == "/api/spaces" && method == http.MethodPost {
+		return deniedAuditRule{Action: "space.create", AllowUnauthorized: true}, true
+	}
+	if strings.HasPrefix(path, "/api/spaces/") && method == http.MethodDelete {
+		if _, ok := extractSpaceID(path); ok {
+			return deniedAuditRule{Action: "space.delete", AllowUnauthorized: true}, true
+		}
+	}
+	if strings.HasPrefix(path, "/api/spaces/") && strings.HasSuffix(path, "/quota") && method == http.MethodPatch {
+		if _, ok := extractSpaceID(path); ok {
+			return deniedAuditRule{Action: "space.quota.update", AllowUnauthorized: true}, true
+		}
+	}
+	if strings.HasPrefix(path, "/api/spaces/") {
+		spaceAction, ok := extractSpaceFileAction(path)
+		if ok {
+			action, mapped := DeniedAuditActionForSpaceFileAction(spaceAction)
+			if mapped {
+				return deniedAuditRule{Action: action, AllowUnauthorized: true}, true
+			}
+		}
+	}
+	if strings.HasPrefix(path, "/api/downloads/") && method == http.MethodGet {
+		return deniedAuditRule{Action: "file.download-ticket", AllowUnauthorized: true}, true
+	}
+
+	return deniedAuditRule{}, false
+}
+
+// DeniedAuditActionForSpaceFileAction maps space file actions to denied audit actions.
+func DeniedAuditActionForSpaceFileAction(action string) (string, bool) {
+	switch action {
+	case "download":
+		return "file.download", true
+	case "download-ticket":
+		return "file.download-ticket", true
+	case "rename":
+		return "file.rename", true
+	case "delete":
+		return "file.delete", true
+	case "delete-multiple":
+		return "file.delete-multiple", true
+	case "create-folder":
+		return "file.mkdir", true
+	case "upload":
+		return "file.upload", true
+	case "move":
+		return "file.move", true
+	case "copy":
+		return "file.copy", true
+	case "download-multiple":
+		return "file.download-multiple", true
+	case "download-multiple-ticket":
+		return "file.download-multiple-ticket", true
+	default:
+		return "", false
+	}
 }

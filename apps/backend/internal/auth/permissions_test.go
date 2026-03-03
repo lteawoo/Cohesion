@@ -113,6 +113,36 @@ func TestRequiredPermissionForRequest_BaseDirectoriesEndpointUsesSpaceWrite(t *t
 	}
 }
 
+func TestRequiredPermissionForRequest_AuditEndpoints(t *testing.T) {
+	tests := []struct {
+		name     string
+		method   string
+		path     string
+		expected string
+	}{
+		{name: "list audit logs", method: http.MethodGet, path: "/api/audit/logs", expected: PermissionAccountRead},
+		{name: "get audit log by id", method: http.MethodGet, path: "/api/audit/logs/12", expected: PermissionAccountRead},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			req := &http.Request{
+				Method: tc.method,
+				URL:    &url.URL{Path: tc.path},
+			}
+
+			got, ok := requiredPermissionForRequest(req)
+			if !ok {
+				t.Fatalf("expected permission mapping for %s %s", tc.method, tc.path)
+			}
+			if got != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestRequiredPermissionForRequest_SpaceUsageAndQuota(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -204,5 +234,157 @@ func TestRequiredSpacePermissionForRequest_SpaceQuotaPatch(t *testing.T) {
 	}
 	if got.required != account.PermissionWrite {
 		t.Fatalf("expected required permission %s, got %s", account.PermissionWrite, got.required)
+	}
+}
+
+func TestDeniedAuditRuleForRequest_IncludedEndpoints(t *testing.T) {
+	tests := []struct {
+		name           string
+		method         string
+		path           string
+		expectedAction string
+	}{
+		{
+			name:           "account list",
+			method:         http.MethodGet,
+			path:           "/api/accounts",
+			expectedAction: "account.list",
+		},
+		{
+			name:           "account list with trailing slash",
+			method:         http.MethodGet,
+			path:           "/api/accounts/",
+			expectedAction: "account.list",
+		},
+		{
+			name:           "account create",
+			method:         http.MethodPost,
+			path:           "/api/accounts",
+			expectedAction: "account.create",
+		},
+		{
+			name:           "role list",
+			method:         http.MethodGet,
+			path:           "/api/roles",
+			expectedAction: "role.list",
+		},
+		{
+			name:           "role list with trailing slash",
+			method:         http.MethodGet,
+			path:           "/api/roles/",
+			expectedAction: "role.list",
+		},
+		{
+			name:           "permission list",
+			method:         http.MethodGet,
+			path:           "/api/permissions",
+			expectedAction: "permission.list",
+		},
+		{
+			name:           "audit logs read",
+			method:         http.MethodGet,
+			path:           "/api/audit/logs",
+			expectedAction: "audit.logs.read",
+		},
+		{
+			name:           "config read",
+			method:         http.MethodGet,
+			path:           "/api/config",
+			expectedAction: "config.read",
+		},
+		{
+			name:           "space file download multiple",
+			method:         http.MethodPost,
+			path:           "/api/spaces/7/files/download-multiple",
+			expectedAction: "file.download-multiple",
+		},
+		{
+			name:           "download by ticket",
+			method:         http.MethodGet,
+			path:           "/api/downloads/abc",
+			expectedAction: "file.download-ticket",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			req := &http.Request{
+				Method: tc.method,
+				URL:    &url.URL{Path: tc.path},
+			}
+
+			rule, ok := deniedAuditRuleForRequest(req)
+			if !ok {
+				t.Fatalf("expected denied audit rule for %s %s", tc.method, tc.path)
+			}
+			if rule.Action != tc.expectedAction {
+				t.Fatalf("expected action %q, got %q", tc.expectedAction, rule.Action)
+			}
+			if !rule.AllowUnauthorized {
+				t.Fatalf("expected %s %s to allow unauthorized auditing", tc.method, tc.path)
+			}
+		})
+	}
+}
+
+func TestDeniedAuditActionForSpaceFileAction_Mapping(t *testing.T) {
+	tests := []struct {
+		action         string
+		expected       string
+		expectedMapped bool
+	}{
+		{action: "download", expected: "file.download", expectedMapped: true},
+		{action: "download-ticket", expected: "file.download-ticket", expectedMapped: true},
+		{action: "rename", expected: "file.rename", expectedMapped: true},
+		{action: "delete", expected: "file.delete", expectedMapped: true},
+		{action: "delete-multiple", expected: "file.delete-multiple", expectedMapped: true},
+		{action: "create-folder", expected: "file.mkdir", expectedMapped: true},
+		{action: "upload", expected: "file.upload", expectedMapped: true},
+		{action: "move", expected: "file.move", expectedMapped: true},
+		{action: "copy", expected: "file.copy", expectedMapped: true},
+		{action: "download-multiple", expected: "file.download-multiple", expectedMapped: true},
+		{action: "download-multiple-ticket", expected: "file.download-multiple-ticket", expectedMapped: true},
+		{action: "trash", expectedMapped: false},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.action, func(t *testing.T) {
+			got, mapped := DeniedAuditActionForSpaceFileAction(tc.action)
+			if mapped != tc.expectedMapped {
+				t.Fatalf("expected mapped=%v, got %v", tc.expectedMapped, mapped)
+			}
+			if got != tc.expected {
+				t.Fatalf("expected action %q, got %q", tc.expected, got)
+			}
+		})
+	}
+}
+
+func TestDeniedAuditRuleForRequest_ExcludedEndpoints(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{name: "system browse", method: http.MethodGet, path: "/api/browse"},
+		{name: "search", method: http.MethodGet, path: "/api/search/files"},
+		{name: "space browse", method: http.MethodGet, path: "/api/spaces/3/browse"},
+		{name: "space list", method: http.MethodGet, path: "/api/spaces"},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			req := &http.Request{
+				Method: tc.method,
+				URL:    &url.URL{Path: tc.path},
+			}
+
+			if _, ok := deniedAuditRuleForRequest(req); ok {
+				t.Fatalf("did not expect denied audit rule for %s %s", tc.method, tc.path)
+			}
+		})
 	}
 }

@@ -13,6 +13,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
+	"taeu.kr/cohesion/internal/audit"
+	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/platform/web"
 )
 
@@ -168,7 +170,9 @@ func SaveConfig() error {
 }
 
 // Handler는 config API 핸들러입니다
-type Handler struct{}
+type Handler struct {
+	auditRecorder audit.Recorder
+}
 
 type PublicConfigResponse struct {
 	Server Server `json:"server"`
@@ -217,6 +221,10 @@ func NewHandler() *Handler {
 	return &Handler{}
 }
 
+func (h *Handler) SetAuditRecorder(recorder audit.Recorder) {
+	h.auditRecorder = recorder
+}
+
 // RegisterRoutes는 라우트를 등록합니다
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/config", web.Handler(h.GetConfig))
@@ -244,16 +252,57 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 
 	req.Server.Port = strings.TrimSpace(req.Server.Port)
 	if validationErr := validateServerConfig(req.Server); validationErr != nil {
+		h.recordAudit(r, audit.Event{
+			Action: "config.update",
+			Result: audit.ResultFailure,
+			Target: "server",
+			Metadata: map[string]any{
+				"reason": "validation_failed",
+			},
+		})
 		return validationErr
 	}
 
 	// 설정 업데이트 (민감정보를 포함하는 datasource는 API로 변경하지 않음)
+	before := map[string]any{
+		"port":          Conf.Server.Port,
+		"webdavEnabled": Conf.Server.WebdavEnabled,
+		"ftpEnabled":    Conf.Server.FtpEnabled,
+		"ftpPort":       Conf.Server.FtpPort,
+		"sftpEnabled":   Conf.Server.SftpEnabled,
+		"sftpPort":      Conf.Server.SftpPort,
+	}
 	Conf.Server = req.Server
 
 	// 파일에 저장
 	if err := SaveConfig(); err != nil {
+		h.recordAudit(r, audit.Event{
+			Action: "config.update",
+			Result: audit.ResultFailure,
+			Target: "server",
+			Metadata: map[string]any{
+				"reason": "save_failed",
+			},
+		})
 		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to save config"}
 	}
+	after := map[string]any{
+		"port":          Conf.Server.Port,
+		"webdavEnabled": Conf.Server.WebdavEnabled,
+		"ftpEnabled":    Conf.Server.FtpEnabled,
+		"ftpPort":       Conf.Server.FtpPort,
+		"sftpEnabled":   Conf.Server.SftpEnabled,
+		"sftpPort":      Conf.Server.SftpPort,
+	}
+	h.recordAudit(r, audit.Event{
+		Action: "config.update",
+		Result: audit.ResultSuccess,
+		Target: "server",
+		Metadata: map[string]any{
+			"before": before,
+			"after":  after,
+		},
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -261,4 +310,17 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 		"message": "Configuration updated successfully",
 	})
 	return nil
+}
+
+func (h *Handler) recordAudit(r *http.Request, event audit.Event) {
+	if h.auditRecorder == nil {
+		return
+	}
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok {
+		event.Actor = claims.Username
+	}
+	if event.RequestID == "" {
+		event.RequestID = strings.TrimSpace(r.Header.Get("X-Request-Id"))
+	}
+	h.auditRecorder.RecordBestEffort(event)
 }

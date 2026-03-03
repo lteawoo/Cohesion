@@ -17,6 +17,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"taeu.kr/cohesion/internal/account"
+	"taeu.kr/cohesion/internal/audit"
 	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/platform/logging"
 	"taeu.kr/cohesion/internal/platform/web"
@@ -383,43 +384,50 @@ func (h *Handler) softDeletePath(r *http.Request, spaceData *space.Space, relPat
 
 // handleSpaceFiles는 /api/spaces/{id}/files/* 요청을 액션별로 분기합니다.
 func (h *Handler) handleSpaceFiles(w http.ResponseWriter, r *http.Request, spaceID int64, action string) *web.Error {
+	var webErr *web.Error
+
 	switch action {
 	case "download":
-		return h.handleFileDownload(w, r, spaceID)
+		webErr = h.handleFileDownload(w, r, spaceID)
 	case "download-ticket":
-		return h.handleFileDownloadTicket(w, r, spaceID)
+		webErr = h.handleFileDownloadTicket(w, r, spaceID)
 	case "rename":
-		return h.handleFileRename(w, r, spaceID)
+		webErr = h.handleFileRename(w, r, spaceID)
 	case "delete":
-		return h.handleFileDelete(w, r, spaceID)
+		webErr = h.handleFileDelete(w, r, spaceID)
 	case "delete-multiple":
-		return h.handleFileDeleteMultiple(w, r, spaceID)
+		webErr = h.handleFileDeleteMultiple(w, r, spaceID)
 	case "trash":
-		return h.handleTrashList(w, r, spaceID)
+		webErr = h.handleTrashList(w, r, spaceID)
 	case "trash-restore":
-		return h.handleTrashRestore(w, r, spaceID)
+		webErr = h.handleTrashRestore(w, r, spaceID)
 	case "trash-delete":
-		return h.handleTrashDelete(w, r, spaceID)
+		webErr = h.handleTrashDelete(w, r, spaceID)
 	case "trash-empty":
-		return h.handleTrashEmpty(w, r, spaceID)
+		webErr = h.handleTrashEmpty(w, r, spaceID)
 	case "create-folder":
-		return h.handleFileCreateFolder(w, r, spaceID)
+		webErr = h.handleFileCreateFolder(w, r, spaceID)
 	case "upload":
-		return h.handleFileUpload(w, r, spaceID)
+		webErr = h.handleFileUpload(w, r, spaceID)
 	case "move":
-		return h.handleFileMove(w, r, spaceID)
+		webErr = h.handleFileMove(w, r, spaceID)
 	case "copy":
-		return h.handleFileCopy(w, r, spaceID)
+		webErr = h.handleFileCopy(w, r, spaceID)
 	case "download-multiple":
-		return h.handleFileDownloadMultiple(w, r, spaceID)
+		webErr = h.handleFileDownloadMultiple(w, r, spaceID)
 	case "download-multiple-ticket":
-		return h.handleFileDownloadMultipleTicket(w, r, spaceID)
+		webErr = h.handleFileDownloadMultipleTicket(w, r, spaceID)
 	default:
 		return &web.Error{
 			Code:    http.StatusNotFound,
 			Message: fmt.Sprintf("Unknown file action: %s", action),
 		}
 	}
+
+	if webErr != nil && (webErr.Code == http.StatusForbidden || webErr.Code == http.StatusUnauthorized) {
+		r = h.recordDeniedFileActionAudit(r, action, spaceID, webErr)
+	}
+	return webErr
 }
 
 // getSpace는 spaceID로 Space를 조회하고 없으면 에러를 반환합니다.
@@ -452,6 +460,78 @@ func (h *Handler) ensureSpacePermission(r *http.Request, spaceID int64, required
 	return nil
 }
 
+func (h *Handler) recordSpaceAudit(r *http.Request, event audit.Event, spaceID int64) {
+	if h.auditRecorder == nil {
+		return
+	}
+	if event.SpaceID == nil {
+		event.SpaceID = &spaceID
+	}
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok {
+		event.Actor = claims.Username
+	}
+	if event.RequestID == "" {
+		event.RequestID = strings.TrimSpace(r.Header.Get("X-Request-Id"))
+	}
+	h.auditRecorder.RecordBestEffort(event)
+}
+
+func (h *Handler) recordDeniedFileActionAudit(r *http.Request, action string, spaceID int64, webErr *web.Error) *http.Request {
+	if h.auditRecorder == nil || webErr == nil || auth.DeniedAuditRecorded(r.Context()) {
+		return r
+	}
+
+	auditAction, ok := auth.DeniedAuditActionForSpaceFileAction(action)
+	if !ok {
+		return r
+	}
+
+	reason := "access_denied"
+	code := "space.access_denied"
+	switch webErr.Code {
+	case http.StatusUnauthorized:
+		reason = "unauthorized"
+		code = "auth.unauthorized"
+	case http.StatusForbidden:
+		msg := strings.ToLower(strings.TrimSpace(webErr.Message))
+		switch {
+		case strings.Contains(msg, "invalid path"), strings.Contains(msg, "outside"), strings.Contains(msg, "reserved"):
+			reason = "invalid_path"
+			code = "space.invalid_path"
+		case strings.Contains(msg, "permission denied"), strings.Contains(msg, "insufficient destination space permission"):
+			reason = "permission_denied"
+			code = "space.permission_denied"
+		}
+	}
+
+	target := strings.TrimSpace(r.URL.Query().Get("path"))
+	if target == "" {
+		target = strings.TrimPrefix(strings.TrimSpace(r.URL.Path), "/api/spaces/")
+	}
+	if target == "" {
+		target = fmt.Sprintf("space:%d", spaceID)
+	}
+
+	event := audit.Event{
+		Action:    auditAction,
+		Result:    audit.ResultDenied,
+		Target:    target,
+		RequestID: strings.TrimSpace(r.Header.Get("X-Request-Id")),
+		SpaceID:   &spaceID,
+		Metadata: map[string]any{
+			"reason": reason,
+			"code":   code,
+			"status": webErr.Code,
+		},
+	}
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok {
+		event.Actor = claims.Username
+	}
+
+	h.auditRecorder.RecordBestEffort(event)
+	return r.WithContext(auth.WithDeniedAuditRecorded(r.Context()))
+}
+
 // handleFileDownload: GET /api/spaces/{id}/files/download?path={relativePath}
 func (h *Handler) handleFileDownload(w http.ResponseWriter, r *http.Request, spaceID int64) *web.Error {
 	spaceData, webErr := h.getSpace(r, spaceID)
@@ -480,10 +560,70 @@ func (h *Handler) handleFileDownload(w http.ResponseWriter, r *http.Request, spa
 	}
 
 	if fileInfo.IsDir() {
-		return h.downloadFolderAsZip(w, absPath, fileInfo.Name())
+		downloadErr := h.downloadFolderAsZip(w, absPath, fileInfo.Name())
+		if downloadErr != nil {
+			h.recordSpaceAudit(r, audit.Event{
+				Action: "file.download",
+				Result: audit.ResultFailure,
+				Target: relativePath,
+				Metadata: map[string]any{
+					"path":        relativePath,
+					"filename":    fileInfo.Name() + ".zip",
+					"format":      "zip",
+					"sourceCount": 1,
+					"status":      "failed",
+					"reason":      "stream_failed",
+				},
+			}, spaceID)
+		} else {
+			h.recordSpaceAudit(r, audit.Event{
+				Action: "file.download",
+				Result: audit.ResultSuccess,
+				Target: relativePath,
+				Metadata: map[string]any{
+					"path":        relativePath,
+					"filename":    fileInfo.Name() + ".zip",
+					"format":      "zip",
+					"sourceCount": 1,
+					"status":      "downloaded",
+				},
+			}, spaceID)
+		}
+		return downloadErr
 	}
 
-	return h.streamFileDownload(w, absPath)
+	downloadErr := h.streamFileDownload(w, absPath)
+	if downloadErr != nil {
+		h.recordSpaceAudit(r, audit.Event{
+			Action: "file.download",
+			Result: audit.ResultFailure,
+			Target: relativePath,
+			Metadata: map[string]any{
+				"path":        relativePath,
+				"filename":    fileInfo.Name(),
+				"size":        fileInfo.Size(),
+				"format":      "file",
+				"sourceCount": 1,
+				"status":      "failed",
+				"reason":      "stream_failed",
+			},
+		}, spaceID)
+	} else {
+		h.recordSpaceAudit(r, audit.Event{
+			Action: "file.download",
+			Result: audit.ResultSuccess,
+			Target: relativePath,
+			Metadata: map[string]any{
+				"path":        relativePath,
+				"filename":    fileInfo.Name(),
+				"size":        fileInfo.Size(),
+				"format":      "file",
+				"sourceCount": 1,
+				"status":      "downloaded",
+			},
+		}, spaceID)
+	}
+	return downloadErr
 }
 
 func (h *Handler) streamFileDownload(w http.ResponseWriter, absPath string) *web.Error {
@@ -580,6 +720,8 @@ func (h *Handler) handleFileDownloadTicket(w http.ResponseWriter, r *http.Reques
 		claims.Username,
 		downloadFilePath,
 		downloadFileName,
+		"file.download-ticket",
+		&spaceID,
 		contentType,
 		contentSize,
 		removeAfterUse,
@@ -588,8 +730,33 @@ func (h *Handler) handleFileDownloadTicket(w http.ResponseWriter, r *http.Reques
 		if removeAfterUse {
 			os.Remove(downloadFilePath) //nolint:errcheck
 		}
+		h.recordSpaceAudit(r, audit.Event{
+			Action: "file.download-ticket",
+			Result: audit.ResultFailure,
+			Target: req.Path,
+			Metadata: map[string]any{
+				"path":     req.Path,
+				"filename": downloadFileName,
+				"size":     contentSize,
+				"format":   contentType,
+				"status":   "failed",
+				"reason":   "issue_ticket_failed",
+			},
+		}, spaceID)
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to issue download ticket", Err: err}
 	}
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.download-ticket",
+		Result: audit.ResultSuccess,
+		Target: req.Path,
+		Metadata: map[string]any{
+			"path":     req.Path,
+			"filename": ticket.FileName,
+			"size":     contentSize,
+			"format":   contentType,
+			"status":   "ticket_issued",
+		},
+	}, spaceID)
 
 	type downloadTicketResponse struct {
 		DownloadURL string `json:"downloadUrl"`
@@ -657,8 +824,27 @@ func (h *Handler) handleFileRename(w http.ResponseWriter, r *http.Request, space
 	}
 
 	if err := os.Rename(absPath, newAbsPath); err != nil {
+		h.recordSpaceAudit(r, audit.Event{
+			Action: "file.rename",
+			Result: audit.ResultFailure,
+			Target: req.Path,
+			Metadata: map[string]any{
+				"path":    req.Path,
+				"newName": req.NewName,
+				"reason":  "rename_failed",
+			},
+		}, spaceID)
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to rename", Err: err}
 	}
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.rename",
+		Result: audit.ResultSuccess,
+		Target: req.Path,
+		Metadata: map[string]any{
+			"path":    req.Path,
+			"newName": req.NewName,
+		},
+	}, spaceID)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -715,6 +901,15 @@ func (h *Handler) handleFileDelete(w http.ResponseWriter, r *http.Request, space
 		"trashItemId":  item.ID,
 		"originalPath": item.OriginalPath,
 	})
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.delete",
+		Result: audit.ResultSuccess,
+		Target: item.OriginalPath,
+		Metadata: map[string]any{
+			"path":        item.OriginalPath,
+			"trashItemId": item.ID,
+		},
+	}, spaceID)
 	return nil
 }
 
@@ -762,6 +957,22 @@ func (h *Handler) handleFileDeleteMultiple(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{"succeeded": succeeded, "failed": failed})
+	result := audit.ResultSuccess
+	if len(succeeded) == 0 && len(failed) > 0 {
+		result = audit.ResultFailure
+	} else if len(failed) > 0 {
+		result = audit.ResultPartial
+	}
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.delete-multiple",
+		Result: result,
+		Target: fmt.Sprintf("%d items", len(req.Paths)),
+		Metadata: map[string]any{
+			"total":     len(req.Paths),
+			"succeeded": len(succeeded),
+			"failed":    len(failed),
+		},
+	}, spaceID)
 	return nil
 }
 
@@ -1223,6 +1434,15 @@ func (h *Handler) handleFileCreateFolder(w http.ResponseWriter, r *http.Request,
 		"message": "Successfully created",
 		"name":    req.FolderName,
 	})
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.mkdir",
+		Result: audit.ResultSuccess,
+		Target: filepath.ToSlash(filepath.Join(req.ParentPath, req.FolderName)),
+		Metadata: map[string]any{
+			"path": req.ParentPath,
+			"name": req.FolderName,
+		},
+	}, spaceID)
 	return nil
 }
 
@@ -1302,6 +1522,16 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 				"filename": header.Filename,
 				"status":   "skipped",
 			})
+			h.recordSpaceAudit(r, audit.Event{
+				Action: "file.upload",
+				Result: audit.ResultPartial,
+				Target: filepath.ToSlash(filepath.Join(targetRelPath, header.Filename)),
+				Metadata: map[string]any{
+					"filename":       header.Filename,
+					"status":         "skipped",
+					"conflictPolicy": string(conflictPolicy),
+				},
+			}, spaceID)
 			return nil
 		}
 	} else if !os.IsNotExist(err) {
@@ -1330,6 +1560,17 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 		"filename": resultFileName,
 		"status":   "uploaded",
 	})
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.upload",
+		Result: audit.ResultSuccess,
+		Target: filepath.ToSlash(filepath.Join(targetRelPath, resultFileName)),
+		Metadata: map[string]any{
+			"filename":       resultFileName,
+			"size":           header.Size,
+			"status":         "uploaded",
+			"conflictPolicy": string(conflictPolicy),
+		},
+	}, spaceID)
 	if h.quotaService != nil {
 		h.quotaService.Invalidate(spaceID)
 	}
@@ -1548,6 +1789,25 @@ func (h *Handler) handleFileMove(w http.ResponseWriter, r *http.Request, spaceID
 		"failed":    failed,
 		"skipped":   skipped,
 	})
+	result := audit.ResultSuccess
+	if len(succeeded) == 0 && len(failed) > 0 {
+		result = audit.ResultFailure
+	} else if len(failed) > 0 || len(skipped) > 0 {
+		result = audit.ResultPartial
+	}
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.move",
+		Result: result,
+		Target: req.Destination.Path,
+		Metadata: map[string]any{
+			"sourceCount": len(req.Sources),
+			"succeeded":   len(succeeded),
+			"failed":      len(failed),
+			"skipped":     len(skipped),
+			"fromSpaceId": spaceID,
+			"toSpaceId":   dstSpaceID,
+		},
+	}, spaceID)
 	return nil
 }
 
@@ -1762,6 +2022,25 @@ func (h *Handler) handleFileCopy(w http.ResponseWriter, r *http.Request, spaceID
 		"failed":    failed,
 		"skipped":   skipped,
 	})
+	result := audit.ResultSuccess
+	if len(succeeded) == 0 && len(failed) > 0 {
+		result = audit.ResultFailure
+	} else if len(failed) > 0 || len(skipped) > 0 {
+		result = audit.ResultPartial
+	}
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.copy",
+		Result: result,
+		Target: req.Destination.Path,
+		Metadata: map[string]any{
+			"sourceCount": len(req.Sources),
+			"succeeded":   len(succeeded),
+			"failed":      len(failed),
+			"skipped":     len(skipped),
+			"fromSpaceId": spaceID,
+			"toSpaceId":   dstSpaceID,
+		},
+	}, spaceID)
 	return nil
 }
 
@@ -1819,14 +2098,74 @@ func (h *Handler) handleFileDownloadMultiple(w http.ResponseWriter, r *http.Requ
 		}
 
 		if fileInfo.IsDir() {
-			return h.downloadFolderAsZip(w, absPaths[0], fileInfo.Name())
+			downloadErr := h.downloadFolderAsZip(w, absPaths[0], fileInfo.Name())
+			if downloadErr != nil {
+				h.recordSpaceAudit(r, audit.Event{
+					Action: "file.download",
+					Result: audit.ResultFailure,
+					Target: req.Paths[0],
+					Metadata: map[string]any{
+						"path":        req.Paths[0],
+						"filename":    fileInfo.Name() + ".zip",
+						"format":      "zip",
+						"sourceCount": 1,
+						"status":      "failed",
+						"reason":      "stream_failed",
+					},
+				}, spaceID)
+			} else {
+				h.recordSpaceAudit(r, audit.Event{
+					Action: "file.download",
+					Result: audit.ResultSuccess,
+					Target: req.Paths[0],
+					Metadata: map[string]any{
+						"path":        req.Paths[0],
+						"filename":    fileInfo.Name() + ".zip",
+						"format":      "zip",
+						"sourceCount": 1,
+						"status":      "downloaded",
+					},
+				}, spaceID)
+			}
+			return downloadErr
 		}
 
-		return h.streamFileDownload(w, absPaths[0])
+		downloadErr := h.streamFileDownload(w, absPaths[0])
+		if downloadErr != nil {
+			h.recordSpaceAudit(r, audit.Event{
+				Action: "file.download",
+				Result: audit.ResultFailure,
+				Target: req.Paths[0],
+				Metadata: map[string]any{
+					"path":        req.Paths[0],
+					"filename":    fileInfo.Name(),
+					"size":        fileInfo.Size(),
+					"format":      "file",
+					"sourceCount": 1,
+					"status":      "failed",
+					"reason":      "stream_failed",
+				},
+			}, spaceID)
+		} else {
+			h.recordSpaceAudit(r, audit.Event{
+				Action: "file.download",
+				Result: audit.ResultSuccess,
+				Target: req.Paths[0],
+				Metadata: map[string]any{
+					"path":        req.Paths[0],
+					"filename":    fileInfo.Name(),
+					"size":        fileInfo.Size(),
+					"format":      "file",
+					"sourceCount": 1,
+					"status":      "downloaded",
+				},
+			}, spaceID)
+		}
+		return downloadErr
 	}
 
 	zipFileName := fmt.Sprintf("download-%d.zip", os.Getpid())
-	return h.streamZipDownload(w, zipFileName, func(zipWriter *zip.Writer) *web.Error {
+	downloadErr := h.streamZipDownload(w, zipFileName, func(zipWriter *zip.Writer) *web.Error {
 		for i, absPath := range absPaths {
 			if err := addToZip(zipWriter, absPath, filepath.Base(req.Paths[i])); err != nil {
 				logging.Event(log.Warn(), logging.ComponentStorage, "warn.archive.zip_entry_failed").
@@ -1837,6 +2176,33 @@ func (h *Handler) handleFileDownloadMultiple(w http.ResponseWriter, r *http.Requ
 		}
 		return nil
 	})
+	if downloadErr != nil {
+		h.recordSpaceAudit(r, audit.Event{
+			Action: "file.download-multiple",
+			Result: audit.ResultFailure,
+			Target: fmt.Sprintf("%d items", len(req.Paths)),
+			Metadata: map[string]any{
+				"sourceCount": len(req.Paths),
+				"filename":    zipFileName,
+				"format":      "zip",
+				"status":      "failed",
+				"reason":      "stream_failed",
+			},
+		}, spaceID)
+	} else {
+		h.recordSpaceAudit(r, audit.Event{
+			Action: "file.download-multiple",
+			Result: audit.ResultSuccess,
+			Target: fmt.Sprintf("%d items", len(req.Paths)),
+			Metadata: map[string]any{
+				"sourceCount": len(req.Paths),
+				"filename":    zipFileName,
+				"format":      "zip",
+				"status":      "downloaded",
+			},
+		}, spaceID)
+	}
+	return downloadErr
 }
 
 // handleFileDownloadMultipleTicket: POST /api/spaces/{id}/files/download-multiple-ticket
@@ -1900,11 +2266,36 @@ func (h *Handler) handleFileDownloadMultipleTicket(w http.ResponseWriter, r *htt
 		return zipErr
 	}
 
-	ticket, err := h.issueDownloadTicket(claims.Username, zipTempPath, zipFileName, "application/zip", zipSize, true)
+	ticket, err := h.issueDownloadTicket(claims.Username, zipTempPath, zipFileName, "file.download-multiple-ticket", &spaceID, "application/zip", zipSize, true)
 	if err != nil {
 		os.Remove(zipTempPath) //nolint:errcheck
+		h.recordSpaceAudit(r, audit.Event{
+			Action: "file.download-multiple-ticket",
+			Result: audit.ResultFailure,
+			Target: fmt.Sprintf("%d items", len(req.Paths)),
+			Metadata: map[string]any{
+				"sourceCount": len(req.Paths),
+				"filename":    zipFileName,
+				"size":        zipSize,
+				"format":      "application/zip",
+				"status":      "failed",
+				"reason":      "issue_ticket_failed",
+			},
+		}, spaceID)
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to issue download ticket", Err: err}
 	}
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.download-multiple-ticket",
+		Result: audit.ResultSuccess,
+		Target: fmt.Sprintf("%d items", len(req.Paths)),
+		Metadata: map[string]any{
+			"sourceCount": len(req.Paths),
+			"filename":    ticket.FileName,
+			"size":        zipSize,
+			"format":      "application/zip",
+			"status":      "ticket_issued",
+		},
+	}, spaceID)
 
 	type downloadTicketResponse struct {
 		DownloadURL string `json:"downloadUrl"`

@@ -7,15 +7,21 @@ import (
 	"strconv"
 	"strings"
 
+	"taeu.kr/cohesion/internal/audit"
 	"taeu.kr/cohesion/internal/platform/web"
 )
 
 type Handler struct {
-	service *Service
+	service       *Service
+	auditRecorder audit.Recorder
 }
 
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
+}
+
+func (h *Handler) SetAuditRecorder(recorder audit.Recorder) {
+	h.auditRecorder = recorder
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
@@ -45,8 +51,27 @@ func (h *Handler) handleAccounts(w http.ResponseWriter, r *http.Request) *web.Er
 		}
 		user, err := h.service.CreateUser(r.Context(), &req)
 		if err != nil {
+			h.recordAudit(r, audit.Event{
+				Action: "account.create",
+				Result: audit.ResultFailure,
+				Target: "account",
+				Metadata: map[string]any{
+					"reason": "create_failed",
+				},
+			})
 			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to create user", Err: err}
 		}
+		h.recordAudit(r, audit.Event{
+			Action: "account.create",
+			Result: audit.ResultSuccess,
+			Target: "user:" + strconv.FormatInt(user.ID, 10),
+			Metadata: map[string]any{
+				"userId":        user.ID,
+				"username":      user.Username,
+				"role":          user.Role,
+				"changedFields": []string{"username", "nickname", "role"},
+			},
+		})
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(user)
@@ -79,15 +104,52 @@ func (h *Handler) handleAccountByID(w http.ResponseWriter, r *http.Request) *web
 		}
 		user, err := h.service.UpdateUser(r.Context(), id, &req)
 		if err != nil {
+			h.recordAudit(r, audit.Event{
+				Action: "account.update",
+				Result: audit.ResultFailure,
+				Target: "user:" + strconv.FormatInt(id, 10),
+				Metadata: map[string]any{
+					"userId": id,
+					"reason": "update_failed",
+				},
+			})
 			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to update user", Err: err}
 		}
+		h.recordAudit(r, audit.Event{
+			Action: "account.update",
+			Result: audit.ResultSuccess,
+			Target: "user:" + strconv.FormatInt(user.ID, 10),
+			Metadata: map[string]any{
+				"userId":        user.ID,
+				"username":      user.Username,
+				"role":          user.Role,
+				"changedFields": changedUserFields(&req),
+			},
+		})
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(user)
 		return nil
 	case http.MethodDelete:
 		if err := h.service.DeleteUser(r.Context(), id); err != nil {
+			h.recordAudit(r, audit.Event{
+				Action: "account.delete",
+				Result: audit.ResultFailure,
+				Target: "user:" + strconv.FormatInt(id, 10),
+				Metadata: map[string]any{
+					"userId": id,
+					"reason": "delete_failed",
+				},
+			})
 			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to delete user", Err: err}
 		}
+		h.recordAudit(r, audit.Event{
+			Action: "account.delete",
+			Result: audit.ResultSuccess,
+			Target: "user:" + strconv.FormatInt(id, 10),
+			Metadata: map[string]any{
+				"userId": id,
+			},
+		})
 		w.WriteHeader(http.StatusNoContent)
 		return nil
 	default:
@@ -116,8 +178,35 @@ func (h *Handler) handlePermissions(w http.ResponseWriter, r *http.Request, user
 			permission.UserID = userID
 		}
 		if err := h.service.ReplaceUserPermissions(r.Context(), userID, req.Permissions); err != nil {
+			h.recordAudit(r, audit.Event{
+				Action: "account.permissions.replace",
+				Result: audit.ResultFailure,
+				Target: "user:" + strconv.FormatInt(userID, 10),
+				Metadata: map[string]any{
+					"userId": userID,
+					"count":  len(req.Permissions),
+					"reason": "replace_permissions_failed",
+				},
+			})
 			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to update permissions", Err: err}
 		}
+		spaceIDs := make([]int64, 0, len(req.Permissions))
+		permissions := make([]string, 0, len(req.Permissions))
+		for _, permission := range req.Permissions {
+			spaceIDs = append(spaceIDs, permission.SpaceID)
+			permissions = append(permissions, string(permission.Permission))
+		}
+		h.recordAudit(r, audit.Event{
+			Action: "account.permissions.replace",
+			Result: audit.ResultSuccess,
+			Target: "user:" + strconv.FormatInt(userID, 10),
+			Metadata: map[string]any{
+				"userId":      userID,
+				"count":       len(req.Permissions),
+				"spaceIds":    spaceIDs,
+				"permissions": permissions,
+			},
+		})
 		w.WriteHeader(http.StatusNoContent)
 		return nil
 	default:
@@ -145,8 +234,25 @@ func (h *Handler) handleRoles(w http.ResponseWriter, r *http.Request) *web.Error
 		}
 		role, err := h.service.CreateRole(r.Context(), req.Name, req.Description)
 		if err != nil {
+			h.recordAudit(r, audit.Event{
+				Action: "role.create",
+				Result: audit.ResultFailure,
+				Target: req.Name,
+				Metadata: map[string]any{
+					"name":   req.Name,
+					"reason": "create_role_failed",
+				},
+			})
 			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to create Role", Err: err}
 		}
+		h.recordAudit(r, audit.Event{
+			Action: "role.create",
+			Result: audit.ResultSuccess,
+			Target: role.Name,
+			Metadata: map[string]any{
+				"name": role.Name,
+			},
+		})
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(role)
@@ -175,8 +281,28 @@ func (h *Handler) handleRoleByName(w http.ResponseWriter, r *http.Request) *web.
 			return &web.Error{Code: http.StatusBadRequest, Message: "Invalid request body", Err: err}
 		}
 		if err := h.service.ReplaceRolePermissions(r.Context(), roleName, req.Permissions); err != nil {
+			h.recordAudit(r, audit.Event{
+				Action: "role.permissions.replace",
+				Result: audit.ResultFailure,
+				Target: roleName,
+				Metadata: map[string]any{
+					"name":   roleName,
+					"count":  len(req.Permissions),
+					"reason": "replace_role_permissions_failed",
+				},
+			})
 			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to update Role permissions", Err: err}
 		}
+		h.recordAudit(r, audit.Event{
+			Action: "role.permissions.replace",
+			Result: audit.ResultSuccess,
+			Target: roleName,
+			Metadata: map[string]any{
+				"name":        roleName,
+				"count":       len(req.Permissions),
+				"permissions": req.Permissions,
+			},
+		})
 		w.WriteHeader(http.StatusNoContent)
 		return nil
 	}
@@ -185,8 +311,25 @@ func (h *Handler) handleRoleByName(w http.ResponseWriter, r *http.Request) *web.
 		return &web.Error{Code: http.StatusMethodNotAllowed, Message: "Method not allowed"}
 	}
 	if err := h.service.DeleteRole(r.Context(), roleName); err != nil {
+		h.recordAudit(r, audit.Event{
+			Action: "role.delete",
+			Result: audit.ResultFailure,
+			Target: roleName,
+			Metadata: map[string]any{
+				"name":   roleName,
+				"reason": "delete_role_failed",
+			},
+		})
 		return &web.Error{Code: http.StatusBadRequest, Message: "Failed to delete Role", Err: err}
 	}
+	h.recordAudit(r, audit.Event{
+		Action: "role.delete",
+		Result: audit.ResultSuccess,
+		Target: roleName,
+		Metadata: map[string]any{
+			"name": roleName,
+		},
+	})
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -234,4 +377,32 @@ func (h *Handler) handleSetupAdmin(w http.ResponseWriter, r *http.Request) *web.
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(user)
 	return nil
+}
+
+func (h *Handler) recordAudit(r *http.Request, event audit.Event) {
+	if h.auditRecorder == nil {
+		return
+	}
+	event.Actor = strings.TrimSpace(r.Header.Get("X-Cohesion-Actor"))
+	if event.RequestID == "" {
+		event.RequestID = strings.TrimSpace(r.Header.Get("X-Request-Id"))
+	}
+	h.auditRecorder.RecordBestEffort(event)
+}
+
+func changedUserFields(req *UpdateUserRequest) []string {
+	fields := make([]string, 0, 3)
+	if req == nil {
+		return fields
+	}
+	if req.Nickname != nil {
+		fields = append(fields, "nickname")
+	}
+	if req.Password != nil {
+		fields = append(fields, "password")
+	}
+	if req.Role != nil {
+		fields = append(fields, "role")
+	}
+	return fields
 }

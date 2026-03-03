@@ -29,6 +29,25 @@ CREATE TABLE IF NOT EXISTS trash_items (
 CREATE INDEX IF NOT EXISTS idx_trash_items_space_deleted_at
     ON trash_items(space_id, deleted_at DESC);
 
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    occurred_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actor         TEXT NOT NULL,
+    action        TEXT NOT NULL,
+    result        TEXT NOT NULL,
+    target        TEXT NOT NULL,
+    request_id    TEXT NOT NULL,
+    space_id      INTEGER,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY (space_id) REFERENCES space(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_occurred_id
+    ON audit_logs(occurred_at DESC, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_filters
+    ON audit_logs(actor, action, result, space_id);
+
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT NOT NULL UNIQUE,

@@ -22,6 +22,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"taeu.kr/cohesion/internal/account"
 	accountStore "taeu.kr/cohesion/internal/account/store"
+	"taeu.kr/cohesion/internal/audit"
+	auditStore "taeu.kr/cohesion/internal/audit/store"
 	"taeu.kr/cohesion/internal/auth"
 	"taeu.kr/cohesion/internal/browse"
 	browseHandler "taeu.kr/cohesion/internal/browse/handler"
@@ -167,16 +169,16 @@ func registerWebDAVRoutes(mux *http.ServeMux, handler http.Handler) {
 }
 
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
-func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{}) (*http.Server, *ftp.Service, *sftpserver.Service, error) {
+func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{}) (*http.Server, *ftp.Service, *sftpserver.Service, *audit.Service, error) {
 	// 의존성 주입
 	accountRepo := accountStore.NewStore(db)
 	accountService := account.NewService(accountRepo)
 	if err := accountService.EnsureDefaultAdmin(context.Background()); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	authSecret, err := resolveJWTSecret()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	accountHandler := account.NewHandler(accountService)
 	authService := auth.NewService(accountService, auth.Config{
@@ -189,11 +191,14 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 
 	spaceRepo := spaceStore.NewStore(db)
 	trashRepo := spaceStore.NewTrashStore(db)
+	auditRepo := auditStore.NewStore(db)
 	spaceService := space.NewService(spaceRepo)
 	trashService := space.NewTrashService(trashRepo)
+	auditService := audit.NewService(auditRepo, audit.Config{BufferSize: 512})
 	browseService := browse.NewService()
 	spaceHandler := spaceHandler.NewHandler(spaceService, browseService, accountService, trashService)
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
+	auditHandler := audit.NewHandler(auditService)
 	webDavService := webdav.NewService(spaceService, accountService)
 	webDavHandler := webdavHandler.NewHandler(webDavService, accountService)
 	ftpService := ftp.NewService(spaceService, accountService, config.Conf.Server.FtpEnabled, config.Conf.Server.FtpPort)
@@ -205,6 +210,11 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 		Commit:    appCommit,
 		BuildDate: appBuildDate,
 	})
+	authService.SetAuditRecorder(auditService)
+	accountHandler.SetAuditRecorder(auditService)
+	spaceHandler.SetAuditRecorder(auditService)
+	configHandler.SetAuditRecorder(auditService)
+	systemHandler.SetAuditRecorder(auditService)
 
 	// 라우터 생성
 	mux := http.NewServeMux()
@@ -224,6 +234,7 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 	systemHandler.RegisterRoutes(mux)
 	accountHandler.RegisterRoutes(mux)
 	authHandler.RegisterRoutes(mux)
+	auditHandler.RegisterRoutes(mux)
 
 	// WebDAV 핸들러 등록
 	if config.Conf.Server.WebdavEnabled {
@@ -238,7 +249,7 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 	if goEnv == "production" {
 		spaHandler, err := spa.NewSPAHandler(WebDist, "dist/web")
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		mux.HandleFunc("/", spaHandler)
 	}
@@ -259,7 +270,7 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 		Handler: finalLogHandler,
 	}
 
-	return server, ftpService, sftpService, nil
+	return server, ftpService, sftpService, auditService, nil
 }
 
 func main() {
@@ -329,7 +340,7 @@ func main() {
 	// 서버 시작/재시작 루프
 	for {
 		// 서버 생성
-		server, ftpService, sftpService, err := createServer(db, restartChan, shutdownChan)
+		server, ftpService, sftpService, auditService, err := createServer(db, restartChan, shutdownChan)
 		if err != nil {
 			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.server.create_failed").
 				Err(err).
@@ -412,6 +423,7 @@ func main() {
 					Err(err).
 					Msg("failed to shutdown server")
 			}
+			closeAuditService(auditService)
 			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerShutdownDone).
 				Str("source", "signal").
 				Msg("server shutdown completed")
@@ -439,6 +451,7 @@ func main() {
 					Msg("failed to shutdown server")
 			}
 			cancel()
+			closeAuditService(auditService)
 
 			// 설정 다시 로드
 			config.SetConfig(goEnv)
@@ -474,6 +487,7 @@ func main() {
 					Err(err).
 					Msg("failed to shutdown server")
 			}
+			closeAuditService(auditService)
 			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerShutdownDone).
 				Str("source", "updater").
 				Msg("server shutdown completed")
@@ -492,11 +506,25 @@ func main() {
 					Err(stopErr).
 					Msg("failed to stop service")
 			}
+			closeAuditService(auditService)
 			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.server.runtime_failed").
 				Err(err).
 				Msg("server runtime failure")
 			return
 		}
+	}
+}
+
+func closeAuditService(auditService *audit.Service) {
+	if auditService == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := auditService.Close(ctx); err != nil {
+		logging.Event(log.Warn(), logging.ComponentAudit, "warn.audit.shutdown_timeout").
+			Err(err).
+			Msg("audit service shutdown timed out")
 	}
 }
 

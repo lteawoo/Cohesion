@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"taeu.kr/cohesion/internal/audit"
 )
 
 var publicAPIPaths = map[string]struct{}{
@@ -17,6 +19,8 @@ var publicAPIPaths = map[string]struct{}{
 
 func (s *Service) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deniedRule, shouldAuditDenied := deniedAuditRuleForRequest(r)
+
 		if r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return
@@ -40,11 +44,17 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 
 		claims, err := s.ParseToken(accessCookie.Value, "access")
 		if err != nil {
+			if shouldAuditDenied && deniedRule.AllowUnauthorized {
+				r = s.recordDeniedAudit(r, deniedRule, "", "invalid_token", "auth.invalid_token", http.StatusUnauthorized)
+			}
 			writeUnauthorized(w)
 			return
 		}
 		currentUser, err := s.resolveCurrentUserFromClaims(r.Context(), claims)
 		if err != nil {
+			if shouldAuditDenied && deniedRule.AllowUnauthorized {
+				r = s.recordDeniedAudit(r, deniedRule, "", "invalid_token_subject", "auth.invalid_subject", http.StatusUnauthorized)
+			}
 			writeUnauthorized(w)
 			return
 		}
@@ -60,6 +70,9 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 				return
 			}
 			if !allowed {
+				if shouldAuditDenied {
+					r = s.recordDeniedAudit(r, deniedRule, claims.Username, "permission_denied", "auth.permission_denied", http.StatusForbidden)
+				}
 				writeForbidden(w)
 				return
 			}
@@ -71,13 +84,62 @@ func (s *Service) Middleware(next http.Handler) http.Handler {
 				return
 			}
 			if !allowed {
+				if shouldAuditDenied {
+					r = s.recordDeniedAudit(r, deniedRule, claims.Username, "space_permission_denied", "auth.space_permission_denied", http.StatusForbidden)
+				}
 				writeForbidden(w)
 				return
 			}
 		}
 
+		r.Header.Set("X-Cohesion-Actor", claims.Username)
 		next.ServeHTTP(w, r.WithContext(WithClaims(r.Context(), claims)))
 	})
+}
+
+func (s *Service) recordDeniedAudit(
+	r *http.Request,
+	rule deniedAuditRule,
+	actor string,
+	reason string,
+	code string,
+	status int,
+) *http.Request {
+	if s.auditRecorder == nil || DeniedAuditRecorded(r.Context()) || strings.TrimSpace(rule.Action) == "" {
+		return r
+	}
+
+	event := audit.Event{
+		Action:    rule.Action,
+		Result:    audit.ResultDenied,
+		Actor:     strings.TrimSpace(actor),
+		Target:    deniedAuditTargetForRequest(r),
+		RequestID: strings.TrimSpace(r.Header.Get("X-Request-Id")),
+		Metadata: map[string]any{
+			"reason": strings.TrimSpace(reason),
+			"code":   strings.TrimSpace(code),
+			"status": status,
+		},
+	}
+	if spaceID, ok := extractSpaceID(r.URL.Path); ok {
+		event.SpaceID = &spaceID
+	}
+
+	s.auditRecorder.RecordBestEffort(event)
+	return r.WithContext(WithDeniedAuditRecorded(r.Context()))
+}
+
+func deniedAuditTargetForRequest(r *http.Request) string {
+	queryPath := strings.TrimSpace(r.URL.Query().Get("path"))
+	if queryPath != "" {
+		return queryPath
+	}
+
+	trimmedPath := strings.TrimPrefix(strings.TrimSpace(r.URL.Path), "/api/")
+	if trimmedPath == "" {
+		return "api"
+	}
+	return trimmedPath
 }
 
 func writeUnauthorized(w http.ResponseWriter) {
