@@ -1,12 +1,9 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"taeu.kr/cohesion/internal/browse"
 	"taeu.kr/cohesion/internal/platform/web"
@@ -31,29 +28,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/browse/base-directories", web.Handler(h.handleBaseDirectories))
 }
 
-// isPathAllowed는 경로가 등록된 Space 내부인지 확인합니다.
-func (h *Handler) isPathAllowed(ctx context.Context, requestPath string) (bool, error) {
-	cleanPath := filepath.Clean(requestPath)
-
-	spaces, err := h.spaceService.GetAllSpaces(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	if len(spaces) == 0 {
-		return true, nil
-	}
-
-	for _, s := range spaces {
-		spacePath := filepath.Clean(s.SpacePath)
-		if cleanPath == spacePath || strings.HasPrefix(cleanPath, spacePath+string(filepath.Separator)) {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
 func (h *Handler) handleBaseDirectories(w http.ResponseWriter, r *http.Request) *web.Error {
 	dirs := h.browseService.GetBaseDirectories()
 	w.Header().Set("Content-Type", "application/json")
@@ -70,29 +44,10 @@ func (h *Handler) handleBaseDirectories(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) handleBrowse(w http.ResponseWriter, r *http.Request) *web.Error {
 	path := r.URL.Query().Get("path")
-	systemMode := r.URL.Query().Get("system") == "true"
 
 	targetPath := path
 	if targetPath == "" {
 		targetPath = h.browseService.GetInitialBrowseRoot()
-	}
-
-	// system=true이면 Space 검증 스킵 (Space 생성용)
-	if !systemMode {
-		allowed, err := h.isPathAllowed(r.Context(), targetPath)
-		if err != nil {
-			return &web.Error{
-				Code:    http.StatusInternalServerError,
-				Message: "Failed to validate path",
-				Err:     err,
-			}
-		}
-		if !allowed {
-			return &web.Error{
-				Code:    http.StatusForbidden,
-				Message: "Access denied: path is not within any allowed Space",
-			}
-		}
 	}
 
 	files, err := h.browseService.ListDirectory(false, targetPath)

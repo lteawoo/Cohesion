@@ -162,3 +162,14 @@ rg "event=error\\.updater\\." logs/updater.log
 - 터미널에서 현재 상태를 빠르게 확인한다. (부팅/재시작/종료, WARN/ERROR/FATAL)
 - 상세 원인 분석이나 자동화 필터링은 파일 로그(`app.log`, `access.log`, `updater.log`)에서 수행한다.
 - `http.access`는 터미널에 출력되지 않으므로, 요청 단위 추적은 반드시 `logs/access.log`를 사용한다.
+
+## Browse API 역할 경계
+
+- `/api/browse/base-directories`, `/api/browse?path=...`
+  - 목적: Space 생성 모달에서 시스템 디렉토리 탐색
+  - 권한: `space.write` 필요
+- `/api/spaces/{id}/browse?path=...`
+  - 목적: 선택된 Space 내부 디렉토리 탐색(일반 파일 브라우저)
+  - 권한: Space 멤버십 기반 `read/write` 권한 검증
+
+정책적으로 `/api/browse`는 시스템 탐색 전용이며, Space 내부 탐색 대체 경로로 사용하지 않는다.

@@ -54,6 +54,65 @@ func TestRequiredPermissionForRequest_SearchEndpoint(t *testing.T) {
 	}
 }
 
+func TestRequiredPermissionForRequest_BrowseEndpointUsesSpaceWrite(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		rawQuery string
+	}{
+		{
+			name:     "without system query",
+			rawQuery: "",
+		},
+		{
+			name:     "with legacy system query",
+			rawQuery: "system=true",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req := &http.Request{
+				Method: http.MethodGet,
+				URL: &url.URL{
+					Path:     "/api/browse",
+					RawQuery: tc.rawQuery,
+				},
+			}
+
+			got, ok := requiredPermissionForRequest(req)
+			if !ok {
+				t.Fatal("expected permission mapping for browse endpoint")
+			}
+			if got != PermissionSpaceWrite {
+				t.Fatalf("expected %q, got %q", PermissionSpaceWrite, got)
+			}
+		})
+	}
+}
+
+func TestRequiredPermissionForRequest_BaseDirectoriesEndpointUsesSpaceWrite(t *testing.T) {
+	t.Parallel()
+
+	req := &http.Request{
+		Method: http.MethodGet,
+		URL: &url.URL{
+			Path: "/api/browse/base-directories",
+		},
+	}
+
+	got, ok := requiredPermissionForRequest(req)
+	if !ok {
+		t.Fatal("expected permission mapping for base directories endpoint")
+	}
+	if got != PermissionSpaceWrite {
+		t.Fatalf("expected %q, got %q", PermissionSpaceWrite, got)
+	}
+}
+
 func TestRequiredPermissionForRequest_SpaceUsageAndQuota(t *testing.T) {
 	tests := []struct {
 		name     string
