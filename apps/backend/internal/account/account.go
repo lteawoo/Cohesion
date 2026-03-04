@@ -33,6 +33,14 @@ type UserSpacePermission struct {
 	Permission Permission `json:"permission"`
 }
 
+type SMBCredential struct {
+	UserID          int64     `json:"userId"`
+	SMBMaterial     string    `json:"-"`
+	MaterialVersion int       `json:"materialVersion"`
+	PreparedAt      time.Time `json:"preparedAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+}
+
 type RoleDefinition struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`

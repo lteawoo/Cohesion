@@ -1,12 +1,20 @@
-import { Card, Switch, InputNumber, Typography, Space, Alert, Divider, Button, App } from 'antd';
+import { Card, Switch, InputNumber, Typography, Space, Alert, Divider, Button, App, Select } from 'antd';
 import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getConfig, updateConfig, restartServer, waitForReconnect, type Config } from '@/api/config';
+import {
+  getConfig,
+  updateConfig,
+  restartServer,
+  waitForReconnect,
+  type Config,
+  type SmbRolloutPhase,
+} from '@/api/config';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import SettingRow from '../components/SettingRow';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
+const SMB_ROLLOUT_PHASES: readonly SmbRolloutPhase[] = ['readonly', 'write-safe', 'write-full'];
 
 function isValidPort(value: number): boolean {
   return Number.isInteger(value) && value >= 1 && value <= 65535;
@@ -48,6 +56,25 @@ function getServerConfigValidationError(
       return t('serverSettings.validationPortConflict');
     }
     if (server.ftpEnabled && server.sftpPort === server.ftpPort) {
+      return t('serverSettings.validationPortConflict');
+    }
+  }
+
+  if (server.smbEnabled) {
+    if (!isValidPort(server.smbPort)) {
+      return t('serverSettings.validationSmbPort');
+    }
+    if (!SMB_ROLLOUT_PHASES.includes(server.smbRolloutPhase)) {
+      return t('serverSettings.validationSmbRolloutPhase');
+    }
+
+    if (server.smbPort === webPort) {
+      return t('serverSettings.validationPortConflict');
+    }
+    if (server.ftpEnabled && server.smbPort === server.ftpPort) {
+      return t('serverSettings.validationPortConflict');
+    }
+    if (server.sftpEnabled && server.smbPort === server.sftpPort) {
       return t('serverSettings.validationPortConflict');
     }
   }
@@ -338,6 +365,25 @@ const ServerSettings = () => {
             <>
               <Divider className="settings-divider-compact" />
               <SettingRow
+                left={<Text strong>{t('serverSettings.smbRolloutPhaseLabel')}</Text>}
+                right={(
+                  <Select<SmbRolloutPhase>
+                    size="small"
+                    value={server.smbRolloutPhase}
+                    onChange={(value: SmbRolloutPhase) => updateServerConfig('smbRolloutPhase', value)}
+                    options={[
+                      { value: 'readonly', label: t('serverSettings.smbRolloutPhaseReadonly') },
+                      { value: 'write-safe', label: t('serverSettings.smbRolloutPhaseWriteSafe') },
+                      { value: 'write-full', label: t('serverSettings.smbRolloutPhaseWriteFull') },
+                    ]}
+                    className="settings-port-input"
+                  />
+                )}
+              />
+              <Text type="secondary" className="settings-text-xs">
+                {t('serverSettings.smbRolloutPhaseHint')}
+              </Text>
+              <SettingRow
                 left={<Text strong>{t('serverSettings.portLabel')}</Text>}
                 right={(
                   <InputNumber
@@ -388,6 +434,50 @@ const ServerSettings = () => {
                     onChange={(value: number | null) => {
                       if (value !== null) {
                         updateServerConfig('sftpPort', value);
+                      }
+                    }}
+                    className="settings-port-input"
+                  />
+                )}
+              />
+            </>
+          )}
+        </Space>
+      </Card>
+
+      <Card title={t('serverSettings.smbServerCard')} size="small">
+        <Space vertical size="small" className="settings-stack-full">
+          <Alert
+            message={t('serverSettings.smbReadinessHint')}
+            type="info"
+            showIcon
+            className="settings-alert-compact"
+          />
+
+          <SettingRow
+            left={<Text strong>{t('serverSettings.enabledLabel')}</Text>}
+            right={(
+              <Switch
+                checked={server.smbEnabled}
+                onChange={(checked: boolean) => updateServerConfig('smbEnabled', checked)}
+              />
+            )}
+          />
+
+          {server.smbEnabled && (
+            <>
+              <Divider className="settings-divider-compact" />
+              <SettingRow
+                left={<Text strong>{t('serverSettings.portLabel')}</Text>}
+                right={(
+                  <InputNumber
+                    size="small"
+                    min={1}
+                    max={65535}
+                    value={server.smbPort}
+                    onChange={(value: number | null) => {
+                      if (value !== null) {
+                        updateServerConfig('smbPort', value);
                       }
                     }}
                     className="settings-port-input"

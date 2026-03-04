@@ -1,8 +1,16 @@
 export interface ProtocolStatus {
   status: 'healthy' | 'unhealthy' | 'unavailable';
   message: string;
+  reason?: string;
   port?: string;
   path?: string;
+  endpointMode?: string;
+  rolloutPhase?: string;
+  policySource?: string;
+  bindReady?: boolean;
+  runtimeReady?: boolean;
+  minVersion?: string;
+  maxVersion?: string;
 }
 
 export interface StatusResponse {

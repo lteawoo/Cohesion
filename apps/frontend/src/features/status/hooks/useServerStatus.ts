@@ -16,8 +16,16 @@ function normalizeProtocolStatus(value: unknown): ProtocolStatus {
   return {
     status,
     message: typeof raw.message === 'string' ? raw.message : '',
+    reason: typeof raw.reason === 'string' ? raw.reason : undefined,
     port: typeof raw.port === 'string' ? raw.port : undefined,
     path: typeof raw.path === 'string' ? raw.path : undefined,
+    endpointMode: typeof raw.endpointMode === 'string' ? raw.endpointMode : undefined,
+    rolloutPhase: typeof raw.rolloutPhase === 'string' ? raw.rolloutPhase : undefined,
+    policySource: typeof raw.policySource === 'string' ? raw.policySource : undefined,
+    bindReady: typeof raw.bindReady === 'boolean' ? raw.bindReady : undefined,
+    runtimeReady: typeof raw.runtimeReady === 'boolean' ? raw.runtimeReady : undefined,
+    minVersion: typeof raw.minVersion === 'string' ? raw.minVersion : undefined,
+    maxVersion: typeof raw.maxVersion === 'string' ? raw.maxVersion : undefined,
   };
 }
 

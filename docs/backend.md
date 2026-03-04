@@ -102,6 +102,57 @@ apps/backend/
 
 ---
 
+### 3. JWT/SMB Secret Boundary
+
+- JWT 서명 키와 SMB material 암호화 키를 분리 운영함.
+  - JWT: `COHESION_JWT_SECRET` 또는 `COHESION_JWT_SECRET_FILE`
+  - SMB material: `COHESION_SMB_MATERIAL_KEY`
+- 프로덕션에서는 JWT 비밀이 누락되면 자동 생성하지 않고 기동 실패로 처리함.
+- 프로덕션에서 SMB가 활성화(`smb_enabled=true`)된 경우 `COHESION_SMB_MATERIAL_KEY` 누락 시 기동 실패로 처리함.
+- 개발/테스트에서는 SMB material 키 미설정 시 개발용 fallback 키를 허용함.
+- legacy SMB material 호환을 위해 복호화 시 JWT 기반 legacy key를 제한적으로 시도하고, 성공 시 현재 SMB key 기준으로 재암호화함.
+
+---
+
+### 4. SMB Core/Adapter Boundary
+
+- `pkg/smbcore`:
+  - SMB 프로토콜 코어(negotiation/session/tree/read-write/manage)만 담당함.
+  - Cohesion 도메인(`internal/account`, `internal/space`, `internal/config`)을 직접 import하지 않음.
+- `internal/smb`:
+  - Cohesion 계정 인증/Space 권한/경계 정책을 `smbcore` 계약(`Authenticator`, `Authorizer`, `FileSystem`)으로 연결함.
+  - 서비스 기동/상태(readiness)/운영 로그를 담당함.
+- 경계 검증:
+  - `apps/backend/scripts/check-smbcore-boundary.sh`
+  - `go list` import 검사로 `pkg/smbcore`의 도메인 누수를 CI에서 차단함.
+
+### 5. SMB Core 추출 운영 체크
+
+#### 호환성 베이스라인 점검
+
+- 스크립트: `apps/backend/scripts/check-smb-compat-baseline.sh`
+- 검증 항목:
+  - dialect bounds + SMB1 거부
+  - rollout phase deny reason 안정성
+  - rollback(`write-safe` -> `readonly`) 후 쓰기 차단
+  - readiness 상태 surface(`/internal/smb`, `/internal/status`)
+
+#### 롤백 기준 (추출 변경 시)
+
+- 경계/호환성 게이트 실패 시 즉시 롤백:
+  1. `pkg/smbcore` 경계 변경 이전 import wiring으로 복귀
+  2. `go test ./...` + `go test -tags integration ./internal/smb -run TestSMB` 재검증
+  3. readiness reason 및 deny taxonomy 회귀 확인 후 재시도
+
+#### 외부 라이브러리 공개 사전 체크리스트
+
+- `smbcore` 공개 API(v1) 안정성 검토 완료
+- semantic versioning 정책 문서화 완료
+- release branch 기준 SMB integration smoke 통과 정책 확정
+- Cohesion 어댑터(`internal/smb`)와 프로토콜 코어(`pkg/smbcore`) 변경 책임 분리 리뷰 완료
+
+---
+
 ## 운영 로그 가이드 (Operational Logging)
 
 ### 로그 채널

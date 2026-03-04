@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/platform/logging"
 )
 
@@ -75,4 +78,86 @@ func TestEmitAccessLog_OmitsQueryWhenEmpty(t *testing.T) {
 	if strings.Contains(line, "query=") {
 		t.Fatalf("expected no query field for empty query string, got %q", line)
 	}
+}
+
+func TestResolveJWTSecret_ProductionRejectsMissingSecret(t *testing.T) {
+	setGoEnvForTest(t, "production")
+	t.Setenv("COHESION_JWT_SECRET", "")
+
+	secretFile := filepath.Join(t.TempDir(), "jwt_secret")
+	t.Setenv("COHESION_JWT_SECRET_FILE", secretFile)
+
+	_, err := resolveJWTSecret()
+	if err == nil {
+		t.Fatal("expected error when production jwt secret is missing")
+	}
+	if !strings.Contains(err.Error(), "COHESION_JWT_SECRET is required in production") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveJWTSecret_DevelopmentGeneratesSecretFile(t *testing.T) {
+	setGoEnvForTest(t, "development")
+	t.Setenv("COHESION_JWT_SECRET", "")
+
+	secretFile := filepath.Join(t.TempDir(), "jwt_secret")
+	t.Setenv("COHESION_JWT_SECRET_FILE", secretFile)
+
+	secret, err := resolveJWTSecret()
+	if err != nil {
+		t.Fatalf("resolve jwt secret: %v", err)
+	}
+	if strings.TrimSpace(secret) == "" {
+		t.Fatal("expected non-empty jwt secret")
+	}
+	content, err := os.ReadFile(secretFile)
+	if err != nil {
+		t.Fatalf("read generated jwt secret file: %v", err)
+	}
+	if strings.TrimSpace(string(content)) == "" {
+		t.Fatalf("expected generated jwt secret file to be non-empty, got %q", string(content))
+	}
+}
+
+func TestConfigureSMBMaterialKeyPolicy_ProductionRequiresKeyWhenSMBEnabled(t *testing.T) {
+	setGoEnvForTest(t, "production")
+	account.SetSMBMaterialKeyRequired(false)
+	t.Cleanup(func() {
+		account.SetSMBMaterialKeyRequired(false)
+	})
+	t.Setenv("COHESION_SMB_MATERIAL_KEY", "")
+
+	err := configureSMBMaterialKeyPolicy(true)
+	if err == nil {
+		t.Fatal("expected error when smb key is missing under production+smb_enabled")
+	}
+	if !strings.Contains(err.Error(), "COHESION_SMB_MATERIAL_KEY is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigureSMBMaterialKeyPolicy_ProductionAllowsMissingKeyWhenSMBDisabled(t *testing.T) {
+	setGoEnvForTest(t, "production")
+	account.SetSMBMaterialKeyRequired(false)
+	t.Cleanup(func() {
+		account.SetSMBMaterialKeyRequired(false)
+	})
+	t.Setenv("COHESION_SMB_MATERIAL_KEY", "")
+
+	if err := configureSMBMaterialKeyPolicy(false); err != nil {
+		t.Fatalf("expected no error when smb key missing but smb disabled: %v", err)
+	}
+	if account.IsSMBMaterialKeyRequired() {
+		t.Fatal("expected smb material key requirement to remain disabled")
+	}
+}
+
+func setGoEnvForTest(t *testing.T, env string) {
+	t.Helper()
+
+	previous := goEnv
+	goEnv = env
+	t.Cleanup(func() {
+		goEnv = previous
+	})
 }
