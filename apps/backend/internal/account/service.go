@@ -742,7 +742,21 @@ func (s *Service) resolvePrimarySMBMaterialSecret(ctx context.Context) (smbMater
 		return smbMaterialSecret{}, missingSMBMaterialKeyError()
 	}
 
-	return smbMaterialSecret{}, missingSMBMaterialKeyPrewarmRequiredError()
+	if _, err := s.PrewarmSMBMaterialKey(ctx); err != nil {
+		if errors.Is(err, ErrSMBCredentialRecoveryRequired) {
+			return smbMaterialSecret{}, err
+		}
+		return smbMaterialSecret{}, fmt.Errorf("bootstrap smb material key: %w", err)
+	}
+
+	secret, err = resolvePrimarySMBMaterialSecretWithoutBootstrap()
+	if err == nil {
+		return secret, nil
+	}
+	if errors.Is(err, errSMBMaterialKeyMissing) {
+		return smbMaterialSecret{}, missingSMBMaterialKeyPrewarmRequiredError()
+	}
+	return smbMaterialSecret{}, err
 }
 
 func (s *Service) hasAnySMBCredential(ctx context.Context) (bool, error) {
