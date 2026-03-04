@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 
@@ -39,17 +41,20 @@ type Storer interface {
 	ReplaceRolePermissionKeys(ctx context.Context, roleName string, permissionKeys []string) error
 	UpsertSMBCredential(ctx context.Context, userID int64, smbMaterial string, materialVersion int) error
 	GetSMBCredential(ctx context.Context, userID int64) (*SMBCredential, error)
+	HasAnySMBCredential(ctx context.Context) (bool, error)
 }
 
 const (
-	smbMaterialVersion       = 4
-	legacySMBMaterialVersion = 3
-	defaultSMBMaterialKey    = "cohesion-dev-smb-material-key"
+	smbMaterialVersion = 4
 
 	smbMaterialKeySourceEnv           = "env:COHESION_SMB_MATERIAL_KEY"
-	smbMaterialKeySourceFallback      = "fallback:development-default"
-	smbMaterialKeySourceLegacyJWT     = "legacy:COHESION_JWT_SECRET"
-	smbMaterialKeySourceLegacyDefault = "legacy:development-default"
+	smbMaterialKeySourceFileExisting  = "file:existing"
+	smbMaterialKeySourceFileGenerated = "file:generated"
+
+	smbMaterialKeyPathEnv        = "COHESION_SMB_MATERIAL_KEY_FILE"
+	defaultSMBMaterialKeyFile    = "smb_material_key"
+	smbMaterialKeyDirPermission  = 0o700
+	smbMaterialKeyFilePermission = 0o600
 )
 
 type Service struct {
@@ -59,12 +64,17 @@ type Service struct {
 type smbMaterialSecret struct {
 	value  string
 	source string
-	legacy bool
+}
+
+type SMBMaterialKeyPrewarmResult struct {
+	Source string
+	Path   string
 }
 
 var (
 	ErrInitialSetupCompleted          = errors.New("initial setup already completed")
 	ErrSMBCredentialRecoveryRequired  = errors.New("smb credential recovery required")
+	errSMBMaterialKeyMissing          = errors.New("smb material key missing")
 	requireExplicitSMBMaterialKeyFlag atomic.Bool
 )
 
@@ -77,16 +87,70 @@ func IsSMBMaterialKeyRequired() bool {
 }
 
 func ValidateSMBMaterialKeyConfiguration() error {
-	_, err := resolvePrimarySMBMaterialSecret()
+	_, err := resolvePrimarySMBMaterialSecretWithoutBootstrap()
 	return err
 }
 
 func CurrentSMBMaterialKeySource() string {
-	secret, err := resolvePrimarySMBMaterialSecret()
+	secret, err := resolvePrimarySMBMaterialSecretWithoutBootstrap()
 	if err != nil {
 		return "unavailable"
 	}
 	return secret.source
+}
+
+func (s *Service) ValidateSMBMaterialKeyConfiguration(ctx context.Context) (string, error) {
+	secret, err := s.resolvePrimarySMBMaterialSecret(ctx)
+	if err != nil {
+		return "", err
+	}
+	return secret.source, nil
+}
+
+func (s *Service) PrewarmSMBMaterialKey(ctx context.Context) (SMBMaterialKeyPrewarmResult, error) {
+	if s == nil {
+		return SMBMaterialKeyPrewarmResult{}, errors.New("account service is required")
+	}
+
+	if secret := strings.TrimSpace(os.Getenv("COHESION_SMB_MATERIAL_KEY")); secret != "" {
+		return SMBMaterialKeyPrewarmResult{Source: "env"}, nil
+	}
+
+	path, err := resolveSMBMaterialKeyPath()
+	if err != nil {
+		return SMBMaterialKeyPrewarmResult{}, err
+	}
+
+	secret, exists, err := readSMBMaterialSecretFromFile(path)
+	if err != nil {
+		return SMBMaterialKeyPrewarmResult{}, err
+	}
+	if exists && strings.TrimSpace(secret) != "" {
+		return SMBMaterialKeyPrewarmResult{Source: "file", Path: path}, nil
+	}
+
+	hasCredentials, err := s.hasAnySMBCredential(ctx)
+	if err != nil {
+		return SMBMaterialKeyPrewarmResult{}, fmt.Errorf("check existing smb credentials: %w", err)
+	}
+	if hasCredentials {
+		return SMBMaterialKeyPrewarmResult{}, missingSMBMaterialKeyWithCredentialDataError()
+	}
+
+	generated, err := generateRandomSMBMaterialSecret(48)
+	if err != nil {
+		return SMBMaterialKeyPrewarmResult{}, err
+	}
+	if err := writeSMBMaterialSecretToFile(path, generated); err != nil {
+		return SMBMaterialKeyPrewarmResult{}, err
+	}
+
+	logging.Event(log.Info(), logging.ComponentAuth, "info.smb.material_key_prewarmed").
+		Str("source", smbMaterialKeySourceFileGenerated).
+		Str("path", path).
+		Msg("[SMB] material key prewarmed from generated secret file")
+
+	return SMBMaterialKeyPrewarmResult{Source: "generated", Path: path}, nil
 }
 
 func NewService(store Storer) *Service {
@@ -194,7 +258,7 @@ func (s *Service) CreateUser(ctx context.Context, req *CreateUserRequest) (*User
 	if err != nil {
 		return nil, err
 	}
-	material, err := deriveSMBMaterial(req.Username, req.Password)
+	material, err := s.deriveSMBMaterial(ctx, req.Username, req.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +317,7 @@ func (s *Service) UpdateUser(ctx context.Context, id int64, req *UpdateUserReque
 	}
 
 	if rawPassword != nil {
-		material, err := deriveSMBMaterial(current.Username, *rawPassword)
+		material, err := s.deriveSMBMaterial(ctx, current.Username, *rawPassword)
 		if err != nil {
 			return nil, err
 		}
@@ -330,7 +394,7 @@ func (s *Service) ResolveSMBPassword(ctx context.Context, username string) (stri
 		return "", err
 	}
 
-	password, requiresMigration, err := decodeSMBMaterial(credential.SMBMaterial, credential.MaterialVersion)
+	password, err := s.decodeSMBMaterial(ctx, credential.SMBMaterial, credential.MaterialVersion)
 	if err != nil {
 		logging.Event(log.Warn(), logging.ComponentAuth, "warn.smb.material.decode_failed").
 			Err(err).
@@ -339,23 +403,6 @@ func (s *Service) ResolveSMBPassword(ctx context.Context, username string) (stri
 			Int("material_version", credential.MaterialVersion).
 			Msg("[SMB] failed to decode credential material")
 		return "", wrapSMBCredentialRecoveryError(err)
-	}
-
-	if requiresMigration {
-		if err := s.upsertSMBCredential(ctx, user, password); err != nil {
-			logging.Event(log.Warn(), logging.ComponentAuth, "warn.smb.material.migration_failed").
-				Err(err).
-				Str("username", user.Username).
-				Int64("user_id", user.ID).
-				Int("material_version", credential.MaterialVersion).
-				Msg("[SMB] failed to migrate credential material")
-			return "", wrapSMBCredentialRecoveryError(err)
-		}
-		logging.Event(log.Info(), logging.ComponentAuth, "info.smb.material.migrated").
-			Str("username", user.Username).
-			Int64("user_id", user.ID).
-			Int("previous_material_version", credential.MaterialVersion).
-			Msg("[SMB] credential material migrated to current policy")
 	}
 
 	return password, nil
@@ -564,19 +611,26 @@ func (s *Service) upsertSMBCredential(ctx context.Context, user *User, password 
 		return errors.New("password is required")
 	}
 
-	material, err := deriveSMBMaterial(user.Username, password)
+	material, err := s.deriveSMBMaterial(ctx, user.Username, password)
 	if err != nil {
 		return err
 	}
 	return s.store.UpsertSMBCredential(ctx, user.ID, material, smbMaterialVersion)
 }
 
-func deriveSMBMaterial(username, password string) (string, error) {
+func (s *Service) deriveSMBMaterial(ctx context.Context, username, password string) (string, error) {
 	_ = username
 	if password == "" {
 		return "", errors.New("password is required")
 	}
-	secret, err := resolvePrimarySMBMaterialSecret()
+	return s.encodeSMBMaterial(ctx, password)
+}
+
+func (s *Service) encodeSMBMaterial(ctx context.Context, password string) (string, error) {
+	if password == "" {
+		return "", errors.New("password is required")
+	}
+	secret, err := s.resolvePrimarySMBMaterialSecret(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -593,89 +647,53 @@ func deriveSMBMaterial(username, password string) (string, error) {
 	return "enc:" + base64.StdEncoding.EncodeToString(nonce) + ":" + base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
-func decodeSMBMaterial(material string, version int) (string, bool, error) {
-	switch version {
-	case smbMaterialVersion:
-		return decodeEncryptedSMBMaterial(material)
-	case legacySMBMaterialVersion:
-		password, err := decodeLegacySMBMaterial(material)
-		if err != nil {
-			return "", false, err
-		}
-		return password, true, nil
-	default:
-		return "", false, fmt.Errorf("unsupported smb material version: %d", version)
+func (s *Service) decodeSMBMaterial(ctx context.Context, material string, version int) (string, error) {
+	if version != smbMaterialVersion {
+		return "", fmt.Errorf("unsupported smb material version: %d", version)
 	}
+	return s.decodeEncryptedSMBMaterial(ctx, material)
 }
 
-func decodeLegacySMBMaterial(material string) (string, error) {
+func (s *Service) decodeEncryptedSMBMaterial(ctx context.Context, material string) (string, error) {
 	payload := strings.TrimSpace(material)
-	if !strings.HasPrefix(payload, "plain:") {
+	parts := strings.Split(payload, ":")
+	if len(parts) != 3 || parts[0] != "enc" {
 		return "", errors.New("invalid smb material format")
 	}
 
-	encoded := strings.TrimPrefix(payload, "plain:")
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	nonce, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", fmt.Errorf("invalid smb material encoding: %w", err)
+		return "", fmt.Errorf("invalid smb material nonce: %w", err)
 	}
-	password := string(decoded)
+	ciphertext, err := base64.StdEncoding.DecodeString(parts[2])
+	if err != nil {
+		return "", fmt.Errorf("invalid smb material ciphertext: %w", err)
+	}
+
+	secret, err := s.resolvePrimarySMBMaterialSecret(ctx)
+	if err != nil {
+		return "", err
+	}
+	aead, err := newSMBMaterialAEAD(secret.value)
+	if err != nil {
+		return "", err
+	}
+	if len(nonce) != aead.NonceSize() {
+		return "", errors.New("invalid smb material nonce size")
+	}
+	plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt smb material: %w", err)
+	}
+
+	password := string(plaintext)
 	if password == "" {
 		return "", errors.New("empty smb password material")
 	}
 	return password, nil
 }
 
-func decodeEncryptedSMBMaterial(material string) (string, bool, error) {
-	payload := strings.TrimSpace(material)
-	parts := strings.Split(payload, ":")
-	if len(parts) != 3 || parts[0] != "enc" {
-		return "", false, errors.New("invalid smb material format")
-	}
-
-	nonce, err := base64.StdEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", false, fmt.Errorf("invalid smb material nonce: %w", err)
-	}
-	ciphertext, err := base64.StdEncoding.DecodeString(parts[2])
-	if err != nil {
-		return "", false, fmt.Errorf("invalid smb material ciphertext: %w", err)
-	}
-
-	secrets, err := resolveSMBMaterialDecryptionSecrets()
-	if err != nil {
-		return "", false, err
-	}
-
-	var lastErr error
-	for _, secret := range secrets {
-		aead, err := newSMBMaterialAEAD(secret.value)
-		if err != nil {
-			return "", false, err
-		}
-		if len(nonce) != aead.NonceSize() {
-			return "", false, errors.New("invalid smb material nonce size")
-		}
-		plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		password := string(plaintext)
-		if password == "" {
-			return "", false, errors.New("empty smb password material")
-		}
-		return password, secret.legacy, nil
-	}
-
-	if lastErr == nil {
-		lastErr = errors.New("failed to decrypt smb material")
-	}
-	return "", false, fmt.Errorf("failed to decrypt smb material: %w", lastErr)
-}
-
-func resolvePrimarySMBMaterialSecret() (smbMaterialSecret, error) {
+func resolvePrimarySMBMaterialSecretWithoutBootstrap() (smbMaterialSecret, error) {
 	secret := strings.TrimSpace(os.Getenv("COHESION_SMB_MATERIAL_KEY"))
 	if secret != "" {
 		return smbMaterialSecret{
@@ -683,38 +701,120 @@ func resolvePrimarySMBMaterialSecret() (smbMaterialSecret, error) {
 			source: smbMaterialKeySourceEnv,
 		}, nil
 	}
-	if IsSMBMaterialKeyRequired() {
-		return smbMaterialSecret{}, errors.New("COHESION_SMB_MATERIAL_KEY is required when SMB is enabled in production")
+
+	path, err := resolveSMBMaterialKeyPath()
+	if err != nil {
+		return smbMaterialSecret{}, err
 	}
-	return smbMaterialSecret{
-		value:  defaultSMBMaterialKey,
-		source: smbMaterialKeySourceFallback,
-	}, nil
+
+	secret, exists, err := readSMBMaterialSecretFromFile(path)
+	if err != nil {
+		return smbMaterialSecret{}, err
+	}
+	if exists {
+		return smbMaterialSecret{
+			value:  secret,
+			source: smbMaterialKeySourceFileExisting,
+		}, nil
+	}
+
+	return smbMaterialSecret{}, missingSMBMaterialKeyError()
 }
 
-func resolveSMBMaterialDecryptionSecrets() ([]smbMaterialSecret, error) {
-	primary, err := resolvePrimarySMBMaterialSecret()
-	if err != nil {
-		return nil, err
+func (s *Service) resolvePrimarySMBMaterialSecret(ctx context.Context) (smbMaterialSecret, error) {
+	secret, err := resolvePrimarySMBMaterialSecretWithoutBootstrap()
+	if err == nil {
+		return secret, nil
 	}
-	secrets := []smbMaterialSecret{primary}
+	if !errors.Is(err, errSMBMaterialKeyMissing) {
+		return smbMaterialSecret{}, err
+	}
 
-	legacyJWT := strings.TrimSpace(os.Getenv("COHESION_JWT_SECRET"))
-	if legacyJWT != "" && legacyJWT != primary.value {
-		secrets = append(secrets, smbMaterialSecret{
-			value:  legacyJWT,
-			source: smbMaterialKeySourceLegacyJWT,
-			legacy: true,
-		})
+	hasCredentials, err := s.hasAnySMBCredential(ctx)
+	if err != nil {
+		return smbMaterialSecret{}, fmt.Errorf("check existing smb credentials: %w", err)
 	}
-	if defaultSMBMaterialKey != primary.value {
-		secrets = append(secrets, smbMaterialSecret{
-			value:  defaultSMBMaterialKey,
-			source: smbMaterialKeySourceLegacyDefault,
-			legacy: true,
-		})
+	if hasCredentials {
+		return smbMaterialSecret{}, missingSMBMaterialKeyWithCredentialDataError()
 	}
-	return secrets, nil
+
+	if IsSMBMaterialKeyRequired() {
+		return smbMaterialSecret{}, missingSMBMaterialKeyError()
+	}
+
+	return smbMaterialSecret{}, missingSMBMaterialKeyPrewarmRequiredError()
+}
+
+func (s *Service) hasAnySMBCredential(ctx context.Context) (bool, error) {
+	if s == nil || s.store == nil {
+		return false, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.store.HasAnySMBCredential(ctx)
+}
+
+func resolveSMBMaterialKeyPath() (string, error) {
+	if customPath := strings.TrimSpace(os.Getenv(smbMaterialKeyPathEnv)); customPath != "" {
+		return customPath, nil
+	}
+
+	userConfigDir, err := os.UserConfigDir()
+	if err == nil && strings.TrimSpace(userConfigDir) != "" {
+		return filepath.Join(userConfigDir, "Cohesion", "secrets", defaultSMBMaterialKeyFile), nil
+	}
+
+	executablePath, err := os.Executable()
+	if err != nil {
+		return "", errors.New("failed to resolve smb material key path")
+	}
+	return filepath.Join(filepath.Dir(executablePath), "data", defaultSMBMaterialKeyFile), nil
+}
+
+func readSMBMaterialSecretFromFile(path string) (string, bool, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	secret := strings.TrimSpace(string(content))
+	if secret == "" {
+		return "", false, nil
+	}
+	return secret, true, nil
+}
+
+func writeSMBMaterialSecretToFile(path, secret string) error {
+	if err := os.MkdirAll(filepath.Dir(path), smbMaterialKeyDirPermission); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(secret+"\n"), smbMaterialKeyFilePermission)
+}
+
+func generateRandomSMBMaterialSecret(size int) (string, error) {
+	if size < 32 {
+		return "", errors.New("secret size must be at least 32 bytes")
+	}
+	buffer := make([]byte, size)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buffer), nil
+}
+
+func missingSMBMaterialKeyError() error {
+	return fmt.Errorf("%w: set COHESION_SMB_MATERIAL_KEY or COHESION_SMB_MATERIAL_KEY_FILE", errSMBMaterialKeyMissing)
+}
+
+func missingSMBMaterialKeyPrewarmRequiredError() error {
+	return fmt.Errorf("%w: run startup prewarm before handling SMB credentials", errSMBMaterialKeyMissing)
+}
+
+func missingSMBMaterialKeyWithCredentialDataError() error {
+	return fmt.Errorf("%w: SMB material key is missing while existing SMB credential data is present; restore COHESION_SMB_MATERIAL_KEY or COHESION_SMB_MATERIAL_KEY_FILE from backup", ErrSMBCredentialRecoveryRequired)
 }
 
 func newSMBMaterialAEAD(secret string) (cipher.AEAD, error) {

@@ -106,11 +106,14 @@ apps/backend/
 
 - JWT 서명 키와 SMB material 암호화 키를 분리 운영함.
   - JWT: `COHESION_JWT_SECRET` 또는 `COHESION_JWT_SECRET_FILE`
-  - SMB material: `COHESION_SMB_MATERIAL_KEY`
-- 프로덕션에서는 JWT 비밀이 누락되면 자동 생성하지 않고 기동 실패로 처리함.
-- 프로덕션에서 SMB가 활성화(`smb_enabled=true`)된 경우 `COHESION_SMB_MATERIAL_KEY` 누락 시 기동 실패로 처리함.
-- 개발/테스트에서는 SMB material 키 미설정 시 개발용 fallback 키를 허용함.
-- legacy SMB material 호환을 위해 복호화 시 JWT 기반 legacy key를 제한적으로 시도하고, 성공 시 현재 SMB key 기준으로 재암호화함.
+  - SMB material: `COHESION_SMB_MATERIAL_KEY` 또는 `COHESION_SMB_MATERIAL_KEY_FILE`
+- SFTP host key는 `COHESION_SFTP_HOST_KEY_FILE`(기본: configDir 기반 secrets 경로)로 관리한다.
+- 서버 startup prewarm 단계에서 JWT/SMB/SFTP 키를 일괄 준비한다(프로토콜 enable/disable와 무관).
+- source 우선순위는 공통으로 `env > persisted file > generated once`를 사용한다.
+- prewarm 결과는 운영 로그 `service=secret-prewarm`, `secret_name`, `source(env|file|generated)` 필드로 기록한다.
+- prewarm 실패 시 서버 기동을 중단한다(bootstrap 오류).
+- SMB credential 데이터가 존재하는 상태에서 key가 유실되면 자동 재생성하지 않고 복구 가이드 오류로 실패한다.
+- SMB material 복호화는 active SMB key 단일 소스만 사용한다(legacy JWT/dev fallback 및 자동 재암호화 제거).
 
 ---
 

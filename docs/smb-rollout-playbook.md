@@ -65,10 +65,11 @@ SMB를 기존 WEB/WebDAV/FTP/SFTP 운영 패턴과 일관되게 단계 도입하
 
 - JWT 토큰 서명 키와 SMB material 암호화 키는 분리 운영한다.
   - JWT: `COHESION_JWT_SECRET` (또는 `COHESION_JWT_SECRET_FILE`)
-  - SMB material: `COHESION_SMB_MATERIAL_KEY`
-- production + `smb_enabled=true`에서는 `COHESION_SMB_MATERIAL_KEY` 누락 시 서버 기동을 실패시킨다.
-- 개발/테스트에서는 `COHESION_SMB_MATERIAL_KEY` 미설정 시 개발용 기본 키 fallback을 허용한다.
-- legacy 데이터 전환을 위해 복호화 시 `COHESION_JWT_SECRET` 기반 legacy material 읽기를 제한적으로 허용하며, 성공 시 현재 SMB key 기준으로 재암호화한다.
+  - SMB material: `COHESION_SMB_MATERIAL_KEY` (또는 `COHESION_SMB_MATERIAL_KEY_FILE`)
+- startup prewarm에서 JWT/SMB/SFTP 키를 선확보한다(서비스 활성화 여부와 무관).
+- key source 우선순위는 `env > persisted file > generated once`로 통일한다.
+- 기존 SMB credential 데이터가 있는 상태에서 key가 없으면 자동 생성하지 않고 복구 필요 오류로 처리한다.
+- SMB material 복호화는 active SMB key 단일 소스만 사용한다(legacy fallback/decrypt migration 미지원).
 
 ## 기본 정책
 

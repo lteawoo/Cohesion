@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -55,6 +56,16 @@ var (
 			Str(logging.FieldComponent, logging.ComponentAccess).
 			Logger()
 )
+
+type prewarmedSecrets struct {
+	jwtSecret string
+}
+
+type jwtSecretResult struct {
+	value  string
+	source string
+	path   string
+}
 
 // 재시작 신호를 받기 위한 채널
 var restartChan = make(chan bool, 1)
@@ -171,23 +182,24 @@ func registerWebDAVRoutes(mux *http.ServeMux, handler http.Handler) {
 
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
 func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{}) (*http.Server, *ftp.Service, *sftpserver.Service, *smb.Service, *audit.Service, error) {
-	if err := configureSMBMaterialKeyPolicy(config.Conf.Server.SmbEnabled); err != nil {
-		return nil, nil, nil, nil, nil, err
-	}
-
 	// 의존성 주입
 	accountRepo := accountStore.NewStore(db)
 	accountService := account.NewService(accountRepo)
-	if err := accountService.EnsureDefaultAdmin(context.Background()); err != nil {
+
+	prewarmed, err := prewarmRequiredSecrets(context.Background(), accountService)
+	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
-	authSecret, err := resolveJWTSecret()
-	if err != nil {
+
+	if err := configureSMBMaterialKeyPolicy(accountService, config.Conf.Server.SmbEnabled); err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	if err := accountService.EnsureDefaultAdmin(context.Background()); err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
 	accountHandler := account.NewHandler(accountService)
 	authService := auth.NewService(accountService, auth.Config{
-		Secret:         authSecret,
+		Secret:         prewarmed.jwtSecret,
 		Issuer:         "cohesion",
 		AccessTokenTTL: 15 * time.Minute,
 		RefreshTTL:     7 * 24 * time.Hour,
@@ -587,11 +599,73 @@ func readEnv(key, fallback string) string {
 	return value
 }
 
-func configureSMBMaterialKeyPolicy(smbEnabled bool) error {
+func prewarmRequiredSecrets(ctx context.Context, accountService *account.Service) (prewarmedSecrets, error) {
+	if accountService == nil {
+		return prewarmedSecrets{}, wrapSecretBootstrapError("account_service", errors.New("account service is required"))
+	}
+
+	jwtResult, err := prewarmJWTSecret()
+	if err != nil {
+		return prewarmedSecrets{}, wrapSecretBootstrapError("jwt", err)
+	}
+	logSecretPrewarm("jwt", jwtResult.source, jwtResult.path)
+
+	smbResult, err := accountService.PrewarmSMBMaterialKey(ctx)
+	if err != nil {
+		return prewarmedSecrets{}, wrapSecretBootstrapError("smb_material_key", err)
+	}
+	logSecretPrewarm("smb_material_key", smbResult.Source, smbResult.Path)
+
+	sftpResult, err := sftpserver.PrewarmHostKey()
+	if err != nil {
+		return prewarmedSecrets{}, wrapSecretBootstrapError("sftp_host_key", err)
+	}
+	logSecretPrewarm("sftp_host_key", sftpResult.Source, sftpResult.Path)
+
+	return prewarmedSecrets{jwtSecret: jwtResult.value}, nil
+}
+
+func logSecretPrewarm(secretName, source, path string) {
+	event := logging.Event(log.Info(), logging.ComponentMain, logging.EventServiceReady).
+		Str("service", "secret-prewarm").
+		Str("secret_name", secretName).
+		Str("source", source)
+
+	if trimmedPath := strings.TrimSpace(path); trimmedPath != "" {
+		event = event.Str("path", trimmedPath)
+	}
+
+	event.Msg("service status updated")
+}
+
+func wrapSecretBootstrapError(secretName string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("required secret bootstrap failed [%s]: %w", secretName, err)
+}
+
+func configureSMBMaterialKeyPolicy(accountService *account.Service, smbEnabled bool) error {
 	requireSMBMaterialKey := goEnv == "production" && smbEnabled
 	account.SetSMBMaterialKeyRequired(requireSMBMaterialKey)
 
-	if err := account.ValidateSMBMaterialKeyConfiguration(); err != nil {
+	if !smbEnabled {
+		logging.Event(log.Info(), logging.ComponentAuth, logging.EventServiceReady).
+			Str("service", "smb-material-key-boundary").
+			Str("environment", goEnv).
+			Bool("smb_enabled", smbEnabled).
+			Bool("key_required", requireSMBMaterialKey).
+			Str("key_source", "n/a").
+			Msg("service status updated")
+		return nil
+	}
+
+	if accountService == nil {
+		return errors.New("account service is required for SMB material key policy")
+	}
+
+	keySource, err := accountService.ValidateSMBMaterialKeyConfiguration(context.Background())
+	if err != nil {
 		logging.Event(log.Error(), logging.ComponentAuth, "error.smb.material_key_invalid").
 			Err(err).
 			Str("environment", goEnv).
@@ -606,48 +680,54 @@ func configureSMBMaterialKeyPolicy(smbEnabled bool) error {
 		Str("environment", goEnv).
 		Bool("smb_enabled", smbEnabled).
 		Bool("key_required", requireSMBMaterialKey).
-		Str("key_source", account.CurrentSMBMaterialKeySource()).
+		Str("key_source", keySource).
 		Msg("service status updated")
 	return nil
 }
 
 func resolveJWTSecret() (string, error) {
+	result, err := prewarmJWTSecret()
+	if err != nil {
+		return "", err
+	}
+	return result.value, nil
+}
+
+func prewarmJWTSecret() (jwtSecretResult, error) {
 	secret := strings.TrimSpace(os.Getenv("COHESION_JWT_SECRET"))
 	if secret != "" {
 		if goEnv == "production" && len(secret) < 32 {
-			return "", errors.New("COHESION_JWT_SECRET must be at least 32 characters in production")
+			return jwtSecretResult{}, errors.New("COHESION_JWT_SECRET must be at least 32 characters in production")
 		}
-		logging.Event(log.Info(), logging.ComponentAuth, logging.EventServiceReady).
-			Str("service", "jwt-secret").
-			Str("source", "env:COHESION_JWT_SECRET").
-			Msg("service status updated")
-		return secret, nil
+		return jwtSecretResult{
+			value:  secret,
+			source: "env",
+		}, nil
 	}
 
 	secretFilePath, err := resolveJWTSecretPath()
 	if err != nil {
-		return "", err
+		return jwtSecretResult{}, err
 	}
 
-	secret, created, err := loadOrCreateJWTSecret(secretFilePath, goEnv != "production")
+	secret, created, err := loadOrCreateJWTSecret(secretFilePath, true)
 	if err != nil {
-		return "", err
+		return jwtSecretResult{}, err
 	}
 
 	if goEnv == "production" && len(secret) < 32 {
-		return "", errors.New("COHESION_JWT_SECRET must be at least 32 characters in production")
+		return jwtSecretResult{}, errors.New("COHESION_JWT_SECRET must be at least 32 characters in production")
 	}
 
-	source := "file:existing"
+	source := "file"
 	if created {
-		source = "file:generated"
+		source = "generated"
 	}
-	logging.Event(log.Info(), logging.ComponentAuth, logging.EventServiceReady).
-		Str("service", "jwt-secret").
-		Str("source", source).
-		Str("path", secretFilePath).
-		Msg("service status updated")
-	return secret, nil
+	return jwtSecretResult{
+		value:  secret,
+		source: source,
+		path:   secretFilePath,
+	}, nil
 }
 
 func resolveJWTSecretPath() (string, error) {

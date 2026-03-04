@@ -505,3 +505,23 @@ func (s *Store) GetSMBCredential(ctx context.Context, userID int64) (*account.SM
 
 	return &credential, nil
 }
+
+func (s *Store) HasAnySMBCredential(ctx context.Context) (bool, error) {
+	query, args, err := s.qb.
+		Select("1").
+		From("user_smb_credentials").
+		Limit(1).
+		ToSql()
+	if err != nil {
+		return false, err
+	}
+
+	var marker int
+	if err := s.db.QueryRowContext(ctx, query, args...).Scan(&marker); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}

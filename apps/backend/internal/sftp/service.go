@@ -45,6 +45,11 @@ type Service struct {
 	mu             sync.RWMutex
 }
 
+type HostKeyPrewarmResult struct {
+	Source string
+	Path   string
+}
+
 func NewService(spaceService *space.Service, accountService *account.Service, enabled bool, port int) *Service {
 	if port <= 0 {
 		port = defaultSFTPPort
@@ -70,7 +75,7 @@ func (s *Service) Start() error {
 		return nil
 	}
 
-	hostSigner, hostKeyPath, err := loadOrCreateHostSigner()
+	hostSigner, hostKeyPath, hostKeyCreated, err := loadOrCreateHostSigner()
 	if err != nil {
 		return err
 	}
@@ -105,6 +110,7 @@ func (s *Service) Start() error {
 		log.Info().
 			Int("port", s.port).
 			Str("host_key_path", hostKeyPath).
+			Bool("host_key_generated", hostKeyCreated).
 			Msg("[SFTP] server started")
 		return nil
 	}
@@ -171,37 +177,56 @@ func (s *Service) handleSFTPSubsystem(session gliderssh.Session) {
 	}
 }
 
-func loadOrCreateHostSigner() (xssh.Signer, string, error) {
+func PrewarmHostKey() (HostKeyPrewarmResult, error) {
+	hasEnvPathOverride := strings.TrimSpace(os.Getenv(sftpHostKeyFilePathEnv)) != ""
+
+	_, keyPath, created, err := loadOrCreateHostSigner()
+	if err != nil {
+		return HostKeyPrewarmResult{}, err
+	}
+	source := "file"
+	if created {
+		source = "generated"
+	} else if hasEnvPathOverride {
+		source = "env"
+	}
+	return HostKeyPrewarmResult{
+		Source: source,
+		Path:   keyPath,
+	}, nil
+}
+
+func loadOrCreateHostSigner() (xssh.Signer, string, bool, error) {
 	keyPath, err := resolveHostKeyPath()
 	if err != nil {
-		return nil, "", err
+		return nil, "", false, err
 	}
 
 	keyBytes, err := os.ReadFile(keyPath)
 	if err == nil {
 		signer, parseErr := xssh.ParsePrivateKey(keyBytes)
 		if parseErr != nil {
-			return nil, "", fmt.Errorf("parse sftp host key: %w", parseErr)
+			return nil, "", false, fmt.Errorf("parse sftp host key: %w", parseErr)
 		}
-		return signer, keyPath, nil
+		return signer, keyPath, false, nil
 	}
 	if !errors.Is(err, fs.ErrNotExist) {
-		return nil, "", fmt.Errorf("read sftp host key: %w", err)
+		return nil, "", false, fmt.Errorf("read sftp host key: %w", err)
 	}
 
 	signer, pemBytes, err := generateHostSigner()
 	if err != nil {
-		return nil, "", err
+		return nil, "", false, err
 	}
 
 	if err := os.MkdirAll(filepath.Dir(keyPath), sftpKeyDirPermission); err != nil {
-		return nil, "", fmt.Errorf("create sftp host key directory: %w", err)
+		return nil, "", false, fmt.Errorf("create sftp host key directory: %w", err)
 	}
 	if err := os.WriteFile(keyPath, pemBytes, sftpKeyFilePermission); err != nil {
-		return nil, "", fmt.Errorf("write sftp host key: %w", err)
+		return nil, "", false, fmt.Errorf("write sftp host key: %w", err)
 	}
 
-	return signer, keyPath, nil
+	return signer, keyPath, true, nil
 }
 
 func resolveHostKeyPath() (string, error) {
