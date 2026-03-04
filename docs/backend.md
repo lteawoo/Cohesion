@@ -102,6 +102,18 @@ apps/backend/
 
 ---
 
+### 3. JWT/SMB Secret Boundary
+
+- JWT 서명 키와 SMB material 암호화 키를 분리 운영함.
+  - JWT: `COHESION_JWT_SECRET` 또는 `COHESION_JWT_SECRET_FILE`
+  - SMB material: `COHESION_SMB_MATERIAL_KEY`
+- 프로덕션에서는 JWT 비밀이 누락되면 자동 생성하지 않고 기동 실패로 처리함.
+- 프로덕션에서 SMB가 활성화(`smb_enabled=true`)된 경우 `COHESION_SMB_MATERIAL_KEY` 누락 시 기동 실패로 처리함.
+- 개발/테스트에서는 SMB material 키 미설정 시 개발용 fallback 키를 허용함.
+- legacy SMB material 호환을 위해 복호화 시 JWT 기반 legacy key를 제한적으로 시도하고, 성공 시 현재 SMB key 기준으로 재암호화함.
+
+---
+
 ## 운영 로그 가이드 (Operational Logging)
 
 ### 로그 채널

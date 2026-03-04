@@ -1,6 +1,8 @@
 import { apiFetch } from './client';
 import i18n from '@/i18n';
 
+export type SmbRolloutPhase = 'readonly' | 'write-safe' | 'write-full';
+
 export interface ServerConfig {
   port: string;
   webdavEnabled: boolean;
@@ -8,6 +10,9 @@ export interface ServerConfig {
   ftpPort: number;
   sftpEnabled: boolean;
   sftpPort: number;
+  smbEnabled: boolean;
+  smbPort: number;
+  smbRolloutPhase: SmbRolloutPhase;
 }
 
 export interface Config {

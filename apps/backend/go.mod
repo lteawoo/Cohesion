@@ -3,6 +3,7 @@ module taeu.kr/cohesion
 go 1.25.7
 
 require (
+	github.com/Azure/go-ntlmssp v0.1.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42
@@ -12,6 +13,7 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/shirou/gopsutil/v4 v4.26.1
 	github.com/spf13/viper v1.21.0
+	github.com/vadimi/go-ntlm v1.2.1
 	golang.org/x/crypto v0.47.0
 	golang.org/x/net v0.49.0
 	gopkg.in/yaml.v3 v3.0.1

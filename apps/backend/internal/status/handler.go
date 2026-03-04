@@ -12,14 +12,23 @@ import (
 
 	"taeu.kr/cohesion/internal/config"
 	"taeu.kr/cohesion/internal/platform/web"
+	"taeu.kr/cohesion/internal/smb"
 	"taeu.kr/cohesion/internal/space"
 )
 
 type ProtocolStatus struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
-	Port    string `json:"port,omitempty"`
-	Path    string `json:"path,omitempty"`
+	Status       string `json:"status"`
+	Message      string `json:"message"`
+	Reason       string `json:"reason,omitempty"`
+	Port         string `json:"port,omitempty"`
+	Path         string `json:"path,omitempty"`
+	EndpointMode string `json:"endpointMode,omitempty"`
+	RolloutPhase string `json:"rolloutPhase,omitempty"`
+	PolicySource string `json:"policySource,omitempty"`
+	BindReady    bool   `json:"bindReady,omitempty"`
+	RuntimeReady bool   `json:"runtimeReady,omitempty"`
+	MinVersion   string `json:"minVersion,omitempty"`
+	MaxVersion   string `json:"maxVersion,omitempty"`
 }
 
 type StatusResponse struct {
@@ -28,16 +37,22 @@ type StatusResponse struct {
 }
 
 type Handler struct {
-	db           *sql.DB
-	spaceService *space.Service
-	port         string
+	db              *sql.DB
+	spaceService    *space.Service
+	smbReadinessSvc smbReadinessProvider
+	port            string
 }
 
-func NewHandler(db *sql.DB, spaceService *space.Service, port string) *Handler {
+type smbReadinessProvider interface {
+	Readiness() smb.Readiness
+}
+
+func NewHandler(db *sql.DB, spaceService *space.Service, smbReadinessSvc smbReadinessProvider, port string) *Handler {
 	return &Handler{
-		db:           db,
-		spaceService: spaceService,
-		port:         port,
+		db:              db,
+		spaceService:    spaceService,
+		smbReadinessSvc: smbReadinessSvc,
+		port:            port,
 	}
 }
 
@@ -63,6 +78,7 @@ func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) *web.Erro
 
 	protocols["ftp"] = h.checkFTP()
 	protocols["sftp"] = h.checkSFTP()
+	protocols["smb"] = h.checkSMB()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(StatusResponse{
@@ -189,6 +205,72 @@ func (h *Handler) checkSFTP() ProtocolStatus {
 		Message: "정상",
 		Port:    port,
 	}
+}
+
+func (h *Handler) checkSMB() ProtocolStatus {
+	port := config.Conf.Server.SmbPort
+	rolloutPhase := config.Conf.Server.SmbRolloutPhase
+	if rolloutPhase == "" {
+		rolloutPhase = config.DefaultSMBRolloutPhase
+	}
+
+	status := ProtocolStatus{
+		Port:         strconv.Itoa(port),
+		EndpointMode: config.SMBEndpointModeDirect,
+		RolloutPhase: rolloutPhase,
+		PolicySource: "config",
+		MinVersion:   config.DefaultSMBMinVersion,
+		MaxVersion:   config.DefaultSMBMaxVersion,
+	}
+
+	if !config.Conf.Server.SmbEnabled {
+		status.Status = "unavailable"
+		status.Message = "비활성화"
+		return status
+	}
+
+	if config.Conf.Server.SmbPort <= 0 {
+		status.Status = "unhealthy"
+		status.Message = "포트 설정 오류"
+		status.Port = ""
+		return status
+	}
+
+	if h.smbReadinessSvc == nil {
+		status.Status = "unhealthy"
+		status.Message = "준비 상태 확인 불가"
+		return status
+	}
+
+	readiness := h.smbReadinessSvc.Readiness()
+	if readiness.EndpointMode != "" {
+		status.EndpointMode = readiness.EndpointMode
+	}
+	if readiness.RolloutPhase != "" {
+		status.RolloutPhase = readiness.RolloutPhase
+	}
+	if readiness.PolicySource != "" {
+		status.PolicySource = readiness.PolicySource
+	}
+	status.BindReady = readiness.BindReady
+	status.RuntimeReady = readiness.RuntimeReady
+	switch readiness.State {
+	case smb.StateHealthy:
+		status.Status = "healthy"
+		status.Message = readiness.Message
+	case smb.StateUnavailable:
+		status.Status = "unavailable"
+		status.Message = readiness.Message
+	default:
+		status.Status = "unhealthy"
+		status.Message = readiness.Message
+	}
+	status.Reason = readiness.Reason
+
+	if status.Message == "" {
+		status.Message = "SMB 상태 미상"
+	}
+	return status
 }
 
 func (h *Handler) getAccessibleHosts() []string {

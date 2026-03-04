@@ -9,8 +9,9 @@ const PROTOCOL_LABELS: Record<string, string> = {
   webdav: 'WebDAV',
   ftp: 'FTP',
   sftp: 'SFTP',
+  smb: 'SMB',
 };
-const PROTOCOL_ORDER = ['http', 'webdav', 'ftp', 'sftp'] as const;
+const PROTOCOL_ORDER = ['http', 'webdav', 'ftp', 'sftp', 'smb'] as const;
 
 function StatusDot({ color, size = 8 }: { color: string; size?: number }) {
   return (
@@ -181,27 +182,52 @@ function PopoverContent({
       {orderedProtocolEntries.map(([key, proto]) => {
         const displayPort = key === 'http' ? webPort : proto.port;
         const displayPath = normalizeProtocolPath(proto.path);
+        const smbMeta = key === 'smb'
+          ? [
+            proto.endpointMode,
+            proto.rolloutPhase ? `phase:${proto.rolloutPhase}` : '',
+            proto.policySource ? `policy:${proto.policySource}` : '',
+            proto.bindReady === undefined ? '' : `bind:${proto.bindReady ? 'ready' : 'not-ready'}`,
+            proto.runtimeReady === undefined ? '' : `runtime:${proto.runtimeReady ? 'ready' : 'not-ready'}`,
+            proto.minVersion && proto.maxVersion ? `${proto.minVersion}-${proto.maxVersion}` : '',
+          ]
+            .filter(Boolean)
+            .join(', ')
+          : '';
+        const detailMessage = proto.reason ? `${proto.message} (${proto.reason})` : proto.message;
 
         return (
           <div
             key={key}
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
               padding: '4px 0',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <StatusDot color={getStatusColor(proto.status, statusColors)} />
-              <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
-              {displayPort && (
-                <span style={{ fontSize: 11, color: token.colorTextTertiary }}>:{displayPort}{displayPath}</span>
-              )}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <StatusDot color={getStatusColor(proto.status, statusColors)} />
+                <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
+                {displayPort && (
+                  <span style={{ fontSize: 11, color: token.colorTextTertiary }}>
+                    :{displayPort}{displayPath}{smbMeta ? ` (${smbMeta})` : ''}
+                  </span>
+                )}
+              </div>
+              <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
+                {getStatusLabel(proto.status, t)}
+              </span>
             </div>
-            <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
-              {getStatusLabel(proto.status, t)}
-            </span>
+            {detailMessage && (
+              <div style={{ marginTop: 2, marginLeft: 16, fontSize: 11, color: token.colorTextTertiary }}>
+                {detailMessage}
+              </div>
+            )}
           </div>
         );
       })}

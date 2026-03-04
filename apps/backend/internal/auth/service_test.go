@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"taeu.kr/cohesion/internal/auth"
+	"taeu.kr/cohesion/internal/platform/database"
 )
 
 func TestLogin_ReturnsSetupRequired_WhenNoAdminExists(t *testing.T) {
@@ -65,6 +66,78 @@ func TestLogin_ReturnsInvalidCredentials_OnWrongPassword(t *testing.T) {
 	_, _, err := authSvc.Login(context.Background(), testUserUsername, "wrong-password")
 	if !errors.Is(err, auth.ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	}
+}
+
+func TestLogin_PreparesSMBCredentialMaterial(t *testing.T) {
+	authSvc, accountSvc, db := setupAuthTestService(t)
+	defer db.Close()
+	_, seededUser := seedAuthUsers(t, accountSvc)
+
+	if _, _, err := authSvc.Login(context.Background(), testUserUsername, testUserPassword); err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+
+	credential, err := accountSvc.GetSMBCredential(context.Background(), seededUser.ID)
+	if err != nil {
+		t.Fatalf("expected smb credential after login: %v", err)
+	}
+	if credential.MaterialVersion != 4 {
+		t.Fatalf("expected smb material version 4, got %d", credential.MaterialVersion)
+	}
+	if credential.SMBMaterial == "" {
+		t.Fatal("expected smb material to be prepared")
+	}
+}
+
+func TestLogin_DoesNotFail_WhenSMBPreparationFails(t *testing.T) {
+	authSvc, accountSvc, db := setupAuthTestService(t)
+	defer db.Close()
+	_, _ = seedAuthUsers(t, accountSvc)
+
+	if _, err := db.ExecContext(context.Background(), "DROP TABLE user_smb_credentials"); err != nil {
+		t.Fatalf("drop user_smb_credentials: %v", err)
+	}
+
+	tokenPair, user, err := authSvc.Login(context.Background(), testUserUsername, testUserPassword)
+	if err != nil {
+		t.Fatalf("login should succeed even when smb preparation fails: %v", err)
+	}
+	if tokenPair == nil || tokenPair.AccessToken == "" || tokenPair.RefreshToken == "" {
+		t.Fatalf("expected non-empty token pair, got %#v", tokenPair)
+	}
+	if user == nil || user.Username != testUserUsername {
+		t.Fatalf("expected user %q, got %#v", testUserUsername, user)
+	}
+}
+
+func TestLogin_RetriesSMBPreparation_OnNextLoginAfterRecovery(t *testing.T) {
+	authSvc, accountSvc, db := setupAuthTestService(t)
+	defer db.Close()
+	_, seededUser := seedAuthUsers(t, accountSvc)
+
+	if _, err := db.ExecContext(context.Background(), "DROP TABLE user_smb_credentials"); err != nil {
+		t.Fatalf("drop user_smb_credentials: %v", err)
+	}
+
+	if _, _, err := authSvc.Login(context.Background(), testUserUsername, testUserPassword); err != nil {
+		t.Fatalf("login should succeed during smb preparation failure: %v", err)
+	}
+
+	if err := database.Migrate(context.Background(), db); err != nil {
+		t.Fatalf("re-run migrate: %v", err)
+	}
+
+	if _, _, err := authSvc.Login(context.Background(), testUserUsername, testUserPassword); err != nil {
+		t.Fatalf("login should retry smb preparation after recovery: %v", err)
+	}
+
+	credential, err := accountSvc.GetSMBCredential(context.Background(), seededUser.ID)
+	if err != nil {
+		t.Fatalf("expected smb credential after retry login: %v", err)
+	}
+	if credential.SMBMaterial == "" {
+		t.Fatal("expected smb material to be present after retry")
 	}
 }
 
