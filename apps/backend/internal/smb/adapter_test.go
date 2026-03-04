@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lteawoo/smb-core"
 	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/space"
-	"taeu.kr/cohesion/pkg/smbcore"
 )
 
 func TestCoreAuthenticator_Authenticate(t *testing.T) {

@@ -58,14 +58,6 @@ jobs:
         run: go test ./...
         working-directory: apps/backend
 
-      - name: Run SMB core boundary guard
-        run: ./scripts/check-smbcore-boundary.sh
-        working-directory: apps/backend
-
-      - name: Run SMB compatibility baseline
-        run: ./scripts/check-smb-compat-baseline.sh
-        working-directory: apps/backend
-
-      - name: Run SMB integration smoke
-        run: go test -tags integration ./internal/smb -run TestSMB
+      - name: Run SMB publication gates
+        run: ./scripts/check-smb-publication-gates.sh
         working-directory: apps/backend
