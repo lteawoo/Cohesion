@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"taeu.kr/cohesion/internal/account"
-	"taeu.kr/cohesion/internal/smbcore"
 	"taeu.kr/cohesion/internal/space"
+	"taeu.kr/cohesion/pkg/smbcore"
 )
 
 func TestCoreAuthenticator_Authenticate(t *testing.T) {

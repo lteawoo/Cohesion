@@ -704,6 +704,53 @@ func TestHandleConn_WriteFull_ManagePermissionDeniedReason(t *testing.T) {
 	}
 }
 
+func TestHandleConn_HostPolicyChangeViaAuthorizerContract(t *testing.T) {
+	telemetry := &fakeTelemetry{}
+	authz := &fakeAuthorizer{
+		readAllowed: map[string]map[string]bool{
+			"user": {"alpha": false},
+		},
+		writeAllowed: map[string]map[string]bool{
+			"user": {"alpha": false},
+		},
+		manageAllowed: map[string]map[string]bool{
+			"user": {"alpha": false},
+		},
+	}
+	engine := newProtocolTestEngineWithAuthorizerAndTelemetry(t, RolloutPhaseWriteFull, authz, telemetry)
+	client, done := runEngineWithPipe(t, engine)
+	defer closePipe(t, client, done)
+
+	sendSMBPacket(t, client, buildNegotiateRequest(1, []uint16{0x0210, 0x0311}))
+	resp := readSMBPacket(t, client)
+	if got := responseStatus(resp); got != statusSuccess {
+		t.Fatalf("negotiate status: 0x%08x", got)
+	}
+
+	sessionID, finalStatus := runNTLMSessionSetupFlow(t, client, 2, 0, "user", "pass")
+	if finalStatus != statusSuccess {
+		t.Fatalf("session setup status: 0x%08x", finalStatus)
+	}
+
+	// Runtime code is unchanged; only injected host authorizer policy changed.
+	sendSMBPacket(t, client, buildTreeConnectRequest(10, sessionID, `\\cohesion\alpha`))
+	resp = readSMBPacket(t, client)
+	if got := responseStatus(resp); got != statusAccessDenied {
+		t.Fatalf("expected tree connect denied by host policy, got 0x%08x", got)
+	}
+
+	foundPermission := false
+	for _, event := range telemetry.events {
+		if event.Stage == "policy" && event.Reason == DenyReasonPermissionDenied {
+			foundPermission = true
+			break
+		}
+	}
+	if !foundPermission {
+		t.Fatal("expected permission_denied telemetry reason")
+	}
+}
+
 func newProtocolTestEngine(t *testing.T) *Engine {
 	t.Helper()
 	return newProtocolTestEngineWithPhaseAndTelemetry(t, RolloutPhaseReadOnly, nil)

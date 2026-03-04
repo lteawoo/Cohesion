@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"taeu.kr/cohesion/internal/account"
-	"taeu.kr/cohesion/internal/smbcore"
 	"taeu.kr/cohesion/internal/space"
+	"taeu.kr/cohesion/pkg/smbcore"
 )
 
 type Guard struct {
