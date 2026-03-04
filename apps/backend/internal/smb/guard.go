@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lteawoo/smb-core"
 	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/space"
-	"taeu.kr/cohesion/pkg/smbcore"
 )
 
 type Guard struct {
