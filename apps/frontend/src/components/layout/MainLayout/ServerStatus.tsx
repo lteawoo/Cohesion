@@ -47,24 +47,11 @@ function getStatusColor(
   }
 }
 
-function getStatusLabel(status: ProtocolStatus['status'] | string, t: (key: string) => unknown) {
-  switch (status) {
-    case 'healthy':
-      return String(t('serverStatus.status.healthy'));
-    case 'unhealthy':
-      return String(t('serverStatus.status.unhealthy'));
-    case 'unavailable':
-      return String(t('serverStatus.status.unavailable'));
-    default:
-      return String(t('serverStatus.status.unavailable'));
-  }
-}
-
-function getAvailabilityLabel(status: ProtocolStatus['status'] | string, t: (key: string) => unknown) {
+function getSimpleStatusLabel(status: ProtocolStatus['status'] | string, t: (key: string) => unknown) {
   if (status === 'healthy') {
-    return String(t('serverStatus.availability.available'));
+    return String(t('serverStatus.binaryStatus.normal'));
   }
-  return String(t('serverStatus.availability.unavailable'));
+  return String(t('serverStatus.binaryStatus.stopped'));
 }
 
 function normalizeProtocolPath(path?: string) {
@@ -189,9 +176,7 @@ function PopoverContent({
       {orderedProtocolEntries.map(([key, proto]) => {
         const displayPort = key === 'http' ? webPort : proto.port;
         const displayPath = normalizeProtocolPath(proto.path);
-        const isSmb = key === 'smb';
-        const detailMessage = isSmb ? '' : (proto.reason ? `${proto.message} (${proto.reason})` : proto.message);
-        const statusLabel = isSmb ? getAvailabilityLabel(proto.status, t) : getStatusLabel(proto.status, t);
+        const statusLabel = getSimpleStatusLabel(proto.status, t);
 
         return (
           <div
@@ -220,11 +205,6 @@ function PopoverContent({
                 {statusLabel}
               </span>
             </div>
-            {detailMessage && (
-              <div style={{ marginTop: 2, marginLeft: 16, fontSize: 11, color: token.colorTextTertiary }}>
-                {detailMessage}
-              </div>
-            )}
           </div>
         );
       })}

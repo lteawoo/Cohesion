@@ -41,9 +41,9 @@ export const koTranslations = {
     hostCopied: "호스트 주소를 복사했습니다",
     hostCopyFailed: "주소 복사에 실패했습니다",
     connectionUnavailable: "서버에 연결할 수 없습니다",
-    availability: {
-      available: "됨",
-      unavailable: "안됨",
+    binaryStatus: {
+      normal: "정상",
+      stopped: "중지",
     },
     status: {
       healthy: "정상",
@@ -618,9 +618,9 @@ export const enTranslations = {
     hostCopied: "Host address copied",
     hostCopyFailed: "Failed to copy address",
     connectionUnavailable: "Cannot connect to server",
-    availability: {
-      available: "Available",
-      unavailable: "Unavailable",
+    binaryStatus: {
+      normal: "Normal",
+      stopped: "Stopped",
     },
     status: {
       healthy: "Healthy",
