@@ -58,15 +58,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS user_smb_credentials (
-    user_id            INTEGER PRIMARY KEY,
-    smb_material       TEXT NOT NULL,
-    material_version   INTEGER NOT NULL DEFAULT 1,
-    prepared_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS user_space_permissions (
     user_id     INTEGER NOT NULL,
     space_id    INTEGER NOT NULL,

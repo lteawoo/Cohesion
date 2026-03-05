@@ -16,24 +16,6 @@ type Server struct {
 	SftpPort      int    `mapstructure:"sftp_port" json:"sftpPort" yaml:"sftp_port"`
 }
 
-const (
-	SMBEndpointModeDirect = "direct"
-
-	SMBVersion21  = "2.1"
-	SMBVersion300 = "3.0"
-	SMBVersion302 = "3.0.2"
-	SMBVersion311 = "3.1.1"
-
-	DefaultSMBPort       = 445
-	DefaultSMBMinVersion = SMBVersion21
-	DefaultSMBMaxVersion = SMBVersion311
-
-	SMBRolloutPhaseReadOnly  = "readonly"
-	SMBRolloutPhaseWriteSafe = "write-safe"
-	SMBRolloutPhaseWriteFull = "write-full"
-	DefaultSMBRolloutPhase   = SMBRolloutPhaseReadOnly
-)
-
 type Datasource struct {
 	URL string `mapstructure:"url" json:"url" yaml:"url"`
 }

@@ -102,57 +102,14 @@ apps/backend/
 
 ---
 
-### 3. JWT/SMB Secret Boundary
+### 3. Secret Bootstrap Policy
 
-- JWT 서명 키와 SMB material 암호화 키를 분리 운영함.
-  - JWT: `COHESION_JWT_SECRET` 또는 `COHESION_JWT_SECRET_FILE`
-  - SMB material: `COHESION_SMB_MATERIAL_KEY` 또는 `COHESION_SMB_MATERIAL_KEY_FILE`
+- JWT 서명 키는 `COHESION_JWT_SECRET` 또는 `COHESION_JWT_SECRET_FILE`로 관리한다.
 - SFTP host key는 `COHESION_SFTP_HOST_KEY_FILE`(기본: configDir 기반 secrets 경로)로 관리한다.
-- 서버 startup prewarm 단계에서 JWT/SMB/SFTP 키를 일괄 준비한다(프로토콜 enable/disable와 무관).
+- 서버 startup prewarm 단계에서 JWT/SFTP 키를 준비한다.
 - source 우선순위는 공통으로 `env > persisted file > generated once`를 사용한다.
 - prewarm 결과는 운영 로그 `service=secret-prewarm`, `secret_name`, `source(env|file|generated)` 필드로 기록한다.
 - prewarm 실패 시 서버 기동을 중단한다(bootstrap 오류).
-- SMB credential 데이터가 존재하는 상태에서 key가 유실되면 자동 재생성하지 않고 복구 가이드 오류로 실패한다.
-- SMB material 복호화는 active SMB key 단일 소스만 사용한다(legacy JWT/dev fallback 및 자동 재암호화 제거).
-
----
-
-### 4. SMB Core/Adapter Boundary
-
-- `pkg/smbcore`:
-  - SMB 프로토콜 코어(negotiation/session/tree/read-write/manage)만 담당함.
-  - Cohesion 도메인(`internal/account`, `internal/space`, `internal/config`)을 직접 import하지 않음.
-- `internal/smb`:
-  - Cohesion 계정 인증/Space 권한/경계 정책을 `smbcore` 계약(`Authenticator`, `Authorizer`, `FileSystem`)으로 연결함.
-  - 서비스 기동/상태(readiness)/운영 로그를 담당함.
-- 경계 검증:
-  - `apps/backend/scripts/check-smbcore-boundary.sh`
-  - `go list` import 검사로 `pkg/smbcore`의 도메인 누수를 CI에서 차단함.
-
-### 5. SMB Core 추출 운영 체크
-
-#### 호환성 베이스라인 점검
-
-- 스크립트: `apps/backend/scripts/check-smb-compat-baseline.sh`
-- 검증 항목:
-  - dialect bounds + SMB1 거부
-  - rollout phase deny reason 안정성
-  - rollback(`write-safe` -> `readonly`) 후 쓰기 차단
-  - readiness 상태 surface(`/internal/smb`, `/internal/status`)
-
-#### 롤백 기준 (추출 변경 시)
-
-- 경계/호환성 게이트 실패 시 즉시 롤백:
-  1. `pkg/smbcore` 경계 변경 이전 import wiring으로 복귀
-  2. `go test ./...` + `go test -tags integration ./internal/smb -run TestSMB` 재검증
-  3. readiness reason 및 deny taxonomy 회귀 확인 후 재시도
-
-#### 외부 라이브러리 공개 사전 체크리스트
-
-- `smbcore` 공개 API(v1) 안정성 검토 완료
-- semantic versioning 정책 문서화 완료
-- release branch 기준 SMB integration smoke 통과 정책 확정
-- Cohesion 어댑터(`internal/smb`)와 프로토콜 코어(`pkg/smbcore`) 변경 책임 분리 리뷰 완료
 
 ---
 
@@ -210,11 +167,6 @@ rg "event=http\\.access .*path=/api/system/restart" logs/access.log
 # updater 런타임 오류 확인
 rg "event=error\\.updater\\." logs/updater.log
 
-# SMB telemetry/런타임 원인 확인(필드 순서 무관)
-rg "service=smb" logs/app.log | rg "stage=" | rg "reason="
-
-# SMB deny taxonomy 확인(필드 순서 무관)
-rg "service=smb" logs/app.log | rg "reason=(readonly_phase_denied|permission_denied|path_boundary_violation)"
 ```
 
 ### 운영자 확인 순서

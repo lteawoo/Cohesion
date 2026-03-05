@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/rs/zerolog/log"
 	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/audit"
 )
@@ -58,15 +57,6 @@ func (s *Service) Login(ctx context.Context, username, password string) (*TokenP
 	user, err := s.accountService.GetUserByUsername(ctx, username)
 	if err != nil {
 		return nil, nil, ErrInvalidCredentials
-	}
-	if err := s.accountService.PrepareSMBCredential(ctx, username, password); err != nil {
-		log.Warn().
-			Err(err).
-			Str("stage", "credential_prepare").
-			Int64("user_id", user.ID).
-			Str("username", user.Username).
-			Str("recovery_hint", "retry_on_next_login_or_password_change").
-			Msg("[SMB] failed to prepare credential material after login")
 	}
 
 	tokenPair, err := s.IssueTokenPair(user)

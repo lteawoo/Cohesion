@@ -5,8 +5,5 @@ server:
   ftp_port: 2121
   sftp_enabled: false
   sftp_port: 2222
-  smb_enabled: false
-  smb_port: 445
-  smb_rollout_phase: readonly
 database:
   url: data/cohesion.db

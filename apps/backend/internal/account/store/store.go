@@ -98,13 +98,7 @@ func (s *Store) GetUserByUsername(ctx context.Context, username string) (*accoun
 	return &user, nil
 }
 
-func (s *Store) CreateUser(ctx context.Context, req *account.CreateUserRequest, passwordHash, smbMaterial string, materialVersion int) (*account.User, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
+func (s *Store) CreateUser(ctx context.Context, req *account.CreateUserRequest, passwordHash string) (*account.User, error) {
 	now := time.Now()
 	query, args, err := s.qb.
 		Insert("users").
@@ -115,7 +109,7 @@ func (s *Store) CreateUser(ctx context.Context, req *account.CreateUserRequest, 
 		return nil, err
 	}
 
-	result, err := tx.ExecContext(ctx, query, args...)
+	result, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return nil, fmt.Errorf("username already exists")
@@ -127,22 +121,10 @@ func (s *Store) CreateUser(ctx context.Context, req *account.CreateUserRequest, 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.upsertSMBCredential(ctx, tx, id, smbMaterial, materialVersion, now); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
 	return s.GetUserByID(ctx, id)
 }
 
-func (s *Store) UpdateUser(ctx context.Context, id int64, req *account.UpdateUserRequest, passwordHash *string, smbMaterial *string, materialVersion int) (*account.User, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
+func (s *Store) UpdateUser(ctx context.Context, id int64, req *account.UpdateUserRequest, passwordHash *string) (*account.User, error) {
 	builder := s.qb.Update("users").Set("updated_at", time.Now()).Where(sq.Eq{"id": id})
 	if req.Nickname != nil {
 		builder = builder.Set("nickname", *req.Nickname)
@@ -158,7 +140,7 @@ func (s *Store) UpdateUser(ctx context.Context, id int64, req *account.UpdateUse
 	if err != nil {
 		return nil, err
 	}
-	res, err := tx.ExecContext(ctx, query, args...)
+	res, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -168,14 +150,6 @@ func (s *Store) UpdateUser(ctx context.Context, id int64, req *account.UpdateUse
 	}
 	if affected == 0 {
 		return nil, fmt.Errorf("user with id %d not found", id)
-	}
-	if smbMaterial != nil {
-		if err := s.upsertSMBCredential(ctx, tx, id, *smbMaterial, materialVersion, time.Now()); err != nil {
-			return nil, err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
 	}
 	return s.GetUserByID(ctx, id)
 }
@@ -459,69 +433,4 @@ func (s *Store) ReplaceRolePermissionKeys(ctx context.Context, roleName string, 
 	}
 
 	return tx.Commit()
-}
-
-type smbCredentialExecutor interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
-func (s *Store) upsertSMBCredential(ctx context.Context, exec smbCredentialExecutor, userID int64, smbMaterial string, materialVersion int, now time.Time) error {
-	query, args, err := s.qb.
-		Insert("user_smb_credentials").
-		Columns("user_id", "smb_material", "material_version", "prepared_at", "updated_at").
-		Values(userID, smbMaterial, materialVersion, now, now).
-		Suffix("ON CONFLICT(user_id) DO UPDATE SET smb_material = excluded.smb_material, material_version = excluded.material_version, prepared_at = excluded.prepared_at, updated_at = excluded.updated_at").
-		ToSql()
-	if err != nil {
-		return err
-	}
-
-	_, err = exec.ExecContext(ctx, query, args...)
-	return err
-}
-
-func (s *Store) UpsertSMBCredential(ctx context.Context, userID int64, smbMaterial string, materialVersion int) error {
-	return s.upsertSMBCredential(ctx, s.db, userID, smbMaterial, materialVersion, time.Now())
-}
-
-func (s *Store) GetSMBCredential(ctx context.Context, userID int64) (*account.SMBCredential, error) {
-	query, args, err := s.qb.
-		Select("user_id", "smb_material", "material_version", "prepared_at", "updated_at").
-		From("user_smb_credentials").
-		Where(sq.Eq{"user_id": userID}).
-		ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	var credential account.SMBCredential
-	if err := s.db.QueryRowContext(ctx, query, args...).
-		Scan(&credential.UserID, &credential.SMBMaterial, &credential.MaterialVersion, &credential.PreparedAt, &credential.UpdatedAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("smb credential for user id %d not found", userID)
-		}
-		return nil, err
-	}
-
-	return &credential, nil
-}
-
-func (s *Store) HasAnySMBCredential(ctx context.Context) (bool, error) {
-	query, args, err := s.qb.
-		Select("1").
-		From("user_smb_credentials").
-		Limit(1).
-		ToSql()
-	if err != nil {
-		return false, err
-	}
-
-	var marker int
-	if err := s.db.QueryRowContext(ctx, query, args...).Scan(&marker); err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
 }
