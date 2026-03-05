@@ -99,15 +99,12 @@ func createDefaultConfigFile(searchPaths []string, fileName, goEnv string) (stri
 func defaultConfigForEnv(goEnv string) Config {
 	config := Config{
 		Server: Server{
-			Port:            "3000",
-			WebdavEnabled:   true,
-			FtpEnabled:      false,
-			FtpPort:         2121,
-			SftpEnabled:     false,
-			SftpPort:        2222,
-			SmbEnabled:      false,
-			SmbPort:         DefaultSMBPort,
-			SmbRolloutPhase: DefaultSMBRolloutPhase,
+			Port:          "3000",
+			WebdavEnabled: true,
+			FtpEnabled:    false,
+			FtpPort:       2121,
+			SftpEnabled:   false,
+			SftpPort:      2222,
 		},
 		Datasource: Datasource{
 			URL: "data/cohesion.db",
@@ -190,13 +187,6 @@ func applyServerDefaults(server *Server) {
 	if server == nil {
 		return
 	}
-	if server.SmbPort <= 0 {
-		server.SmbPort = DefaultSMBPort
-	}
-	server.SmbRolloutPhase = strings.TrimSpace(server.SmbRolloutPhase)
-	if server.SmbRolloutPhase == "" {
-		server.SmbRolloutPhase = DefaultSMBRolloutPhase
-	}
 }
 
 func validateServerConfig(server Server) *web.Error {
@@ -231,26 +221,6 @@ func validateServerConfig(server Server) *web.Error {
 		if server.SftpPort == webPort {
 			return &web.Error{Code: http.StatusBadRequest, Message: "server.sftpPort must be different from server.port"}
 		}
-	}
-
-	if server.SmbEnabled {
-		if server.SmbPort < 1 || server.SmbPort > 65535 {
-			return &web.Error{Code: http.StatusBadRequest, Message: "server.smbPort must be an integer between 1 and 65535 when smb is enabled"}
-		}
-		if server.SmbPort == webPort {
-			return &web.Error{Code: http.StatusBadRequest, Message: "server.smbPort must be different from server.port"}
-		}
-		if server.FtpEnabled && server.SmbPort == server.FtpPort {
-			return &web.Error{Code: http.StatusBadRequest, Message: "server.smbPort must be different from server.ftpPort"}
-		}
-		if server.SftpEnabled && server.SmbPort == server.SftpPort {
-			return &web.Error{Code: http.StatusBadRequest, Message: "server.smbPort must be different from server.sftpPort"}
-		}
-	}
-	switch server.SmbRolloutPhase {
-	case SMBRolloutPhaseReadOnly, SMBRolloutPhaseWriteSafe, SMBRolloutPhaseWriteFull:
-	default:
-		return &web.Error{Code: http.StatusBadRequest, Message: "server.smbRolloutPhase must be one of readonly, write-safe, write-full"}
 	}
 
 	return nil
@@ -305,15 +275,12 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 
 	// 설정 업데이트 (민감정보를 포함하는 datasource는 API로 변경하지 않음)
 	before := map[string]any{
-		"port":            Conf.Server.Port,
-		"webdavEnabled":   Conf.Server.WebdavEnabled,
-		"ftpEnabled":      Conf.Server.FtpEnabled,
-		"ftpPort":         Conf.Server.FtpPort,
-		"sftpEnabled":     Conf.Server.SftpEnabled,
-		"sftpPort":        Conf.Server.SftpPort,
-		"smbEnabled":      Conf.Server.SmbEnabled,
-		"smbPort":         Conf.Server.SmbPort,
-		"smbRolloutPhase": Conf.Server.SmbRolloutPhase,
+		"port":          Conf.Server.Port,
+		"webdavEnabled": Conf.Server.WebdavEnabled,
+		"ftpEnabled":    Conf.Server.FtpEnabled,
+		"ftpPort":       Conf.Server.FtpPort,
+		"sftpEnabled":   Conf.Server.SftpEnabled,
+		"sftpPort":      Conf.Server.SftpPort,
 	}
 	Conf.Server = req.Server
 
@@ -330,15 +297,12 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to save config"}
 	}
 	after := map[string]any{
-		"port":            Conf.Server.Port,
-		"webdavEnabled":   Conf.Server.WebdavEnabled,
-		"ftpEnabled":      Conf.Server.FtpEnabled,
-		"ftpPort":         Conf.Server.FtpPort,
-		"sftpEnabled":     Conf.Server.SftpEnabled,
-		"sftpPort":        Conf.Server.SftpPort,
-		"smbEnabled":      Conf.Server.SmbEnabled,
-		"smbPort":         Conf.Server.SmbPort,
-		"smbRolloutPhase": Conf.Server.SmbRolloutPhase,
+		"port":          Conf.Server.Port,
+		"webdavEnabled": Conf.Server.WebdavEnabled,
+		"ftpEnabled":    Conf.Server.FtpEnabled,
+		"ftpPort":       Conf.Server.FtpPort,
+		"sftpEnabled":   Conf.Server.SftpEnabled,
+		"sftpPort":      Conf.Server.SftpPort,
 	}
 	h.recordAudit(r, audit.Event{
 		Action: "config.update",

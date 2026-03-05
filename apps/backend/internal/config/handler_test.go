@@ -129,49 +129,6 @@ func TestValidateServerConfig(t *testing.T) {
 			},
 			wantMessage: "server.sftpPort must be different from server.port",
 		},
-		{
-			name: "smb enabled allows custom port",
-			server: Server{
-				Port:            "3000",
-				WebdavEnabled:   true,
-				FtpEnabled:      false,
-				FtpPort:         2121,
-				SftpEnabled:     false,
-				SftpPort:        2222,
-				SmbEnabled:      true,
-				SmbPort:         1445,
-				SmbRolloutPhase: SMBRolloutPhaseWriteSafe,
-			},
-		},
-		{
-			name: "disabled smb allows non-445 port",
-			server: Server{
-				Port:            "3000",
-				WebdavEnabled:   true,
-				FtpEnabled:      false,
-				FtpPort:         2121,
-				SftpEnabled:     false,
-				SftpPort:        2222,
-				SmbEnabled:      false,
-				SmbPort:         1445,
-				SmbRolloutPhase: SMBRolloutPhaseReadOnly,
-			},
-		},
-		{
-			name: "invalid smb rollout phase",
-			server: Server{
-				Port:            "3000",
-				WebdavEnabled:   true,
-				FtpEnabled:      false,
-				FtpPort:         2121,
-				SftpEnabled:     false,
-				SftpPort:        2222,
-				SmbEnabled:      true,
-				SmbPort:         445,
-				SmbRolloutPhase: "invalid",
-			},
-			wantMessage: "server.smbRolloutPhase must be one of readonly, write-safe, write-full",
-		},
 	}
 
 	for _, tc := range testCases {
