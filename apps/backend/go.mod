@@ -3,7 +3,6 @@ module taeu.kr/cohesion
 go 1.25.7
 
 require (
-	github.com/Azure/go-ntlmssp v0.1.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/goftp/server v0.0.0-20200708154336-f64f7c2d8a42
@@ -13,7 +12,6 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/shirou/gopsutil/v4 v4.26.1
 	github.com/spf13/viper v1.21.0
-	github.com/vadimi/go-ntlm v1.2.1
 	golang.org/x/crypto v0.47.0
 	golang.org/x/net v0.49.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -30,7 +28,6 @@ require (
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
-	github.com/lteawoo/smb-core v1.0.0
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect

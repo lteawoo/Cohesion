@@ -87,9 +87,6 @@ func TestHandleStatus_IncludesCoreProtocolsOnly(t *testing.T) {
 		}
 	}
 
-	if _, exists := resp.Protocols["smb"]; exists {
-		t.Fatal("did not expect smb protocol in response")
-	}
 }
 
 func TestHandleStatus_MethodNotAllowed(t *testing.T) {
