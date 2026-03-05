@@ -24,18 +24,7 @@ vi.mock('@/features/status/hooks/useServerStatus', () => ({
       hosts: ['localhost:3000'],
       protocols: {
         http: { status: 'healthy', message: 'ok', port: '3000', path: '/' },
-        smb: {
-          status: 'healthy',
-          message: 'ok',
-          port: '445',
-          endpointMode: 'direct',
-          rolloutPhase: 'readonly',
-          policySource: 'config',
-          bindReady: true,
-          runtimeReady: true,
-          minVersion: '2.1',
-          maxVersion: '3.1.1',
-        },
+        ftp: { status: 'unavailable', message: 'disabled', port: '2121' },
       },
     },
   }),
@@ -75,9 +64,9 @@ describe('ServerStatus', () => {
   it('renders protocol status as binary normal/stopped without detail message', () => {
     const view = render(<ServerStatus />);
 
-    expect(view.getByText('SMB')).toBeTruthy();
-    expect(view.getAllByText('serverStatus.binaryStatus.normal').length).toBeGreaterThanOrEqual(2);
+    expect(view.getByText('FTP')).toBeTruthy();
+    expect(view.getByText('serverStatus.binaryStatus.stopped')).toBeTruthy();
+    expect(view.getByText('serverStatus.binaryStatus.normal')).toBeTruthy();
     expect(view.queryByText('ok')).toBeNull();
-    expect(view.queryByText(/direct, phase:readonly, policy:config, bind:ready, runtime:ready, 2.1-3.1.1/)).toBeNull();
   });
 });

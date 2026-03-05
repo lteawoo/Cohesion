@@ -2,9 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
-	"database/sql"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,11 +10,6 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/ncruces/go-sqlite3/driver"
-	_ "github.com/ncruces/go-sqlite3/embed"
-	"taeu.kr/cohesion/internal/account"
-	accountStore "taeu.kr/cohesion/internal/account/store"
-	"taeu.kr/cohesion/internal/platform/database"
 	"taeu.kr/cohesion/internal/platform/logging"
 )
 
@@ -115,19 +107,13 @@ func TestPrewarmRequiredSecrets_FirstRunGeneratesAndRestartReuses(t *testing.T) 
 
 	secretDir := t.TempDir()
 	jwtPath := filepath.Join(secretDir, "jwt_secret")
-	smbPath := filepath.Join(secretDir, "smb_material_key")
 	sftpPath := filepath.Join(secretDir, "sftp_host_key")
 
 	t.Setenv("COHESION_JWT_SECRET", "")
 	t.Setenv("COHESION_JWT_SECRET_FILE", jwtPath)
-	t.Setenv("COHESION_SMB_MATERIAL_KEY", "")
-	t.Setenv("COHESION_SMB_MATERIAL_KEY_FILE", smbPath)
 	t.Setenv("COHESION_SFTP_HOST_KEY_FILE", sftpPath)
 
-	svc, db := setupSMBMaterialPolicyService(t)
-	defer db.Close()
-
-	first, err := prewarmRequiredSecrets(context.Background(), svc)
+	first, err := prewarmRequiredSecrets()
 	if err != nil {
 		t.Fatalf("first prewarm: %v", err)
 	}
@@ -136,13 +122,12 @@ func TestPrewarmRequiredSecrets_FirstRunGeneratesAndRestartReuses(t *testing.T) 
 	}
 
 	jwtBefore := readTrimmedFile(t, jwtPath)
-	smbBefore := readTrimmedFile(t, smbPath)
 	sftpBefore := readTrimmedFile(t, sftpPath)
-	if jwtBefore == "" || smbBefore == "" || sftpBefore == "" {
+	if jwtBefore == "" || sftpBefore == "" {
 		t.Fatal("expected first prewarm to generate all required secret files")
 	}
 
-	second, err := prewarmRequiredSecrets(context.Background(), svc)
+	second, err := prewarmRequiredSecrets()
 	if err != nil {
 		t.Fatalf("second prewarm: %v", err)
 	}
@@ -153,88 +138,8 @@ func TestPrewarmRequiredSecrets_FirstRunGeneratesAndRestartReuses(t *testing.T) 
 	if jwtBefore != readTrimmedFile(t, jwtPath) {
 		t.Fatal("expected jwt secret file to be reused on restart")
 	}
-	if smbBefore != readTrimmedFile(t, smbPath) {
-		t.Fatal("expected smb key file to be reused on restart")
-	}
 	if sftpBefore != readTrimmedFile(t, sftpPath) {
 		t.Fatal("expected sftp host key file to be reused on restart")
-	}
-}
-
-func TestPrewarmRequiredSecrets_FailsWhenSMBKeyMissingWithExistingCredentialData(t *testing.T) {
-	setGoEnvForTest(t, "development")
-
-	secretDir := t.TempDir()
-	jwtPath := filepath.Join(secretDir, "jwt_secret")
-	smbPath := filepath.Join(secretDir, "smb_material_key")
-	sftpPath := filepath.Join(secretDir, "sftp_host_key")
-
-	t.Setenv("COHESION_JWT_SECRET", "")
-	t.Setenv("COHESION_JWT_SECRET_FILE", jwtPath)
-	t.Setenv("COHESION_SMB_MATERIAL_KEY", "seed-smb-key")
-	t.Setenv("COHESION_SMB_MATERIAL_KEY_FILE", smbPath)
-	t.Setenv("COHESION_SFTP_HOST_KEY_FILE", sftpPath)
-
-	svc, db := setupSMBMaterialPolicyService(t)
-	defer db.Close()
-
-	_, err := svc.CreateUser(context.Background(), &account.CreateUserRequest{
-		Username: "prewarm-fail-user",
-		Password: "prewarm-fail-password",
-		Nickname: "Prewarm Fail User",
-		Role:     account.RoleUser,
-	})
-	if err != nil {
-		t.Fatalf("create user for smb credential seed: %v", err)
-	}
-
-	t.Setenv("COHESION_SMB_MATERIAL_KEY", "")
-	t.Setenv("COHESION_SMB_MATERIAL_KEY_FILE", filepath.Join(secretDir, "missing_smb_material_key"))
-
-	_, err = prewarmRequiredSecrets(context.Background(), svc)
-	if err == nil {
-		t.Fatal("expected startup prewarm failure when smb key is missing with existing credential data")
-	}
-	if !errors.Is(err, account.ErrSMBCredentialRecoveryRequired) {
-		t.Fatalf("expected recoverable smb key guidance error, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "restore COHESION_SMB_MATERIAL_KEY or COHESION_SMB_MATERIAL_KEY_FILE") {
-		t.Fatalf("expected restore guidance in error, got %v", err)
-	}
-}
-
-func TestPrewarmRequiredSecrets_FailsWithUnderlyingSMBKeyReadError(t *testing.T) {
-	setGoEnvForTest(t, "development")
-
-	secretDir := t.TempDir()
-	jwtPath := filepath.Join(secretDir, "jwt_secret")
-	sftpPath := filepath.Join(secretDir, "sftp_host_key")
-	smbPathAsDirectory := filepath.Join(secretDir, "smb_key_dir")
-	if err := os.MkdirAll(smbPathAsDirectory, 0o755); err != nil {
-		t.Fatalf("create smb key directory fixture: %v", err)
-	}
-
-	t.Setenv("COHESION_JWT_SECRET", "")
-	t.Setenv("COHESION_JWT_SECRET_FILE", jwtPath)
-	t.Setenv("COHESION_SMB_MATERIAL_KEY", "")
-	t.Setenv("COHESION_SMB_MATERIAL_KEY_FILE", smbPathAsDirectory)
-	t.Setenv("COHESION_SFTP_HOST_KEY_FILE", sftpPath)
-
-	svc, db := setupSMBMaterialPolicyService(t)
-	defer db.Close()
-
-	_, err := prewarmRequiredSecrets(context.Background(), svc)
-	if err == nil {
-		t.Fatal("expected startup prewarm failure when smb key path is unreadable")
-	}
-	if errors.Is(err, account.ErrSMBCredentialRecoveryRequired) {
-		t.Fatalf("expected raw bootstrap read error, got recoverable guidance: %v", err)
-	}
-	if !strings.Contains(err.Error(), "[smb_material_key]") {
-		t.Fatalf("expected smb bootstrap context in error, got %v", err)
-	}
-	if !strings.Contains(err.Error(), smbPathAsDirectory) {
-		t.Fatalf("expected filesystem read error details in error, got %v", err)
 	}
 }
 
@@ -259,56 +164,6 @@ func TestResolveJWTSecret_DevelopmentGeneratesSecretFile(t *testing.T) {
 	if strings.TrimSpace(string(content)) == "" {
 		t.Fatalf("expected generated jwt secret file to be non-empty, got %q", string(content))
 	}
-}
-
-func TestConfigureSMBMaterialKeyPolicy_ProductionRequiresKeyWhenSMBEnabled(t *testing.T) {
-	setGoEnvForTest(t, "production")
-	account.SetSMBMaterialKeyRequired(false)
-	t.Cleanup(func() {
-		account.SetSMBMaterialKeyRequired(false)
-	})
-	t.Setenv("COHESION_SMB_MATERIAL_KEY", "")
-	t.Setenv("COHESION_SMB_MATERIAL_KEY_FILE", filepath.Join(t.TempDir(), "missing_smb_material_key"))
-
-	svc, db := setupSMBMaterialPolicyService(t)
-	defer db.Close()
-
-	err := configureSMBMaterialKeyPolicy(svc, true)
-	if err == nil {
-		t.Fatal("expected error when smb key is missing under production+smb_enabled")
-	}
-	if !strings.Contains(err.Error(), "smb material key missing") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestConfigureSMBMaterialKeyPolicy_ProductionAllowsMissingKeyWhenSMBDisabled(t *testing.T) {
-	setGoEnvForTest(t, "production")
-	account.SetSMBMaterialKeyRequired(false)
-	t.Cleanup(func() {
-		account.SetSMBMaterialKeyRequired(false)
-	})
-	t.Setenv("COHESION_SMB_MATERIAL_KEY", "")
-
-	if err := configureSMBMaterialKeyPolicy(nil, false); err != nil {
-		t.Fatalf("expected no error when smb key missing but smb disabled: %v", err)
-	}
-	if account.IsSMBMaterialKeyRequired() {
-		t.Fatal("expected smb material key requirement to remain disabled")
-	}
-}
-
-func setupSMBMaterialPolicyService(t *testing.T) (*account.Service, *sql.DB) {
-	t.Helper()
-
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	if err := database.Migrate(context.Background(), db); err != nil {
-		t.Fatalf("migrate db: %v", err)
-	}
-	return account.NewService(accountStore.NewStore(db)), db
 }
 
 func readTrimmedFile(t *testing.T, path string) string {

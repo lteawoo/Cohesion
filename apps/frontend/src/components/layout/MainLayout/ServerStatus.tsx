@@ -9,9 +9,8 @@ const PROTOCOL_LABELS: Record<string, string> = {
   webdav: 'WebDAV',
   ftp: 'FTP',
   sftp: 'SFTP',
-  smb: 'SMB',
 };
-const PROTOCOL_ORDER = ['http', 'webdav', 'ftp', 'sftp', 'smb'] as const;
+const PROTOCOL_ORDER = ['http', 'webdav', 'ftp', 'sftp'] as const;
 
 function StatusDot({ color, size = 8 }: { color: string; size?: number }) {
   return (

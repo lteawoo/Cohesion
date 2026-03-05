@@ -34,7 +34,6 @@ import (
 	"taeu.kr/cohesion/internal/platform/logging"
 	"taeu.kr/cohesion/internal/platform/web"
 	sftpserver "taeu.kr/cohesion/internal/sftp"
-	"taeu.kr/cohesion/internal/smb"
 	"taeu.kr/cohesion/internal/spa"
 	"taeu.kr/cohesion/internal/space"
 	spaceHandler "taeu.kr/cohesion/internal/space/handler"
@@ -181,21 +180,17 @@ func registerWebDAVRoutes(mux *http.ServeMux, handler http.Handler) {
 }
 
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
-func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{}) (*http.Server, *ftp.Service, *sftpserver.Service, *smb.Service, *audit.Service, error) {
+func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{}) (*http.Server, *ftp.Service, *sftpserver.Service, *audit.Service, error) {
 	// 의존성 주입
 	accountRepo := accountStore.NewStore(db)
 	accountService := account.NewService(accountRepo)
 
-	prewarmed, err := prewarmRequiredSecrets(context.Background(), accountService)
+	prewarmed, err := prewarmRequiredSecrets()
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
-	}
-
-	if err := configureSMBMaterialKeyPolicy(accountService, config.Conf.Server.SmbEnabled); err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if err := accountService.EnsureDefaultAdmin(context.Background()); err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	accountHandler := account.NewHandler(accountService)
 	authService := auth.NewService(accountService, auth.Config{
@@ -220,14 +215,7 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 	webDavHandler := webdavHandler.NewHandler(webDavService, accountService)
 	ftpService := ftp.NewService(spaceService, accountService, config.Conf.Server.FtpEnabled, config.Conf.Server.FtpPort)
 	sftpService := sftpserver.NewService(spaceService, accountService, config.Conf.Server.SftpEnabled, config.Conf.Server.SftpPort)
-	smbService := smb.NewService(
-		spaceService,
-		accountService,
-		config.Conf.Server.SmbEnabled,
-		config.Conf.Server.SmbPort,
-		config.Conf.Server.SmbRolloutPhase,
-	)
-	statusHandler := status.NewHandler(db, spaceService, smbService, config.Conf.Server.Port)
+	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 	configHandler := config.NewHandler()
 	systemHandler := system.NewHandler(restartChan, shutdownChan, system.Meta{
 		Version:   appVersion,
@@ -273,7 +261,7 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 	if goEnv == "production" {
 		spaHandler, err := spa.NewSPAHandler(WebDist, "dist/web")
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		mux.HandleFunc("/", spaHandler)
 	}
@@ -294,7 +282,7 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 		Handler: finalLogHandler,
 	}
 
-	return server, ftpService, sftpService, smbService, auditService, nil
+	return server, ftpService, sftpService, auditService, nil
 }
 
 func main() {
@@ -364,7 +352,7 @@ func main() {
 	// 서버 시작/재시작 루프
 	for {
 		// 서버 생성
-		server, ftpService, sftpService, smbService, auditService, err := createServer(db, restartChan, shutdownChan)
+		server, ftpService, sftpService, auditService, err := createServer(db, restartChan, shutdownChan)
 		if err != nil {
 			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.server.create_failed").
 				Err(err).
@@ -395,21 +383,6 @@ func main() {
 				Err(err).
 				Msg("failed to start service")
 		}
-		if err := smbService.Start(); err != nil {
-			logging.Event(log.Error(), logging.ComponentServer, "error.service.start_failed").
-				Str("service", "smb").
-				Int("port", smbService.Port()).
-				Err(err).
-				Msg("failed to start service; continuing without smb runtime")
-		}
-		logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
-			Str("service", "smb").
-			Bool("enabled", smbService.Enabled()).
-			Int("port", smbService.Port()).
-			Str("endpoint_mode", smbService.EndpointMode()).
-			Str("min_version", smbService.MinVersion()).
-			Str("max_version", smbService.MaxVersion()).
-			Msg("service status updated")
 		logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
 			Str("service", "sftp").
 			Bool("enabled", sftpService.Enabled()).
@@ -449,12 +422,6 @@ func main() {
 					Err(err).
 					Msg("failed to stop service")
 			}
-			if err := smbService.Stop(); err != nil {
-				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
-					Str("service", "smb").
-					Err(err).
-					Msg("failed to stop service")
-			}
 			if err := ftpService.Stop(); err != nil {
 				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
 					Str("service", "ftp").
@@ -480,12 +447,6 @@ func main() {
 			if err := sftpService.Stop(); err != nil {
 				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
 					Str("service", "sftp").
-					Err(err).
-					Msg("failed to stop service")
-			}
-			if err := smbService.Stop(); err != nil {
-				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
-					Str("service", "smb").
 					Err(err).
 					Msg("failed to stop service")
 			}
@@ -525,12 +486,6 @@ func main() {
 					Err(err).
 					Msg("failed to stop service")
 			}
-			if err := smbService.Stop(); err != nil {
-				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
-					Str("service", "smb").
-					Err(err).
-					Msg("failed to stop service")
-			}
 			if err := ftpService.Stop(); err != nil {
 				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
 					Str("service", "ftp").
@@ -554,12 +509,6 @@ func main() {
 			if stopErr := sftpService.Stop(); stopErr != nil {
 				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
 					Str("service", "sftp").
-					Err(stopErr).
-					Msg("failed to stop service")
-			}
-			if stopErr := smbService.Stop(); stopErr != nil {
-				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
-					Str("service", "smb").
 					Err(stopErr).
 					Msg("failed to stop service")
 			}
@@ -599,22 +548,12 @@ func readEnv(key, fallback string) string {
 	return value
 }
 
-func prewarmRequiredSecrets(ctx context.Context, accountService *account.Service) (prewarmedSecrets, error) {
-	if accountService == nil {
-		return prewarmedSecrets{}, wrapSecretBootstrapError("account_service", errors.New("account service is required"))
-	}
-
+func prewarmRequiredSecrets() (prewarmedSecrets, error) {
 	jwtResult, err := prewarmJWTSecret()
 	if err != nil {
 		return prewarmedSecrets{}, wrapSecretBootstrapError("jwt", err)
 	}
 	logSecretPrewarm("jwt", jwtResult.source, jwtResult.path)
-
-	smbResult, err := accountService.PrewarmSMBMaterialKey(ctx)
-	if err != nil {
-		return prewarmedSecrets{}, wrapSecretBootstrapError("smb_material_key", err)
-	}
-	logSecretPrewarm("smb_material_key", smbResult.Source, smbResult.Path)
 
 	sftpResult, err := sftpserver.PrewarmHostKey()
 	if err != nil {
@@ -643,46 +582,6 @@ func wrapSecretBootstrapError(secretName string, err error) error {
 		return nil
 	}
 	return fmt.Errorf("required secret bootstrap failed [%s]: %w", secretName, err)
-}
-
-func configureSMBMaterialKeyPolicy(accountService *account.Service, smbEnabled bool) error {
-	requireSMBMaterialKey := goEnv == "production" && smbEnabled
-	account.SetSMBMaterialKeyRequired(requireSMBMaterialKey)
-
-	if !smbEnabled {
-		logging.Event(log.Info(), logging.ComponentAuth, logging.EventServiceReady).
-			Str("service", "smb-material-key-boundary").
-			Str("environment", goEnv).
-			Bool("smb_enabled", smbEnabled).
-			Bool("key_required", requireSMBMaterialKey).
-			Str("key_source", "n/a").
-			Msg("service status updated")
-		return nil
-	}
-
-	if accountService == nil {
-		return errors.New("account service is required for SMB material key policy")
-	}
-
-	keySource, err := accountService.ValidateSMBMaterialKeyConfiguration(context.Background())
-	if err != nil {
-		logging.Event(log.Error(), logging.ComponentAuth, "error.smb.material_key_invalid").
-			Err(err).
-			Str("environment", goEnv).
-			Bool("smb_enabled", smbEnabled).
-			Bool("key_required", requireSMBMaterialKey).
-			Msg("invalid smb material key configuration")
-		return err
-	}
-
-	logging.Event(log.Info(), logging.ComponentAuth, logging.EventServiceReady).
-		Str("service", "smb-material-key-boundary").
-		Str("environment", goEnv).
-		Bool("smb_enabled", smbEnabled).
-		Bool("key_required", requireSMBMaterialKey).
-		Str("key_source", keySource).
-		Msg("service status updated")
-	return nil
 }
 
 func resolveJWTSecret() (string, error) {
