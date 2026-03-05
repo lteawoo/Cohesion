@@ -72,11 +72,12 @@ vi.mock('antd', () => ({
 }));
 
 describe('ServerStatus', () => {
-  it('renders SMB status as binary availability in popover content', () => {
+  it('renders protocol status as binary normal/stopped without detail message', () => {
     const view = render(<ServerStatus />);
 
     expect(view.getByText('SMB')).toBeTruthy();
-    expect(view.getByText('serverStatus.availability.available')).toBeTruthy();
+    expect(view.getAllByText('serverStatus.binaryStatus.normal').length).toBeGreaterThanOrEqual(2);
+    expect(view.queryByText('ok')).toBeNull();
     expect(view.queryByText(/direct, phase:readonly, policy:config, bind:ready, runtime:ready, 2.1-3.1.1/)).toBeNull();
   });
 });
