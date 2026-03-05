@@ -1,10 +1,18 @@
 package smb
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/lteawoo/smb-core"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func TestService_StartStop_Disabled(t *testing.T) {
@@ -82,8 +90,8 @@ func TestService_StartFailure_UpdatesReadiness(t *testing.T) {
 	if readiness.Stage != StageBind {
 		t.Fatalf("expected bind stage, got %q", readiness.Stage)
 	}
-	if readiness.Reason != ReasonRuntimeError {
-		t.Fatalf("expected runtime_error reason, got %q", readiness.Reason)
+	if readiness.Reason != ReasonBindNotReady {
+		t.Fatalf("expected bind_not_ready reason, got %q", readiness.Reason)
 	}
 }
 
@@ -156,4 +164,163 @@ func waitDial(addr string, timeout time.Duration) error {
 
 func toPortString(port int) string {
 	return strconv.Itoa(port)
+}
+
+func TestCoreTelemetry_LogsDenyReasonsWithoutMutation(t *testing.T) {
+	var buffer bytes.Buffer
+	previousLogger := log.Logger
+	log.Logger = zerolog.New(&buffer).With().Timestamp().Logger()
+	defer func() {
+		log.Logger = previousLogger
+	}()
+
+	telemetry := coreTelemetry{}
+	reasons := []string{
+		smbcore.DenyReasonReadonlyPhaseDenied,
+		smbcore.DenyReasonPermissionDenied,
+		smbcore.DenyReasonPathBoundary,
+	}
+
+	for _, reason := range reasons {
+		telemetry.OnEvent(smbcore.Event{
+			Stage:  "policy",
+			Reason: reason,
+		})
+	}
+
+	logs := buffer.String()
+	for _, reason := range reasons {
+		if !strings.Contains(logs, `"`+reason+`"`) {
+			t.Fatalf("expected telemetry log to preserve reason %q, logs=%s", reason, logs)
+		}
+	}
+	if !strings.Contains(logs, `"service":"smb"`) {
+		t.Fatalf("expected telemetry log to include service=smb, logs=%s", logs)
+	}
+}
+
+func TestService_HandleConn_ClearsSessionRuntimeErrorAfterSuccessfulSession(t *testing.T) {
+	runtime := &fakeRuntime{
+		errs: []error{
+			errors.New("forced session error"),
+			nil,
+		},
+	}
+	svc := &Service{
+		enabled:      true,
+		running:      true,
+		bindReady:    true,
+		runtimeReady: true,
+		port:         445,
+		rolloutPhase: "readonly",
+		core:         runtime,
+	}
+
+	firstClient, firstServer := net.Pipe()
+	defer firstClient.Close()
+	svc.handleConn(firstServer)
+
+	firstReadiness := svc.Readiness()
+	if firstReadiness.Reason != ReasonRuntimeError {
+		t.Fatalf("expected runtime_error after failed session, got %q", firstReadiness.Reason)
+	}
+
+	secondClient, secondServer := net.Pipe()
+	defer secondClient.Close()
+	svc.handleConn(secondServer)
+
+	secondReadiness := svc.Readiness()
+	if secondReadiness.State != StateHealthy {
+		t.Fatalf("expected healthy state after successful session, got %q", secondReadiness.State)
+	}
+	if secondReadiness.Reason != ReasonReady {
+		t.Fatalf("expected ready reason after successful session, got %q", secondReadiness.Reason)
+	}
+}
+
+func TestService_HandleConn_RuntimeNotImplementedDoesNotClearPreviousSessionError(t *testing.T) {
+	runtime := &fakeRuntime{
+		errs: []error{
+			errors.New("forced session error"),
+			smbcore.ErrRuntimeNotImplemented,
+		},
+	}
+	svc := &Service{
+		enabled:      true,
+		running:      true,
+		bindReady:    true,
+		runtimeReady: true,
+		port:         445,
+		rolloutPhase: "readonly",
+		core:         runtime,
+	}
+
+	firstClient, firstServer := net.Pipe()
+	defer firstClient.Close()
+	svc.handleConn(firstServer)
+
+	firstReadiness := svc.Readiness()
+	if firstReadiness.Reason != ReasonRuntimeError {
+		t.Fatalf("expected runtime_error after first failed session, got %q", firstReadiness.Reason)
+	}
+
+	secondClient, secondServer := net.Pipe()
+	defer secondClient.Close()
+	svc.handleConn(secondServer)
+
+	secondReadiness := svc.Readiness()
+	if secondReadiness.Reason != ReasonRuntimeError {
+		t.Fatalf("expected runtime_error to remain after runtime_not_implemented, got %q", secondReadiness.Reason)
+	}
+}
+
+func TestService_RecordAcceptSuccess_ClearsAcceptFailedState(t *testing.T) {
+	svc := &Service{
+		enabled:        true,
+		running:        true,
+		bindReady:      true,
+		runtimeReady:   true,
+		port:           445,
+		rolloutPhase:   "readonly",
+		lastError:      errors.New("forced accept error"),
+		lastErrorStage: StageAccept,
+		lastErrorAt:    time.Now(),
+	}
+
+	svc.recordAcceptSuccess(time.Now())
+
+	readiness := svc.Readiness()
+	if readiness.State != StateHealthy {
+		t.Fatalf("expected healthy state after accept recovery, got %q", readiness.State)
+	}
+	if readiness.Reason != ReasonReady {
+		t.Fatalf("expected ready reason after accept recovery, got %q", readiness.Reason)
+	}
+}
+
+type fakeRuntime struct {
+	errs  []error
+	index int
+}
+
+func (f *fakeRuntime) HandleConn(_ context.Context, conn net.Conn) error {
+	_ = conn.Close()
+	if f.index >= len(f.errs) {
+		return nil
+	}
+	err := f.errs[f.index]
+	f.index++
+	return err
+}
+
+func (f *fakeRuntime) Supports(_ smbcore.Dialect) bool {
+	return true
+}
+
+func (f *fakeRuntime) IsReadOnly() bool {
+	return true
+}
+
+func (f *fakeRuntime) Phase() smbcore.RolloutPhase {
+	return smbcore.RolloutPhaseReadOnly
 }

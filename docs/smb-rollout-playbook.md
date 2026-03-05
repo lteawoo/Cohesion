@@ -38,6 +38,15 @@ SMB를 기존 WEB/WebDAV/FTP/SFTP 운영 패턴과 일관되게 단계 도입하
 - `runtime_not_ready`: 바인드는 됐지만 프로토콜 세션 처리 준비 미완료
 - `runtime_error`: 런타임 내부 오류
 
+### 상태 채널 분리 원칙
+
+- 사용자 채널(상태 팝오버):
+  - SMB는 `됨/안됨` 이진 상태로만 표시한다.
+  - 운영 진단 필드(`reason`, `stage`, `bindReady`, `runtimeReady`, phase metadata)는 노출하지 않는다.
+- 운영 채널(`/api/status`, `app.log`):
+  - 진단 필드(`reason`, `stage`, taxonomy)는 유지한다.
+  - 장애 분석은 운영 채널 기준으로 수행한다.
+
 ### 연산 허용/거부 매트릭스
 
 | 연산 | readonly | write-safe | write-full | 비고 |
@@ -145,3 +154,16 @@ SMB를 기존 WEB/WebDAV/FTP/SFTP 운영 패턴과 일관되게 단계 도입하
 - `/api/status`가 `runtime_not_ready`면 SMB 런타임 준비 상태를 먼저 복구하고 재시작
 - write/manage 요청 거부는 rollout phase 기준 정상 동작일 수 있으므로 현재 `rolloutPhase`와 기대 시나리오를 우선 대조
 - 권한 이상: 계정/Space 권한 매핑(`CanAccessSpaceByID`)과 사용자 권한 데이터 재검증
+
+### SMB 로그 점검 예시
+
+```bash
+# SMB telemetry/런타임 이벤트 확인(필드 순서 무관)
+rg "service=smb" logs/app.log | rg "stage=" | rg "reason="
+
+# 정책 거부 taxonomy 확인(필드 순서 무관)
+rg "service=smb" logs/app.log | rg "reason=(readonly_phase_denied|permission_denied|path_boundary_violation)"
+
+# 런타임 세션 오류 확인
+rg "service=smb" logs/app.log | rg "reason=runtime_error"
+```

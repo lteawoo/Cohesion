@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/lteawoo/smb-core"
 	"github.com/rs/zerolog/log"
 	"taeu.kr/cohesion/internal/account"
 	"taeu.kr/cohesion/internal/config"
+	"taeu.kr/cohesion/internal/platform/logging"
 	"taeu.kr/cohesion/internal/space"
 )
 
@@ -28,8 +31,39 @@ type Service struct {
 	runtimeReady   bool
 	lastError      error
 	lastErrorStage FailureStage
+	lastErrorAt    time.Time
+	lastSuccessAt  time.Time
 	runtimeIssue   string
 	mu             sync.RWMutex
+}
+
+type coreTelemetry struct{}
+
+func (coreTelemetry) OnEvent(event smbcore.Event) {
+	stage := strings.TrimSpace(event.Stage)
+	if stage == "" {
+		stage = string(StageSession)
+	}
+	reason := strings.TrimSpace(event.Reason)
+	if reason == "" {
+		reason = ReasonRuntimeError
+	}
+
+	if event.Err != nil {
+		logging.Event(log.Warn(), logging.ComponentRuntime, "warn.smb.telemetry").
+			Str("service", "smb").
+			Str("stage", stage).
+			Str("reason", reason).
+			Err(event.Err).
+			Msg("[SMB] telemetry event")
+		return
+	}
+
+	logging.Event(log.Info(), logging.ComponentRuntime, "info.smb.telemetry").
+		Str("service", "smb").
+		Str("stage", stage).
+		Str("reason", reason).
+		Msg("[SMB] telemetry event")
 }
 
 func NewService(
@@ -65,7 +99,7 @@ func NewService(
 			MinDialect:   toCoreDialect(config.DefaultSMBMinVersion),
 			MaxDialect:   toCoreDialect(config.DefaultSMBMaxVersion),
 			RolloutPhase: smbcore.RolloutPhase(rolloutPhase),
-		}, authAdapter, authzAdapter, fsAdapter, nil)
+		}, authAdapter, authzAdapter, fsAdapter, coreTelemetry{})
 		if coreErr != nil {
 			log.Warn().
 				Err(coreErr).
@@ -113,6 +147,7 @@ func (s *Service) Start() error {
 		s.runtimeReady = false
 		s.lastError = err
 		s.lastErrorStage = StageBind
+		s.lastErrorAt = time.Now()
 		return fmt.Errorf("failed to start smb service on port %d: %w", s.port, err)
 	}
 
@@ -136,6 +171,8 @@ func (s *Service) Start() error {
 	}
 	s.lastError = nil
 	s.lastErrorStage = StageNone
+	s.lastErrorAt = time.Time{}
+	s.lastSuccessAt = time.Time{}
 	go s.acceptLoop(listener)
 	log.Info().
 		Int("port", s.port).
@@ -164,9 +201,11 @@ func (s *Service) acceptLoop(listener net.Listener) {
 			s.mu.Lock()
 			s.lastError = err
 			s.lastErrorStage = StageAccept
+			s.lastErrorAt = time.Now()
 			s.mu.Unlock()
 			continue
 		}
+		s.recordAcceptSuccess(time.Now())
 
 		if s.core == nil {
 			_ = conn.Close()
@@ -177,7 +216,12 @@ func (s *Service) acceptLoop(listener net.Listener) {
 }
 
 func (s *Service) handleConn(conn net.Conn) {
-	if err := s.core.HandleConn(context.Background(), conn); err != nil && !errors.Is(err, smbcore.ErrRuntimeNotImplemented) {
+	err := s.core.HandleConn(context.Background(), conn)
+	now := time.Now()
+	if err != nil {
+		if errors.Is(err, smbcore.ErrRuntimeNotImplemented) {
+			return
+		}
 		log.Warn().
 			Err(err).
 			Str("stage", string(StageSession)).
@@ -186,7 +230,30 @@ func (s *Service) handleConn(conn net.Conn) {
 		s.mu.Lock()
 		s.lastError = err
 		s.lastErrorStage = StageSession
+		s.lastErrorAt = now
 		s.mu.Unlock()
+		return
+	}
+
+	s.mu.Lock()
+	s.lastSuccessAt = now
+	if s.lastErrorStage == StageSession {
+		s.lastError = nil
+		s.lastErrorStage = StageNone
+		s.lastErrorAt = time.Time{}
+	}
+	s.mu.Unlock()
+}
+
+func (s *Service) recordAcceptSuccess(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.lastSuccessAt = now
+	if s.lastErrorStage == StageAccept {
+		s.lastError = nil
+		s.lastErrorStage = StageNone
+		s.lastErrorAt = time.Time{}
 	}
 }
 
@@ -213,6 +280,8 @@ func (s *Service) Stop() error {
 	s.runtimeReady = false
 	s.lastError = nil
 	s.lastErrorStage = StageNone
+	s.lastErrorAt = time.Time{}
+	s.lastSuccessAt = time.Time{}
 	s.runtimeIssue = ""
 	log.Info().Msg("[SMB] service stopped")
 	return nil
@@ -262,9 +331,18 @@ func (s *Service) Readiness() Readiness {
 
 	if s.lastError != nil {
 		metadata.State = StateUnhealthy
-		metadata.Reason = ReasonRuntimeError
 		metadata.Stage = s.lastErrorStage
-		metadata.Message = "SMB 런타임 오류"
+		switch s.lastErrorStage {
+		case StageBind:
+			metadata.Reason = ReasonBindNotReady
+			metadata.Message = "SMB 바인드 준비 안됨"
+		case StageAccept:
+			metadata.Reason = ReasonAcceptFailed
+			metadata.Message = "SMB 연결 수락 오류"
+		default:
+			metadata.Reason = ReasonRuntimeError
+			metadata.Message = "SMB 런타임 오류"
+		}
 		return metadata
 	}
 
