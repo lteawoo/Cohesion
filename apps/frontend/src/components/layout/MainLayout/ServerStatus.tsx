@@ -60,6 +60,13 @@ function getStatusLabel(status: ProtocolStatus['status'] | string, t: (key: stri
   }
 }
 
+function getAvailabilityLabel(status: ProtocolStatus['status'] | string, t: (key: string) => unknown) {
+  if (status === 'healthy') {
+    return String(t('serverStatus.availability.available'));
+  }
+  return String(t('serverStatus.availability.unavailable'));
+}
+
 function normalizeProtocolPath(path?: string) {
   if (!path) {
     return '';
@@ -182,19 +189,9 @@ function PopoverContent({
       {orderedProtocolEntries.map(([key, proto]) => {
         const displayPort = key === 'http' ? webPort : proto.port;
         const displayPath = normalizeProtocolPath(proto.path);
-        const smbMeta = key === 'smb'
-          ? [
-            proto.endpointMode,
-            proto.rolloutPhase ? `phase:${proto.rolloutPhase}` : '',
-            proto.policySource ? `policy:${proto.policySource}` : '',
-            proto.bindReady === undefined ? '' : `bind:${proto.bindReady ? 'ready' : 'not-ready'}`,
-            proto.runtimeReady === undefined ? '' : `runtime:${proto.runtimeReady ? 'ready' : 'not-ready'}`,
-            proto.minVersion && proto.maxVersion ? `${proto.minVersion}-${proto.maxVersion}` : '',
-          ]
-            .filter(Boolean)
-            .join(', ')
-          : '';
-        const detailMessage = proto.reason ? `${proto.message} (${proto.reason})` : proto.message;
+        const isSmb = key === 'smb';
+        const detailMessage = isSmb ? '' : (proto.reason ? `${proto.message} (${proto.reason})` : proto.message);
+        const statusLabel = isSmb ? getAvailabilityLabel(proto.status, t) : getStatusLabel(proto.status, t);
 
         return (
           <div
@@ -215,12 +212,12 @@ function PopoverContent({
                 <span style={{ fontSize: 13 }}>{PROTOCOL_LABELS[key] || key}</span>
                 {displayPort && (
                   <span style={{ fontSize: 11, color: token.colorTextTertiary }}>
-                    :{displayPort}{displayPath}{smbMeta ? ` (${smbMeta})` : ''}
+                    :{displayPort}{displayPath}
                   </span>
                 )}
               </div>
               <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
-                {getStatusLabel(proto.status, t)}
+                {statusLabel}
               </span>
             </div>
             {detailMessage && (

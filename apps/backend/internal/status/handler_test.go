@@ -208,3 +208,57 @@ func TestHandleStatus_UsesSMBReadinessProviderState(t *testing.T) {
 		t.Fatal("expected runtimeReady=false")
 	}
 }
+
+func TestHandleStatus_PropagatesSMBRuntimeStageReason(t *testing.T) {
+	originalConf := config.Conf
+	defer func() { config.Conf = originalConf }()
+
+	config.Conf.Server.WebdavEnabled = true
+	config.Conf.Server.FtpEnabled = false
+	config.Conf.Server.SftpEnabled = false
+	config.Conf.Server.SmbEnabled = true
+	config.Conf.Server.SmbPort = 1445
+	config.Conf.Server.SmbRolloutPhase = config.SMBRolloutPhaseReadOnly
+
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	spaceService := space.NewService(&statusTestSpaceStore{})
+	handler := NewHandler(db, spaceService, statusTestSMBReadiness{
+		readiness: smb.Readiness{
+			State:        smb.StateUnhealthy,
+			Reason:       smb.ReasonAcceptFailed,
+			Message:      "SMB 연결 수락 오류",
+			Stage:        smb.StageAccept,
+			RolloutPhase: config.SMBRolloutPhaseReadOnly,
+			PolicySource: "config",
+			BindReady:    true,
+			RuntimeReady: true,
+		},
+	}, "3000")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	recorder := httptest.NewRecorder()
+
+	if webErr := handler.handleStatus(recorder, req); webErr != nil {
+		t.Fatalf("handleStatus returned error: %+v", webErr)
+	}
+
+	var resp StatusResponse
+	if err := json.NewDecoder(recorder.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if resp.Protocols["smb"].Status != "unhealthy" {
+		t.Fatalf("expected smb unhealthy, got %q", resp.Protocols["smb"].Status)
+	}
+	if resp.Protocols["smb"].Reason != smb.ReasonAcceptFailed {
+		t.Fatalf("expected smb reason %q, got %q", smb.ReasonAcceptFailed, resp.Protocols["smb"].Reason)
+	}
+	if resp.Protocols["smb"].Message != "SMB 연결 수락 오류" {
+		t.Fatalf("unexpected smb message: %q", resp.Protocols["smb"].Message)
+	}
+}

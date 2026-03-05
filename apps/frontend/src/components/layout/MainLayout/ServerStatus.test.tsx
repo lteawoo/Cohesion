@@ -72,10 +72,11 @@ vi.mock('antd', () => ({
 }));
 
 describe('ServerStatus', () => {
-  it('renders SMB status metadata in popover content', () => {
+  it('renders SMB status as binary availability in popover content', () => {
     const view = render(<ServerStatus />);
 
     expect(view.getByText('SMB')).toBeTruthy();
-    expect(view.getByText(/direct, phase:readonly, policy:config, bind:ready, runtime:ready, 2.1-3.1.1/)).toBeTruthy();
+    expect(view.getByText('serverStatus.availability.available')).toBeTruthy();
+    expect(view.queryByText(/direct, phase:readonly, policy:config, bind:ready, runtime:ready, 2.1-3.1.1/)).toBeNull();
   });
 });

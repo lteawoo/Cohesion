@@ -209,6 +209,12 @@ rg "event=http\\.access .*path=/api/system/restart" logs/access.log
 
 # updater 런타임 오류 확인
 rg "event=error\\.updater\\." logs/updater.log
+
+# SMB telemetry/런타임 원인 확인(필드 순서 무관)
+rg "service=smb" logs/app.log | rg "stage=" | rg "reason="
+
+# SMB deny taxonomy 확인(필드 순서 무관)
+rg "service=smb" logs/app.log | rg "reason=(readonly_phase_denied|permission_denied|path_boundary_violation)"
 ```
 
 ### 운영자 확인 순서
