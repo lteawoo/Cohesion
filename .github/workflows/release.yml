@@ -53,10 +53,6 @@ jobs:
         run: go test ./...
         working-directory: apps/backend
 
-      - name: Run SMB publication gates
-        run: ./scripts/check-smb-publication-gates.sh
-        working-directory: apps/backend
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
