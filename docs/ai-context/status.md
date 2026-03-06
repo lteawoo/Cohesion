@@ -34,15 +34,35 @@
     - `pnpm release:check`
     - 수동 UI 확인: rename, quota update, read-only access, sidebar create entry
     - 수동 UI 확인: row action table screenshot
+- #201 프론트엔드 핵심 운영 경로 회귀 테스트 보강 구현 완료:
+  - `Login` 테스트 추가:
+    - 로딩 상태
+    - 인증된 사용자 리다이렉트
+    - 초기 setup 플로우
+    - 로그인 성공/유효성 검증
+  - `SettingsPage` 테스트 추가:
+    - 권한별 섹션 메뉴 노출/비노출
+    - 허용된 섹션 클릭 시 콘텐츠 전환
+  - `MainLayout` 헤더 검색 테스트 추가:
+    - 연결된 스페이스 유무에 따른 검색 입력 제어
+    - debounce 후 suggestion 로드
+    - 검색 제출 시 `/search` 이동
+    - suggestion 선택 시 browse 상태/이동 반영
+  - `ServerSettings` 테스트 추가:
+    - 설정 로드 실패
+    - validation 오류 차단
+    - 저장 성공
+    - 재시작 confirm 후 reconnect 실패 피드백
+  - 검증 완료:
+    - `pnpm --dir apps/frontend typecheck`
+    - `pnpm --dir apps/frontend test`
 
 ## 검증 상태
 - 백엔드: `cd apps/backend && go test ./...` 통과
 - 프론트엔드: 주요 빌드/타입 검증 경로 정상
 
 ## 다음 작업
-1. #201 프론트엔드 핵심 운영 경로 회귀 테스트 보강
-2. #198 파일 검색 결과 품질과 성능 고도화
-3. #200 내 프로필 수정과 비밀번호 변경 지원
-4. #199 감사 로그 운영 기능 보강
-5. 남은 운영 문서 정합성 점검
-6. CI/Release 실행 결과 확인
+1. #198 파일 검색 결과 품질과 성능 고도화
+2. #200 내 프로필 수정과 비밀번호 변경 지원
+3. #199 감사 로그 운영 기능 보강
+4. 남은 운영 문서 정합성 점검
