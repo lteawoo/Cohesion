@@ -13,6 +13,7 @@
     "clean-all": "rimraf --glob **/dist **/build **/.turbo **/tmp node_modules **/node_modules"
   },
   "devDependencies": {
+    "playwright": "^1.58.2",
     "rimraf": "^6.1.2",
     "turbo": "^2.6.3",
     "typescript": "^5.9.3"
