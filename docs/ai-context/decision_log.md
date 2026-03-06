@@ -48,3 +48,12 @@
   - `space_desc`는 프론트/백엔드/DB 마이그레이션까지 포함해 완전히 제거한다.
 - 이유:
   - 실제 사용자가 한 명인 테스트 단계에서는 일괄 저장보다 행별 저장이 단순하고, 여러 Space를 한 번에 비교/수정하는 운영 효율도 높기 때문이다.
+
+### 완료된 OpenSpec change는 메인 spec 동기화 후 archive한다 (2026-03-06)
+- 상황:
+  - `manage-space-settings` 구현과 머지가 끝나 OpenSpec change를 닫을 시점이 되었다.
+- 결정:
+  - change의 delta spec를 `openspec/specs/space-settings-management/spec.md`로 동기화한 뒤 archive로 이동한다.
+  - 릴리즈 전에는 `pnpm release:check`로 GoReleaser 구성을 다시 검증한다.
+- 이유:
+  - 구현 이력이 메인 spec에 남아야 후속 변경의 기준선이 일관되고, 태그 릴리즈 전에 배포 경로의 설정 오류를 미리 차단할 수 있기 때문이다.
