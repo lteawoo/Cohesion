@@ -31,12 +31,10 @@ The system SHALL let users understand current result volume and request more res
 #### Scenario: Search page shows current result summary
 - **WHEN** the search page finishes loading results for a valid query
 - **THEN** the page SHALL show the number of returned results for the current request
-- **AND** the page SHALL show the current sort basis text
 
 #### Scenario: Search page offers more results when truncated
 - **WHEN** the search response includes `hasMore=true`
-- **THEN** the page SHALL show a truncation notice
-- **AND** the page SHALL offer a "더 보기" action that increases the requested result limit and reloads the results
+- **THEN** the page SHALL offer a "더 보기" action that increases the requested result limit and reloads the results
 
 #### Scenario: Search page keeps empty and failure states distinct
 - **WHEN** the query is too short, returns no matches, or fails to load
