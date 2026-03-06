@@ -56,6 +56,19 @@
   - 검증 완료:
     - `pnpm --dir apps/frontend typecheck`
     - `pnpm --dir apps/frontend test`
+- #200 내 프로필 수정과 비밀번호 변경 지원 구현 완료:
+  - `Settings > 내 프로필`에서 닉네임 수정과 비밀번호 변경 UI 추가
+  - 자기수정 API `PATCH /api/auth/me` 추가
+  - 비밀번호 변경 시 현재 비밀번호 필수 검증과 8자 정책 적용
+  - 비밀번호 변경은 별도 `비밀번호 변경` 버튼으로 모달에서 진행
+  - `profile.write` 권한 매핑과 `profile.update` denied 감사 액션 연결
+  - 저장 성공 후 `refreshSession()`으로 세션/프로필 상태 재동기화
+  - 프로필 화면 회귀 테스트 추가
+  - 검증 완료:
+    - `cd apps/backend && go test ./...`
+    - `pnpm --dir apps/frontend typecheck`
+    - `pnpm --dir apps/frontend test`
+    - 수동 UI 확인: 프로필 편집 화면 스크린샷
 - #198 파일 검색 결과 품질과 성능 고도화 1차 슬라이스 구현 완료:
   - `/api/search/files` 응답을 `items`, `limit`, `hasMore` 객체로 확장
   - 기존 readable space filtering과 name-match 정렬 규칙 유지
@@ -85,6 +98,5 @@
 - 프론트엔드: 주요 빌드/타입 검증 경로 정상
 
 ## 다음 작업
-1. #200 내 프로필 수정과 비밀번호 변경 지원
-2. #199 감사 로그 운영 기능 보강
-3. 남은 운영 문서 정합성 점검
+1. #199 감사 로그 운영 기능 보강
+2. 남은 운영 문서 정합성 점검

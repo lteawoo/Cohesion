@@ -66,6 +66,9 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	if path == "/api/search/files" && method == http.MethodGet {
 		return PermissionFileRead, true
 	}
+	if path == "/api/auth/me" && method == http.MethodPatch {
+		return PermissionProfileWrite, true
+	}
 	if path == "/api/spaces/usage" && method == http.MethodGet {
 		return PermissionSpaceRead, true
 	}
@@ -279,6 +282,9 @@ func deniedAuditRuleForRequest(r *http.Request) (deniedAuditRule, bool) {
 	}
 	if path == "/api/permissions" && method == http.MethodGet {
 		return deniedAuditRule{Action: "permission.list", AllowUnauthorized: true}, true
+	}
+	if path == "/api/auth/me" && method == http.MethodPatch {
+		return deniedAuditRule{Action: "profile.update", AllowUnauthorized: true}, true
 	}
 
 	if (path == "/api/audit/logs" || strings.HasPrefix(path, "/api/audit/logs/")) && method == http.MethodGet {

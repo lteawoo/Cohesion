@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -26,6 +27,12 @@ type Service struct {
 	auditRecorder  audit.Recorder
 }
 
+type UpdateProfileRequest struct {
+	Nickname        *string `json:"nickname,omitempty"`
+	CurrentPassword *string `json:"currentPassword,omitempty"`
+	NewPassword     *string `json:"newPassword,omitempty"`
+}
+
 func NewService(accountService *account.Service, config Config) *Service {
 	return &Service{
 		accountService: accountService,
@@ -35,6 +42,19 @@ func NewService(accountService *account.Service, config Config) *Service {
 
 func (s *Service) SetAuditRecorder(recorder audit.Recorder) {
 	s.auditRecorder = recorder
+}
+
+func (s *Service) RecordBestEffort(r *http.Request, event audit.Event) {
+	if s.auditRecorder == nil {
+		return
+	}
+	if event.Actor == "" {
+		event.Actor = strings.TrimSpace(r.Header.Get("X-Cohesion-Actor"))
+	}
+	if event.RequestID == "" {
+		event.RequestID = strings.TrimSpace(r.Header.Get("X-Request-Id"))
+	}
+	s.auditRecorder.RecordBestEffort(event)
 }
 
 func (s *Service) Login(ctx context.Context, username, password string) (*TokenPair, *account.User, error) {
@@ -84,6 +104,63 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*TokenPair,
 	}
 
 	return tokenPair, user, nil
+}
+
+func (s *Service) UpdateCurrentUser(ctx context.Context, claims *Claims, req *UpdateProfileRequest) (*account.User, error) {
+	if claims == nil {
+		return nil, ErrInvalidToken
+	}
+	if req == nil {
+		return nil, errors.New("request is required")
+	}
+
+	currentUser, err := s.resolveCurrentUserFromClaims(ctx, claims)
+	if err != nil {
+		return nil, err
+	}
+
+	updateReq := &account.UpdateUserRequest{}
+	hasChanges := false
+
+	if req.Nickname != nil {
+		trimmedNickname := strings.TrimSpace(*req.Nickname)
+		if trimmedNickname == "" {
+			return nil, errors.New("nickname is required")
+		}
+		updateReq.Nickname = &trimmedNickname
+		hasChanges = true
+	}
+
+	if req.CurrentPassword != nil && req.NewPassword == nil {
+		return nil, errors.New("new password is required")
+	}
+
+	if req.NewPassword != nil {
+		if req.CurrentPassword == nil || strings.TrimSpace(*req.CurrentPassword) == "" {
+			return nil, errors.New("current password is required")
+		}
+		authed, err := s.accountService.Authenticate(ctx, currentUser.Username, *req.CurrentPassword)
+		if err != nil {
+			return nil, err
+		}
+		if !authed {
+			return nil, errors.New("current password is incorrect")
+		}
+
+		if len(strings.TrimSpace(*req.NewPassword)) < 8 {
+			return nil, errors.New("password must be at least 8 characters")
+		}
+
+		newPassword := *req.NewPassword
+		updateReq.Password = &newPassword
+		hasChanges = true
+	}
+
+	if !hasChanges {
+		return currentUser, nil
+	}
+
+	return s.accountService.UpdateUser(ctx, currentUser.ID, updateReq)
 }
 
 func (s *Service) resolveCurrentUserFromClaims(ctx context.Context, claims *Claims) (*account.User, error) {
