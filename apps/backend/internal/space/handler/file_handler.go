@@ -427,7 +427,29 @@ func (h *Handler) handleSpaceFiles(w http.ResponseWriter, r *http.Request, space
 	if webErr != nil && (webErr.Code == http.StatusForbidden || webErr.Code == http.StatusUnauthorized) {
 		r = h.recordDeniedFileActionAudit(r, action, spaceID, webErr)
 	}
+	if webErr == nil {
+		h.markSearchIndexDirty(r.Context(), spaceID, action)
+	}
 	return webErr
+}
+
+func (h *Handler) markSearchIndexDirty(ctx context.Context, spaceID int64, action string) {
+	if h.searchIndexer == nil {
+		return
+	}
+
+	var err error
+	switch action {
+	case "rename", "delete", "delete-multiple", "trash", "trash-restore", "trash-delete", "trash-empty", "create-folder", "upload":
+		err = h.searchIndexer.MarkSpaceDirty(ctx, spaceID)
+	case "move", "copy":
+		err = h.searchIndexer.MarkAllDirty(ctx)
+	default:
+		return
+	}
+	if err != nil {
+		log.Warn().Err(err).Int64("space_id", spaceID).Str("action", action).Msg("failed to mark search index dirty")
+	}
 }
 
 // getSpace는 spaceID로 Space를 조회하고 없으면 에러를 반환합니다.

@@ -202,13 +202,16 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 	authHandler := auth.NewHandler(authService)
 
 	spaceRepo := spaceStore.NewStore(db)
+	searchIndexRepo := spaceStore.NewSearchIndexStore(db)
 	trashRepo := spaceStore.NewTrashStore(db)
 	auditRepo := auditStore.NewStore(db)
 	spaceService := space.NewService(spaceRepo)
+	searchIndexManager := space.NewSearchIndexManager(spaceService, searchIndexRepo)
 	trashService := space.NewTrashService(trashRepo)
 	auditService := audit.NewService(auditRepo, audit.Config{BufferSize: 512})
 	browseService := browse.NewService()
 	spaceHandler := spaceHandler.NewHandler(spaceService, browseService, accountService, trashService)
+	spaceHandler.SetSearchIndexer(searchIndexManager)
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	auditHandler := audit.NewHandler(auditService)
 	auditHandler.SetRetentionDaysProvider(func() int {
@@ -236,6 +239,10 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 	spaceHandler.SetAuditRecorder(auditService)
 	configHandler.SetAuditRecorder(auditService)
 	systemHandler.SetAuditRecorder(auditService)
+
+	if err := searchIndexManager.Bootstrap(context.Background()); err != nil {
+		log.Warn().Err(err).Msg("search index bootstrap failed; search will retry lazily")
+	}
 
 	// 라우터 생성
 	mux := http.NewServeMux()

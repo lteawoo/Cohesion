@@ -34,6 +34,27 @@ type UpdateSpaceRequest struct {
 	SpaceName *string `json:"space_name,omitempty"`
 }
 
+type SearchIndexEntry struct {
+	SpaceID    int64
+	Name       string
+	Path       string
+	ParentPath string
+	IsDir      bool
+	Size       int64
+	ModTime    time.Time
+}
+
+type SearchIndexResult struct {
+	SpaceID    int64
+	SpaceName  string
+	Name       string
+	Path       string
+	ParentPath string
+	IsDir      bool
+	Size       int64
+	ModTime    time.Time
+}
+
 // Validate는 CreateSpaceRequest의 유효성을 검사합니다
 func (req *CreateSpaceRequest) Validate() error {
 	if req.SpaceName == "" {
