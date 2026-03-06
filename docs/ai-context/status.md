@@ -8,6 +8,15 @@
   - `docs/frontend.md`를 현재 feature/module, 라우트 경계, 검증 명령 기준으로 재작성
   - `docs/backend.md`를 현재 `internal` 패키지, 지원 프로토콜, 운영 로그/명령 기준으로 재작성
   - 프론트/백엔드 문서에 문서 유지보수 체크리스트 추가
+- #214 Settings > Spaces 기반 스페이스 멤버십 관리 구현 완료:
+  - `GET /api/spaces/{id}/members`, `PUT /api/spaces/{id}/members`와 서비스/store 계약 추가
+  - `Settings > Spaces`에 스페이스 중심 멤버 조회/수정 UI 추가
+  - read-only 멤버십 표는 explicit 멤버만 노출하고, 계정 화면은 `manage` 권한을 강등하지 않도록 보정
+  - 검증 완료:
+    - `cd apps/backend && go test ./internal/account ./internal/auth ./internal/space/handler`
+    - `pnpm --dir apps/frontend typecheck`
+    - `pnpm --dir apps/frontend test -- AccountSettings.test.tsx SpaceSettings.test.tsx`
+    - 수동 UI 확인 스크린샷: `/tmp/cohesion-214-space-members-write.png`, `/tmp/cohesion-214-space-members-hidden.png`
 - 서비스 범위 정리 완료:
   - 백엔드/프론트에서 현재 지원 프로토콜만 유지
   - 불필요한 런타임 경로 및 관련 의존성 정리
@@ -133,5 +142,5 @@
 - 프론트엔드: 주요 빌드/타입 검증 경로 정상
 
 ## 다음 작업
-1. #214 Settings > Spaces 기반 스페이스 멤버십 관리
-2. #215 파일 검색 인덱싱 도입
+1. #215 파일 검색 인덱싱 도입
+2. 병렬 worktree 변경 정리 및 PR 준비

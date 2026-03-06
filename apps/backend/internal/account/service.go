@@ -20,6 +20,8 @@ type Storer interface {
 	CountAdmins(ctx context.Context) (int, error)
 	GetUserPermissions(ctx context.Context, userID int64) ([]*UserSpacePermission, error)
 	ReplaceUserPermissions(ctx context.Context, userID int64, permissions []*UserSpacePermission) error
+	ListSpaceMembers(ctx context.Context, spaceID int64) ([]*SpaceMember, error)
+	ReplaceSpacePermissions(ctx context.Context, spaceID int64, permissions []*UserSpacePermission) error
 	ListRoles(ctx context.Context) ([]*RoleDefinition, error)
 	GetRoleByName(ctx context.Context, name string) (*RoleDefinition, error)
 	CreateRole(ctx context.Context, name, description string) (*RoleDefinition, error)
@@ -250,6 +252,46 @@ func (s *Service) ReplaceUserPermissions(ctx context.Context, userID int64, perm
 		}
 	}
 	return s.store.ReplaceUserPermissions(ctx, userID, permissions)
+}
+
+func (s *Service) ListSpaceMembers(ctx context.Context, spaceID int64) ([]*SpaceMember, error) {
+	if spaceID <= 0 {
+		return nil, errors.New("invalid space id")
+	}
+	return s.store.ListSpaceMembers(ctx, spaceID)
+}
+
+func (s *Service) ReplaceSpaceMembers(ctx context.Context, spaceID int64, permissions []*UserSpacePermission) error {
+	if spaceID <= 0 {
+		return errors.New("invalid space id")
+	}
+
+	seenUsers := make(map[int64]struct{}, len(permissions))
+	for _, permission := range permissions {
+		if permission == nil {
+			return errors.New("permission is required")
+		}
+		if permission.SpaceID != spaceID {
+			return errors.New("spaceId mismatch")
+		}
+		if permission.UserID <= 0 {
+			return errors.New("invalid user id")
+		}
+		if _, exists := seenUsers[permission.UserID]; exists {
+			return errors.New("duplicate userId")
+		}
+		seenUsers[permission.UserID] = struct{}{}
+		if _, err := s.store.GetUserByID(ctx, permission.UserID); err != nil {
+			return err
+		}
+		switch permission.Permission {
+		case PermissionRead, PermissionWrite, PermissionManage:
+		default:
+			return errors.New("permission must be read, write, or manage")
+		}
+	}
+
+	return s.store.ReplaceSpacePermissions(ctx, spaceID, permissions)
 }
 
 func (s *Service) CanAccessSpaceByID(ctx context.Context, username string, spaceID int64, required Permission) (bool, error) {

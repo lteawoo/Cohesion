@@ -1,7 +1,16 @@
 import { ReloadOutlined } from '@ant-design/icons';
-import { App, Button, Card, Input, InputNumber, Progress, Space, Table, Tag, Typography } from 'antd';
+import { App, Button, Card, Input, InputNumber, Progress, Select, Space, Table, Tag, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import type { ChangeEvent } from 'react';
+import {
+  type AccountUser,
+  type SpaceMember,
+  type SpacePermission,
+  type UserSpacePermission,
+  listAccounts,
+  listSpaceMembers,
+  updateSpaceMembers,
+} from '@/api/accounts';
 import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
 import { useAuth } from '@/features/auth/useAuth';
@@ -19,6 +28,14 @@ interface SpaceUsageItem {
   quotaBytes?: number;
   overQuota: boolean;
   scannedAt: string;
+}
+
+interface SpaceMemberRow {
+  id: number;
+  username: string;
+  nickname: string;
+  role: string;
+  assignedPermission?: SpacePermission;
 }
 
 function formatBytes(bytes: number): string {
@@ -43,6 +60,12 @@ const SpaceSettings = () => {
   const [nameDrafts, setNameDrafts] = useState<Record<number, string>>({});
   const [quotaDrafts, setQuotaDrafts] = useState<Record<number, number | null>>({});
   const [rowSaving, setRowSaving] = useState<Record<number, boolean>>({});
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberSaving, setMemberSaving] = useState(false);
+  const [memberAccounts, setMemberAccounts] = useState<AccountUser[]>([]);
+  const [spaceMembers, setSpaceMembers] = useState<SpaceMember[]>([]);
+  const [selectedMemberSpaceId, setSelectedMemberSpaceId] = useState<number | null>(null);
+  const [memberPermissionMap, setMemberPermissionMap] = useState<Record<number, SpacePermission | undefined>>({});
   const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
   const renameSpace = useSpaceStore((state) => state.renameSpace);
   const deleteSpace = useSpaceStore((state) => state.deleteSpace);
@@ -50,6 +73,22 @@ const SpaceSettings = () => {
   const permissions = user?.permissions ?? [];
   const canReadSpaceSettings = permissions.includes('space.read');
   const canWriteSpaceSettings = permissions.includes('space.write');
+  const canReadSpaceMembers = canReadSpaceSettings && permissions.includes('account.read');
+  const canWriteSpaceMembers = canWriteSpaceSettings && permissions.includes('account.write');
+  const activeMemberSpaceId = selectedMemberSpaceId ?? spaceUsages[0]?.spaceId ?? null;
+
+  const permissionLabel = useCallback((permission?: SpacePermission) => {
+    switch (permission) {
+      case 'read':
+        return t('spaceSettings.memberPermissionRead');
+      case 'write':
+        return t('spaceSettings.memberPermissionWrite');
+      case 'manage':
+        return t('spaceSettings.memberPermissionManage');
+      default:
+        return t('spaceSettings.memberPermissionNone');
+    }
+  }, [t]);
 
   const loadSpaceUsage = useCallback(async () => {
     setUsageLoading(true);
@@ -88,12 +127,60 @@ const SpaceSettings = () => {
     ]);
   }, [fetchSpaces, loadSpaceUsage]);
 
+  const loadMembers = useCallback(async (spaceId: number) => {
+    setMemberLoading(true);
+    try {
+      const members = await listSpaceMembers(spaceId);
+      const accounts = canWriteSpaceMembers ? await listAccounts() : [];
+      const nextPermissionMap: Record<number, SpacePermission | undefined> = {};
+      members.forEach((member) => {
+        nextPermissionMap[member.userId] = member.permission;
+      });
+      setMemberAccounts(accounts);
+      setSpaceMembers(members);
+      setMemberPermissionMap(nextPermissionMap);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('spaceSettings.loadMembersFailed'));
+    } finally {
+      setMemberLoading(false);
+    }
+  }, [canWriteSpaceMembers, message, t]);
+
   useEffect(() => {
     if (!canReadSpaceSettings) {
       return;
     }
     void refreshSpaceSettings();
   }, [canReadSpaceSettings, refreshSpaceSettings]);
+
+  useEffect(() => {
+    if (!canReadSpaceMembers) {
+      setSelectedMemberSpaceId(null);
+      setMemberAccounts([]);
+      setSpaceMembers([]);
+      setMemberPermissionMap({});
+      return;
+    }
+    if (spaceUsages.length === 0) {
+      setSelectedMemberSpaceId(null);
+      setMemberAccounts([]);
+      setSpaceMembers([]);
+      setMemberPermissionMap({});
+      return;
+    }
+    setSelectedMemberSpaceId((current) => (
+      current != null && spaceUsages.some((item) => item.spaceId === current)
+        ? current
+        : spaceUsages[0]?.spaceId ?? null
+    ));
+  }, [canReadSpaceMembers, spaceUsages]);
+
+  useEffect(() => {
+    if (!canReadSpaceMembers || activeMemberSpaceId == null) {
+      return;
+    }
+    void loadMembers(activeMemberSpaceId);
+  }, [activeMemberSpaceId, canReadSpaceMembers, loadMembers]);
 
   const handleNameDraftChange = (spaceId: number, value: string) => {
     setNameDrafts((prev) => ({
@@ -106,6 +193,13 @@ const SpaceSettings = () => {
     setQuotaDrafts((prev) => ({
       ...prev,
       [spaceId]: value,
+    }));
+  };
+
+  const handleMemberPermissionChange = (userId: number, value?: SpacePermission) => {
+    setMemberPermissionMap((prev) => ({
+      ...prev,
+      [userId]: value,
     }));
   };
 
@@ -187,6 +281,38 @@ const SpaceSettings = () => {
         }
       },
     });
+  };
+
+  const handleSaveMembers = async () => {
+    if (activeMemberSpaceId == null) {
+      return;
+    }
+    if (!canWriteSpaceMembers) {
+      message.error(t('spaceSettings.noMemberWritePermission'));
+      return;
+    }
+
+    setMemberSaving(true);
+    try {
+      const payload: UserSpacePermission[] = Object.entries(memberPermissionMap)
+        .filter(([, permission]) => Boolean(permission))
+        .map(([userId, permission]) => ({
+          userId: Number(userId),
+          spaceId: activeMemberSpaceId,
+          permission: permission as SpacePermission,
+        }));
+
+      await updateSpaceMembers(activeMemberSpaceId, payload);
+      await Promise.all([
+        loadMembers(activeMemberSpaceId),
+        fetchSpaces(),
+      ]);
+      message.success(t('spaceSettings.saveMembersSuccess'));
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('spaceSettings.saveMembersFailed'));
+    } finally {
+      setMemberSaving(false);
+    }
   };
 
   if (!canReadSpaceSettings) {
@@ -300,6 +426,67 @@ const SpaceSettings = () => {
     });
   }
 
+  const memberRows: SpaceMemberRow[] = canWriteSpaceMembers
+    ? memberAccounts.map((member) => ({
+      id: member.id,
+      username: member.username,
+      nickname: member.nickname,
+      role: member.role,
+      assignedPermission: memberPermissionMap[member.id],
+    }))
+    : spaceMembers.map((member) => ({
+      id: member.userId,
+      username: member.username,
+      nickname: member.nickname,
+      role: member.role,
+      assignedPermission: member.permission,
+    }));
+
+  const memberColumns = [
+    {
+      title: t('spaceSettings.memberColumnUsername'),
+      dataIndex: 'username',
+      key: 'username',
+      render: (value: string) => <Text code>{value}</Text>,
+    },
+    {
+      title: t('spaceSettings.memberColumnNickname'),
+      dataIndex: 'nickname',
+      key: 'nickname',
+    },
+    {
+      title: t('spaceSettings.memberColumnRole'),
+      dataIndex: 'role',
+      key: 'role',
+      render: (value: string) => <Tag>{value}</Tag>,
+    },
+    {
+      title: t('spaceSettings.memberColumnPermission'),
+      key: 'permission',
+      render: (_: unknown, item: SpaceMemberRow) => (
+        canWriteSpaceMembers ? (
+          <Select<SpacePermission>
+            size="small"
+            value={memberPermissionMap[item.id]}
+            allowClear
+            placeholder={t('spaceSettings.memberPermissionNone')}
+            style={{ minWidth: 140 }}
+            options={[
+              { value: 'read', label: permissionLabel('read') },
+              { value: 'write', label: permissionLabel('write') },
+              { value: 'manage', label: permissionLabel('manage') },
+            ]}
+            onChange={(value: SpacePermission | undefined) => handleMemberPermissionChange(item.id, value)}
+          />
+        ) : item.assignedPermission ? (
+          <Tag color="processing">{permissionLabel(item.assignedPermission)}</Tag>
+        ) : (
+          <Text type="secondary">{permissionLabel(undefined)}</Text>
+        )
+      ),
+    },
+  ];
+
   return (
     <Space orientation="vertical" size="middle" className="settings-section" style={{ width: '100%' }}>
       <SettingSectionHeader title={t('spaceSettings.sectionTitle')} subtitle={t('spaceSettings.sectionSubtitle')} />
@@ -325,6 +512,66 @@ const SpaceSettings = () => {
           />
         </Space>
       </Card>
+
+      {canReadSpaceMembers ? (
+        <Card
+          size="small"
+          extra={(
+            <Space size={8} wrap>
+              <Select<number>
+                size="small"
+                value={activeMemberSpaceId ?? undefined}
+                placeholder={t('spaceSettings.memberSpacePlaceholder')}
+                style={{ minWidth: 180 }}
+                options={spaceUsages.map((item) => ({
+                  value: item.spaceId,
+                  label: item.spaceName,
+                }))}
+                onChange={(value: number | undefined) => setSelectedMemberSpaceId(value ?? null)}
+              />
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={() => activeMemberSpaceId != null ? void loadMembers(activeMemberSpaceId) : undefined}
+                loading={memberLoading}
+                disabled={activeMemberSpaceId == null}
+              >
+                {t('spaceSettings.refreshMembers')}
+              </Button>
+              {canWriteSpaceMembers ? (
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() => void handleSaveMembers()}
+                  loading={memberSaving}
+                  disabled={activeMemberSpaceId == null}
+                >
+                  {t('spaceSettings.saveMembersAction')}
+                </Button>
+              ) : null}
+            </Space>
+          )}
+        >
+          <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+            <Text type="secondary">
+              {canWriteSpaceMembers ? t('spaceSettings.memberDescription') : t('spaceSettings.memberReadOnlyDescription')}
+            </Text>
+            {activeMemberSpaceId == null ? (
+              <Text type="secondary">{t('spaceSettings.memberEmptySpaces')}</Text>
+            ) : (
+              <Table<SpaceMemberRow>
+                size="small"
+                rowKey={(item: SpaceMemberRow) => item.id}
+                loading={memberLoading}
+                columns={memberColumns}
+                dataSource={memberRows}
+                pagination={false}
+                locale={{ emptyText: t('spaceSettings.memberEmptyAccounts') }}
+              />
+            )}
+          </Space>
+        </Card>
+      ) : null}
     </Space>
   );
 };

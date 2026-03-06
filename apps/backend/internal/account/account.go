@@ -33,6 +33,14 @@ type UserSpacePermission struct {
 	Permission Permission `json:"permission"`
 }
 
+type SpaceMember struct {
+	UserID     int64      `json:"userId"`
+	Username   string     `json:"username"`
+	Nickname   string     `json:"nickname"`
+	Role       Role       `json:"role"`
+	Permission Permission `json:"permission"`
+}
+
 type RoleDefinition struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`

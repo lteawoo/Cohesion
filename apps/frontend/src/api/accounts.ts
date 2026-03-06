@@ -33,6 +33,14 @@ export interface UserSpacePermission {
   permission: SpacePermission;
 }
 
+export interface SpaceMember {
+  userId: number;
+  username: string;
+  nickname: string;
+  role: AccountRole;
+  permission: SpacePermission;
+}
+
 async function parseError(response: Response): Promise<Error> {
   try {
     const data = await response.json() as { message?: string };
@@ -122,4 +130,25 @@ export async function listSpaces(): Promise<Space[]> {
     throw await parseError(response);
   }
   return response.json();
+}
+
+export async function listSpaceMembers(spaceId: number): Promise<SpaceMember[]> {
+  const response = await apiFetch(`/api/spaces/${spaceId}/members`);
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  return response.json();
+}
+
+export async function updateSpaceMembers(spaceId: number, permissions: UserSpacePermission[]): Promise<void> {
+  const response = await apiFetch(`/api/spaces/${spaceId}/members`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ members: permissions }),
+  });
+  if (!response.ok) {
+    throw await parseError(response);
+  }
 }

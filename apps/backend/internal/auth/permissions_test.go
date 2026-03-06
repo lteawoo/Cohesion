@@ -204,6 +204,44 @@ func TestRequiredPermissionForRequest_SpaceUsageAndQuota(t *testing.T) {
 	}
 }
 
+func TestRequiredPermissionForRequest_SpaceMembers(t *testing.T) {
+	tests := []struct {
+		name     string
+		method   string
+		path     string
+		expected string
+	}{
+		{
+			name:     "space members list",
+			method:   http.MethodGet,
+			path:     "/api/spaces/7/members",
+			expected: PermissionAccountRead,
+		},
+		{
+			name:     "space members replace",
+			method:   http.MethodPut,
+			path:     "/api/spaces/7/members",
+			expected: PermissionAccountWrite,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &http.Request{
+				Method: tc.method,
+				URL:    &url.URL{Path: tc.path},
+			}
+			got, ok := requiredPermissionForRequest(req)
+			if !ok {
+				t.Fatalf("expected permission mapping for %s %s", tc.method, tc.path)
+			}
+			if got != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestRequiredPermissionForRequest_SystemUpdateEndpoints(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -245,19 +283,36 @@ func TestRequiredPermissionForRequest_SystemUpdateEndpoints(t *testing.T) {
 func TestRequiredSpacePermissionForRequest_SpaceQuotaPatch(t *testing.T) {
 	tests := []struct {
 		name           string
+		method         string
 		path           string
 		expectedSpace  int64
 		expectedAccess account.Permission
 	}{
 		{
 			name:           "space rename patch",
+			method:         http.MethodPatch,
 			path:           "/api/spaces/7",
 			expectedSpace:  7,
 			expectedAccess: account.PermissionWrite,
 		},
 		{
 			name:           "space quota patch",
+			method:         http.MethodPatch,
 			path:           "/api/spaces/7/quota",
+			expectedSpace:  7,
+			expectedAccess: account.PermissionWrite,
+		},
+		{
+			name:           "space members list",
+			method:         http.MethodGet,
+			path:           "/api/spaces/7/members",
+			expectedSpace:  7,
+			expectedAccess: account.PermissionRead,
+		},
+		{
+			name:           "space members replace",
+			method:         http.MethodPut,
+			path:           "/api/spaces/7/members",
 			expectedSpace:  7,
 			expectedAccess: account.PermissionWrite,
 		},
@@ -267,7 +322,7 @@ func TestRequiredSpacePermissionForRequest_SpaceQuotaPatch(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req := &http.Request{
-				Method: http.MethodPatch,
+				Method: tc.method,
 				URL:    &url.URL{Path: tc.path},
 			}
 
@@ -351,6 +406,12 @@ func TestDeniedAuditRuleForRequest_IncludedEndpoints(t *testing.T) {
 			method:         http.MethodPatch,
 			path:           "/api/spaces/7",
 			expectedAction: "space.update",
+		},
+		{
+			name:           "space members replace",
+			method:         http.MethodPut,
+			path:           "/api/spaces/7/members",
+			expectedAction: "space.members.replace",
 		},
 		{
 			name:           "download by ticket",

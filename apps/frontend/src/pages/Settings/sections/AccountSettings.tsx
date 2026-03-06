@@ -214,8 +214,7 @@ const AccountSettings = () => {
 
       const permissionMap: Record<number, SpacePermission | undefined> = {};
       permissions.forEach((item) => {
-        // legacy manage 값은 UI에서 read+write(write)로 매핑
-        permissionMap[item.spaceId] = item.permission === 'manage' ? 'write' : item.permission;
+        permissionMap[item.spaceId] = item.permission;
       });
 
       setSpaceList(spaces);
@@ -465,8 +464,9 @@ const AccountSettings = () => {
                   value={spacePermissionMap[space.id] ?? 'none'}
                   options={[
                     { value: 'none', label: t('accountSettings.permissionNone') },
-                    { value: 'read', label: 'read' },
-                    { value: 'write', label: 'read + write' },
+                    { value: 'read', label: t('accountSettings.permissionRead') },
+                    { value: 'write', label: t('accountSettings.permissionWrite') },
+                    { value: 'manage', label: t('accountSettings.permissionManage') },
                   ]}
                   onChange={(value: string) => {
                     setSpacePermissionMap((prev) => ({

@@ -126,6 +126,35 @@ vi.mock('antd', () => {
         disabled={disabled}
       />
     ),
+    Select: ({
+      value,
+      onChange,
+      options,
+      placeholder,
+      disabled,
+    }: {
+      value?: string | number;
+      onChange?: (value: string | number | undefined) => void;
+      options?: Array<{ value: string | number; label: ReactNode }>;
+      placeholder?: string;
+      disabled?: boolean;
+    }) => (
+      <select
+        value={value ?? ''}
+        onChange={(event) => {
+          const selected = options?.find((item) => String(item.value) === event.target.value);
+          onChange?.(selected?.value);
+        }}
+        disabled={disabled}
+      >
+        <option value="">{placeholder ?? ''}</option>
+        {options?.map((item) => (
+          <option key={String(item.value)} value={String(item.value)}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    ),
     Progress: ({ percent }: { percent: number }) => <progress value={percent} max={100} />,
     Space: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Table: ({
@@ -133,7 +162,7 @@ vi.mock('antd', () => {
       dataSource,
       rowKey,
     }: {
-      columns: Array<{ key?: string; render?: (_: unknown, item: Record<string, unknown>) => ReactNode }>;
+      columns: Array<{ key?: string; dataIndex?: string; render?: (_: unknown, item: Record<string, unknown>) => ReactNode }>;
       dataSource: Array<Record<string, unknown>> | Record<string, unknown>;
       rowKey: string | ((item: Record<string, unknown>) => string | number);
     }) => {
@@ -145,7 +174,10 @@ vi.mock('antd', () => {
             {rows.map((item) => (
               <tr key={typeof rowKey === 'function' ? rowKey(item) : String(item[rowKey])}>
                 {columns.map((column, index) => (
-                  <td key={column.key ?? index}>{column.render?.(undefined, item)}</td>
+                  <td key={column.key ?? index}>
+                    {column.render?.(column.dataIndex ? item[column.dataIndex] : undefined, item)
+                      ?? (column.dataIndex ? item[column.dataIndex] as ReactNode : null)}
+                  </td>
                 ))}
               </tr>
             ))}
@@ -199,6 +231,24 @@ const usageItem = {
   quotaBytes: 2 * 1024 * 1024,
   overQuota: false,
   scannedAt: '2026-03-06T12:00:00Z',
+};
+
+const accountItem = {
+  id: 2,
+  username: 'member',
+  nickname: 'Member',
+  role: 'user',
+  createdAt: '2026-03-06T12:00:00Z',
+  updatedAt: '2026-03-06T12:00:00Z',
+};
+
+const outsiderAccountItem = {
+  id: 3,
+  username: 'outsider',
+  nickname: 'Outsider',
+  role: 'user',
+  createdAt: '2026-03-06T12:00:00Z',
+  updatedAt: '2026-03-06T12:00:00Z',
 };
 
 describe('SpaceSettings', () => {
@@ -287,5 +337,62 @@ describe('SpaceSettings', () => {
     expect(view.queryByPlaceholderText('spaceSettings.spaceNamePlaceholder')).toBeNull();
     expect(view.queryByRole('button', { name: 'spaceSettings.saveAction' })).toBeNull();
     expect(view.queryByRole('button', { name: 'spaceSettings.deleteSpaceAction' })).toBeNull();
+  });
+
+  it('renders a read-only membership table for account readers', async () => {
+    h.permissionsState.permissions = ['space.read', 'account.read'];
+    vi.mocked(apiFetch).mockImplementation(async (input: string | URL | Request) => {
+      if (input === '/api/accounts') {
+        return jsonResponse([accountItem, outsiderAccountItem]);
+      }
+      if (input === '/api/spaces/1/members') {
+        return jsonResponse([{ userId: 2, username: 'member', nickname: 'Member', role: 'user', permission: 'read' }]);
+      }
+      return jsonResponse([usageItem]);
+    });
+
+    const view = renderSection();
+
+    expect(await view.findByText('spaceSettings.memberReadOnlyDescription')).toBeTruthy();
+    expect(await view.findByText('member')).toBeTruthy();
+    expect(view.queryByText('outsider')).toBeNull();
+    expect(apiFetch).not.toHaveBeenCalledWith('/api/accounts');
+    expect(view.queryByRole('button', { name: 'spaceSettings.saveMembersAction' })).toBeNull();
+  });
+
+  it('saves space member permissions for writable users', async () => {
+    h.permissionsState.permissions = ['space.read', 'space.write', 'account.read', 'account.write'];
+    vi.mocked(apiFetch).mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      if (input === '/api/accounts') {
+        return jsonResponse([accountItem]);
+      }
+      if (input === '/api/spaces/1/members' && init?.method === 'PUT') {
+        return new Response(null, { status: 204 });
+      }
+      if (input === '/api/spaces/1/members') {
+        return jsonResponse([{ userId: 2, username: 'member', nickname: 'Member', role: 'user', permission: 'read' }]);
+      }
+      return jsonResponse([usageItem]);
+    });
+
+    const user = userEvent.setup();
+    const view = renderSection();
+
+    await view.findByText('member');
+    const selects = await view.findAllByRole('combobox');
+    await user.selectOptions(selects[1] as HTMLSelectElement, 'write');
+    await user.click(view.getByRole('button', { name: 'spaceSettings.saveMembersAction' }));
+
+    await vi.waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith('/api/spaces/1/members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          members: [{ userId: 2, spaceId: 1, permission: 'write' }],
+        }),
+      });
+    });
+    expect(h.storeState.fetchSpaces).toHaveBeenCalled();
+    expect(h.messageApi.success).toHaveBeenCalledWith('spaceSettings.saveMembersSuccess');
   });
 });
