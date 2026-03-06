@@ -19,12 +19,21 @@ interface UseSearchModeContentResult {
   openSearchResultByRecordPath: (recordPath: string) => void;
   renderSearchName: (record: FileNode) => ReactNode;
   renderSearchMeta: (record: FileNode) => string;
+  renderSearchGridMeta: (record: FileNode) => string;
   activeErrorMessage: string | null;
   activeLoading: boolean;
 }
 
 function resolveSearchRowPath(item: SearchFileResult): string {
   return `${item.spaceId}::${item.path}`;
+}
+
+function formatSearchContext(spaceName: string, parentPath: string): string {
+  const normalizedParentPath = parentPath.replace(/^\/+/, "");
+  if (!normalizedParentPath) {
+    return spaceName;
+  }
+  return `${spaceName} / ${normalizedParentPath}`;
 }
 
 export function useSearchModeContent({
@@ -79,8 +88,16 @@ export function useSearchModeContent({
       return `${record.isDir ? '-' : formatSize(record.size)} | ${formatDate(record.modTime)}`;
     }
     const sizeText = item.isDir ? '-' : formatSize(item.size);
-    const parentPathText = item.parentPath || '/';
-    return `${sizeText} | ${formatDate(item.modTime)} | ${item.spaceName} | ${parentPathText}`;
+    return `${sizeText} | ${formatDate(item.modTime)} | ${formatSearchContext(item.spaceName, item.parentPath)}`;
+  }, [resolveSearchResult]);
+
+  const renderSearchGridMeta = useCallback((record: FileNode) => {
+    const item = resolveSearchResult(record.path);
+    if (!item) {
+      return record.isDir ? '-' : formatSize(record.size);
+    }
+    const sizeText = item.isDir ? '-' : formatSize(item.size);
+    return `${sizeText} | ${formatSearchContext(item.spaceName, item.parentPath)}`;
   }, [resolveSearchResult]);
 
   const isSearching = isSearchMode && searchSource.isSearching;
@@ -93,6 +110,7 @@ export function useSearchModeContent({
     openSearchResultByRecordPath,
     renderSearchName,
     renderSearchMeta,
+    renderSearchGridMeta,
     activeErrorMessage,
     activeLoading,
   };

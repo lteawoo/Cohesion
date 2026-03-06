@@ -75,5 +75,8 @@
   - `/api/search/files`는 raw 배열 대신 `items`, `limit`, `hasMore` 객체를 반환한다.
   - 절대 총 개수는 계산하지 않고, `limit + 1`개째 일치 항목 감지로 `hasMore`만 제공한다.
   - 검색 페이지는 `더 보기`로 limit를 단계적으로 늘려 재조회한다.
+  - 검색 페이지 상단 summary는 설명형 Alert 대신 count-only 텍스트로 유지한다.
+  - 검색 grid view 메타는 날짜를 제외하고 size/space/path 중심으로 유지한다.
+  - 헤더 검색 dropdown은 suggestion popover로 간주하고, outside click과 `Escape`에서 닫힌다.
 - 이유:
   - 총 개수 계산 비용을 피하면서도 truncation 여부와 추가 탐색 경로를 사용자에게 제공할 수 있기 때문이다.

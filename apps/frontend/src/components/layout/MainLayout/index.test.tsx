@@ -112,6 +112,8 @@ vi.mock('antd', () => {
   const Input = ({
     value,
     onChange,
+    onFocus,
+    onKeyDown,
     onPressEnter,
     placeholder,
     disabled,
@@ -125,7 +127,9 @@ vi.mock('antd', () => {
     <input
       value={typeof value === 'string' ? value : ''}
       onChange={(event) => onChange?.(event)}
+      onFocus={(event) => onFocus?.(event)}
       onKeyDown={(event) => {
+        onKeyDown?.(event);
         if (event.key === 'Enter') {
           onPressEnter?.();
         }
@@ -237,7 +241,7 @@ describe('MainLayout header search', () => {
       signal: expect.any(AbortSignal),
     }));
     expect(view.getByText('alpha.txt')).toBeTruthy();
-    expect(view.getByText('Alpha | /docs')).toBeTruthy();
+    expect(view.getByText('Alpha / docs')).toBeTruthy();
   });
 
   it('navigates to the full search page when the query is submitted', async () => {
@@ -288,5 +292,77 @@ describe('MainLayout header search', () => {
         fromSearchQuery: 're',
       },
     });
+  });
+
+  it('closes the dropdown when clicking outside the search field', async () => {
+    vi.useFakeTimers();
+    h.spaceState.spaces = [{ id: 1, name: 'Alpha' }];
+    h.searchFiles.mockResolvedValue({
+      items: [
+        {
+          spaceId: 1,
+          spaceName: 'Alpha',
+          name: 'alpha.txt',
+          path: '/alpha.txt',
+          parentPath: '/docs',
+          isDir: false,
+          size: 10,
+          modTime: '2026-03-06T12:00:00Z',
+        },
+      ] satisfies SearchFileResult[],
+      limit: 8,
+      hasMore: false,
+    });
+    const view = render(<MainLayout />);
+    const input = view.getByPlaceholderText('mainLayout.searchPlaceholder');
+
+    changeInputValue(input as HTMLInputElement, 'al');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(420);
+      await Promise.resolve();
+    });
+
+    expect(view.getByText('Alpha / docs')).toBeTruthy();
+    act(() => {
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    });
+
+    expect(view.queryByText('Alpha / docs')).toBeNull();
+  });
+
+  it('closes the dropdown on escape', async () => {
+    vi.useFakeTimers();
+    h.spaceState.spaces = [{ id: 1, name: 'Alpha' }];
+    h.searchFiles.mockResolvedValue({
+      items: [
+        {
+          spaceId: 1,
+          spaceName: 'Alpha',
+          name: 'alpha.txt',
+          path: '/alpha.txt',
+          parentPath: '/docs',
+          isDir: false,
+          size: 10,
+          modTime: '2026-03-06T12:00:00Z',
+        },
+      ] satisfies SearchFileResult[],
+      limit: 8,
+      hasMore: false,
+    });
+    const view = render(<MainLayout />);
+    const input = view.getByPlaceholderText('mainLayout.searchPlaceholder');
+
+    changeInputValue(input as HTMLInputElement, 'al');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(420);
+      await Promise.resolve();
+    });
+
+    expect(view.getByText('Alpha / docs')).toBeTruthy();
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+
+    expect(view.queryByText('Alpha / docs')).toBeNull();
   });
 });

@@ -62,6 +62,10 @@
   - 헤더 검색 suggestion에 `spaceName + parentPath` 문맥 노출
   - 검색 페이지에 결과 수, 정렬 기준, truncation 안내, `더 보기` 액션 추가
   - 검색 결과 테이블/그리드 메타에 `spaceName`과 `parentPath` 표시
+  - 후속 UI 조정 완료:
+    - 검색 페이지 상단 summary는 count-only로 단순화
+    - 검색 grid view 메타에서 날짜 제거
+    - 헤더 검색 dropdown은 outside click과 `Escape`에서 닫히도록 조정
   - 검색 관련 테스트 보강:
     - 백엔드 search handler truncation/응답 계약
     - 헤더 검색 회귀 테스트

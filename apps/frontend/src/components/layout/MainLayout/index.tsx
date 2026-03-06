@@ -4,7 +4,7 @@ import { SettingOutlined, MenuOutlined, SearchOutlined, CloseOutlined, FolderFil
 import MainSider from "./MainSider";
 import ServerStatus from "./ServerStatus";
 import { useCallback, useEffect, useRef, useState, memo } from "react";
-import type { ChangeEvent, MouseEvent } from "react";
+import type { ChangeEvent, KeyboardEvent, MouseEvent } from "react";
 import type { Space } from "@/features/space/types";
 import { useSpaceStore } from "@/stores/spaceStore";
 import { useBrowseStore } from "@/stores/browseStore";
@@ -28,10 +28,11 @@ function isAbortError(error: unknown): boolean {
 }
 
 function formatSearchContext(item: SearchFileResult): string {
-  if (!item.parentPath) {
+  const normalizedParentPath = item.parentPath.replace(/^\/+/, "");
+  if (!normalizedParentPath) {
     return item.spaceName;
   }
-  return `${item.spaceName} | ${item.parentPath}`;
+  return `${item.spaceName} / ${normalizedParentPath}`;
 }
 
 interface HeaderSearchProps {
@@ -55,12 +56,15 @@ const HeaderSearch = memo(function HeaderSearch({
   const [headerSearchResults, setHeaderSearchResults] = useState<SearchFileResult[]>([]);
   const [isHeaderSearchLoading, setIsHeaderSearchLoading] = useState(false);
   const [headerSearchError, setHeaderSearchError] = useState<string | null>(null);
+  const [isHeaderSearchOpen, setIsHeaderSearchOpen] = useState(false);
   const headerSearchTimerRef = useRef<number | undefined>(undefined);
   const headerSearchAbortControllerRef = useRef<AbortController | null>(null);
   const headerSearchRequestSeqRef = useRef(0);
+  const headerSearchContainerRef = useRef<HTMLDivElement | null>(null);
 
   const normalizedHeaderSearchQuery = headerSearchQuery.trim();
   const showHeaderSearchDropdown =
+    isHeaderSearchOpen &&
     normalizedHeaderSearchQuery.length >= HEADER_SEARCH_SUGGEST_MIN_QUERY_LENGTH &&
     (isHeaderSearchLoading || headerSearchError !== null || headerSearchResults.length > 0);
 
@@ -90,6 +94,25 @@ const HeaderSearch = memo(function HeaderSearch({
       clearHeaderSearchInFlight();
     };
   }, [clearHeaderSearchInFlight, clearHeaderSearchTimer]);
+
+  useEffect(() => {
+    if (!isHeaderSearchOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target || headerSearchContainerRef.current?.contains(target)) {
+        return;
+      }
+      setIsHeaderSearchOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [isHeaderSearchOpen]);
 
   const runHeaderSearch = useCallback(async (
     query: string,
@@ -133,10 +156,12 @@ const HeaderSearch = memo(function HeaderSearch({
     const normalized = nextValue.trim();
     if (!hasConnectedSpaces || normalized.length < HEADER_SEARCH_SUGGEST_MIN_QUERY_LENGTH) {
       headerSearchRequestSeqRef.current += 1;
+      setIsHeaderSearchOpen(false);
       resetHeaderSearchState();
       return;
     }
 
+    setIsHeaderSearchOpen(true);
     const requestSeq = headerSearchRequestSeqRef.current + 1;
     headerSearchRequestSeqRef.current = requestSeq;
     setIsHeaderSearchLoading(true);
@@ -148,6 +173,21 @@ const HeaderSearch = memo(function HeaderSearch({
     }, HEADER_SEARCH_DEBOUNCE_MS);
   }, [clearHeaderSearchInFlight, clearHeaderSearchTimer, hasConnectedSpaces, resetHeaderSearchState, runHeaderSearch]);
 
+  const handleHeaderSearchFocus = useCallback(() => {
+    if (!hasConnectedSpaces || normalizedHeaderSearchQuery.length < HEADER_SEARCH_SUGGEST_MIN_QUERY_LENGTH) {
+      return;
+    }
+    setIsHeaderSearchOpen(true);
+  }, [hasConnectedSpaces, normalizedHeaderSearchQuery.length]);
+
+  const handleHeaderSearchKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Escape') {
+      return;
+    }
+    event.preventDefault();
+    setIsHeaderSearchOpen(false);
+  }, []);
+
   const handleHeaderSearchSubmit = useCallback((rawQuery?: string) => {
     const keyword = (rawQuery ?? headerSearchQuery).trim();
     if (!hasConnectedSpaces || keyword.length < HEADER_SEARCH_SUBMIT_MIN_QUERY_LENGTH) {
@@ -156,6 +196,7 @@ const HeaderSearch = memo(function HeaderSearch({
     clearHeaderSearchTimer();
     clearHeaderSearchInFlight();
     headerSearchRequestSeqRef.current += 1;
+    setIsHeaderSearchOpen(false);
     resetHeaderSearchState();
     if (isMobile) {
       onMobileSearchClose();
@@ -181,6 +222,7 @@ const HeaderSearch = memo(function HeaderSearch({
     clearHeaderSearchTimer();
     clearHeaderSearchInFlight();
     headerSearchRequestSeqRef.current += 1;
+    setIsHeaderSearchOpen(false);
     resetHeaderSearchState();
     setHeaderSearchQuery(item.name);
     setPath(item.isDir ? item.path : item.parentPath, targetSpace);
@@ -207,7 +249,7 @@ const HeaderSearch = memo(function HeaderSearch({
   ]);
 
   return (
-    <div className="layout-header-search-field">
+    <div ref={headerSearchContainerRef} className="layout-header-search-field">
       <Input
         allowClear
         autoFocus={isMobileSearchMode}
@@ -215,6 +257,8 @@ const HeaderSearch = memo(function HeaderSearch({
         disabled={!hasConnectedSpaces}
         value={headerSearchQuery}
         onChange={handleHeaderSearchChange}
+        onFocus={handleHeaderSearchFocus}
+        onKeyDown={handleHeaderSearchKeyDown}
         onPressEnter={() => handleHeaderSearchSubmit()}
         placeholder={t("mainLayout.searchPlaceholder")}
         prefix={<SearchOutlined />}

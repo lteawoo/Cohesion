@@ -54,7 +54,21 @@ describe('useSearchModeContent', () => {
 
     expect(result.current.sourceContent).toHaveLength(1);
     const record = result.current.sourceContent[0];
-    expect(String(result.current.renderSearchMeta(record))).toContain('Workspace | docs');
+    expect(String(result.current.renderSearchMeta(record))).toContain('Workspace / docs');
+  });
+
+  it('omits date from grid meta while keeping space and parent path', () => {
+    const { result } = renderHook(() => useSearchModeContent({
+      isSearchMode: true,
+      browseContent: [],
+      browseErrorMessage: null,
+      browseLoading: false,
+    }));
+
+    const record = result.current.sourceContent[0];
+    const gridMeta = String(result.current.renderSearchGridMeta(record));
+    expect(gridMeta).toContain('Workspace / docs');
+    expect(gridMeta).not.toContain('2026');
   });
 
   it('opens the mapped search result by record path', () => {
