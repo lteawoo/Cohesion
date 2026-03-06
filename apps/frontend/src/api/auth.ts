@@ -14,6 +14,12 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface UpdateProfileRequest {
+  nickname?: string;
+  currentPassword?: string;
+  newPassword?: string;
+}
+
 function parseErrorMessage(data: unknown, fallback: string): string {
   if (!data || typeof data !== 'object') {
     return fallback;
@@ -82,4 +88,20 @@ export async function logout(): Promise<void> {
   if (!response.ok) {
     await throwResponseError(response, i18n.t('apiErrors.authLogoutFailed'));
   }
+}
+
+export async function updateProfile(payload: UpdateProfileRequest): Promise<AuthUser> {
+  const response = await apiFetch('/api/auth/me', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    await throwResponseError(response, i18n.t('apiErrors.authProfileUpdateFailed'));
+  }
+
+  return response.json();
 }

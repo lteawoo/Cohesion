@@ -3,9 +3,11 @@ package auth
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"taeu.kr/cohesion/internal/audit"
 	"taeu.kr/cohesion/internal/platform/web"
 )
 
@@ -22,6 +24,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/auth/refresh", web.Handler(h.handleRefresh))
 	mux.Handle("POST /api/auth/logout", web.Handler(h.handleLogout))
 	mux.Handle("GET /api/auth/me", web.Handler(h.handleMe))
+	mux.Handle("PATCH /api/auth/me", web.Handler(h.handleUpdateMe))
 }
 
 type loginRequest struct {
@@ -116,6 +119,67 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) *web.Error {
 		Permissions: h.service.PermissionsForRole(r.Context(), claims.Role),
 	})
 	return nil
+}
+
+func (h *Handler) handleUpdateMe(w http.ResponseWriter, r *http.Request) *web.Error {
+	claims, ok := ClaimsFromContext(r.Context())
+	if !ok {
+		return &web.Error{Code: http.StatusUnauthorized, Message: "Unauthorized"}
+	}
+
+	var req UpdateProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid request body", Err: err}
+	}
+
+	user, err := h.service.UpdateCurrentUser(r.Context(), claims, &req)
+	if err != nil {
+		h.service.RecordBestEffort(r, audit.Event{
+			Action: "profile.update",
+			Result: audit.ResultFailure,
+			Target: "user:" + strconv.FormatInt(claims.UserID, 10),
+			Metadata: map[string]any{
+				"userId": claims.UserID,
+				"reason": "update_failed",
+			},
+		})
+		return &web.Error{Code: http.StatusBadRequest, Message: err.Error(), Err: err}
+	}
+
+	h.service.RecordBestEffort(r, audit.Event{
+		Action: "profile.update",
+		Result: audit.ResultSuccess,
+		Target: "user:" + strconv.FormatInt(user.ID, 10),
+		Metadata: map[string]any{
+			"userId":        user.ID,
+			"username":      user.Username,
+			"changedFields": changedProfileFields(&req),
+		},
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(authUserResponse{
+		ID:          user.ID,
+		Username:    user.Username,
+		Nickname:    user.Nickname,
+		Role:        string(user.Role),
+		Permissions: h.service.PermissionsForRole(r.Context(), user.Role),
+	})
+	return nil
+}
+
+func changedProfileFields(req *UpdateProfileRequest) []string {
+	fields := make([]string, 0, 2)
+	if req == nil {
+		return fields
+	}
+	if req.Nickname != nil {
+		fields = append(fields, "nickname")
+	}
+	if req.NewPassword != nil {
+		fields = append(fields, "password")
+	}
+	return fields
 }
 
 func setAuthCookies(w http.ResponseWriter, r *http.Request, tokenPair *TokenPair) {

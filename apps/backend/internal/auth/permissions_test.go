@@ -54,6 +54,21 @@ func TestRequiredPermissionForRequest_SearchEndpoint(t *testing.T) {
 	}
 }
 
+func TestRequiredPermissionForRequest_ProfileUpdateEndpoint(t *testing.T) {
+	req := &http.Request{
+		Method: http.MethodPatch,
+		URL:    &url.URL{Path: "/api/auth/me"},
+	}
+
+	got, ok := requiredPermissionForRequest(req)
+	if !ok {
+		t.Fatal("expected permission mapping for profile update endpoint")
+	}
+	if got != PermissionProfileWrite {
+		t.Fatalf("expected %q, got %q", PermissionProfileWrite, got)
+	}
+}
+
 func TestRequiredPermissionForRequest_BrowseEndpointUsesSpaceWrite(t *testing.T) {
 	t.Parallel()
 
@@ -340,6 +355,12 @@ func TestDeniedAuditRuleForRequest_IncludedEndpoints(t *testing.T) {
 			method:         http.MethodGet,
 			path:           "/api/downloads/abc",
 			expectedAction: "file.download-ticket",
+		},
+		{
+			name:           "profile update",
+			method:         http.MethodPatch,
+			path:           "/api/auth/me",
+			expectedAction: "profile.update",
 		},
 	}
 
