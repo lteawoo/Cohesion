@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"taeu.kr/cohesion/internal/audit"
@@ -192,6 +193,75 @@ func (s *Store) GetByID(ctx context.Context, id int64) (*audit.Log, error) {
 	return &item, nil
 }
 
+func (s *Store) StreamAll(ctx context.Context, filter audit.ListFilter, yield func(*audit.Log) error) error {
+	queryBuilder := s.qb.
+		Select(
+			"id",
+			"occurred_at",
+			"actor",
+			"action",
+			"result",
+			"target",
+			"request_id",
+			"space_id",
+			"metadata_json",
+		).
+		From("audit_logs")
+
+	queryBuilder = applyFilters(queryBuilder, filter)
+
+	sqlQuery, args, err := queryBuilder.
+		OrderBy("occurred_at DESC", "id DESC").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("failed to build SQL query for audit export: %w", err)
+	}
+
+	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return fmt.Errorf("failed to query audit logs for export: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		item, scanErr := scanAuditLog(rows)
+		if scanErr != nil {
+			return scanErr
+		}
+		if err := yield(item); err != nil {
+			return err
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("row iteration error in audit export: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Store) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
+	sqlQuery, args, err := s.qb.
+		Delete("audit_logs").
+		Where(sq.Lt{"occurred_at": cutoff.UTC()}).
+		ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("failed to build SQL query for audit cleanup: %w", err)
+	}
+
+	result, err := s.db.ExecContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete audit logs: %w", err)
+	}
+
+	deletedCount, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read deleted audit log count: %w", err)
+	}
+
+	return deletedCount, nil
+}
+
 func applyFilters(builder sq.SelectBuilder, filter audit.ListFilter) sq.SelectBuilder {
 	if filter.From != nil {
 		builder = builder.Where(sq.GtOrEq{"occurred_at": filter.From.UTC()})
@@ -252,5 +322,7 @@ func scanAuditLog(rows *sql.Rows) (*audit.Log, error) {
 var _ interface {
 	Create(context.Context, *audit.Event) error
 	List(context.Context, audit.ListFilter) ([]*audit.Log, int64, error)
+	StreamAll(context.Context, audit.ListFilter, func(*audit.Log) error) error
 	GetByID(context.Context, int64) (*audit.Log, error)
+	DeleteOlderThan(context.Context, time.Time) (int64, error)
 } = (*Store)(nil)

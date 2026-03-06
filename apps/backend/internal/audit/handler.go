@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,15 +13,33 @@ import (
 )
 
 type Handler struct {
-	service *Service
+	service               *Service
+	retentionDaysProvider func() int
+	actorResolver         func(*http.Request) string
+	now                   func() time.Time
 }
 
 func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+	return &Handler{
+		service: service,
+		now: func() time.Time {
+			return time.Now().UTC()
+		},
+	}
+}
+
+func (h *Handler) SetRetentionDaysProvider(provider func() int) {
+	h.retentionDaysProvider = provider
+}
+
+func (h *Handler) SetActorResolver(resolver func(*http.Request) string) {
+	h.actorResolver = resolver
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/audit/logs", web.Handler(h.handleListLogs))
+	mux.Handle("GET /api/audit/logs/export", web.Handler(h.handleExportLogs))
+	mux.Handle("POST /api/audit/logs/cleanup", web.Handler(h.handleCleanupLogs))
 	mux.Handle("GET /api/audit/logs/", web.Handler(h.handleLogByID))
 }
 
@@ -34,12 +53,93 @@ func (h *Handler) handleListLogs(w http.ResponseWriter, r *http.Request) *web.Er
 	if err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to list audit logs", Err: err}
 	}
+	result.RetentionDays = h.currentRetentionDays()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to encode response", Err: err}
 	}
+	return nil
+}
+
+func (h *Handler) handleExportLogs(w http.ResponseWriter, r *http.Request) *web.Error {
+	filter, err := parseListFilter(r)
+	if err != nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid audit log query", Err: err}
+	}
+
+	filename := fmt.Sprintf("audit-logs-%s.csv", h.now().UTC().Format("20060102-150405"))
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	w.WriteHeader(http.StatusOK)
+
+	writer := csv.NewWriter(w)
+	if err := writer.Write([]string{"id", "occurred_at", "actor", "action", "result", "target", "request_id", "space_id", "metadata_json"}); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to write export header", Err: err}
+	}
+
+	if err := h.service.Export(r.Context(), filter, func(item *Log) error {
+		metadataJSON, err := json.Marshal(item.Metadata)
+		if err != nil {
+			return fmt.Errorf("failed to encode audit metadata: %w", err)
+		}
+
+		spaceID := ""
+		if item.SpaceID != nil {
+			spaceID = strconv.FormatInt(*item.SpaceID, 10)
+		}
+
+		if err := writer.Write([]string{
+			strconv.FormatInt(item.ID, 10),
+			item.OccurredAt.UTC().Format(time.RFC3339),
+			item.Actor,
+			item.Action,
+			string(item.Result),
+			item.Target,
+			item.RequestID,
+			spaceID,
+			string(metadataJSON),
+		}); err != nil {
+			return fmt.Errorf("failed to write export row: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to export audit logs", Err: err}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to flush export", Err: err}
+	}
+	return nil
+}
+
+func (h *Handler) handleCleanupLogs(w http.ResponseWriter, r *http.Request) *web.Error {
+	retentionDays := h.currentRetentionDays()
+	if retentionDays <= 0 {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Audit log retention policy is disabled"}
+	}
+
+	cutoff := h.now().UTC().AddDate(0, 0, -retentionDays)
+	deletedCount, err := h.service.CleanupOlderThan(r.Context(), cutoff)
+	if err != nil {
+		h.recordCleanupAudit(r, ResultFailure, retentionDays, cutoff, 0)
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to cleanup audit logs", Err: err}
+	}
+
+	h.recordCleanupAudit(r, ResultSuccess, retentionDays, cutoff, deletedCount)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(CleanupResult{
+		DeletedCount:  deletedCount,
+		RetentionDays: retentionDays,
+		Cutoff:        cutoff,
+	}); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to encode cleanup response", Err: err}
+	}
+
 	return nil
 }
 
@@ -136,4 +236,36 @@ func parseListFilter(r *http.Request) (ListFilter, error) {
 	}
 
 	return filter, nil
+}
+
+func (h *Handler) currentRetentionDays() int {
+	if h.retentionDaysProvider == nil {
+		return 0
+	}
+	return h.retentionDaysProvider()
+}
+
+func (h *Handler) recordCleanupAudit(r *http.Request, result Result, retentionDays int, cutoff time.Time, deletedCount int64) {
+	if h.service == nil {
+		return
+	}
+
+	actor := ""
+	if h.actorResolver != nil {
+		actor = strings.TrimSpace(h.actorResolver(r))
+	}
+
+	requestID := strings.TrimSpace(r.Header.Get("X-Request-Id"))
+	h.service.RecordBestEffort(Event{
+		Actor:     actor,
+		Action:    "audit.logs.cleanup",
+		Result:    result,
+		Target:    "audit_logs",
+		RequestID: requestID,
+		Metadata: map[string]any{
+			"retentionDays": retentionDays,
+			"deletedCount":  deletedCount,
+			"cutoff":        cutoff.UTC().Format(time.RFC3339),
+		},
+	})
 }

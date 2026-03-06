@@ -290,6 +290,9 @@ func deniedAuditRuleForRequest(r *http.Request) (deniedAuditRule, bool) {
 	if (path == "/api/audit/logs" || strings.HasPrefix(path, "/api/audit/logs/")) && method == http.MethodGet {
 		return deniedAuditRule{Action: "audit.logs.read", AllowUnauthorized: true}, true
 	}
+	if path == "/api/audit/logs/cleanup" && method == http.MethodPost {
+		return deniedAuditRule{Action: "audit.logs.cleanup", AllowUnauthorized: true}, true
+	}
 
 	if path == "/api/config" {
 		if method == http.MethodGet {

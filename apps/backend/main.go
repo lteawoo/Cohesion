@@ -211,6 +211,15 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 	spaceHandler := spaceHandler.NewHandler(spaceService, browseService, accountService, trashService)
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	auditHandler := audit.NewHandler(auditService)
+	auditHandler.SetRetentionDaysProvider(func() int {
+		return config.Conf.AuditLogRetentionDays
+	})
+	auditHandler.SetActorResolver(func(r *http.Request) string {
+		if claims, ok := auth.ClaimsFromContext(r.Context()); ok {
+			return claims.Username
+		}
+		return ""
+	})
 	webDavService := webdav.NewService(spaceService, accountService)
 	webDavHandler := webdavHandler.NewHandler(webDavService, accountService)
 	ftpService := ftp.NewService(spaceService, accountService, config.Conf.Server.FtpEnabled, config.Conf.Server.FtpPort)

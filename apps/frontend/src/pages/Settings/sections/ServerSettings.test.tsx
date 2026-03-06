@@ -3,6 +3,8 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ServerSettings from './ServerSettings';
 
+const mockUseAuth = vi.fn();
+
 const h = vi.hoisted(() => {
   const getConfig = vi.fn<() => Promise<{ server: {
     port: string;
@@ -11,7 +13,9 @@ const h = vi.hoisted(() => {
     ftpPort: number;
     sftpEnabled: boolean;
     sftpPort: number;
-  } }>>();
+  };
+  auditLogRetentionDays: number;
+  }>>();
   const updateConfig = vi.fn<(config: {
     server: {
       port: string;
@@ -21,6 +25,7 @@ const h = vi.hoisted(() => {
       sftpEnabled: boolean;
       sftpPort: number;
     };
+    auditLogRetentionDays: number;
   }) => Promise<void>>();
   const restartServer = vi.fn<() => Promise<string>>();
   const waitForReconnect = vi.fn<() => Promise<boolean>>();
@@ -62,6 +67,10 @@ vi.mock('@/api/config', () => ({
   updateConfig: h.updateConfig,
   restartServer: h.restartServer,
   waitForReconnect: h.waitForReconnect,
+}));
+
+vi.mock('@/features/auth/useAuth', () => ({
+  useAuth: () => mockUseAuth(),
 }));
 
 vi.mock('../components/SettingSectionHeader', () => ({
@@ -120,6 +129,7 @@ vi.mock('antd', () => ({
   InputNumber: ({
     value,
     onChange,
+    disabled,
   }: InputHTMLAttributes<HTMLInputElement> & {
     value?: number | null;
     onChange?: (value: number | null) => void;
@@ -127,10 +137,12 @@ vi.mock('antd', () => ({
     min?: number;
     max?: number;
     className?: string;
+    disabled?: boolean;
   }) => (
     <input
       type="number"
       value={value ?? ''}
+      disabled={disabled}
       onChange={(event) => onChange?.(event.target.value === '' ? null : Number(event.target.value))}
     />
   ),
@@ -138,10 +150,12 @@ vi.mock('antd', () => ({
   Switch: ({
     checked,
     onChange,
+    disabled,
   }: {
     checked?: boolean;
     onChange?: (checked: boolean) => void;
-  }) => <input type="checkbox" checked={checked} onChange={(event) => onChange?.(event.target.checked)} />,
+    disabled?: boolean;
+  }) => <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange?.(event.target.checked)} />,
   Typography: {
     Text: ({ children }: { children: ReactNode; strong?: boolean }) => <span>{children}</span>,
   },
@@ -156,6 +170,7 @@ const baseConfig = {
     sftpEnabled: false,
     sftpPort: 2022,
   },
+  auditLogRetentionDays: 0,
 };
 
 function changeInputValue(input: HTMLInputElement, value: string) {
@@ -167,6 +182,11 @@ function changeInputValue(input: HTMLInputElement, value: string) {
 describe('ServerSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({
+      user: {
+        permissions: ['server.config.read', 'server.config.write'],
+      },
+    });
     h.getConfig.mockResolvedValue(baseConfig);
     h.updateConfig.mockResolvedValue();
     h.restartServer.mockResolvedValue('3000');
@@ -189,6 +209,7 @@ describe('ServerSettings', () => {
 
   it('shows validation feedback and blocks actions for an invalid config', async () => {
     h.getConfig.mockResolvedValue({
+      ...baseConfig,
       server: {
         ...baseConfig.server,
         port: '0',
@@ -202,6 +223,18 @@ describe('ServerSettings', () => {
     expect(view.getByRole('button', { name: 'serverSettings.restartButton' }).hasAttribute('disabled')).toBe(true);
   });
 
+  it('shows validation feedback for a negative audit retention day setting', async () => {
+    h.getConfig.mockResolvedValue({
+      ...baseConfig,
+      auditLogRetentionDays: -1,
+    });
+
+    const view = render(<ServerSettings />);
+
+    expect(await view.findByText('serverSettings.validationAuditRetentionDays')).toBeTruthy();
+    expect(view.getByRole('button', { name: 'serverSettings.save' }).hasAttribute('disabled')).toBe(true);
+  });
+
   it('saves edited config and shows success feedback', async () => {
     const view = render(<ServerSettings />);
 
@@ -211,6 +244,7 @@ describe('ServerSettings', () => {
 
     await vi.waitFor(() => {
       expect(h.updateConfig).toHaveBeenCalledWith({
+        ...baseConfig,
         server: {
           ...baseConfig.server,
           port: '3300',
@@ -249,5 +283,20 @@ describe('ServerSettings', () => {
       key: 'restart',
     });
     setTimeoutSpy.mockRestore();
+  });
+
+  it('renders server settings as read-only without server.config.write', async () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        permissions: ['server.config.read'],
+      },
+    });
+
+    const view = render(<ServerSettings />);
+
+    expect(await view.findByText('serverSettings.readOnlyHint')).toBeTruthy();
+    expect(view.getByRole('button', { name: 'serverSettings.save' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: 'serverSettings.restartButton' }).hasAttribute('disabled')).toBe(true);
+    expect((view.getByDisplayValue('3000') as HTMLInputElement).disabled).toBe(true);
   });
 });

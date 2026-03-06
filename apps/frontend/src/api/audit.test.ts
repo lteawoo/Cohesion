@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAuditLog, listAuditLogs } from './audit';
+import { cleanupAuditLogs, exportAuditLogsCsv, getAuditLog, listAuditLogs } from './audit';
 
 describe('audit api', () => {
   afterEach(() => {
@@ -12,6 +12,7 @@ describe('audit api', () => {
       page: 2,
       pageSize: 50,
       total: 0,
+      retentionDays: 30,
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -63,5 +64,45 @@ describe('audit api', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/audit/logs/9');
+  });
+
+  it('reuses list filters for csv export and extracts filename', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('id,actor\n1,admin\n', {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': 'attachment; filename=\"audit-export.csv\"',
+      },
+    }));
+
+    const response = await exportAuditLogsCsv({
+      user: 'alice',
+      action: 'file.delete',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/audit/logs/export?user=alice&action=file.delete');
+    expect(response.filename).toBe('audit-export.csv');
+  });
+
+  it('sends cleanup as a post request', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      deletedCount: 3,
+      retentionDays: 30,
+      cutoff: '2026-02-01T00:00:00Z',
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    const response = await cleanupAuditLogs();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/audit/logs/cleanup');
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST',
+      credentials: 'include',
+    });
+    expect(response.deletedCount).toBe(3);
   });
 });

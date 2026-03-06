@@ -20,6 +20,7 @@ export interface AuditLogListResponse {
   page: number;
   pageSize: number;
   total: number;
+  retentionDays: number;
 }
 
 export interface AuditLogListParams {
@@ -62,6 +63,11 @@ function buildListQuery(params: AuditLogListParams): string {
   return query.toString();
 }
 
+function extractFilename(headerValue: string | null): string {
+  const match = headerValue ? /filename=\"?([^\";]+)\"?/i.exec(headerValue) : null;
+  return match?.[1] ?? 'audit-logs.csv';
+}
+
 export async function listAuditLogs(params: AuditLogListParams): Promise<AuditLogListResponse> {
   const query = buildListQuery(params);
   const url = query ? `/api/audit/logs?${query}` : '/api/audit/logs';
@@ -76,6 +82,41 @@ export async function getAuditLog(id: number): Promise<AuditLogItem> {
   const response = await apiFetch(`/api/audit/logs/${id}`);
   if (!response.ok) {
     throw await toApiError(response, 'Failed to load audit log detail');
+  }
+  return response.json();
+}
+
+export interface AuditLogExportResponse {
+  blob: Blob;
+  filename: string;
+}
+
+export async function exportAuditLogsCsv(params: AuditLogListParams): Promise<AuditLogExportResponse> {
+  const query = buildListQuery(params);
+  const url = query ? `/api/audit/logs/export?${query}` : '/api/audit/logs/export';
+  const response = await apiFetch(url);
+  if (!response.ok) {
+    throw await toApiError(response, 'Failed to export audit logs');
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: extractFilename(response.headers.get('Content-Disposition')),
+  };
+}
+
+export interface AuditCleanupResponse {
+  deletedCount: number;
+  retentionDays: number;
+  cutoff: string;
+}
+
+export async function cleanupAuditLogs(): Promise<AuditCleanupResponse> {
+  const response = await apiFetch('/api/audit/logs/cleanup', {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw await toApiError(response, 'Failed to cleanup audit logs');
   }
   return response.json();
 }
