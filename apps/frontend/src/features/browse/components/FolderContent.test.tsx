@@ -223,6 +223,7 @@ vi.mock('../hooks/useSearchModeContent', () => ({
     openSearchResultByRecordPath: h.mockOpenSearchResult,
     renderSearchName: (record: { name: string }) => record.name,
     renderSearchMeta: () => 'meta',
+    renderSearchGridMeta: () => 'grid-meta',
     activeErrorMessage: browseErrorMessage,
     activeLoading: browseLoading,
   }),
@@ -518,7 +519,6 @@ describe('FolderContent activation behavior', () => {
     const { getByText, getByRole } = render(<FolderContent />);
 
     expect(getByText('folderContent.searchSummary')).toBeTruthy();
-    expect(getByText('folderContent.searchSortHint')).toBeTruthy();
     await user.click(getByRole('button', { name: 'folderContent.searchLoadMore' }));
 
     expect(h.mockLoadMoreSearchResults).toHaveBeenCalledTimes(1);

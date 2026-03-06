@@ -110,6 +110,7 @@ const FolderContent: React.FC = () => {
     openSearchResultByRecordPath,
     renderSearchName,
     renderSearchMeta,
+    renderSearchGridMeta,
     activeErrorMessage,
     activeLoading,
   } = useSearchModeContent({
@@ -461,7 +462,6 @@ const FolderContent: React.FC = () => {
   const shouldShowLoadingOverlay = !isSearchMode && isLoading && hasContent;
   const showSearchSummary = isSearchMode && searchSource.hasEnoughQuery && hasContent;
   const showSearchLoadMore = showSearchSummary && searchSource.hasMore && searchSource.canLoadMore;
-  const showSearchLimitHint = showSearchSummary && searchSource.hasMore && !searchSource.canLoadMore;
 
   const handleRetryContentLoad = useCallback(() => {
     if (isSearchMode || !selectedSpace) {
@@ -1062,31 +1062,26 @@ const FolderContent: React.FC = () => {
               </div>
             )}
             {showSearchSummary && (
-              <div style={{ marginBottom: 12 }}>
-                <Alert
-                  type="info"
-                  showIcon
-                  title={t('folderContent.searchSummary', {
+              <div
+                style={{
+                  marginBottom: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600, color: token.colorTextSecondary }}>
+                  {t('folderContent.searchSummary', {
                     count: searchSource.resultCount,
-                    limit: searchSource.currentLimit,
                   })}
-                  description={(
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-                      <span>{t('folderContent.searchSortHint')}</span>
-                      {searchSource.hasMore && (
-                        <span>{t('folderContent.searchTruncated')}</span>
-                      )}
-                      {showSearchLimitHint && (
-                        <span>{t('folderContent.searchRefineHint')}</span>
-                      )}
-                      {showSearchLoadMore && (
-                        <Button size="small" onClick={searchSource.loadMore}>
-                          {t('folderContent.searchLoadMore')}
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                />
+                </span>
+                {showSearchLoadMore && (
+                  <Button size="small" onClick={searchSource.loadMore}>
+                    {t('folderContent.searchLoadMore')}
+                  </Button>
+                )}
               </div>
             )}
             {effectiveViewMode === 'table' ? (
@@ -1139,7 +1134,7 @@ const FolderContent: React.FC = () => {
                 itemsRef={itemsRef}
                 disableDraggable={isSearchMode || isSelecting || isTouchInteraction || !canWriteFiles}
                 renderName={isSearchMode ? renderSearchName : undefined}
-                renderMeta={isSearchMode ? renderSearchMeta : undefined}
+                renderMeta={isSearchMode ? renderSearchGridMeta : undefined}
                 emptyText={isSearchMode ? (searchSource.hasEnoughQuery ? t('folderContent.noSearchResults') : searchModeHelpText) : undefined}
                 spaceId={isSearchMode ? undefined : selectedSpace?.id}
               />
