@@ -226,6 +226,45 @@ func (s *Store) GetUserPermissions(ctx context.Context, userID int64) ([]*accoun
 	return permissions, rows.Err()
 }
 
+func (s *Store) ListSpaceMembers(ctx context.Context, spaceID int64) ([]*account.SpaceMember, error) {
+	query, args, err := s.qb.
+		Select(
+			"u.id",
+			"u.username",
+			"u.nickname",
+			"u.role",
+			"usp.permission",
+		).
+		From("user_space_permissions usp").
+		Join("users u ON u.id = usp.user_id").
+		Where(sq.Eq{"usp.space_id": spaceID}).
+		OrderBy("u.username ASC", "u.id ASC").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	members := []*account.SpaceMember{}
+	for rows.Next() {
+		var member account.SpaceMember
+		var rawRole string
+		var rawPermission string
+		if err := rows.Scan(&member.UserID, &member.Username, &member.Nickname, &rawRole, &rawPermission); err != nil {
+			return nil, err
+		}
+		member.Role = account.Role(rawRole)
+		member.Permission = account.Permission(rawPermission)
+		members = append(members, &member)
+	}
+	return members, rows.Err()
+}
+
 func (s *Store) ReplaceUserPermissions(ctx context.Context, userID int64, permissions []*account.UserSpacePermission) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -234,6 +273,38 @@ func (s *Store) ReplaceUserPermissions(ctx context.Context, userID int64, permis
 	defer tx.Rollback()
 
 	deleteQuery, deleteArgs, err := s.qb.Delete("user_space_permissions").Where(sq.Eq{"user_id": userID}).ToSql()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, deleteQuery, deleteArgs...); err != nil {
+		return err
+	}
+
+	for _, permission := range permissions {
+		insertQuery, insertArgs, err := s.qb.
+			Insert("user_space_permissions").
+			Columns("user_id", "space_id", "permission", "created_at", "updated_at").
+			Values(permission.UserID, permission.SpaceID, string(permission.Permission), time.Now(), time.Now()).
+			ToSql()
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, insertQuery, insertArgs...); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *Store) ReplaceSpacePermissions(ctx context.Context, spaceID int64, permissions []*account.UserSpacePermission) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	deleteQuery, deleteArgs, err := s.qb.Delete("user_space_permissions").Where(sq.Eq{"space_id": spaceID}).ToSql()
 	if err != nil {
 		return err
 	}

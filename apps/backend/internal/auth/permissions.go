@@ -91,6 +91,14 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	if strings.HasPrefix(path, "/api/spaces/") && strings.HasSuffix(path, "/quota") && method == http.MethodPatch {
 		return PermissionSpaceWrite, true
 	}
+	if strings.HasPrefix(path, "/api/spaces/") && strings.HasSuffix(path, "/members") {
+		if method == http.MethodGet {
+			return PermissionAccountRead, true
+		}
+		if method == http.MethodPut {
+			return PermissionAccountWrite, true
+		}
+	}
 
 	if strings.HasPrefix(path, "/api/spaces/") {
 		action, ok := extractSpaceFileAction(path)
@@ -176,6 +184,16 @@ func requiredSpacePermissionForRequest(r *http.Request) (*spacePermissionRequire
 		return &spacePermissionRequirement{
 			spaceID:  spaceID,
 			required: account.PermissionWrite,
+		}, true
+	}
+	if strings.HasSuffix(path, "/members") {
+		required := account.PermissionRead
+		if r.Method == http.MethodPut {
+			required = account.PermissionWrite
+		}
+		return &spacePermissionRequirement{
+			spaceID:  spaceID,
+			required: required,
 		}, true
 	}
 
@@ -325,6 +343,11 @@ func deniedAuditRuleForRequest(r *http.Request) (deniedAuditRule, bool) {
 	if strings.HasPrefix(path, "/api/spaces/") && strings.HasSuffix(path, "/quota") && method == http.MethodPatch {
 		if _, ok := extractSpaceID(path); ok {
 			return deniedAuditRule{Action: "space.quota.update", AllowUnauthorized: true}, true
+		}
+	}
+	if strings.HasPrefix(path, "/api/spaces/") && strings.HasSuffix(path, "/members") && method == http.MethodPut {
+		if _, ok := extractSpaceID(path); ok {
+			return deniedAuditRule{Action: "space.members.replace", AllowUnauthorized: true}, true
 		}
 	}
 	if strings.HasPrefix(path, "/api/spaces/") {

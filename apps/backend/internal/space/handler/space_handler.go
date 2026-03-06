@@ -29,6 +29,11 @@ type SpaceAccessService interface {
 	CanAccessSpaceByID(ctx context.Context, username string, spaceID int64, required account.Permission) (bool, error)
 }
 
+type SpaceMembershipService interface {
+	ListSpaceMembers(ctx context.Context, spaceID int64) ([]*account.SpaceMember, error)
+	ReplaceSpaceMembers(ctx context.Context, spaceID int64, permissions []*account.UserSpacePermission) error
+}
+
 type Handler struct {
 	spaceService      *space.Service
 	quotaService      *space.QuotaService
@@ -245,6 +250,10 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 		return h.handleSpaceQuota(w, r, id)
 	}
 
+	if len(parts) > 1 && parts[1] == "members" {
+		return h.handleSpaceMembers(w, r, id)
+	}
+
 	// 파일 작업 (/api/spaces/{id}/files/{action})
 	if len(parts) > 2 && parts[1] == "files" {
 		return h.handleSpaceFiles(w, r, id, parts[2])
@@ -261,6 +270,106 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 			Code:    http.StatusMethodNotAllowed,
 			Message: "Method not allowed",
 			Err:     nil,
+		}
+	}
+}
+
+func (h *Handler) handleSpaceMembers(w http.ResponseWriter, r *http.Request, spaceID int64) *web.Error {
+	if h.accountService == nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Space membership service unavailable",
+		}
+	}
+
+	membershipService, ok := h.accountService.(SpaceMembershipService)
+	if !ok {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Space membership service unavailable",
+		}
+	}
+
+	if _, err := h.spaceService.GetSpaceByID(r.Context(), spaceID); err != nil {
+		return &web.Error{
+			Code:    http.StatusNotFound,
+			Message: "Space not found",
+			Err:     err,
+		}
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		members, err := membershipService.ListSpaceMembers(r.Context(), spaceID)
+		if err != nil {
+			return &web.Error{
+				Code:    http.StatusInternalServerError,
+				Message: "Failed to load space members",
+				Err:     err,
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(members)
+		return nil
+	case http.MethodPut:
+		var req struct {
+			Members []*account.UserSpacePermission `json:"members"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			return &web.Error{
+				Code:    http.StatusBadRequest,
+				Message: "Invalid request body",
+				Err:     err,
+			}
+		}
+		for _, member := range req.Members {
+			if member != nil {
+				member.SpaceID = spaceID
+			}
+		}
+		if err := membershipService.ReplaceSpaceMembers(r.Context(), spaceID, req.Members); err != nil {
+			h.recordSpaceAudit(r, audit.Event{
+				Action: "space.members.replace",
+				Result: audit.ResultFailure,
+				Target: fmt.Sprintf("space:%d", spaceID),
+				Metadata: map[string]any{
+					"count":  len(req.Members),
+					"reason": "replace_members_failed",
+				},
+			}, spaceID)
+			return &web.Error{
+				Code:    http.StatusBadRequest,
+				Message: "Failed to update space members",
+				Err:     err,
+			}
+		}
+
+		userIDs := make([]int64, 0, len(req.Members))
+		permissions := make([]string, 0, len(req.Members))
+		for _, member := range req.Members {
+			if member == nil {
+				continue
+			}
+			userIDs = append(userIDs, member.UserID)
+			permissions = append(permissions, string(member.Permission))
+		}
+		h.recordSpaceAudit(r, audit.Event{
+			Action: "space.members.replace",
+			Result: audit.ResultSuccess,
+			Target: fmt.Sprintf("space:%d", spaceID),
+			Metadata: map[string]any{
+				"count":       len(userIDs),
+				"userIds":     userIDs,
+				"permissions": permissions,
+			},
+		}, spaceID)
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	default:
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
 		}
 	}
 }
