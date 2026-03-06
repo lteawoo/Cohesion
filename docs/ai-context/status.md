@@ -1,6 +1,13 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- 운영 문서 기준선 리뷰 보정 완료:
+  - `docs/backend.md`에 JWT/SFTP secret bootstrap 제약과 실행 바이너리 기준 로그 경로를 보강
+  - `docs/frontend.md`의 `Settings` 섹션 목록을 현재 라우트와 동일하게 정리
+- 운영 문서 기준선 정합성 정리 완료:
+  - `docs/frontend.md`를 현재 feature/module, 라우트 경계, 검증 명령 기준으로 재작성
+  - `docs/backend.md`를 현재 `internal` 패키지, 지원 프로토콜, 운영 로그/명령 기준으로 재작성
+  - 프론트/백엔드 문서에 문서 유지보수 체크리스트 추가
 - 서비스 범위 정리 완료:
   - 백엔드/프론트에서 현재 지원 프로토콜만 유지
   - 불필요한 런타임 경로 및 관련 의존성 정리
@@ -16,6 +23,10 @@
 - OpenSpec 변경안 준비 완료:
   - `space-settings-management` 메인 spec 동기화 완료
   - `manage-space-settings` change archive 완료
+- 신규 backlog 정리 완료:
+  - #213 운영 문서 기준선 정합성 정리
+  - #214 Settings > Spaces 기반 스페이스 멤버십 관리
+  - #215 파일 검색 인덱싱 도입
 - #197 스페이스 설정 관리 구현 완료:
   - 백엔드 `PATCH /api/spaces/{id}` rename 지원 추가
   - `Settings > Spaces`에서 이름 변경 + 기존 쿼터 관리 통합
@@ -122,4 +133,5 @@
 - 프론트엔드: 주요 빌드/타입 검증 경로 정상
 
 ## 다음 작업
-1. 남은 운영 문서 정합성 점검
+1. #214 Settings > Spaces 기반 스페이스 멤버십 관리
+2. #215 파일 검색 인덱싱 도입

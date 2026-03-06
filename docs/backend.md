@@ -1,226 +1,163 @@
 # backend
 
-## 폴더 구조
-```
+## 목적
+
+백엔드는 Cohesion의 API 서버이자 파일 공유 런타임이다. 스페이스/파일 관리, 인증/권한, 감사 로그, 서버 설정, 상태 조회와 함께 WebDAV, FTP, SFTP 런타임을 제공한다.
+
+## 기술 스택
+
+- Go
+- 표준 `net/http` 기반 라우팅
+- SQLite
+- pnpm workspace 스크립트는 빌드/개발 실행 보조용
+
+## 현재 구조
+
+```text
 apps/backend/
-├── .air.toml               # Live-reloading 설정
-├── .gitignore
-├── build.js                # 프로덕션 빌드 스크립트
-├── dev.js                  # 개발 서버 실행 스크립트
+├── config/                       # 환경별 설정 파일
+├── main.go                       # 서버 조립, 서비스 부팅
+├── build.js                      # 프론트 번들 포함 프로덕션 빌드
+├── dev.js                        # 개발용 실행 보조
 ├── embed_dev.go
 ├── embed_prod.go
-├── go.mod
-├── go.sum
-├── main.go
-├── package.json            # pnpm & turbo 모노레포 구성용
-│
-├── config/                 # 환경별 설정 파일
-│   ├── config.dev.yaml
-│   └── config.prod.yaml
-│
-├── internal/
-│   │
-│   ├── config/             # 설정 로딩 및 관리
-│   │   ├── config_model.go
-│   │   └── handler.go
-│   │
-│   ├── webdav/             # WebDAV 서버
-│   │   └── server.go       #    - WebDAV 요청을 받아 핵심 서비스 호출
-│   │
-│   ├── sftp/               # SFTP 서버
-│   │   └── service.go      #    - SFTP 요청을 받아 핵심 서비스 호출
-│   │
-│   ├── file/               # 파일 도메인 로직
-│   │   ├── api.go
-│   │   ├── file.go
-│   │   └── service.go
-│   │
-│   ├── share/              # 폴더 공유 도메인 직
-│   │   ├── api.go
-│   │   ├── share.go
-│   │   └── service.go
-│   │
-│   ├── user/               # 유저 도메인 로직
-│   │   ├── api.go
-│   │   ├── user.go
-│   │   └── service.go
-│   │
-│   ├── storage/            # 실제 파일 저장소 (추상화 계층)
-│   │   ├── interface.go
-│   │   ├── filesystem.go
-│   │   └── s3.go
-│   │
-│   ├── platform/           # 공통 기반 기술
-│   │   ├── database/
-│   │   │   └── db.go       # DB 초기화
-│   │   └── auth/           #    - 인증/인가 로직
-│   │
-│   └── spa/                # SPA 프론트엔드 서빙 핸들러
-│       └── handler.go
+└── internal/
+    ├── account/                  # 사용자/역할/권한 관리
+    ├── audit/                    # 감사 로그 저장/조회/export/cleanup
+    ├── auth/                     # 로그인, 세션, 권한 매핑
+    ├── browse/                   # 시스템 디렉터리 탐색
+    │   └── handler/              # /api/browse*
+    ├── config/                   # /api/config
+    ├── ftp/                      # FTP 런타임
+    ├── platform/
+    │   ├── database/             # DB 초기화/마이그레이션
+    │   ├── logging/              # 운영 로그 포맷
+    │   └── web/                  # 공용 HTTP 에러/핸들러 어댑터
+    ├── sftp/                     # SFTP 런타임
+    ├── spa/                      # SPA 정적 파일 서빙
+    ├── space/                    # 스페이스, 파일 작업, 쿼터, 검색, 휴지통
+    │   ├── handler/
+    │   └── store/
+    ├── status/                   # /api/status
+    ├── system/                   # 재시작/업데이트
+    └── webdav/                   # WebDAV 런타임 및 핸들러
 ```
 
-## 실행 구조
+## 현재 지원 표면
 
-백엔드 앱은 개발 시와 프로덕션(서비스) 시의 빌드 및 실행 방식에 차이가 있음. 설정 관리는 `Viper` 라이브러리를 사용함.
+- HTTP API
+- WebDAV
+- FTP
+- SFTP
 
-### 공통: `Viper`로 설정 파일 읽기
+문서와 운영 가이드는 위 표면만 기준으로 유지한다. 제거되었거나 현재 저장소에 없는 프로토콜/스토리지 추상화는 활성 구조로 취급하지 않는다.
 
-어떤 환경이든 앱 시작 시 `internal/config/handler.go`의 `SetConfig(goEnv)` 함수가 먼저 호출됨.
+## 주요 책임 경계
 
-1.  이 함수는 `goEnv` 값('development' 또는 'production')에 따라 `config.dev.yaml` 또는 `config.prod.yaml` 파일을 읽도록 `viper`를 세팅해야 함.
-2.  `viper`는 `config/` 폴더 안에서 설정 파일을 찾아 읽음.
-3.  읽어온 설정(서버 포트, DB 정보 등)은 `Conf` 전역 변수에 저장됨. 이를 통해 앱 어디서든 `config.Conf.Server.Port`처럼 쉽게 설정 값을 사용 가능함.
+- `account`
+  - 사용자 CRUD
+  - 역할/권한 정의
+  - 사용자별 스페이스 권한 저장
+- `auth`
+  - 로그인/세션 사용자 조회
+  - 요청 권한 매핑
+  - denied 감사 정책 연결
+- `space`
+  - 스페이스 생성/삭제/이름 변경
+  - 브라우징, 업로드, 이동/복사, 다운로드, 휴지통
+  - 쿼터 계산
+  - 파일 검색
+- `audit`
+  - 감사 이벤트 저장
+  - 조회/export/cleanup API
+- `config`, `system`, `status`
+  - 서버 설정
+  - 재시작/업데이트
+  - 런타임 상태 조회
+- `webdav`, `ftp`, `sftp`
+  - 공유 프로토콜 런타임
 
----
-
-### 1. 개발 환경에서 실행
-
-1.  **시작**: `dev.js` 스크립트가 `air` 라이브 리로더를 실행함. `air`는 코드 변경 시 자동으로 재빌드 및 재시작을 수행함.
-2.  **빌드**: `air`는 `.air.toml` 설정에 따라 `go build -o ./tmp/main.exe .` 명령으로 앱을 컴파일함.
-    -   `goEnv` 변수는 코드 상의 기본값인 `"development"`를 유지함.
-    -   프론트엔드 파일은 바이너리에 포함되지 않음.
-3.  **실행**: 컴파일된 `tmp/main.exe`를 실행함.
-4.  **서버 동작**:
-    -   `SetConfig("development")`가 호출되어 `viper`가 `config.dev.yaml` 파일을 로드함.
-    -   개발용 설정(포트, DB 정보)으로 서버가 동작함.
-    -   서버는 API 요청(`_API 경로`)만 처리. 프론트엔드 UI는 `vite` 개발 서버가 별도로 담당함.
-
----
-
-### 2. 프로덕션 환경에서 실행
-
-1.  **시작**: `build.js` 스크립트를 실행해야 함.
-2.  **프론트엔드 통합**: `frontend/dist`의 빌드 결과물을 `backend/dist/web`으로 복사함.
-3.  **빌드**: `go build` 시 아래의 특정 플래그를 사용해야 함.
-    -   `-ldflags "-X main.goEnv=production"`: 이 플래그로 `goEnv` 변수 값을 `"production"`으로 강제 변경하여 컴파일함.
-    -   `-tags=production`: 이 태그로 `embed_prod.go`를 빌드에 포함시켜, `dist/web` 폴더의 프론트엔드 파일들을 바이너리 안에 내장시킴.
-4.  **결과물**: API 서버와 프론트엔드 UI가 통합된 단일 실행 파일 `dist/main.exe`가 생성됨.
-5.  **서버 동작** (`dist/main.exe` 실행 시):
-    -   `SetConfig("production")`이 호출되어 `viper`가 `config.prod.yaml` 파일을 로드함.
-    -   프로덕션용 설정으로 서버가 동작함.
-    -   이 서버 하나가 API 요청(`_API 경로`)과 웹 UI(`/` 경로)를 모두 처리하는 독립 앱으로 기능함.
-
----
-
-### 3. Secret Bootstrap Policy
-
-- JWT 서명 키는 `COHESION_JWT_SECRET` 또는 `COHESION_JWT_SECRET_FILE`로 관리한다.
-- SFTP host key는 `COHESION_SFTP_HOST_KEY_FILE`(기본: configDir 기반 secrets 경로)로 관리한다.
-- 서버 startup prewarm 단계에서 JWT/SFTP 키를 준비한다.
-- source 우선순위는 공통으로 `env > persisted file > generated once`를 사용한다.
-- prewarm 결과는 운영 로그 `service=secret-prewarm`, `secret_name`, `source(env|file|generated)` 필드로 기록한다.
-- prewarm 실패 시 서버 기동을 중단한다(bootstrap 오류).
-
----
-
-## 운영 로그 가이드 (Operational Logging)
-
-### 로그 채널
-
-- 운영 로그(Operational): 서비스 상태/라이프사이클/경고/오류
-- 접근 로그(Access): HTTP 요청/응답 메타데이터
-
-### 로그 파일 위치
-
-백엔드 실행파일 기준 `logs/` 디렉토리에 기록됨.
-
-- `logs/app.log`: 운영 로그 전체
-- `logs/access.log`: HTTP access 로그 전용
-- `logs/updater.log`: 업데이터 실행 로그
-
-### 터미널 출력 정책
-
-- 터미널에는 운영 상태 확인에 필요한 이벤트만 출력됨.
-- `INFO`: 필수 라이프사이클 이벤트(`boot.*`, `config.loaded`, `db.ready`, `service.ready`, `server.*`)
-- `WARN/ERROR/FATAL`: 항상 출력
-- `http.access` 이벤트는 터미널에 출력하지 않고 `logs/access.log`로만 기록
-
-### 로그 형식
-
-- 터미널(운영 로그): log4j2 유사 패턴 형식
-  - `<ts> <LEVEL> [<component>] <event> - <msg> <extras>`
-  - 예시:
-    - `2026-03-03T01:34:32+09:00 INFO [server] server.ready - server ready port=38080`
-    - `2026-03-03T01:34:33+09:00 INFO [server] server.shutdown_signal - shutdown requested source=signal`
-- 파일(`logs/app.log`, `logs/access.log`, `logs/updater.log`): 영문 `key=value` 단일 라인 형식 유지
-  - 공통 핵심 필드: `ts`, `level`, `event`, `component`, `msg`
-  - Access 추가 필드(선택): `query`
-  - 예시:
-    - `ts=2026-03-03T01:34:32+09:00 level=INFO event=server.ready component=server msg=\"server ready\" port=38080`
-    - `ts=2026-03-03T01:34:33+09:00 level=INFO event=http.access component=access msg=\"http request served\" method=GET path=/api/search query=\"q=hello&sort=asc\" status=200`
-
-### 트러블슈팅 명령
+## 실행 명령
 
 ```bash
-# 운영 라이프사이클 이벤트 추적 (파일 기준)
-rg "event=(boot\\.|config\\.loaded|db\\.ready|service\\.ready|server\\.)" logs/app.log
+# 전체 개발 서버
+pnpm dev
 
-# 오류/치명 로그 확인 (파일 기준)
-rg "level=(ERROR|FATAL)" logs/app.log
+# 백엔드만 개발 실행
+cd apps/backend && go run .
 
-# Access 로그 실시간 확인
-tail -f logs/access.log
+# 백엔드 테스트
+cd apps/backend && go test ./...
 
-# 특정 API 요청 필터링 (예: restart)
-rg "event=http\\.access .*path=/api/system/restart" logs/access.log
+# 백엔드 빌드
+cd apps/backend && pnpm build
 
-# updater 런타임 오류 확인
-rg "event=error\\.updater\\." logs/updater.log
-
+# 릴리즈 설정 점검
+pnpm release:check
 ```
 
-### 운영자 확인 순서
+## 설정/데이터 메모
 
-- 터미널에서 현재 상태를 빠르게 확인한다. (부팅/재시작/종료, WARN/ERROR/FATAL)
-- 상세 원인 분석이나 자동화 필터링은 파일 로그(`app.log`, `access.log`, `updater.log`)에서 수행한다.
-- `http.access`는 터미널에 출력되지 않으므로, 요청 단위 추적은 반드시 `logs/access.log`를 사용한다.
+- 환경 설정 파일: `apps/backend/config/config.dev.yaml`, `apps/backend/config/config.prod.yaml`
+- 데이터베이스: SQLite
+- 필수 secret bootstrap:
+  - JWT secret은 `COHESION_JWT_SECRET` 또는 `COHESION_JWT_SECRET_FILE`로 공급한다.
+  - 개발 환경은 secret file이 없으면 자동 생성할 수 있다.
+  - 프로덕션은 env/file 중 하나로 secret을 제공해야 하고, 최종 secret 길이가 32자 미만이면 부팅이 실패한다.
+  - SFTP host key는 `COHESION_SFTP_HOST_KEY_FILE` 우선, 그 외에는 사용자 config 또는 실행 파일 기준 `data/` 경로에서 prewarm 한다.
+- 주요 런타임 설정:
+  - HTTP 포트
+  - WebDAV on/off
+  - FTP on/off 및 포트
+  - SFTP on/off 및 포트
+  - 감사 로그 보존 일수
 
-## Browse API 역할 경계
+## Browse API 경계
 
 - `/api/browse/base-directories`, `/api/browse?path=...`
-  - 목적: Space 생성 모달에서 시스템 디렉토리 탐색
-  - 권한: `space.write` 필요
+  - 시스템 디렉터리 탐색 전용
+  - Space 생성 흐름에서 사용
+  - `space.write` 권한 필요
 - `/api/spaces/{id}/browse?path=...`
-  - 목적: 선택된 Space 내부 디렉토리 탐색(일반 파일 브라우저)
-  - 권한: Space 멤버십 기반 `read/write` 권한 검증
+  - 선택한 스페이스 내부 탐색 전용
+  - 스페이스 권한 기준으로 접근 제어
 
-정책적으로 `/api/browse`는 시스템 탐색 전용이며, Space 내부 탐색 대체 경로로 사용하지 않는다.
+`/api/browse`를 스페이스 내부 탐색 대체 경로로 쓰지 않는다.
 
-## 감사로그 수동 점검 가이드 (실패/denied)
+## 운영 로그
 
-`Settings > Audit Logs`에서 아래 순서로 점검한다.
+- 로그 파일은 항상 실행 바이너리 기준 `logs/` 아래에 생성된다.
+- 운영 로그: `<executable-dir>/logs/app.log`
+- 접근 로그: `<executable-dir>/logs/access.log`
+- 업데이터 로그: `<executable-dir>/logs/updater.log`
+- 기본 Air 개발 경로에서는 실행 파일이 `apps/backend/tmp/main.exe`이므로 로그 위치는 `apps/backend/tmp/logs/*`이다.
 
-1. **실패 이벤트 추적 (`result=failure`)**
-   - 결과 필터를 `failure`로 설정하고 조회한다.
-   - 행을 선택해 상세 metadata의 `reason`/`code`를 확인한다.
-   - 예: `config.update` 실패 시 `reason=validation_failed` 또는 `reason=save_failed`.
-
-2. **권한 거부 이벤트 추적 (`result=denied`)**
-   - 결과 필터를 `denied`로 설정하고 조회한다.
-   - 대상(`target`)과 사용자(`actor`)를 기준으로 반복 거부 패턴을 확인한다.
-   - `metadata.reason` / `metadata.code`로 거부 원인을 분류한다.
-   - denied 이벤트가 없는 경우는 현재 관측 기간에 정책 대상 거부 이벤트가 발생하지 않은 상태다.
-
-3. **denied 수집 정책 확인 (대상/제외)**
-
-| 구분 | 경로/영역 | 감사로그 |
-|------|-----------|----------|
-| 포함 | 고위험 read (`GET /api/accounts`, `GET /api/roles`, `GET /api/permissions`, `GET /api/config`) | `result=denied` 기록 |
-| 포함 | 계정/권한/역할 변경 (`POST /api/accounts`, `PATCH/DELETE /api/accounts/{id}`, `PUT /api/accounts/{id}/permissions`, `POST /api/roles`, `DELETE /api/roles/{name}`, `PUT /api/roles/{name}/permissions`) | `result=denied` 기록 |
-| 포함 | 감사로그 조회 접근 (`/api/audit/logs*`) | `result=denied` 기록 |
-| 포함 | 서버 제어 변경 (`PUT /api/config`, `/api/system/restart`, `/api/system/update/start`) | `result=denied` 기록 |
-| 포함 | Space/파일 변경 및 다운로드 (`/api/spaces/{id}/files/{download,download-ticket,rename,delete,delete-multiple,create-folder,upload,move,copy,download-multiple,download-multiple-ticket}`, `/api/downloads/{ticket}`) | `result=denied` 기록 |
-| 제외 | Space 휴지통 경로 (`/api/spaces/{id}/files/{trash,trash-restore,trash-delete,trash-empty}`) | denied 감사 미기록 (access 로그로 확인) |
-| 제외 | 조회성 경로 (`/api/browse*`, `/api/spaces/{id}/browse`, `/api/search/files`) | denied 감사 미기록 (access 로그로 확인) |
-
-4. **API 직접 확인(운영 점검/자동화용)**
+운영 상태/부팅/경고/오류는 운영 로그에서 보고, 요청 단위 추적은 접근 로그에서 본다.
 
 ```bash
-# 실패 이벤트 최근 20건
-curl -sS --cookie "cohesion_access=<ACCESS_COOKIE>" \
-  "http://localhost:3000/api/audit/logs?page=1&pageSize=20&result=failure"
+# 라이프사이클 이벤트 추적
+rg "event=(boot\\.|config\\.loaded|db\\.ready|service\\.ready|server\\.)" apps/backend/tmp/logs/app.log
 
-# denied 이벤트 최근 20건
-curl -sS --cookie "cohesion_access=<ACCESS_COOKIE>" \
-  "http://localhost:3000/api/audit/logs?page=1&pageSize=20&result=denied"
+# 오류 확인
+rg "level=(ERROR|FATAL)" apps/backend/tmp/logs/app.log
+
+# 접근 로그 확인
+tail -f apps/backend/tmp/logs/access.log
 ```
+
+## 검증 기준
+
+백엔드 변경 후 기본 검증 경로:
+
+```bash
+cd apps/backend && go test ./...
+pnpm release:check
+```
+
+프론트와 계약이 바뀌는 작업이면 프론트 타입체크/테스트도 함께 확인한다.
+
+## 문서 유지보수 체크리스트
+
+- `internal/*`의 안정적인 패키지 경계나 주요 책임이 바뀌면 `docs/backend.md`를 같이 갱신한다.
+- 지원 프로토콜, 설정 필드, 로그 경로, 운영 명령이 바뀌면 "현재 지원 표면", "실행 명령", "설정/데이터 메모"를 다시 맞춘다.
+- `/api/browse*`, `/api/spaces/*`, `/api/status`, `/api/config` 같은 운영 핵심 경계가 바뀌면 관련 API 설명을 검토한다.
