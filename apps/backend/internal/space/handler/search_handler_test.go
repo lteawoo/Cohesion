@@ -62,6 +62,16 @@ func withClaims(req *http.Request, username string) *http.Request {
 	}))
 }
 
+func decodeSearchResponse(t *testing.T, body *httptest.ResponseRecorder) fileSearchResponse {
+	t.Helper()
+
+	var got fileSearchResponse
+	if err := json.NewDecoder(body.Body).Decode(&got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	return got
+}
+
 func TestHandleSearchFiles_UnauthorizedWithoutClaims(t *testing.T) {
 	store := &fakeSearchSpaceStore{}
 	h := NewHandler(space.NewService(store), nil, &fakeSearchSpaceAccessService{})
@@ -124,16 +134,19 @@ func TestHandleSearchFiles_ReturnsOnlyReadableSpaceResults(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	var got []fileSearchResult
-	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
+	got := decodeSearchResponse(t, rec)
+
+	if got.Limit != 10 {
+		t.Fatalf("expected limit 10, got %d", got.Limit)
+	}
+	if got.HasMore {
+		t.Fatal("expected hasMore to be false")
+	}
+	if len(got.Items) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(got.Items))
 	}
 
-	if len(got) != 2 {
-		t.Fatalf("expected 2 results, got %d", len(got))
-	}
-
-	for _, item := range got {
+	for _, item := range got.Items {
 		if item.SpaceID != 11 {
 			t.Fatalf("expected only space 11 results, got space %d", item.SpaceID)
 		}
@@ -194,18 +207,64 @@ func TestHandleSearchFiles_ExcludesPathOnlyMatches(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	var got []fileSearchResult
-	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
+	got := decodeSearchResponse(t, rec)
 
-	if len(got) == 0 {
+	if got.HasMore {
+		t.Fatal("expected hasMore to be false")
+	}
+	if len(got.Items) == 0 {
 		t.Fatal("expected at least one name-match result")
 	}
 
-	for _, item := range got {
+	for _, item := range got.Items {
 		if item.Path == "project-report/notes.txt" {
 			t.Fatal("path-only match must be excluded from search results")
 		}
+	}
+}
+
+func TestHandleSearchFiles_SetsHasMoreWhenLimitIsExceeded(t *testing.T) {
+	root := t.TempDir()
+
+	for _, name := range []string{"report-a.txt", "report-b.txt", "report-c.txt"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(name), 0o644); err != nil {
+			t.Fatalf("failed to create %s: %v", name, err)
+		}
+	}
+
+	store := &fakeSearchSpaceStore{
+		spaces: []*space.Space{
+			{ID: 11, SpaceName: "Design", SpacePath: root},
+		},
+	}
+	access := &fakeSearchSpaceAccessService{
+		allowedBySpace: map[int64]bool{
+			11: true,
+		},
+	}
+	h := NewHandler(space.NewService(store), nil, access)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/search/files?q=report&limit=2", nil)
+	req = withClaims(req, "tester")
+	rec := httptest.NewRecorder()
+
+	webErr := h.handleSearchFiles(rec, req)
+	if webErr != nil {
+		t.Fatalf("expected no error, got %+v", webErr)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	got := decodeSearchResponse(t, rec)
+
+	if got.Limit != 2 {
+		t.Fatalf("expected limit 2, got %d", got.Limit)
+	}
+	if !got.HasMore {
+		t.Fatal("expected hasMore to be true")
+	}
+	if len(got.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(got.Items))
 	}
 }

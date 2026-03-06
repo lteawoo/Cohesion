@@ -19,7 +19,7 @@ import (
 
 const (
 	defaultSearchResultLimit = 80
-	maxSearchResultLimit     = 200
+	maxSearchResultLimit     = 400
 )
 
 var errSearchLimitReached = errors.New("search limit reached")
@@ -33,6 +33,12 @@ type fileSearchResult struct {
 	IsDir      bool      `json:"isDir"`
 	Size       int64     `json:"size"`
 	ModTime    time.Time `json:"modTime"`
+}
+
+type fileSearchResponse struct {
+	Items   []fileSearchResult `json:"items"`
+	Limit   int                `json:"limit"`
+	HasMore bool               `json:"hasMore"`
 }
 
 func (h *Handler) handleSearchFiles(w http.ResponseWriter, r *http.Request) *web.Error {
@@ -52,10 +58,6 @@ func (h *Handler) handleSearchFiles(w http.ResponseWriter, r *http.Request) *web
 	}
 
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	if query == "" {
-		return writeSearchResponse(w, []fileSearchResult{})
-	}
-
 	limit, parseErr := parseSearchLimit(r.URL.Query().Get("limit"))
 	if parseErr != nil {
 		return &web.Error{
@@ -63,6 +65,13 @@ func (h *Handler) handleSearchFiles(w http.ResponseWriter, r *http.Request) *web
 			Message: parseErr.Error(),
 			Err:     parseErr,
 		}
+	}
+	if query == "" {
+		return writeSearchResponse(w, fileSearchResponse{
+			Items:   []fileSearchResult{},
+			Limit:   limit,
+			HasMore: false,
+		})
 	}
 
 	spaces, err := h.spaceService.GetAllSpaces(r.Context())
@@ -76,6 +85,7 @@ func (h *Handler) handleSearchFiles(w http.ResponseWriter, r *http.Request) *web
 
 	queryLower := strings.ToLower(query)
 	results := make([]fileSearchResult, 0, min(limit, len(spaces)))
+	hasMore := false
 
 	for _, item := range spaces {
 		allowed, accessErr := h.accountService.CanAccessSpaceByID(r.Context(), claims.Username, item.ID, account.PermissionRead)
@@ -90,7 +100,12 @@ func (h *Handler) handleSearchFiles(w http.ResponseWriter, r *http.Request) *web
 			continue
 		}
 
-		spaceResults, searchErr := searchFilesInSpace(item, queryLower, limit-len(results))
+		searchLimit := 1
+		if remaining := limit - len(results); remaining > 0 {
+			searchLimit = remaining + 1
+		}
+
+		spaceResults, searchErr := searchFilesInSpace(item, queryLower, searchLimit)
 		if searchErr != nil {
 			return &web.Error{
 				Code:    http.StatusInternalServerError,
@@ -98,14 +113,29 @@ func (h *Handler) handleSearchFiles(w http.ResponseWriter, r *http.Request) *web
 				Err:     searchErr,
 			}
 		}
-		results = append(results, spaceResults...)
-		if len(results) >= limit {
+
+		if remaining := limit - len(results); remaining > 0 {
+			if len(spaceResults) > remaining {
+				results = append(results, spaceResults[:remaining]...)
+				hasMore = true
+				break
+			}
+			results = append(results, spaceResults...)
+			continue
+		}
+
+		if len(spaceResults) > 0 {
+			hasMore = true
 			break
 		}
 	}
 
 	sortSearchResults(results, queryLower)
-	return writeSearchResponse(w, results)
+	return writeSearchResponse(w, fileSearchResponse{
+		Items:   results,
+		Limit:   limit,
+		HasMore: hasMore,
+	})
 }
 
 func parseSearchLimit(raw string) (int, error) {
@@ -123,10 +153,10 @@ func parseSearchLimit(raw string) (int, error) {
 	return parsed, nil
 }
 
-func writeSearchResponse(w http.ResponseWriter, results []fileSearchResult) *web.Error {
+func writeSearchResponse(w http.ResponseWriter, response fileSearchResponse) *web.Error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(results); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		return &web.Error{
 			Code:    http.StatusInternalServerError,
 			Message: "Failed to encode response",

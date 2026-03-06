@@ -28,6 +28,8 @@ interface FolderContentGridProps {
   itemsRef?: React.MutableRefObject<Map<string, HTMLElement>>;
   disableDraggable?: boolean;
   renderName?: (record: FileNode) => React.ReactNode;
+  renderMeta?: (record: FileNode) => React.ReactNode;
+  emptyText?: React.ReactNode;
 }
 
 const FolderContentGrid: React.FC<FolderContentGridProps> = ({
@@ -49,9 +51,12 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   itemsRef,
   disableDraggable = false,
   renderName,
+  renderMeta,
+  emptyText,
   spaceId,
 }) => {
   const { t } = useTranslation();
+  const resolvedEmptyText = emptyText ?? t('folderContent.folderEmpty');
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.lg;
   const gridTemplateColumns = isMobile
@@ -61,7 +66,7 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
   return (
     <>
       {dataSource.length === 0 && !loading ? (
-        <Empty description={t('folderContent.folderEmpty')} />
+        <Empty description={resolvedEmptyText} />
       ) : (
         <div
           style={{
@@ -155,9 +160,13 @@ const FolderContentGrid: React.FC<FolderContentGridProps> = ({
                 >
                   {renderName ? renderName(item) : item.name}
                 </div>
-                {!item.isDir && (
+                {(renderMeta || !item.isDir) && (
                   <div style={{ fontSize: '11px', color: 'var(--ant-color-text-secondary, #778da9)' }}>
-                    {formatSize(item.size)}
+                    {renderMeta
+                      ? renderMeta(item)
+                      : !item.isDir
+                        ? formatSize(item.size)
+                        : null}
                   </div>
                 )}
               </Card>

@@ -14,6 +14,7 @@ const h = vi.hoisted(() => {
   const mockSetSelection = vi.fn();
   const mockClearSelection = vi.fn();
   const mockOpenSearchResult = vi.fn();
+  const mockLoadMoreSearchResults = vi.fn();
   const locationPathState = { pathname: '/browse' };
   const breakpointState = { lg: true };
   const selectedSpace = { id: 1, name: 'Workspace' };
@@ -46,6 +47,18 @@ const h = vi.hoisted(() => {
   };
   const useBrowseStoreMock = vi.fn((selector: (state: typeof storeState) => unknown) => selector(storeState));
   (useBrowseStoreMock as unknown as { getState: () => typeof storeState }).getState = () => storeState;
+  const searchModeState = {
+    query: '',
+    results: [] as Array<{ name: string; path: string }>,
+    errorMessage: null as string | null,
+    isSearching: false,
+    resultCount: 0,
+    currentLimit: 80,
+    hasMore: false,
+    hasEnoughQuery: false,
+    canLoadMore: false,
+    loadMore: mockLoadMoreSearchResults,
+  };
 
   return {
     mockNavigate,
@@ -56,12 +69,14 @@ const h = vi.hoisted(() => {
     mockSetSelection,
     mockClearSelection,
     mockOpenSearchResult,
+    mockLoadMoreSearchResults,
     locationPathState,
     breakpointState,
     selectedSpace,
     contentItems,
     storeState,
     useBrowseStoreMock,
+    searchModeState,
   };
 });
 
@@ -203,11 +218,11 @@ vi.mock('../hooks/useSearchModeContent', () => ({
     browseErrorMessage: string | null;
     browseLoading: boolean;
   }) => ({
-    searchSource: { query: '', hasEnoughQuery: false },
+    searchSource: h.searchModeState,
     sourceContent: browseContent,
     openSearchResultByRecordPath: h.mockOpenSearchResult,
     renderSearchName: (record: { name: string }) => record.name,
-    renderSearchMeta: () => null,
+    renderSearchMeta: () => 'meta',
     activeErrorMessage: browseErrorMessage,
     activeLoading: browseLoading,
   }),
@@ -344,6 +359,14 @@ describe('FolderContent activation behavior', () => {
     vi.clearAllMocks();
     h.storeState.content = h.contentItems;
     h.locationPathState.pathname = '/browse';
+    h.searchModeState.query = '';
+    h.searchModeState.errorMessage = null;
+    h.searchModeState.isSearching = false;
+    h.searchModeState.resultCount = 0;
+    h.searchModeState.currentLimit = 80;
+    h.searchModeState.hasMore = false;
+    h.searchModeState.hasEnoughQuery = false;
+    h.searchModeState.canLoadMore = false;
     setMobileLayout(false);
     setTouchSupport(false);
   });
@@ -480,5 +503,24 @@ describe('FolderContent activation behavior', () => {
     expect(h.mockOpenSearchResult).toHaveBeenCalledWith('/report.pdf');
     expect(h.mockHandleBulkDownload).not.toHaveBeenCalled();
     expect(h.mockSetPath).not.toHaveBeenCalled();
+  });
+
+  it('shows search summary and load-more action in search mode', async () => {
+    h.locationPathState.pathname = '/search';
+    h.searchModeState.query = 'report';
+    h.searchModeState.hasEnoughQuery = true;
+    h.searchModeState.resultCount = 2;
+    h.searchModeState.currentLimit = 80;
+    h.searchModeState.hasMore = true;
+    h.searchModeState.canLoadMore = true;
+    const user = userEvent.setup();
+
+    const { getByText, getByRole } = render(<FolderContent />);
+
+    expect(getByText('folderContent.searchSummary')).toBeTruthy();
+    expect(getByText('folderContent.searchSortHint')).toBeTruthy();
+    await user.click(getByRole('button', { name: 'folderContent.searchLoadMore' }));
+
+    expect(h.mockLoadMoreSearchResults).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,11 +3,11 @@ import userEvent from '@testing-library/user-event';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MainLayout from './index';
-import type { SearchFileResult } from '@/features/search/types';
+import type { SearchFileResult, SearchFilesResponse } from '@/features/search/types';
 
 const h = vi.hoisted(() => {
   const navigate = vi.fn();
-  const searchFiles = vi.fn<(query: string, limit: number, options?: { signal?: AbortSignal }) => Promise<SearchFileResult[]>>();
+  const searchFiles = vi.fn<(query: string, limit: number, options?: { signal?: AbortSignal }) => Promise<SearchFilesResponse>>();
   const fetchSpaces = vi.fn<() => Promise<void>>();
   const setPath = vi.fn();
   const reconcileSelectedSpace = vi.fn();
@@ -187,7 +187,11 @@ describe('MainLayout header search', () => {
     h.spaceState.spaces = [];
     h.browseState.selectedSpace = null;
     h.fetchSpaces.mockResolvedValue();
-    h.searchFiles.mockResolvedValue([]);
+    h.searchFiles.mockResolvedValue({
+      items: [],
+      limit: 8,
+      hasMore: false,
+    });
   });
 
   afterEach(() => {
@@ -204,18 +208,22 @@ describe('MainLayout header search', () => {
   it('debounces suggestions and renders returned search results', async () => {
     vi.useFakeTimers();
     h.spaceState.spaces = [{ id: 1, name: 'Alpha' }];
-    h.searchFiles.mockResolvedValue([
-      {
-        spaceId: 1,
-        spaceName: 'Alpha',
-        name: 'alpha.txt',
-        path: '/alpha.txt',
-        parentPath: '/',
-        isDir: false,
-        size: 10,
-        modTime: '2026-03-06T12:00:00Z',
-      },
-    ]);
+    h.searchFiles.mockResolvedValue({
+      items: [
+        {
+          spaceId: 1,
+          spaceName: 'Alpha',
+          name: 'alpha.txt',
+          path: '/alpha.txt',
+          parentPath: '/docs',
+          isDir: false,
+          size: 10,
+          modTime: '2026-03-06T12:00:00Z',
+        },
+      ] satisfies SearchFileResult[],
+      limit: 8,
+      hasMore: false,
+    });
 
     const view = render(<MainLayout />);
     const input = view.getByPlaceholderText('mainLayout.searchPlaceholder');
@@ -229,7 +237,7 @@ describe('MainLayout header search', () => {
       signal: expect.any(AbortSignal),
     }));
     expect(view.getByText('alpha.txt')).toBeTruthy();
-    expect(view.getByText('Alpha')).toBeTruthy();
+    expect(view.getByText('Alpha | /docs')).toBeTruthy();
   });
 
   it('navigates to the full search page when the query is submitted', async () => {
@@ -246,18 +254,22 @@ describe('MainLayout header search', () => {
   it('selects a suggestion and routes back to the browse page', async () => {
     vi.useFakeTimers();
     h.spaceState.spaces = [{ id: 1, name: 'Alpha' }];
-    h.searchFiles.mockResolvedValue([
-      {
-        spaceId: 1,
-        spaceName: 'Alpha',
-        name: 'readme.txt',
-        path: '/docs/readme.txt',
-        parentPath: '/docs',
-        isDir: false,
-        size: 10,
-        modTime: '2026-03-06T12:00:00Z',
-      },
-    ]);
+    h.searchFiles.mockResolvedValue({
+      items: [
+        {
+          spaceId: 1,
+          spaceName: 'Alpha',
+          name: 'readme.txt',
+          path: '/docs/readme.txt',
+          parentPath: '/docs',
+          isDir: false,
+          size: 10,
+          modTime: '2026-03-06T12:00:00Z',
+        },
+      ] satisfies SearchFileResult[],
+      limit: 8,
+      hasMore: false,
+    });
 
     const view = render(<MainLayout />);
     const input = view.getByPlaceholderText('mainLayout.searchPlaceholder');
