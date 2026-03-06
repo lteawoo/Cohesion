@@ -84,8 +84,8 @@ func (h *Handler) handleSearchFiles(w http.ResponseWriter, r *http.Request) *web
 	}
 
 	queryLower := strings.ToLower(query)
-	results := make([]fileSearchResult, 0, min(limit, len(spaces)))
-	hasMore := false
+	readableSpaces := make([]*space.Space, 0, len(spaces))
+	readableSpaceIDs := make([]int64, 0, len(spaces))
 
 	for _, item := range spaces {
 		allowed, accessErr := h.accountService.CanAccessSpaceByID(r.Context(), claims.Username, item.ID, account.PermissionRead)
@@ -99,7 +99,49 @@ func (h *Handler) handleSearchFiles(w http.ResponseWriter, r *http.Request) *web
 		if !allowed {
 			continue
 		}
+		readableSpaces = append(readableSpaces, item)
+		readableSpaceIDs = append(readableSpaceIDs, item.ID)
+	}
 
+	if h.searchIndexer != nil {
+		indexedResults, err := h.searchIndexer.Search(r.Context(), readableSpaceIDs, queryLower)
+		if err != nil {
+			return &web.Error{
+				Code:    http.StatusInternalServerError,
+				Message: "Failed to search files",
+				Err:     err,
+			}
+		}
+
+		results := make([]fileSearchResult, 0, min(limit, len(indexedResults)))
+		for _, item := range indexedResults {
+			results = append(results, fileSearchResult{
+				SpaceID:    item.SpaceID,
+				SpaceName:  item.SpaceName,
+				Name:       item.Name,
+				Path:       item.Path,
+				ParentPath: item.ParentPath,
+				IsDir:      item.IsDir,
+				Size:       item.Size,
+				ModTime:    item.ModTime,
+			})
+		}
+		sortSearchResults(results, queryLower)
+		hasMore := len(results) > limit
+		if hasMore {
+			results = results[:limit]
+		}
+		return writeSearchResponse(w, fileSearchResponse{
+			Items:   results,
+			Limit:   limit,
+			HasMore: hasMore,
+		})
+	}
+
+	results := make([]fileSearchResult, 0, min(limit, len(readableSpaces)))
+	hasMore := false
+
+	for _, item := range readableSpaces {
 		searchLimit := 1
 		if remaining := limit - len(results); remaining > 0 {
 			searchLimit = remaining + 1

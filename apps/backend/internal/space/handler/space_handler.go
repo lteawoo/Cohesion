@@ -34,12 +34,20 @@ type SpaceMembershipService interface {
 	ReplaceSpaceMembers(ctx context.Context, spaceID int64, permissions []*account.UserSpacePermission) error
 }
 
+type SearchIndexService interface {
+	Bootstrap(ctx context.Context) error
+	Search(ctx context.Context, spaceIDs []int64, queryLower string) ([]space.SearchIndexResult, error)
+	MarkSpaceDirty(ctx context.Context, spaceID int64) error
+	MarkAllDirty(ctx context.Context) error
+}
+
 type Handler struct {
 	spaceService      *space.Service
 	quotaService      *space.QuotaService
 	trashService      *space.TrashService
 	browseService     BrowseService
 	accountService    SpaceAccessService
+	searchIndexer     SearchIndexService
 	ticketMu          sync.Mutex
 	downloadTickets   map[string]downloadTicket
 	downloadTicketTTL time.Duration
@@ -74,6 +82,10 @@ func NewHandler(spaceService *space.Service, browseService BrowseService, accoun
 
 func (h *Handler) SetAuditRecorder(recorder audit.Recorder) {
 	h.auditRecorder = recorder
+}
+
+func (h *Handler) SetSearchIndexer(indexer SearchIndexService) {
+	h.searchIndexer = indexer
 }
 
 func newSpaceResponse(item *space.Space) spaceResponse {
@@ -198,6 +210,16 @@ func (h *Handler) handleCreateSpace(w http.ResponseWriter, r *http.Request) *web
 		ID:        createdSpace.ID,
 		SpaceName: createdSpace.SpaceName,
 		Message:   "Space created successfully",
+	}
+
+	if h.searchIndexer != nil {
+		if err := h.searchIndexer.MarkSpaceDirty(r.Context(), createdSpace.ID); err != nil {
+			return &web.Error{
+				Code:    http.StatusInternalServerError,
+				Message: "Failed to update search index state",
+				Err:     err,
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -444,6 +466,16 @@ func (h *Handler) handleDeleteSpace(w http.ResponseWriter, r *http.Request, id i
 			Code:    statusCode,
 			Message: message,
 			Err:     err,
+		}
+	}
+
+	if h.searchIndexer != nil {
+		if err := h.searchIndexer.MarkAllDirty(r.Context()); err != nil {
+			return &web.Error{
+				Code:    http.StatusInternalServerError,
+				Message: "Failed to update search index state",
+				Err:     err,
+			}
 		}
 	}
 

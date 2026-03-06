@@ -69,6 +69,33 @@ CREATE TABLE IF NOT EXISTS user_space_permissions (
     FOREIGN KEY (space_id) REFERENCES space(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS file_search_index (
+    space_id    INTEGER NOT NULL,
+    path        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    parent_path TEXT NOT NULL DEFAULT '',
+    is_dir      INTEGER NOT NULL DEFAULT 0,
+    size        INTEGER NOT NULL DEFAULT 0,
+    mod_time    TIMESTAMP NOT NULL,
+    PRIMARY KEY (space_id, path),
+    FOREIGN KEY (space_id) REFERENCES space(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_file_search_index_name
+    ON file_search_index(name);
+
+CREATE INDEX IF NOT EXISTS idx_file_search_index_space_name
+    ON file_search_index(space_id, name);
+
+CREATE TABLE IF NOT EXISTS file_search_index_state (
+    space_id         INTEGER PRIMARY KEY,
+    dirty            INTEGER NOT NULL DEFAULT 1,
+    last_indexed_at  TIMESTAMP,
+    last_error       TEXT,
+    updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (space_id) REFERENCES space(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS roles (
     name         TEXT PRIMARY KEY,
     description  TEXT,

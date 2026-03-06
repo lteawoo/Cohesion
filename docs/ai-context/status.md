@@ -17,6 +17,14 @@
     - `pnpm --dir apps/frontend typecheck`
     - `pnpm --dir apps/frontend test -- AccountSettings.test.tsx SpaceSettings.test.tsx`
     - 수동 UI 확인 스크린샷: `/tmp/cohesion-214-space-members-write.png`, `/tmp/cohesion-214-space-members-hidden.png`
+- #215 파일 검색 인덱싱 구현 완료:
+  - SQLite 기반 `file_search_index`, `file_search_index_state` 저장소 추가
+  - `/api/search/files`를 인덱스 기반으로 전환하고 성공한 파일/스페이스 변경 후 dirty marking 연결
+  - dirty reindex 실패 시 `last_error`를 기록하고, 깨진 space 하나가 전체 검색을 500으로 막지 않도록 recovery 경로 보강
+  - `trash` 액션도 성공 시 검색 인덱스 dirty marking 대상에 포함
+  - 검증 완료:
+    - `cd apps/backend && go test ./internal/space ./internal/space/handler ./internal/platform/database`
+    - `cd apps/backend && go test ./...`
 - 서비스 범위 정리 완료:
   - 백엔드/프론트에서 현재 지원 프로토콜만 유지
   - 불필요한 런타임 경로 및 관련 의존성 정리
@@ -142,5 +150,5 @@
 - 프론트엔드: 주요 빌드/타입 검증 경로 정상
 
 ## 다음 작업
-1. #215 파일 검색 인덱싱 도입
+1. 병렬 worktree 변경 정리
 2. 병렬 worktree 변경 정리 및 PR 준비
