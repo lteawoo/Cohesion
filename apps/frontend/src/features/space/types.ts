@@ -8,7 +8,6 @@ export interface FileInfo {
 export interface Space {
   id: number;
   space_name: string;
-  space_desc?: string;
   space_path?: string;
   icon?: string;
   space_category?: string;
@@ -21,7 +20,6 @@ export interface Space {
 
 export interface CreateSpaceRequest {
   space_name: string;
-  space_desc?: string;
   space_path: string;
   icon?: string;
   space_category?: string;

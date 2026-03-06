@@ -182,9 +182,8 @@ func TestService_List_FilterAndPagination(t *testing.T) {
 	base := time.Date(2026, 3, 3, 0, 0, 0, 0, time.UTC)
 	spaceInsert, err := db.ExecContext(
 		context.Background(),
-		"INSERT INTO space(space_name, space_desc, space_path) VALUES (?, ?, ?)",
+		"INSERT INTO space(space_name, space_path) VALUES (?, ?)",
 		"audit-test-space",
-		"",
 		"/tmp/audit-test-space",
 	)
 	if err != nil {

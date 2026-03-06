@@ -82,6 +82,9 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	if strings.HasPrefix(path, "/api/spaces/") && method == http.MethodDelete {
 		return PermissionSpaceWrite, true
 	}
+	if isDirectSpaceRoute(path) && method == http.MethodPatch {
+		return PermissionSpaceWrite, true
+	}
 	if strings.HasPrefix(path, "/api/spaces/") && strings.HasSuffix(path, "/quota") && method == http.MethodPatch {
 		return PermissionSpaceWrite, true
 	}
@@ -160,6 +163,12 @@ func requiredSpacePermissionForRequest(r *http.Request) (*spacePermissionRequire
 			required: account.PermissionRead,
 		}, true
 	}
+	if isDirectSpaceRoute(path) && r.Method == http.MethodPatch {
+		return &spacePermissionRequirement{
+			spaceID:  spaceID,
+			required: account.PermissionWrite,
+		}, true
+	}
 	if strings.HasSuffix(path, "/quota") && r.Method == http.MethodPatch {
 		return &spacePermissionRequirement{
 			spaceID:  spaceID,
@@ -206,6 +215,12 @@ func extractSpaceFileAction(path string) (string, bool) {
 		return "", false
 	}
 	return parts[2], true
+}
+
+func isDirectSpaceRoute(path string) bool {
+	trimmed := strings.TrimPrefix(path, "/api/spaces/")
+	parts := strings.Split(trimmed, "/")
+	return len(parts) == 1 && parts[0] != ""
 }
 
 func deniedAuditRuleForRequest(r *http.Request) (deniedAuditRule, bool) {
@@ -291,6 +306,11 @@ func deniedAuditRuleForRequest(r *http.Request) (deniedAuditRule, bool) {
 	if strings.HasPrefix(path, "/api/spaces/") && method == http.MethodDelete {
 		if _, ok := extractSpaceID(path); ok {
 			return deniedAuditRule{Action: "space.delete", AllowUnauthorized: true}, true
+		}
+	}
+	if isDirectSpaceRoute(path) && method == http.MethodPatch {
+		if _, ok := extractSpaceID(path); ok {
+			return deniedAuditRule{Action: "space.update", AllowUnauthorized: true}, true
 		}
 	}
 	if strings.HasPrefix(path, "/api/spaces/") && strings.HasSuffix(path, "/quota") && method == http.MethodPatch {

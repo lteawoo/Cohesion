@@ -3,6 +3,7 @@ package space
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 type Storer interface {
@@ -15,6 +16,10 @@ type Storer interface {
 
 type quotaUpdatable interface {
 	UpdateQuota(ctx context.Context, id int64, quotaBytes *int64) (*Space, error)
+}
+
+type metadataUpdatable interface {
+	Update(ctx context.Context, id int64, req *UpdateSpaceRequest) (*Space, error)
 }
 
 type Service struct {
@@ -97,6 +102,35 @@ func (s *Service) UpdateSpaceQuota(ctx context.Context, id int64, quotaBytes *in
 	updated, err := updatable.UpdateQuota(ctx, id, quotaBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update space quota: %w", err)
+	}
+	return updated, nil
+}
+
+// UpdateSpace는 Space 메타데이터를 갱신합니다.
+func (s *Service) UpdateSpace(ctx context.Context, id int64, req *UpdateSpaceRequest) (*Space, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("invalid space id: %d", id)
+	}
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	updatable, ok := s.store.(metadataUpdatable)
+	if !ok {
+		return nil, fmt.Errorf("space store does not support metadata updates")
+	}
+
+	existingSpace, err := s.store.GetByName(ctx, *req.SpaceName)
+	switch {
+	case err == nil && existingSpace != nil && existingSpace.ID != id:
+		return nil, fmt.Errorf("space with name '%s' already exists", *req.SpaceName)
+	case err != nil && !strings.Contains(err.Error(), "not found"):
+		return nil, fmt.Errorf("failed to validate space name uniqueness: %w", err)
+	}
+
+	updated, err := updatable.Update(ctx, id, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update space: %w", err)
 	}
 	return updated, nil
 }

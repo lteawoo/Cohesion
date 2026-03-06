@@ -1,7 +1,6 @@
 CREATE TABLE IF NOT EXISTS space (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     space_name      TEXT NOT NULL,
-    space_desc      TEXT,
     space_path      TEXT NOT NULL,
     icon            TEXT,
     space_category  TEXT,

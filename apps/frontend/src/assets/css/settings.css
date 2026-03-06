@@ -17,6 +17,7 @@
 
 .settings-section {
   width: 100%;
+  padding-bottom: 32px;
 }
 
 .settings-section-title {
@@ -81,5 +82,9 @@
 @media (max-width: 991px) {
   .settings-content {
     padding: 12px;
+  }
+
+  .settings-section {
+    padding-bottom: 24px;
   }
 }

@@ -3,13 +3,13 @@ package space
 import (
 	"errors"
 	"os"
+	"strings"
 	"time"
 )
 
 type Space struct {
 	ID            int64      `db:"id" json:"id"`
 	SpaceName     string     `db:"space_name" json:"space_name"`
-	SpaceDesc     *string    `db:"space_desc" json:"space_desc,omitempty"`
 	SpacePath     string     `db:"space_path" json:"space_path"`
 	Icon          *string    `db:"icon" json:"icon,omitempty"`
 	SpaceCategory *string    `db:"space_category" json:"space_category,omitempty"`
@@ -23,11 +23,15 @@ type Space struct {
 // CreateSpaceRequest는 Space 생성 요청 데이터를 정의합니다
 type CreateSpaceRequest struct {
 	SpaceName     string  `json:"space_name"`
-	SpaceDesc     *string `json:"space_desc,omitempty"`
 	SpacePath     string  `json:"space_path"`
 	Icon          *string `json:"icon,omitempty"`
 	SpaceCategory *string `json:"space_category,omitempty"`
 	QuotaBytes    *int64  `json:"quota_bytes,omitempty"`
+}
+
+// UpdateSpaceRequest는 Space 수정 요청 데이터를 정의합니다.
+type UpdateSpaceRequest struct {
+	SpaceName *string `json:"space_name,omitempty"`
 }
 
 // Validate는 CreateSpaceRequest의 유효성을 검사합니다
@@ -52,6 +56,27 @@ func (req *CreateSpaceRequest) Validate() error {
 		return errors.New("space_path does not exist")
 	}
 
+	return nil
+}
+
+// Validate는 UpdateSpaceRequest의 유효성을 검사합니다.
+func (req *UpdateSpaceRequest) Validate() error {
+	if req == nil {
+		return errors.New("request is required")
+	}
+	if req.SpaceName == nil {
+		return errors.New("space_name is required")
+	}
+
+	trimmedName := strings.TrimSpace(*req.SpaceName)
+	if trimmedName == "" {
+		return errors.New("space_name is required")
+	}
+	if len(trimmedName) > 100 {
+		return errors.New("space_name must be less than 100 characters")
+	}
+
+	req.SpaceName = &trimmedName
 	return nil
 }
 

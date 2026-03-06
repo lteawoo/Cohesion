@@ -281,7 +281,7 @@ const PageLayout = () => {
   const spaces = useSpaceStore((state) => state.spaces);
   const selectedSpace = useBrowseStore((state) => state.selectedSpace);
   const setPath = useBrowseStore((state) => state.setPath);
-  const clearContent = useBrowseStore((state) => state.clearContent);
+  const reconcileSelectedSpace = useBrowseStore((state) => state.reconcileSelectedSpace);
   const isMobileSearchMode = isMobile && isMobileSearchOpen;
   const showHeaderSearchInput = !isMobile || isMobileSearchMode;
 
@@ -312,11 +312,8 @@ const PageLayout = () => {
     if (!selectedSpace) {
       return;
     }
-    const isSelectedSpaceAllowed = spaces.some((space) => space.id === selectedSpace.id);
-    if (!isSelectedSpaceAllowed) {
-      clearContent();
-    }
-  }, [spaces, selectedSpace, clearContent]);
+    reconcileSelectedSpace(spaces);
+  }, [spaces, selectedSpace, reconcileSelectedSpace]);
 
   const closeNavDrawer = useCallback(() => {
     setIsNavOpen(false);

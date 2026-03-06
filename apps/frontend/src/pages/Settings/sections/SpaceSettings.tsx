@@ -1,9 +1,11 @@
 import { ReloadOutlined } from '@ant-design/icons';
-import { App, Button, Card, InputNumber, Progress, Space, Table, Tag, Typography } from 'antd';
+import { App, Button, Card, Input, InputNumber, Progress, Space, Table, Tag, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
 import { useAuth } from '@/features/auth/useAuth';
+import { useSpaceStore } from '@/stores/spaceStore';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import { useTranslation } from 'react-i18next';
 
@@ -34,12 +36,16 @@ function formatBytes(bytes: number): string {
 
 const SpaceSettings = () => {
   const { t } = useTranslation();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const { user } = useAuth();
   const [usageLoading, setUsageLoading] = useState(false);
   const [spaceUsages, setSpaceUsages] = useState<SpaceUsageItem[]>([]);
+  const [nameDrafts, setNameDrafts] = useState<Record<number, string>>({});
   const [quotaDrafts, setQuotaDrafts] = useState<Record<number, number | null>>({});
-  const [quotaSaving, setQuotaSaving] = useState<Record<number, boolean>>({});
+  const [rowSaving, setRowSaving] = useState<Record<number, boolean>>({});
+  const fetchSpaces = useSpaceStore((state) => state.fetchSpaces);
+  const renameSpace = useSpaceStore((state) => state.renameSpace);
+  const deleteSpace = useSpaceStore((state) => state.deleteSpace);
 
   const permissions = user?.permissions ?? [];
   const canReadSpaceSettings = permissions.includes('space.read');
@@ -54,6 +60,12 @@ const SpaceSettings = () => {
       }
       const data = (await response.json()) as SpaceUsageItem[];
       setSpaceUsages(data);
+      setNameDrafts(
+        data.reduce<Record<number, string>>((acc, item) => {
+          acc[item.spaceId] = item.spaceName;
+          return acc;
+        }, {})
+      );
       setQuotaDrafts(
         data.reduce<Record<number, number | null>>((acc, item) => {
           acc[item.spaceId] = typeof item.quotaBytes === 'number'
@@ -69,12 +81,26 @@ const SpaceSettings = () => {
     }
   }, [message, t]);
 
+  const refreshSpaceSettings = useCallback(async () => {
+    await Promise.all([
+      loadSpaceUsage(),
+      fetchSpaces(),
+    ]);
+  }, [fetchSpaces, loadSpaceUsage]);
+
   useEffect(() => {
     if (!canReadSpaceSettings) {
       return;
     }
-    void loadSpaceUsage();
-  }, [canReadSpaceSettings, loadSpaceUsage]);
+    void refreshSpaceSettings();
+  }, [canReadSpaceSettings, refreshSpaceSettings]);
+
+  const handleNameDraftChange = (spaceId: number, value: string) => {
+    setNameDrafts((prev) => ({
+      ...prev,
+      [spaceId]: value,
+    }));
+  };
 
   const handleQuotaDraftChange = (spaceId: number, value: number | null) => {
     setQuotaDrafts((prev) => ({
@@ -83,34 +109,84 @@ const SpaceSettings = () => {
     }));
   };
 
-  const handleSaveQuota = async (spaceId: number, overrideDraftMb?: number | null) => {
+  const handleSaveRow = async (item: SpaceUsageItem) => {
     if (!canWriteSpaceSettings) {
       message.error(t('spaceSettings.noWritePermission'));
       return;
     }
 
-    const draftMb = overrideDraftMb !== undefined ? overrideDraftMb : quotaDrafts[spaceId];
+    const nextName = (nameDrafts[item.spaceId] ?? item.spaceName).trim();
+    if (nextName === '') {
+      message.error(t('spaceSettings.invalidName'));
+      return;
+    }
+
+    const draftMb = quotaDrafts[item.spaceId];
     const quotaBytes = typeof draftMb === 'number'
       ? Math.max(0, Math.round(draftMb * BYTES_PER_MB))
       : null;
+    const currentQuotaBytes = item.quotaBytes ?? null;
+    const nameChanged = nextName !== item.spaceName;
+    const quotaChanged = quotaBytes !== currentQuotaBytes;
 
-    setQuotaSaving((prev) => ({ ...prev, [spaceId]: true }));
-    try {
-      const response = await apiFetch(`/api/spaces/${spaceId}/quota`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quotaBytes }),
-      });
-      if (!response.ok) {
-        throw await toApiError(response, t('spaceSettings.saveQuotaFallback'));
-      }
-      message.success(t('spaceSettings.saveQuotaSuccess'));
-      await loadSpaceUsage();
-    } catch {
-      message.error(t('spaceSettings.saveQuotaFailed'));
-    } finally {
-      setQuotaSaving((prev) => ({ ...prev, [spaceId]: false }));
+    if (!nameChanged && !quotaChanged) {
+      return;
     }
+
+    let hasMutation = false;
+    setRowSaving((prev) => ({ ...prev, [item.spaceId]: true }));
+    try {
+      if (nameChanged) {
+        await renameSpace(item.spaceId, nextName);
+        hasMutation = true;
+      }
+
+      if (quotaChanged) {
+        const response = await apiFetch(`/api/spaces/${item.spaceId}/quota`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quotaBytes }),
+        });
+        if (!response.ok) {
+          throw await toApiError(response, t('spaceSettings.saveSpaceFallback'));
+        }
+        hasMutation = true;
+      }
+
+      await refreshSpaceSettings();
+      message.success(t('spaceSettings.saveSpaceSuccess'));
+    } catch {
+      if (hasMutation) {
+        await refreshSpaceSettings();
+      }
+      message.error(t('spaceSettings.saveSpaceFailed'));
+    } finally {
+      setRowSaving((prev) => ({ ...prev, [item.spaceId]: false }));
+    }
+  };
+
+  const handleDeleteSpace = (item: SpaceUsageItem) => {
+    if (!canWriteSpaceSettings) {
+      message.error(t('spaceSettings.noWritePermission'));
+      return;
+    }
+
+    modal.confirm({
+      title: t('spaceSettings.deleteSpaceTitle'),
+      content: t('spaceSettings.deleteSpaceDescription', { spaceName: item.spaceName }),
+      okText: t('spaceSettings.deleteSpaceAction'),
+      cancelText: t('spaceSettings.cancel'),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await deleteSpace(item.spaceId);
+          message.success(t('spaceSettings.deleteSpaceSuccess'));
+          await loadSpaceUsage();
+        } catch {
+          message.error(t('spaceSettings.deleteSpaceFailed'));
+        }
+      },
+    });
   };
 
   if (!canReadSpaceSettings) {
@@ -119,13 +195,25 @@ const SpaceSettings = () => {
 
   const spaceUsageColumns = [
     {
-      title: t('spaceSettings.columnSpace'),
-      key: 'spaceName',
+      title: t('spaceSettings.columnName'),
+      key: 'name',
       render: (_: unknown, item: SpaceUsageItem) => (
-        <Space size={8}>
-          <Text strong>{item.spaceName}</Text>
-          {item.overQuota ? <Tag color="error">{t('spaceSettings.overQuotaTag')}</Tag> : null}
-        </Space>
+        canWriteSpaceSettings ? (
+          <Input
+            size="small"
+            value={nameDrafts[item.spaceId] ?? item.spaceName}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => handleNameDraftChange(item.spaceId, event.target.value)}
+            onPressEnter={() => void handleSaveRow(item)}
+            placeholder={t('spaceSettings.spaceNamePlaceholder')}
+            disabled={rowSaving[item.spaceId]}
+            style={{ minWidth: 180 }}
+          />
+        ) : (
+          <Space size={8}>
+            <Text strong>{item.spaceName}</Text>
+            {item.overQuota ? <Tag color="error">{t('spaceSettings.overQuotaTag')}</Tag> : null}
+          </Space>
+        )
       ),
     },
     {
@@ -135,9 +223,24 @@ const SpaceSettings = () => {
     },
     {
       title: t('spaceSettings.columnQuota'),
-      key: 'quotaBytes',
+      key: 'quotaEditor',
       render: (_: unknown, item: SpaceUsageItem) => (
-        item.quotaBytes != null ? <Text>{formatBytes(item.quotaBytes)}</Text> : <Tag>{t('spaceSettings.unlimited')}</Tag>
+        canWriteSpaceSettings ? (
+          <Space size={8} wrap>
+            <InputNumber
+              size="small"
+              min={0}
+              step={1}
+              value={quotaDrafts[item.spaceId]}
+              onChange={(value: number | null) => handleQuotaDraftChange(item.spaceId, value)}
+              placeholder={t('spaceSettings.unlimited')}
+              disabled={rowSaving[item.spaceId]}
+            />
+            <Text type="secondary">MB</Text>
+          </Space>
+        ) : (
+          item.quotaBytes != null ? <Text>{formatBytes(item.quotaBytes)}</Text> : <Tag>{t('spaceSettings.unlimited')}</Tag>
+        )
       ),
     },
     {
@@ -158,67 +261,69 @@ const SpaceSettings = () => {
         );
       },
     },
-    {
-      title: t('spaceSettings.columnQuotaEditor'),
-      key: 'quotaEditor',
-      render: (_: unknown, item: SpaceUsageItem) => (
-        <Space size={8} wrap>
-          <InputNumber
-            size="small"
-            min={0}
-            step={1}
-            value={quotaDrafts[item.spaceId]}
-            onChange={(value: number | null) => handleQuotaDraftChange(item.spaceId, value)}
-            placeholder={t('spaceSettings.unlimited')}
-            addonAfter="MB"
-            disabled={!canWriteSpaceSettings || quotaSaving[item.spaceId]}
-          />
-          <Button
-            size="small"
-            type="primary"
-            loading={quotaSaving[item.spaceId]}
-            onClick={() => void handleSaveQuota(item.spaceId)}
-            disabled={!canWriteSpaceSettings}
-          >
-            {t('spaceSettings.save')}
-          </Button>
-          <Button
-            size="small"
-            onClick={() => {
-              handleQuotaDraftChange(item.spaceId, null);
-              void handleSaveQuota(item.spaceId, null);
-            }}
-            disabled={!canWriteSpaceSettings || quotaSaving[item.spaceId]}
-          >
-            {t('spaceSettings.unlimited')}
-          </Button>
-        </Space>
-      ),
-    },
   ];
 
+  if (canWriteSpaceSettings) {
+    spaceUsageColumns.push({
+      title: t('spaceSettings.columnActions'),
+      key: 'actions',
+      render: (_: unknown, item: SpaceUsageItem) => {
+        const draftName = (nameDrafts[item.spaceId] ?? item.spaceName).trim();
+        const draftMb = quotaDrafts[item.spaceId];
+        const quotaBytes = typeof draftMb === 'number'
+          ? Math.max(0, Math.round(draftMb * BYTES_PER_MB))
+          : null;
+        const hasChanges = draftName !== item.spaceName || quotaBytes !== (item.quotaBytes ?? null);
+
+        return (
+          <Space size={8} wrap>
+            <Button
+              size="small"
+              type="primary"
+              loading={rowSaving[item.spaceId]}
+              onClick={() => void handleSaveRow(item)}
+              disabled={rowSaving[item.spaceId] || draftName === '' || !hasChanges}
+            >
+              {t('spaceSettings.saveAction')}
+            </Button>
+            <Button
+              size="small"
+              danger
+              disabled={rowSaving[item.spaceId]}
+              onClick={() => handleDeleteSpace(item)}
+            >
+              {t('spaceSettings.deleteSpaceAction')}
+            </Button>
+          </Space>
+        );
+      },
+    });
+  }
+
   return (
-    <Space vertical size="small" className="settings-section">
+    <Space orientation="vertical" size="middle" className="settings-section" style={{ width: '100%' }}>
       <SettingSectionHeader title={t('spaceSettings.sectionTitle')} subtitle={t('spaceSettings.sectionSubtitle')} />
 
       <Card
-        title={t('spaceSettings.cardTitle')}
         size="small"
         extra={(
-          <Button size="small" icon={<ReloadOutlined />} onClick={() => void loadSpaceUsage()} loading={usageLoading}>
+          <Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshSpaceSettings()} loading={usageLoading}>
             {t('spaceSettings.refresh')}
           </Button>
         )}
       >
-        <Table<SpaceUsageItem>
-          size="small"
-          rowKey={(item: SpaceUsageItem) => item.spaceId}
-          loading={usageLoading}
-          columns={spaceUsageColumns}
-          dataSource={spaceUsages}
-          pagination={false}
-          locale={{ emptyText: t('spaceSettings.emptyText') }}
-        />
+        <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+          <Text type="secondary">{t('spaceSettings.quotaDescription')}</Text>
+          <Table<SpaceUsageItem>
+            size="small"
+            rowKey={(item: SpaceUsageItem) => item.spaceId}
+            loading={usageLoading}
+            columns={spaceUsageColumns}
+            dataSource={spaceUsages}
+            pagination={false}
+            locale={{ emptyText: t('spaceSettings.emptyText') }}
+          />
+        </Space>
       </Card>
     </Space>
   );
