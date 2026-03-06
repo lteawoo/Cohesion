@@ -56,13 +56,31 @@
   - 검증 완료:
     - `pnpm --dir apps/frontend typecheck`
     - `pnpm --dir apps/frontend test`
+- #198 파일 검색 결과 품질과 성능 고도화 1차 슬라이스 구현 완료:
+  - `/api/search/files` 응답을 `items`, `limit`, `hasMore` 객체로 확장
+  - 기존 readable space filtering과 name-match 정렬 규칙 유지
+  - 헤더 검색 suggestion에 `spaceName + parentPath` 문맥 노출
+  - 검색 페이지에 결과 수, 정렬 기준, truncation 안내, `더 보기` 액션 추가
+  - 검색 결과 테이블/그리드 메타에 `spaceName`과 `parentPath` 표시
+  - 검색 관련 테스트 보강:
+    - 백엔드 search handler truncation/응답 계약
+    - 헤더 검색 회귀 테스트
+    - 검색 페이지 summary/load-more 회귀 테스트
+    - search mode hook 메타 렌더 테스트
+  - 검증 완료:
+    - `cd apps/backend && go test ./...`
+    - `pnpm --dir apps/frontend typecheck`
+    - `pnpm --dir apps/frontend test`
+    - 수동 UI 확인:
+      - 헤더 검색 문맥 노출 스크린샷
+      - 검색 페이지 summary/context 스크린샷
+      - 검색 페이지 load-more 스크린샷
 
 ## 검증 상태
 - 백엔드: `cd apps/backend && go test ./...` 통과
 - 프론트엔드: 주요 빌드/타입 검증 경로 정상
 
 ## 다음 작업
-1. #198 파일 검색 결과 품질과 성능 고도화
-2. #200 내 프로필 수정과 비밀번호 변경 지원
-3. #199 감사 로그 운영 기능 보강
-4. 남은 운영 문서 정합성 점검
+1. #200 내 프로필 수정과 비밀번호 변경 지원
+2. #199 감사 로그 운영 기능 보강
+3. 남은 운영 문서 정합성 점검

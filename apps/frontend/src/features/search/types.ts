@@ -8,3 +8,9 @@ export interface SearchFileResult {
   size: number;
   modTime: string;
 }
+
+export interface SearchFilesResponse {
+  items: SearchFileResult[];
+  limit: number;
+  hasMore: boolean;
+}

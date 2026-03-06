@@ -459,6 +459,9 @@ const FolderContent: React.FC = () => {
   const shouldShowFullError = !activeLoading && !hasContent && Boolean(activeErrorMessage);
   const shouldShowEmpty = !activeLoading && !activeErrorMessage && !hasContent;
   const shouldShowLoadingOverlay = !isSearchMode && isLoading && hasContent;
+  const showSearchSummary = isSearchMode && searchSource.hasEnoughQuery && hasContent;
+  const showSearchLoadMore = showSearchSummary && searchSource.hasMore && searchSource.canLoadMore;
+  const showSearchLimitHint = showSearchSummary && searchSource.hasMore && !searchSource.canLoadMore;
 
   const handleRetryContentLoad = useCallback(() => {
     if (isSearchMode || !selectedSpace) {
@@ -1048,13 +1051,41 @@ const FolderContent: React.FC = () => {
                 <Alert
                   type="warning"
                   showIcon
-                  message={isSearchMode ? t('folderContent.partialSearchFailed') : t('folderContent.latestFolderLoadFailed')}
+                  title={isSearchMode ? t('folderContent.partialSearchFailed') : t('folderContent.latestFolderLoadFailed')}
                   description={activeErrorMessage ?? undefined}
                   action={
                     !isSearchMode
                       ? <Button size="small" onClick={handleRetryContentLoad}>{t('folderContent.retryShort')}</Button>
                       : undefined
                   }
+                />
+              </div>
+            )}
+            {showSearchSummary && (
+              <div style={{ marginBottom: 12 }}>
+                <Alert
+                  type="info"
+                  showIcon
+                  title={t('folderContent.searchSummary', {
+                    count: searchSource.resultCount,
+                    limit: searchSource.currentLimit,
+                  })}
+                  description={(
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                      <span>{t('folderContent.searchSortHint')}</span>
+                      {searchSource.hasMore && (
+                        <span>{t('folderContent.searchTruncated')}</span>
+                      )}
+                      {showSearchLimitHint && (
+                        <span>{t('folderContent.searchRefineHint')}</span>
+                      )}
+                      {showSearchLoadMore && (
+                        <Button size="small" onClick={searchSource.loadMore}>
+                          {t('folderContent.searchLoadMore')}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 />
               </div>
             )}
@@ -1108,6 +1139,8 @@ const FolderContent: React.FC = () => {
                 itemsRef={itemsRef}
                 disableDraggable={isSearchMode || isSelecting || isTouchInteraction || !canWriteFiles}
                 renderName={isSearchMode ? renderSearchName : undefined}
+                renderMeta={isSearchMode ? renderSearchMeta : undefined}
+                emptyText={isSearchMode ? (searchSource.hasEnoughQuery ? t('folderContent.noSearchResults') : searchModeHelpText) : undefined}
                 spaceId={isSearchMode ? undefined : selectedSpace?.id}
               />
             )}

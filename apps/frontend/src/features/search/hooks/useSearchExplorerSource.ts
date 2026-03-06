@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { searchFiles } from "@/features/search/api/searchApi";
 import type { SearchFileResult } from "@/features/search/types";
@@ -7,7 +7,9 @@ import { useSpaceStore } from "@/stores/spaceStore";
 import { useTranslation } from "react-i18next";
 
 const MIN_SEARCH_QUERY_LENGTH = 2;
-const SEARCH_PAGE_LIMIT = 80;
+const SEARCH_PAGE_INITIAL_LIMIT = 80;
+const SEARCH_PAGE_LIMIT_STEP = 80;
+const SEARCH_PAGE_MAX_LIMIT = 400;
 
 function resolveBrowsePath(item: SearchFileResult): string {
   return item.isDir ? item.path : item.parentPath;
@@ -23,7 +25,11 @@ export interface SearchExplorerSource {
   errorMessage: string | null;
   isSearching: boolean;
   resultCount: number;
+  currentLimit: number;
+  hasMore: boolean;
   hasEnoughQuery: boolean;
+  canLoadMore: boolean;
+  loadMore: () => void;
   openResult: (item: SearchFileResult) => void;
 }
 
@@ -38,10 +44,25 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
   const [results, setResults] = useState<SearchFileResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [requestedLimit, setRequestedLimit] = useState(SEARCH_PAGE_INITIAL_LIMIT);
+  const [hasMore, setHasMore] = useState(false);
+  const lastQueryRef = useRef(query);
 
   useEffect(() => {
     if (!enabled) {
       return;
+    }
+
+    if (lastQueryRef.current !== query) {
+      lastQueryRef.current = query;
+      setHasMore(false);
+      setResults([]);
+      setErrorMessage(null);
+      if (requestedLimit !== SEARCH_PAGE_INITIAL_LIMIT) {
+        setRequestedLimit(SEARCH_PAGE_INITIAL_LIMIT);
+        setIsLoading(false);
+        return;
+      }
     }
 
     const controller = new AbortController();
@@ -50,6 +71,7 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
       setResults([]);
       setIsLoading(false);
       setErrorMessage(null);
+      setHasMore(false);
       return () => {
         isDisposed = true;
         controller.abort();
@@ -61,9 +83,10 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
 
     void (async () => {
       try {
-        const data = await searchFiles(query, SEARCH_PAGE_LIMIT, { signal: controller.signal });
+        const data = await searchFiles(query, requestedLimit, { signal: controller.signal });
         if (!isDisposed) {
-          setResults(data);
+          setResults(data.items);
+          setHasMore(data.hasMore);
         }
       } catch (error) {
         if (isAbortError(error)) {
@@ -72,6 +95,7 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
         if (!isDisposed) {
           setResults([]);
           setErrorMessage(error instanceof Error ? error.message : t('search.loadResultsFailed'));
+          setHasMore(false);
         }
       } finally {
         if (!isDisposed) {
@@ -84,7 +108,7 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
       isDisposed = true;
       controller.abort();
     };
-  }, [enabled, query, t]);
+  }, [enabled, query, requestedLimit, t]);
 
   const openResult = useCallback((item: SearchFileResult) => {
     const targetSpace = spaces.find((space) => space.id === item.spaceId);
@@ -102,6 +126,11 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
   const hasEnoughQuery = query.length >= MIN_SEARCH_QUERY_LENGTH;
   const isSearching = enabled && hasEnoughQuery && isLoading;
   const resultCount = hasEnoughQuery ? results.length : 0;
+  const canLoadMore = hasMore && requestedLimit < SEARCH_PAGE_MAX_LIMIT;
+
+  const loadMore = useCallback(() => {
+    setRequestedLimit((current) => Math.min(current + SEARCH_PAGE_LIMIT_STEP, SEARCH_PAGE_MAX_LIMIT));
+  }, []);
 
   return {
     query,
@@ -109,7 +138,11 @@ export function useSearchExplorerSource(enabled: boolean): SearchExplorerSource 
     errorMessage,
     isSearching,
     resultCount,
+    currentLimit: requestedLimit,
+    hasMore,
     hasEnoughQuery,
+    canLoadMore,
+    loadMore,
     openResult,
   };
 }

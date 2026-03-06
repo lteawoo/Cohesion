@@ -79,7 +79,8 @@ export function useSearchModeContent({
       return `${record.isDir ? '-' : formatSize(record.size)} | ${formatDate(record.modTime)}`;
     }
     const sizeText = item.isDir ? '-' : formatSize(item.size);
-    return `${sizeText} | ${formatDate(item.modTime)} | ${item.spaceName}`;
+    const parentPathText = item.parentPath || '/';
+    return `${sizeText} | ${formatDate(item.modTime)} | ${item.spaceName} | ${parentPathText}`;
   }, [resolveSearchResult]);
 
   const isSearching = isSearchMode && searchSource.isSearching;

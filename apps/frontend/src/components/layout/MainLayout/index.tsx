@@ -27,6 +27,13 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
+function formatSearchContext(item: SearchFileResult): string {
+  if (!item.parentPath) {
+    return item.spaceName;
+  }
+  return `${item.spaceName} | ${item.parentPath}`;
+}
+
 interface HeaderSearchProps {
   isMobile: boolean;
   isMobileSearchMode: boolean;
@@ -96,7 +103,7 @@ const HeaderSearch = memo(function HeaderSearch({
       if (requestSeq !== headerSearchRequestSeqRef.current) {
         return;
       }
-      setHeaderSearchResults(data);
+      setHeaderSearchResults(data.items);
       setHeaderSearchError(null);
     } catch (error) {
       if (isAbortError(error)) {
@@ -239,15 +246,15 @@ const HeaderSearch = memo(function HeaderSearch({
                     ) : (
                       <FileTypeIcon filename={item.name} size={18} />
                     )}
-                  </span>
-                  <span className="layout-header-search-result-main">
-                    <span className="layout-header-search-result-name">
-                      {highlightQueryMatch(item.name, normalizedHeaderSearchQuery)}
                     </span>
-                    <span className="layout-header-search-result-meta">
-                      {item.spaceName}
+                    <span className="layout-header-search-result-main">
+                      <span className="layout-header-search-result-name">
+                        {highlightQueryMatch(item.name, normalizedHeaderSearchQuery)}
+                      </span>
+                      <span className="layout-header-search-result-meta">
+                        {formatSearchContext(item)}
+                      </span>
                     </span>
-                  </span>
                 </button>
               ))}
             </div>
