@@ -113,11 +113,13 @@
       - 서버 설정 retention 입력 스크린샷
       - 감사 로그 export/cleanup 액션 스크린샷
       - retention 비활성 cleanup 차단 스크린샷
+- OpenSpec 변경안 동기화/아카이브 완료:
+  - `audit-log-retention-and-export` change를 메인 spec에 동기화
+  - `audit-log-management`, `audit-log-retention-and-export` spec 기준선 갱신
 
 ## 검증 상태
 - 백엔드: `cd apps/backend && go test ./...` 통과
 - 프론트엔드: 주요 빌드/타입 검증 경로 정상
 
 ## 다음 작업
-1. #199 PR/머지/아카이브 정리
-2. 남은 운영 문서 정합성 점검
+1. 남은 운영 문서 정합성 점검
