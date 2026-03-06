@@ -106,6 +106,7 @@ func defaultConfigForEnv(goEnv string) Config {
 			SftpEnabled:   false,
 			SftpPort:      2222,
 		},
+		AuditLogRetentionDays: 0,
 		Datasource: Datasource{
 			URL: "data/cohesion.db",
 		},
@@ -176,11 +177,13 @@ type Handler struct {
 }
 
 type PublicConfigResponse struct {
-	Server Server `json:"server"`
+	Server                Server `json:"server"`
+	AuditLogRetentionDays int    `json:"auditLogRetentionDays"`
 }
 
 type UpdateConfigRequest struct {
-	Server Server `json:"server"`
+	Server                Server `json:"server"`
+	AuditLogRetentionDays *int   `json:"auditLogRetentionDays"`
 }
 
 func applyServerDefaults(server *Server) {
@@ -226,6 +229,13 @@ func validateServerConfig(server Server) *web.Error {
 	return nil
 }
 
+func validateAuditLogRetentionDays(value int) *web.Error {
+	if value < 0 {
+		return &web.Error{Code: http.StatusBadRequest, Message: "auditLogRetentionDays must be greater than or equal to 0"}
+	}
+	return nil
+}
+
 func NewHandler() *Handler {
 	return &Handler{}
 }
@@ -244,7 +254,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) *web.Error {
 	w.Header().Set("Content-Type", "application/json")
 	response := PublicConfigResponse{
-		Server: Conf.Server,
+		Server:                Conf.Server,
+		AuditLogRetentionDays: Conf.AuditLogRetentionDays,
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to encode config"}
@@ -273,16 +284,34 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 		return validationErr
 	}
 
+	nextAuditLogRetentionDays := Conf.AuditLogRetentionDays
+	if req.AuditLogRetentionDays != nil {
+		if validationErr := validateAuditLogRetentionDays(*req.AuditLogRetentionDays); validationErr != nil {
+			h.recordAudit(r, audit.Event{
+				Action: "config.update",
+				Result: audit.ResultFailure,
+				Target: "server",
+				Metadata: map[string]any{
+					"reason": "validation_failed",
+				},
+			})
+			return validationErr
+		}
+		nextAuditLogRetentionDays = *req.AuditLogRetentionDays
+	}
+
 	// 설정 업데이트 (민감정보를 포함하는 datasource는 API로 변경하지 않음)
 	before := map[string]any{
-		"port":          Conf.Server.Port,
-		"webdavEnabled": Conf.Server.WebdavEnabled,
-		"ftpEnabled":    Conf.Server.FtpEnabled,
-		"ftpPort":       Conf.Server.FtpPort,
-		"sftpEnabled":   Conf.Server.SftpEnabled,
-		"sftpPort":      Conf.Server.SftpPort,
+		"port":                  Conf.Server.Port,
+		"webdavEnabled":         Conf.Server.WebdavEnabled,
+		"ftpEnabled":            Conf.Server.FtpEnabled,
+		"ftpPort":               Conf.Server.FtpPort,
+		"sftpEnabled":           Conf.Server.SftpEnabled,
+		"sftpPort":              Conf.Server.SftpPort,
+		"auditLogRetentionDays": Conf.AuditLogRetentionDays,
 	}
 	Conf.Server = req.Server
+	Conf.AuditLogRetentionDays = nextAuditLogRetentionDays
 
 	// 파일에 저장
 	if err := SaveConfig(); err != nil {
@@ -297,12 +326,13 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to save config"}
 	}
 	after := map[string]any{
-		"port":          Conf.Server.Port,
-		"webdavEnabled": Conf.Server.WebdavEnabled,
-		"ftpEnabled":    Conf.Server.FtpEnabled,
-		"ftpPort":       Conf.Server.FtpPort,
-		"sftpEnabled":   Conf.Server.SftpEnabled,
-		"sftpPort":      Conf.Server.SftpPort,
+		"port":                  Conf.Server.Port,
+		"webdavEnabled":         Conf.Server.WebdavEnabled,
+		"ftpEnabled":            Conf.Server.FtpEnabled,
+		"ftpPort":               Conf.Server.FtpPort,
+		"sftpEnabled":           Conf.Server.SftpEnabled,
+		"sftpPort":              Conf.Server.SftpPort,
+		"auditLogRetentionDays": Conf.AuditLogRetentionDays,
 	}
 	h.recordAudit(r, audit.Event{
 		Action: "config.update",

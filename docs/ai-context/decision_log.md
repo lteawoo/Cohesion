@@ -94,3 +94,25 @@
   - 헤더 검색 dropdown은 suggestion popover로 간주하고, outside click과 `Escape`에서 닫힌다.
 - 이유:
   - 총 개수 계산 비용을 피하면서도 truncation 여부와 추가 탐색 경로를 사용자에게 제공할 수 있기 때문이다.
+
+### 감사 로그 운영 기능 1차는 `CSV export + 시스템 retention + 수동 cleanup`으로 자른다 (2026-03-07)
+- 상황:
+  - `#199`에서 감사 로그 운영 기능을 보강해야 했지만, JSON export나 자동 삭제까지 포함하면 범위가 빠르게 커질 수 있었다.
+- 결정:
+  - 감사 로그 export는 CSV만 지원한다.
+  - 감사 로그 보존 일수는 `/api/config`의 `auditLogRetentionDays`로 관리한다.
+  - 감사 로그 화면은 목록 응답의 `retentionDays`를 사용해 현재 정책을 표시한다.
+  - 오래된 로그 정리는 `POST /api/audit/logs/cleanup`으로 수동 실행만 허용한다.
+  - cleanup 액션은 `account.write` 권한에만 노출하고, 실행 자체를 `audit.logs.cleanup` 이벤트로 기록한다.
+- 이유:
+  - 운영자가 바로 쓸 수 있는 경로를 빠르게 제공하면서도, 자동 삭제 같은 회복 불가능한 동작은 뒤로 미뤄 리스크를 줄이기 위함이다.
+
+### 서버 설정 저장은 신규 필드를 부분 업데이트 호환적으로 유지한다 (2026-03-07)
+- 상황:
+  - `auditLogRetentionDays`를 `/api/config`에 추가한 뒤, 해당 필드를 모르는 기존 클라이언트가 설정 저장 시 보존 정책을 `0`으로 덮어쓸 수 있었다.
+- 결정:
+  - `PUT /api/config`에서 `auditLogRetentionDays`는 선택 필드로 취급하고, 요청에 없으면 기존 값을 유지한다.
+  - 감사 로그 CSV export는 전체 로그를 메모리에 모으지 않고 row streaming으로 응답한다.
+  - `server.config.read` 전용 사용자는 서버 설정을 read-only로만 본다.
+- 이유:
+  - 신규 설정 필드 도입 이후에도 기존 저장 경로와 운영 스크립트가 안전하게 동작해야 하고, 감사 로그 운영 기능이 로그 증가에 따라 조기 병목이 되지 않도록 해야 하기 때문이다.

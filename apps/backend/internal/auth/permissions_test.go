@@ -137,6 +137,8 @@ func TestRequiredPermissionForRequest_AuditEndpoints(t *testing.T) {
 	}{
 		{name: "list audit logs", method: http.MethodGet, path: "/api/audit/logs", expected: PermissionAccountRead},
 		{name: "get audit log by id", method: http.MethodGet, path: "/api/audit/logs/12", expected: PermissionAccountRead},
+		{name: "export audit logs", method: http.MethodGet, path: "/api/audit/logs/export", expected: PermissionAccountRead},
+		{name: "cleanup audit logs", method: http.MethodPost, path: "/api/audit/logs/cleanup", expected: PermissionAccountWrite},
 	}
 
 	for _, tc := range tests {

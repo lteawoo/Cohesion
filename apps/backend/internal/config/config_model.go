@@ -3,8 +3,9 @@ package config
 var Conf Config
 
 type Config struct {
-	Server     Server     `mapstructure:"server" json:"server" yaml:"server"`
-	Datasource Datasource `mapstructure:"database" json:"database" yaml:"database"`
+	Server                Server     `mapstructure:"server" json:"server" yaml:"server"`
+	AuditLogRetentionDays int        `mapstructure:"audit_log_retention_days" json:"auditLogRetentionDays" yaml:"audit_log_retention_days"`
+	Datasource            Datasource `mapstructure:"database" json:"database" yaml:"database"`
 }
 
 type Server struct {

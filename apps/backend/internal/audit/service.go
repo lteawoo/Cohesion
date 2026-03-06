@@ -18,7 +18,9 @@ import (
 type Storer interface {
 	Create(ctx context.Context, event *Event) error
 	List(ctx context.Context, filter ListFilter) ([]*Log, int64, error)
+	StreamAll(ctx context.Context, filter ListFilter, yield func(*Log) error) error
 	GetByID(ctx context.Context, id int64) (*Log, error)
+	DeleteOlderThan(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 type Config struct {
@@ -90,6 +92,17 @@ func (s *Service) GetByID(ctx context.Context, id int64) (*Log, error) {
 		return nil, fmt.Errorf("invalid audit log id: %d", id)
 	}
 	return s.store.GetByID(ctx, id)
+}
+
+func (s *Service) Export(ctx context.Context, filter ListFilter, yield func(*Log) error) error {
+	return s.store.StreamAll(ctx, filter, yield)
+}
+
+func (s *Service) CleanupOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
+	if cutoff.IsZero() {
+		return 0, fmt.Errorf("invalid cleanup cutoff")
+	}
+	return s.store.DeleteOlderThan(ctx, cutoff.UTC())
 }
 
 func (s *Service) Close(ctx context.Context) error {
@@ -288,6 +301,11 @@ var metadataAllowlistByAction = map[string]map[string]struct{}{
 	},
 	"system.update.start": {
 		"force": {},
+	},
+	"audit.logs.cleanup": {
+		"retentionDays": {},
+		"deletedCount":  {},
+		"cutoff":        {},
 	},
 }
 

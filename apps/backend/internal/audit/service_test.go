@@ -150,8 +150,16 @@ func (f *failingStore) List(_ context.Context, _ audit.ListFilter) ([]*audit.Log
 	return []*audit.Log{}, 0, nil
 }
 
+func (f *failingStore) StreamAll(_ context.Context, _ audit.ListFilter, _ func(*audit.Log) error) error {
+	return nil
+}
+
 func (f *failingStore) GetByID(_ context.Context, _ int64) (*audit.Log, error) {
 	return nil, sql.ErrNoRows
+}
+
+func (f *failingStore) DeleteOlderThan(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
 }
 
 func TestService_RecordBestEffort_DoesNotPropagateStoreFailure(t *testing.T) {
@@ -169,6 +177,39 @@ func TestService_RecordBestEffort_DoesNotPropagateStoreFailure(t *testing.T) {
 	defer cancel()
 	if err := svc.Close(ctx); err != nil {
 		t.Fatalf("close service: %v", err)
+	}
+}
+
+func TestService_Export_StreamsMatchingRows(t *testing.T) {
+	svc, store, db := setupAuditService(t)
+	defer db.Close()
+	defer func() {
+		_ = svc.Close(context.Background())
+	}()
+
+	for _, event := range []audit.Event{
+		{OccurredAt: time.Now().UTC(), Actor: "alice", Action: "file.delete", Result: audit.ResultSuccess, Target: "docs/a.txt", RequestID: "req_export_1"},
+		{OccurredAt: time.Now().UTC(), Actor: "bob", Action: "file.copy", Result: audit.ResultFailure, Target: "docs/b.txt", RequestID: "req_export_2"},
+	} {
+		e := event
+		if err := store.Create(context.Background(), &e); err != nil {
+			t.Fatalf("create log: %v", err)
+		}
+	}
+
+	exportedActors := make([]string, 0, 1)
+	if err := svc.Export(context.Background(), audit.ListFilter{User: "alice"}, func(item *audit.Log) error {
+		exportedActors = append(exportedActors, item.Actor)
+		return nil
+	}); err != nil {
+		t.Fatalf("export logs: %v", err)
+	}
+
+	if len(exportedActors) != 1 {
+		t.Fatalf("expected 1 exported actor, got %d", len(exportedActors))
+	}
+	if exportedActors[0] != "alice" {
+		t.Fatalf("expected exported actor alice, got %q", exportedActors[0])
 	}
 }
 

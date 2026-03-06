@@ -92,11 +92,32 @@
       - 헤더 검색 문맥 노출 스크린샷
       - 검색 페이지 summary/context 스크린샷
       - 검색 페이지 load-more 스크린샷
+- #199 감사 로그 운영 기능 보강 구현 완료:
+  - `/api/config` 계약에 `auditLogRetentionDays` 추가
+  - `Settings > 서버`에 감사 로그 보존 일수 입력과 `0 = 무기한 보관` 안내 추가
+  - `GET /api/audit/logs/export` CSV export endpoint 추가
+  - `POST /api/audit/logs/cleanup` retention policy 기반 수동 cleanup endpoint 추가
+  - 감사 로그 목록 응답에 현재 `retentionDays` 포함
+  - cleanup 성공/실패/denied를 `audit.logs.cleanup` 감사 이벤트로 기록
+  - `Settings > 감사 로그`에 CSV 내보내기, retention policy 표시, cleanup 액션 추가
+  - cleanup 액션은 `account.write` 권한에서만 노출
+  - 후속 리뷰 반영 완료:
+    - `PUT /api/config`는 `auditLogRetentionDays` 필드가 누락되면 기존 값을 유지
+    - 감사 로그 CSV export는 결과 전체 버퍼링 대신 row streaming으로 처리
+    - `server.config.read` 전용 사용자는 서버 설정 입력/저장/재시작이 read-only로 고정
+  - 검증 완료:
+    - `cd apps/backend && go test ./...`
+    - `pnpm --dir apps/frontend typecheck`
+    - `pnpm --dir apps/frontend test`
+    - 수동 UI 확인:
+      - 서버 설정 retention 입력 스크린샷
+      - 감사 로그 export/cleanup 액션 스크린샷
+      - retention 비활성 cleanup 차단 스크린샷
 
 ## 검증 상태
 - 백엔드: `cd apps/backend && go test ./...` 통과
 - 프론트엔드: 주요 빌드/타입 검증 경로 정상
 
 ## 다음 작업
-1. #199 감사 로그 운영 기능 보강
+1. #199 PR/머지/아카이브 정리
 2. 남은 운영 문서 정합성 점검

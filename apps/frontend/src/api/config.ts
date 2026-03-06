@@ -12,6 +12,7 @@ export interface ServerConfig {
 
 export interface Config {
   server: ServerConfig;
+  auditLogRetentionDays: number;
 }
 
 export interface SelfUpdateStatus {

@@ -246,6 +246,36 @@ func TestMiddleware_DeniesAuditLogsWithoutAccountRead(t *testing.T) {
 	}
 }
 
+func TestMiddleware_DeniesAuditCleanupWithoutAccountWrite(t *testing.T) {
+	authSvc, accountSvc, db := setupAuthTestService(t)
+	defer db.Close()
+	_, _ = seedAuthUsers(t, accountSvc)
+	recorder := &recordingAuditRecorder{}
+	authSvc.SetAuditRecorder(recorder)
+
+	userToken := issueAccessTokenForTestUser(t, authSvc, testUserUsername)
+	req := httptest.NewRequest(http.MethodPost, "/api/audit/logs/cleanup", nil)
+	req.AddCookie(&http.Cookie{Name: auth.AccessCookieName, Value: userToken})
+
+	rec := executeMiddlewareRequest(t, authSvc, req, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+	last, ok := recorder.Last()
+	if !ok {
+		t.Fatal("expected denied audit event to be recorded")
+	}
+	if last.Action != "audit.logs.cleanup" {
+		t.Fatalf("expected action audit.logs.cleanup, got %s", last.Action)
+	}
+	if last.Result != audit.ResultDenied {
+		t.Fatalf("expected denied result, got %s", last.Result)
+	}
+}
+
 func TestMiddleware_RecordsDeniedForIncludedHighRiskReadEndpoints(t *testing.T) {
 	authSvc, accountSvc, db := setupAuthTestService(t)
 	defer db.Close()

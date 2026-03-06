@@ -8,6 +8,7 @@ import {
   waitForReconnect,
   type Config,
 } from '@/api/config';
+import { useAuth } from '@/features/auth/useAuth';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import SettingRow from '../components/SettingRow';
 import { useTranslation } from 'react-i18next';
@@ -29,9 +30,10 @@ function parsePortValue(value: string): number | null {
 }
 
 function getServerConfigValidationError(
-  server: Config['server'],
+  config: Config,
   t: (key: string, options?: Record<string, unknown>) => string
 ): string | null {
+  const server = config.server;
   const webPort = parsePortValue(server.port);
   if (webPort === null) {
     return t('serverSettings.validationWebPort');
@@ -58,22 +60,28 @@ function getServerConfigValidationError(
     }
   }
 
+  if (!Number.isInteger(config.auditLogRetentionDays) || config.auditLogRetentionDays < 0) {
+    return t('serverSettings.validationAuditRetentionDays');
+  }
+
   return null;
 }
 
 const ServerSettings = () => {
   const { t } = useTranslation();
   const { message, modal } = App.useApp();
+  const { user } = useAuth();
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const canWriteServerSettings = user?.permissions?.includes('server.config.write') ?? false;
 
   // 개발 모드 여부
   const isDev = import.meta.env.DEV;
   const validationError = useMemo(
-    () => (config ? getServerConfigValidationError(config.server, (key, options) => String(t(key, options))) : null),
+    () => (config ? getServerConfigValidationError(config, (key, options) => String(t(key, options))) : null),
     [config, t]
   );
 
@@ -95,7 +103,7 @@ const ServerSettings = () => {
   }, [loadConfig]);
 
   const handleSave = async () => {
-    if (!config) return;
+    if (!config || !canWriteServerSettings) return;
     if (validationError) {
       message.error(validationError);
       return;
@@ -120,7 +128,7 @@ const ServerSettings = () => {
       okText: t('serverSettings.restartButton'),
       cancelText: t('serverSettings.cancel'),
       onOk: async () => {
-        if (!config) return;
+        if (!config || !canWriteServerSettings) return;
         if (hasChanges && validationError) {
           message.error(validationError);
           return;
@@ -219,13 +227,22 @@ const ServerSettings = () => {
     key: K,
     value: Config['server'][K]
   ) => {
-    if (!config) return;
+    if (!config || !canWriteServerSettings) return;
     setConfig({
       ...config,
       server: {
         ...config.server,
         [key]: value,
       },
+    });
+    setHasChanges(true);
+  };
+
+  const updateAuditLogRetentionDays = (value: number) => {
+    if (!config || !canWriteServerSettings) return;
+    setConfig({
+      ...config,
+      auditLogRetentionDays: value,
     });
     setHasChanges(true);
   };
@@ -257,12 +274,16 @@ const ServerSettings = () => {
         />
       )}
 
+      {!canWriteServerSettings && (
+        <Text type="secondary">{t('serverSettings.readOnlyHint')}</Text>
+      )}
+
       <Space size="small">
         <Button
           icon={<SaveOutlined />}
           onClick={handleSave}
           loading={saving}
-          disabled={!hasChanges || Boolean(validationError)}
+          disabled={!canWriteServerSettings || !hasChanges || Boolean(validationError)}
           size="small"
           type="primary"
         >
@@ -272,7 +293,7 @@ const ServerSettings = () => {
           icon={<ReloadOutlined />}
           onClick={handleRestart}
           loading={restarting}
-          disabled={Boolean(validationError)}
+          disabled={!canWriteServerSettings || Boolean(validationError)}
           size="small"
         >
           {t('serverSettings.restartButton')}
@@ -294,6 +315,7 @@ const ServerSettings = () => {
                     updateServerConfig('port', value.toString());
                   }
                 }}
+                disabled={!canWriteServerSettings}
                 className="settings-port-input"
               />
             )}
@@ -309,6 +331,7 @@ const ServerSettings = () => {
               <Switch
                 checked={server.webdavEnabled}
                 onChange={(checked: boolean) => updateServerConfig('webdavEnabled', checked)}
+                disabled={!canWriteServerSettings}
               />
             )}
           />
@@ -336,6 +359,7 @@ const ServerSettings = () => {
               <Switch
                 checked={server.ftpEnabled}
                 onChange={(checked: boolean) => updateServerConfig('ftpEnabled', checked)}
+                disabled={!canWriteServerSettings}
               />
             )}
           />
@@ -356,6 +380,7 @@ const ServerSettings = () => {
                         updateServerConfig('ftpPort', value);
                       }
                     }}
+                    disabled={!canWriteServerSettings}
                     className="settings-port-input"
                   />
                 )}
@@ -376,6 +401,7 @@ const ServerSettings = () => {
               <Switch
                 checked={server.sftpEnabled}
                 onChange={(checked: boolean) => updateServerConfig('sftpEnabled', checked)}
+                disabled={!canWriteServerSettings}
               />
             )}
           />
@@ -396,12 +422,34 @@ const ServerSettings = () => {
                         updateServerConfig('sftpPort', value);
                       }
                     }}
+                    disabled={!canWriteServerSettings}
                     className="settings-port-input"
                   />
                 )}
               />
             </>
           )}
+        </Space>
+      </Card>
+
+      <Card title={t('serverSettings.auditCard')} size="small">
+        <Space vertical size="small" className="settings-stack-full">
+          <SettingRow
+            left={<Text strong>{t('serverSettings.auditRetentionDaysLabel')}</Text>}
+            right={(
+              <InputNumber
+                size="small"
+                min={0}
+                value={config.auditLogRetentionDays}
+                onChange={(value: number | null) => updateAuditLogRetentionDays(value ?? 0)}
+                disabled={!canWriteServerSettings}
+                className="settings-port-input"
+              />
+            )}
+          />
+          <Text type="secondary" className="settings-text-xs">
+            {t('serverSettings.auditRetentionDaysHelp')}
+          </Text>
         </Space>
       </Card>
 

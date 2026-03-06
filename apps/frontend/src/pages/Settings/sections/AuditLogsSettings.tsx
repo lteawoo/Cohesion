@@ -2,12 +2,15 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'rea
 import { App, Button, Card, Empty, Input, Pagination, Select, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
+  cleanupAuditLogs,
+  exportAuditLogsCsv,
   getAuditLog,
   listAuditLogs,
   type AuditLogItem,
   type AuditLogListParams,
   type AuditResult,
 } from '@/api/audit';
+import { useAuth } from '@/features/auth/useAuth';
 import SettingSectionHeader from '../components/SettingSectionHeader';
 import { useTranslation } from 'react-i18next';
 
@@ -53,6 +56,51 @@ function formatDateTime(value: string): string {
   return parsed.toLocaleString();
 }
 
+function buildAuditListParams(targetPage: number, targetPageSize: number, targetFilters: AuditFilterState): AuditLogListParams {
+  const requestParams: AuditLogListParams = {
+    page: targetPage,
+    pageSize: targetPageSize,
+  };
+
+  const from = toRFC3339(targetFilters.from);
+  const to = toRFC3339(targetFilters.to);
+  if (from) {
+    requestParams.from = from;
+  }
+  if (to) {
+    requestParams.to = to;
+  }
+
+  const user = targetFilters.user.trim();
+  if (user !== '') {
+    requestParams.user = user;
+  }
+  const action = targetFilters.action.trim();
+  if (action !== '') {
+    requestParams.action = action;
+  }
+  const spaceID = Number.parseInt(targetFilters.spaceId.trim(), 10);
+  if (!Number.isNaN(spaceID) && spaceID > 0) {
+    requestParams.spaceId = spaceID;
+  }
+  if (targetFilters.result) {
+    requestParams.result = targetFilters.result;
+  }
+
+  return requestParams;
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.URL.revokeObjectURL(objectUrl);
+}
+
 const resultTagColor: Record<AuditResult, string> = {
   success: 'green',
   partial: 'gold',
@@ -62,53 +110,31 @@ const resultTagColor: Record<AuditResult, string> = {
 
 const AuditLogsSettings = () => {
   const { t } = useTranslation();
-  const { message } = App.useApp();
+  const { user } = useAuth();
+  const { message, modal } = App.useApp();
   const [filters, setFilters] = useState<AuditFilterState>(defaultFilterState);
   const [appliedFilters, setAppliedFilters] = useState<AuditFilterState>(defaultFilterState);
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [retentionDays, setRetentionDays] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const canCleanup = (user?.permissions ?? []).includes('account.write');
 
   const fetchLogs = useCallback(async (targetPage: number, targetPageSize: number, targetFilters: AuditFilterState) => {
-    const requestParams: AuditLogListParams = {
-      page: targetPage,
-      pageSize: targetPageSize,
-    };
-
-    const from = toRFC3339(targetFilters.from);
-    const to = toRFC3339(targetFilters.to);
-    if (from) {
-      requestParams.from = from;
-    }
-    if (to) {
-      requestParams.to = to;
-    }
-
-    const user = targetFilters.user.trim();
-    if (user !== '') {
-      requestParams.user = user;
-    }
-    const action = targetFilters.action.trim();
-    if (action !== '') {
-      requestParams.action = action;
-    }
-    const spaceID = Number.parseInt(targetFilters.spaceId.trim(), 10);
-    if (!Number.isNaN(spaceID) && spaceID > 0) {
-      requestParams.spaceId = spaceID;
-    }
-    if (targetFilters.result) {
-      requestParams.result = targetFilters.result;
-    }
+    const requestParams = buildAuditListParams(targetPage, targetPageSize, targetFilters);
 
     setLoading(true);
     try {
       const response = await listAuditLogs(requestParams);
       setItems(response.items);
       setTotal(response.total);
+      setRetentionDays(response.retentionDays);
       if (response.items.length === 0) {
         setSelectedLog(null);
       }
@@ -213,6 +239,61 @@ const AuditLogsSettings = () => {
     }
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const requestParams = buildAuditListParams(page, pageSize, appliedFilters);
+      delete requestParams.page;
+      delete requestParams.pageSize;
+      const response = await exportAuditLogsCsv(requestParams);
+      triggerBlobDownload(response.blob, response.filename);
+      message.success(t('auditSettings.exportSuccess'));
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('auditSettings.exportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleCleanup = () => {
+    if (retentionDays <= 0) {
+      message.error(t('auditSettings.cleanupDisabled'));
+      return;
+    }
+
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - retentionDays);
+
+    modal.confirm({
+      title: t('auditSettings.cleanupTitle'),
+      content: t('auditSettings.cleanupConfirmDescription', {
+        days: retentionDays,
+        cutoff: formatDateTime(cutoff.toISOString()),
+      }),
+      okText: t('auditSettings.cleanupAction'),
+      cancelText: t('auditSettings.cancel'),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setCleaning(true);
+        try {
+          const response = await cleanupAuditLogs();
+          setSelectedLog(null);
+          setPage(1);
+          await fetchLogs(1, pageSize, appliedFilters);
+          message.success(t('auditSettings.cleanupSuccess', { count: response.deletedCount }));
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : t('auditSettings.cleanupFailed'));
+        } finally {
+          setCleaning(false);
+        }
+      },
+    });
+  };
+
+  const retentionMessage = retentionDays > 0
+    ? t('auditSettings.retentionEnabled', { days: retentionDays })
+    : t('auditSettings.retentionDisabled');
+
   return (
     <Space vertical size="small" className="settings-section">
       <SettingSectionHeader
@@ -221,7 +302,8 @@ const AuditLogsSettings = () => {
       />
 
       <Card size="small">
-        <Space size="small" wrap>
+        <Space vertical size="small" className="settings-stack-full">
+          <Space size="small" wrap>
           <Input
             type="datetime-local"
             value={filters.from}
@@ -271,6 +353,16 @@ const AuditLogsSettings = () => {
           <Button onClick={handleReset}>
             {t('auditSettings.reset')}
           </Button>
+            <Button onClick={() => void handleExport()} loading={exporting}>
+              {t('auditSettings.exportAction')}
+            </Button>
+            {canCleanup && (
+              <Button danger onClick={handleCleanup} loading={cleaning}>
+                {t('auditSettings.cleanupAction')}
+              </Button>
+            )}
+          </Space>
+          <Text type="secondary">{retentionMessage}</Text>
         </Space>
       </Card>
 

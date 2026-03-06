@@ -46,10 +46,17 @@ type ListFilter struct {
 }
 
 type ListResult struct {
-	Items    []*Log `json:"items"`
-	Page     int    `json:"page"`
-	PageSize int    `json:"pageSize"`
-	Total    int64  `json:"total"`
+	Items         []*Log `json:"items"`
+	Page          int    `json:"page"`
+	PageSize      int    `json:"pageSize"`
+	Total         int64  `json:"total"`
+	RetentionDays int    `json:"retentionDays"`
+}
+
+type CleanupResult struct {
+	DeletedCount  int64     `json:"deletedCount"`
+	RetentionDays int       `json:"retentionDays"`
+	Cutoff        time.Time `json:"cutoff"`
 }
 
 type Recorder interface {
