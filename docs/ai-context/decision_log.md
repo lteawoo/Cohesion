@@ -2,6 +2,17 @@
 
 ## 아키텍처 (Architecture)
 
+### 로컬 UI 시각 검증은 루트 Playwright + js_repl 조합을 기준으로 사용한다 (2026-03-07)
+- 상황:
+  - 프로젝트 작업 규칙상 UI 변경 검증에는 `playwright-interaction` 기반 실제 렌더 확인이 필요하다.
+  - 현재 루트 워크스페이스에는 `playwright` 패키지가 없어 스킬을 바로 실행할 수 없었다.
+- 결정:
+  - 모노레포 루트에 `playwright`를 devDependency로 추가한다.
+  - `js_repl`에서 `import('playwright')`와 headed Chromium launch를 기준으로 환경 준비 여부를 확인한다.
+- 이유:
+  - 프론트엔드 단일 앱 디렉터리에만 의존성을 두면 루트 기준 Codex 세션과 스킬 실행 경로가 어긋날 수 있다.
+  - 루트 기준으로 설치해야 `playwright-interactive` 스킬을 바로 재사용하면서 UI 회귀 검증을 일관되게 수행할 수 있기 때문이다.
+
 ### 네트워크 파일 공유 범위 축소 및 코드 경계 단순화 (2026-03-06)
 - 상황:
   - 제품 범위를 현재 운영 대상에 맞게 단순화할 필요가 있었다.

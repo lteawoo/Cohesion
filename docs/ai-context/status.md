@@ -44,6 +44,10 @@
   - #213 운영 문서 기준선 정합성 정리
   - #214 Settings > Spaces 기반 스페이스 멤버십 관리
   - #215 파일 검색 인덱싱 도입
+- #219 루트 Playwright UI 검증 환경 정리 완료:
+  - 루트 워크스페이스에 `playwright` devDependency 설치
+  - `js_repl`에서 `import('playwright')` 확인 완료
+  - headed Chromium launch 확인 완료
 - #197 스페이스 설정 관리 구현 완료:
   - 백엔드 `PATCH /api/spaces/{id}` rename 지원 추가
   - `Settings > Spaces`에서 이름 변경 + 기존 쿼터 관리 통합
@@ -144,11 +148,31 @@
 - OpenSpec 변경안 동기화/아카이브 완료:
   - `audit-log-retention-and-export` change를 메인 spec에 동기화
   - `audit-log-management`, `audit-log-retention-and-export` spec 기준선 갱신
+- 제품 백로그/설계 초안 확장 완료:
+  - GitHub Issue 등록
+  - #213 운영 문서 기준선 정합성 정리
+  - #214 Settings > Spaces 기반 스페이스 멤버십 관리
+  - #215 파일 검색 인덱싱 도입
+  - OpenSpec change 생성
+    - `align-operational-documentation-baseline`
+    - `manage-space-membership-from-space-settings`
+    - `add-search-indexing-for-file-discovery`
+- 병렬 worktree 구현/병합 정리 완료:
+  - `docs/issue-213-operational-doc-baseline`
+    - PR #216 rebase merge
+    - issue #213 closed
+  - `feat/issue-214-space-membership-settings`
+    - PR #217 rebase merge
+    - issue #214 closed
+  - `feat/issue-215-search-indexing`
+    - PR #218 rebase merge
+    - issue #215 closed
+  - 관련 worktree, 로컬 브랜치, 원격 브랜치 정리 완료
 
 ## 검증 상태
 - 백엔드: `cd apps/backend && go test ./...` 통과
 - 프론트엔드: 주요 빌드/타입 검증 경로 정상
 
 ## 다음 작업
-1. 병렬 worktree 변경 정리
-2. 병렬 worktree 변경 정리 및 PR 준비
+1. 다음 UI 변경 시 루트 `playwright-interactive` 기준으로 시각 검증 재사용
+2. 루트 의존성 변경 시 `docs/ai-context/decision_log.md`와 함께 동기화 유지
