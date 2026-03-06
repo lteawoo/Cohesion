@@ -157,6 +157,12 @@ func TestRequiredPermissionForRequest_SpaceUsageAndQuota(t *testing.T) {
 			expected: PermissionSpaceRead,
 		},
 		{
+			name:     "space rename patch",
+			method:   http.MethodPatch,
+			path:     "/api/spaces/1",
+			expected: PermissionSpaceWrite,
+		},
+		{
 			name:     "space quota patch",
 			method:   http.MethodPatch,
 			path:     "/api/spaces/1/quota",
@@ -220,20 +226,45 @@ func TestRequiredPermissionForRequest_SystemUpdateEndpoints(t *testing.T) {
 }
 
 func TestRequiredSpacePermissionForRequest_SpaceQuotaPatch(t *testing.T) {
-	req := &http.Request{
-		Method: http.MethodPatch,
-		URL:    &url.URL{Path: "/api/spaces/7/quota"},
+	tests := []struct {
+		name           string
+		path           string
+		expectedSpace  int64
+		expectedAccess account.Permission
+	}{
+		{
+			name:           "space rename patch",
+			path:           "/api/spaces/7",
+			expectedSpace:  7,
+			expectedAccess: account.PermissionWrite,
+		},
+		{
+			name:           "space quota patch",
+			path:           "/api/spaces/7/quota",
+			expectedSpace:  7,
+			expectedAccess: account.PermissionWrite,
+		},
 	}
 
-	got, ok := requiredSpacePermissionForRequest(req)
-	if !ok {
-		t.Fatal("expected space permission mapping for quota patch endpoint")
-	}
-	if got.spaceID != 7 {
-		t.Fatalf("expected space id 7, got %d", got.spaceID)
-	}
-	if got.required != account.PermissionWrite {
-		t.Fatalf("expected required permission %s, got %s", account.PermissionWrite, got.required)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			req := &http.Request{
+				Method: http.MethodPatch,
+				URL:    &url.URL{Path: tc.path},
+			}
+
+			got, ok := requiredSpacePermissionForRequest(req)
+			if !ok {
+				t.Fatalf("expected space permission mapping for %s", tc.path)
+			}
+			if got.spaceID != tc.expectedSpace {
+				t.Fatalf("expected space id %d, got %d", tc.expectedSpace, got.spaceID)
+			}
+			if got.required != tc.expectedAccess {
+				t.Fatalf("expected required permission %s, got %s", tc.expectedAccess, got.required)
+			}
+		})
 	}
 }
 
@@ -297,6 +328,12 @@ func TestDeniedAuditRuleForRequest_IncludedEndpoints(t *testing.T) {
 			method:         http.MethodPost,
 			path:           "/api/spaces/7/files/download-multiple",
 			expectedAction: "file.download-multiple",
+		},
+		{
+			name:           "space update",
+			method:         http.MethodPatch,
+			path:           "/api/spaces/7",
+			expectedAction: "space.update",
 		},
 		{
 			name:           "download by ticket",

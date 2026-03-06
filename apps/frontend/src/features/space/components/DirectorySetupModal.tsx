@@ -4,8 +4,6 @@ import { useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
 import { useTranslation } from "react-i18next";
 
-const { TextArea } = Input;
-
 export default function DirectorySetupModal({
   isOpen,
   onClose
@@ -17,7 +15,6 @@ export default function DirectorySetupModal({
   const { message } = App.useApp();
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [spaceName, setSpaceName] = useState<string>('');
-  const [spaceDesc, setSpaceDesc] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
   const createSpace = useSpaceStore((state) => state.createSpace);
   const { token } = theme.useToken();
@@ -28,7 +25,6 @@ export default function DirectorySetupModal({
     }
     setSelectedPath('');
     setSpaceName('');
-    setSpaceDesc('');
     onClose();
   };
 
@@ -56,11 +52,10 @@ export default function DirectorySetupModal({
 
     setIsCreating(true);
     try {
-      await createSpace(spaceName.trim(), selectedPath, spaceDesc);
+      await createSpace(spaceName.trim(), selectedPath);
       message.success(t('directorySetup.createSuccess'));
       setSelectedPath('');
       setSpaceName('');
-      setSpaceDesc('');
       onClose();
     } catch (error) {
       message.error(error instanceof Error ? error.message : t('directorySetup.createFailed'));
@@ -92,19 +87,6 @@ export default function DirectorySetupModal({
           value={spaceName}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSpaceName(e.target.value)}
           maxLength={100}
-          disabled={isCreating}
-        />
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-          {t('directorySetup.descriptionLabel')}
-        </label>
-        <TextArea
-          placeholder={t('directorySetup.descriptionPlaceholder')}
-          value={spaceDesc}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSpaceDesc(e.target.value)}
-          rows={3}
           disabled={isCreating}
         />
       </div>

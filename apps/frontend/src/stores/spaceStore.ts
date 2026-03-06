@@ -12,7 +12,8 @@ interface SpaceStore {
 
   fetchSpaces: () => Promise<void>;
   setSelectedSpace: (space: Space | undefined) => void;
-  createSpace: (name: string, path: string, description?: string) => Promise<void>;
+  createSpace: (name: string, path: string) => Promise<void>;
+  renameSpace: (id: number, name: string) => Promise<void>;
   deleteSpace: (id: number) => Promise<void>;
 }
 
@@ -21,6 +22,13 @@ function normalizeUnknownError(error: unknown, fallbackMessage: string): Error {
     return error;
   }
   return new Error(fallbackMessage);
+}
+
+function reconcileSelectedSpace(spaces: Space[], selectedSpace: Space | undefined): Space | undefined {
+  if (!selectedSpace) {
+    return undefined;
+  }
+  return spaces.find((space) => space.id === selectedSpace.id);
 }
 
 export const useSpaceStore = create<SpaceStore>((set, get) => ({
@@ -37,7 +45,11 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
         throw await toApiError(response, i18n.t('storeErrors.loadSpaceListFailed'));
       }
       const data: Space[] = await response.json();
-      set({ spaces: data, isLoading: false });
+      set((state) => ({
+        spaces: data,
+        selectedSpace: reconcileSelectedSpace(data, state.selectedSpace),
+        isLoading: false,
+      }));
     } catch (e) {
       set({ error: normalizeUnknownError(e, i18n.t('storeErrors.loadSpaceListFailed')), isLoading: false });
     }
@@ -47,30 +59,50 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
     set({ selectedSpace: space });
   },
 
-  createSpace: async (name: string, path: string, description?: string) => {
+  createSpace: async (name: string, path: string) => {
     set({ isLoading: true, error: null });
     try {
-      const trimmedDescription = description?.trim();
       const response = await apiFetch('/api/spaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           space_name: name,
           space_path: path,
-          ...(trimmedDescription ? { space_desc: trimmedDescription } : {}),
         }),
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || i18n.t('storeErrors.createSpaceFailed'));
+        throw await toApiError(response, i18n.t('storeErrors.createSpaceFailed'));
       }
 
-      // Space 생성 후 목록 갱신
       await get().fetchSpaces();
     } catch (e) {
-      set({ error: e as Error, isLoading: false });
-      throw e;
+      const error = normalizeUnknownError(e, i18n.t('storeErrors.createSpaceFailed'));
+      set({ error, isLoading: false });
+      throw error;
+    }
+  },
+
+  renameSpace: async (id: number, name: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await apiFetch(`/api/spaces/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          space_name: name.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw await toApiError(response, i18n.t('storeErrors.renameSpaceFailed'));
+      }
+
+      await get().fetchSpaces();
+    } catch (e) {
+      const error = normalizeUnknownError(e, i18n.t('storeErrors.renameSpaceFailed'));
+      set({ error, isLoading: false });
+      throw error;
     }
   },
 
@@ -82,15 +114,14 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || i18n.t('storeErrors.deleteSpaceFailed'));
+        throw await toApiError(response, i18n.t('storeErrors.deleteSpaceFailed'));
       }
 
-      // Space 삭제 후 목록 갱신
       await get().fetchSpaces();
     } catch (e) {
-      set({ error: e as Error, isLoading: false });
-      throw e;
+      const error = normalizeUnknownError(e, i18n.t('storeErrors.deleteSpaceFailed'));
+      set({ error, isLoading: false });
+      throw error;
     }
   },
 }));

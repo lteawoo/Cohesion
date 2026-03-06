@@ -28,7 +28,6 @@ func (s *Store) GetAll(ctx context.Context) ([]*space.Space, error) {
 		Select(
 			"id",
 			"space_name",
-			"space_desc",
 			"space_path",
 			"icon",
 			"space_category",
@@ -57,7 +56,6 @@ func (s *Store) GetAll(ctx context.Context) ([]*space.Space, error) {
 		if err := rows.Scan(
 			&sp.ID,
 			&sp.SpaceName,
-			&sp.SpaceDesc,
 			&sp.SpacePath,
 			&sp.Icon,
 			&sp.SpaceCategory,
@@ -88,7 +86,6 @@ func (s *Store) GetByName(ctx context.Context, name string) (*space.Space, error
 		Select(
 			"id",
 			"space_name",
-			"space_desc",
 			"space_path",
 			"icon",
 			"space_category",
@@ -111,7 +108,6 @@ func (s *Store) GetByName(ctx context.Context, name string) (*space.Space, error
 	if err := row.Scan(
 		&sp.ID,
 		&sp.SpaceName,
-		&sp.SpaceDesc,
 		&sp.SpacePath,
 		&sp.Icon,
 		&sp.SpaceCategory,
@@ -121,6 +117,9 @@ func (s *Store) GetByName(ctx context.Context, name string) (*space.Space, error
 		&sp.UpdatedAt,
 		&sp.UpdatedUserID,
 	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("space with name '%s' not found", name)
+		}
 		return nil, fmt.Errorf("failed to scan space row: %w", err)
 	}
 
@@ -132,7 +131,6 @@ func (s *Store) GetByID(ctx context.Context, id int64) (*space.Space, error) {
 		Select(
 			"id",
 			"space_name",
-			"space_desc",
 			"space_path",
 			"icon",
 			"space_category",
@@ -155,7 +153,6 @@ func (s *Store) GetByID(ctx context.Context, id int64) (*space.Space, error) {
 	if err := row.Scan(
 		&sp.ID,
 		&sp.SpaceName,
-		&sp.SpaceDesc,
 		&sp.SpacePath,
 		&sp.Icon,
 		&sp.SpaceCategory,
@@ -183,7 +180,6 @@ func (s *Store) Create(ctx context.Context, req *space.CreateSpaceRequest) (*spa
 		Insert("space").
 		Columns(
 			"space_name",
-			"space_desc",
 			"space_path",
 			"icon",
 			"space_category",
@@ -192,7 +188,6 @@ func (s *Store) Create(ctx context.Context, req *space.CreateSpaceRequest) (*spa
 		).
 		Values(
 			req.SpaceName,
-			req.SpaceDesc,
 			req.SpacePath,
 			req.Icon,
 			req.SpaceCategory,
@@ -224,7 +219,6 @@ func (s *Store) Create(ctx context.Context, req *space.CreateSpaceRequest) (*spa
 	return &space.Space{
 		ID:            id,
 		SpaceName:     req.SpaceName,
-		SpaceDesc:     req.SpaceDesc,
 		SpacePath:     req.SpacePath,
 		Icon:          req.Icon,
 		SpaceCategory: req.SpaceCategory,
@@ -254,6 +248,42 @@ func (s *Store) UpdateQuota(ctx context.Context, id int64, quotaBytes *int64) (*
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rows affected for UpdateQuota: %w", err)
+	}
+	if rowsAffected == 0 {
+		return nil, fmt.Errorf("space with id %d not found", id)
+	}
+
+	return s.GetByID(ctx, id)
+}
+
+func (s *Store) Update(ctx context.Context, id int64, req *space.UpdateSpaceRequest) (*space.Space, error) {
+	now := time.Now()
+
+	builder := s.qb.
+		Update("space").
+		Set("updated_at", now).
+		Where(sq.Eq{"id": id})
+
+	if req.SpaceName != nil {
+		builder = builder.Set("space_name", *req.SpaceName)
+	}
+
+	sqlQuery, args, err := builder.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build SQL query for Update: %w", err)
+	}
+
+	result, err := s.db.ExecContext(ctx, sqlQuery, args...)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return nil, fmt.Errorf("space with this name already exists: %w", err)
+		}
+		return nil, fmt.Errorf("failed to update space: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rows affected for Update: %w", err)
 	}
 	if rowsAffected == 0 {
 		return nil, fmt.Errorf("space with id %d not found", id)

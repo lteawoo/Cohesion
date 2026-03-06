@@ -31,6 +31,7 @@ interface BrowseStore {
   trashOpenRequest: TrashOpenRequest | null;
 
   setPath: (path: string, space?: Space) => void;
+  reconcileSelectedSpace: (spaces: Space[]) => void;
   fetchSystemContents: (path: string) => Promise<void>;
   fetchSpaceContents: (spaceId: number, relativePath: string) => Promise<void>;
   invalidateTree: (targets?: TreeInvalidationTarget[]) => void;
@@ -62,6 +63,31 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
       return {
         selectedPath: nextSpace ? normalizeRelativePath(path) : path,
         selectedSpace: nextSpace,
+      };
+    });
+  },
+
+  reconcileSelectedSpace: (spaces: Space[]) => {
+    set((state) => {
+      if (!state.selectedSpace) {
+        return {};
+      }
+
+      const nextSelectedSpace = spaces.find((space) => space.id === state.selectedSpace?.id);
+      if (!nextSelectedSpace) {
+        return {
+          content: [],
+          selectedPath: '',
+          selectedSpace: undefined,
+          trashOpenRequest: null,
+        };
+      }
+      if (nextSelectedSpace === state.selectedSpace) {
+        return {};
+      }
+
+      return {
+        selectedSpace: nextSelectedSpace,
       };
     });
   },
@@ -98,7 +124,7 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
       set({
         content: data,
         isLoading: false,
-        selectedSpace: space  // 덮어쓰기 없음
+        selectedSpace: space,
       });
     } catch (e) {
       set({ error: normalizeUnknownError(e, i18n.t('storeErrors.loadSpaceDirectoryFailed')), isLoading: false });

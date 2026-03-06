@@ -41,6 +41,14 @@ type Handler struct {
 	auditRecorder     audit.Recorder
 }
 
+type spaceResponse struct {
+	ID            int64   `json:"id"`
+	SpaceName     string  `json:"space_name"`
+	Icon          *string `json:"icon,omitempty"`
+	SpaceCategory *string `json:"space_category,omitempty"`
+	QuotaBytes    *int64  `json:"quota_bytes,omitempty"`
+}
+
 // 의존성 주입 생성자 생성
 func NewHandler(spaceService *space.Service, browseService BrowseService, accountService SpaceAccessService, trashService ...*space.TrashService) *Handler {
 	var resolvedTrashService *space.TrashService
@@ -61,6 +69,16 @@ func NewHandler(spaceService *space.Service, browseService BrowseService, accoun
 
 func (h *Handler) SetAuditRecorder(recorder audit.Recorder) {
 	h.auditRecorder = recorder
+}
+
+func newSpaceResponse(item *space.Space) spaceResponse {
+	return spaceResponse{
+		ID:            item.ID,
+		SpaceName:     item.SpaceName,
+		Icon:          item.Icon,
+		SpaceCategory: item.SpaceCategory,
+		QuotaBytes:    item.QuotaBytes,
+	}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
@@ -121,24 +139,9 @@ func (h *Handler) handleGetSpaces(w http.ResponseWriter, r *http.Request) *web.E
 		}
 	}
 
-	type listSpaceResponse struct {
-		ID            int64   `json:"id"`
-		SpaceName     string  `json:"space_name"`
-		SpaceDesc     *string `json:"space_desc,omitempty"`
-		Icon          *string `json:"icon,omitempty"`
-		SpaceCategory *string `json:"space_category,omitempty"`
-		QuotaBytes    *int64  `json:"quota_bytes,omitempty"`
-	}
-	response := make([]listSpaceResponse, 0, len(filteredSpaces))
+	response := make([]spaceResponse, 0, len(filteredSpaces))
 	for _, item := range filteredSpaces {
-		response = append(response, listSpaceResponse{
-			ID:            item.ID,
-			SpaceName:     item.SpaceName,
-			SpaceDesc:     item.SpaceDesc,
-			Icon:          item.Icon,
-			SpaceCategory: item.SpaceCategory,
-			QuotaBytes:    item.QuotaBytes,
-		})
+		response = append(response, newSpaceResponse(item))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -249,6 +252,8 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 
 	// 기존 로직 (/api/spaces/{id})
 	switch r.Method {
+	case http.MethodPatch:
+		return h.handleUpdateSpace(w, r, id)
 	case http.MethodDelete:
 		return h.handleDeleteSpace(w, r, id)
 	default:
@@ -258,6 +263,59 @@ func (h *Handler) handleSpaceByID(w http.ResponseWriter, r *http.Request) *web.E
 			Err:     nil,
 		}
 	}
+}
+
+func (h *Handler) handleUpdateSpace(w http.ResponseWriter, r *http.Request, id int64) *web.Error {
+	var req space.UpdateSpaceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Err:     err,
+		}
+	}
+	defer r.Body.Close()
+
+	updatedSpace, err := h.spaceService.UpdateSpace(r.Context(), id, &req)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		message := "Failed to update Space"
+		switch {
+		case strings.Contains(err.Error(), "validation failed"):
+			statusCode = http.StatusBadRequest
+			message = "Invalid Space request"
+		case strings.Contains(err.Error(), "already exists"):
+			statusCode = http.StatusConflict
+			message = "Space already exists"
+		case strings.Contains(err.Error(), "not found"):
+			statusCode = http.StatusNotFound
+			message = "Space not found"
+		}
+
+		return &web.Error{
+			Code:    statusCode,
+			Message: message,
+			Err:     err,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(struct {
+		spaceResponse
+		Message string `json:"message"`
+	}{
+		spaceResponse: newSpaceResponse(updatedSpace),
+		Message:       fmt.Sprintf("Space updated for '%s'", updatedSpace.SpaceName),
+	}); err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to encode response",
+			Err:     err,
+		}
+	}
+
+	return nil
 }
 
 // handleDeleteSpace는 Space를 삭제합니다
