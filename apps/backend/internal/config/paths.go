@@ -4,11 +4,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
 const (
+	ProductionStateRootEnv            = "COHESION_STATE_ROOT"
 	defaultProductionAppDirName       = ".cohesion"
+	defaultLinuxProductionRootDir     = "/var/lib/cohesion"
 	defaultProductionConfigDirName    = "config"
 	defaultProductionDataDirName      = "data"
 	defaultProductionSecretsDirName   = "secrets"
@@ -18,6 +21,21 @@ const (
 )
 
 func ResolveProductionHomeDir() (string, error) {
+	if stateRoot := strings.TrimSpace(os.Getenv(ProductionStateRootEnv)); stateRoot != "" {
+		if expanded, ok := ExpandHomePath(stateRoot); ok {
+			stateRoot = expanded
+		}
+		return filepath.Clean(stateRoot), nil
+	}
+
+	return resolveProductionHomeDirForOS(runtime.GOOS)
+}
+
+func resolveProductionHomeDirForOS(goos string) (string, error) {
+	if strings.EqualFold(strings.TrimSpace(goos), "linux") {
+		return defaultLinuxProductionRootDir, nil
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

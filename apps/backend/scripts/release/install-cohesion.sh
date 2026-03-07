@@ -2,6 +2,7 @@
 set -euo pipefail
 
 INSTALL_DIR="/opt/cohesion"
+STATE_ROOT="/var/lib/cohesion"
 SYSTEMD_UNIT_DIR="/etc/systemd/system"
 SYSTEMD_UNIT_NAME="cohesion.service"
 TARGET_USER="${SUDO_USER:-${USER:-}}"
@@ -15,6 +16,7 @@ Usage: sudo ./install.sh [options]
 
 Options:
   --install-dir <path>       Install root (default: /opt/cohesion)
+  --state-root <path>        Operational state root (default: /var/lib/cohesion)
   --systemd-unit-dir <path>  systemd unit directory (default: /etc/systemd/system)
   --user <name>              OS user that runs the service (default: SUDO_USER or USER)
   --group <name>             OS group for the service user (default: primary group of --user)
@@ -24,6 +26,7 @@ Options:
 
 Examples:
   sudo ./install.sh --user "$(id -un)"
+  sudo ./install.sh --user "$(id -un)" --state-root /var/lib/cohesion
   sudo ./install.sh --user "$(id -un)" --skip-start
 EOF
 }
@@ -47,20 +50,16 @@ escape_sed_replacement() {
   printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
 }
 
-resolve_target_home() {
-  local passwd_entry
-  passwd_entry="$(getent passwd "$1" || true)"
-  if [[ -z "$passwd_entry" ]]; then
-    return 1
-  fi
-  printf '%s' "$passwd_entry" | cut -d: -f6
-}
-
 while (($# > 0)); do
   case "$1" in
     --install-dir)
       [[ $# -ge 2 ]] || fail "missing value for --install-dir"
       INSTALL_DIR="$2"
+      shift 2
+      ;;
+    --state-root)
+      [[ $# -ge 2 ]] || fail "missing value for --state-root"
+      STATE_ROOT="$2"
       shift 2
       ;;
     --systemd-unit-dir)
@@ -99,7 +98,6 @@ done
 [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "run this script with sudo or as root"
 [[ -n "${TARGET_USER}" ]] || fail "service user is empty; pass --user <name>"
 
-require_command getent
 require_command id
 require_command install
 if [[ "$SKIP_SYSTEMD" -eq 0 ]]; then
@@ -113,8 +111,6 @@ fi
 if [[ -z "$TARGET_GROUP" ]]; then
   TARGET_GROUP="$(id -gn "$TARGET_USER")"
 fi
-TARGET_HOME="$(resolve_target_home "$TARGET_USER" || true)"
-[[ -n "$TARGET_HOME" ]] || fail "failed to resolve home directory for user: $TARGET_USER"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BINARY_PATH="$SCRIPT_DIR/cohesion"
@@ -129,17 +125,17 @@ SERVICE_TEMPLATE_PATH="$SCRIPT_DIR/cohesion.service"
 [[ -f "$CONFIG_TEMPLATE_PATH" ]] || fail "config/config.prod.yaml not found next to install.sh"
 [[ "$SKIP_SYSTEMD" -eq 1 || -f "$SERVICE_TEMPLATE_PATH" ]] || fail "cohesion.service not found next to install.sh"
 
-APP_HOME="$TARGET_HOME/.cohesion"
+APP_HOME="$STATE_ROOT"
 CONFIG_DIR="$APP_HOME/config"
 DATA_DIR="$APP_HOME/data"
 SECRETS_DIR="$APP_HOME/secrets"
-RUNTIME_ROOT="$INSTALL_DIR/runtime"
+RUNTIME_ROOT="$STATE_ROOT/runtime"
 SERVICE_PATH="$SYSTEMD_UNIT_DIR/$SYSTEMD_UNIT_NAME"
 
 log "Installing Cohesion into $INSTALL_DIR"
 log "Service user: $TARGET_USER"
 log "Service group: $TARGET_GROUP"
-log "User home: $TARGET_HOME"
+log "State root: $STATE_ROOT"
 
 install -d -m 0755 "$INSTALL_DIR" "$INSTALL_DIR/bin" "$INSTALL_DIR/share" "$RUNTIME_ROOT" "$RUNTIME_ROOT/data" "$RUNTIME_ROOT/logs"
 install -m 0755 "$BINARY_PATH" "$INSTALL_DIR/bin/cohesion"
@@ -164,7 +160,7 @@ if [[ "$SKIP_SYSTEMD" -eq 0 ]]; then
   sed \
     -e "s/__COHESION_USER__/$(escape_sed_replacement "$TARGET_USER")/g" \
     -e "s/__COHESION_GROUP__/$(escape_sed_replacement "$TARGET_GROUP")/g" \
-    -e "s/__COHESION_HOME__/$(escape_sed_replacement "$TARGET_HOME")/g" \
+    -e "s/__COHESION_STATE_ROOT__/$(escape_sed_replacement "$STATE_ROOT")/g" \
     -e "s/__COHESION_INSTALL_DIR__/$(escape_sed_replacement "$INSTALL_DIR")/g" \
     -e "s/__COHESION_RUNTIME_ROOT__/$(escape_sed_replacement "$RUNTIME_ROOT")/g" \
     "$SERVICE_TEMPLATE_PATH" > "$temp_service"
@@ -174,7 +170,7 @@ if [[ "$SKIP_SYSTEMD" -eq 0 ]]; then
 
   if [[ "$SKIP_START" -eq 1 ]]; then
     log "Installed systemd unit at $SERVICE_PATH"
-    log "Run 'sudo systemctl enable --now ${SYSTEMD_UNIT_NAME%.service}' after reviewing ~/.cohesion/config/config.prod.yaml"
+    log "Run 'sudo systemctl enable --now ${SYSTEMD_UNIT_NAME%.service}' after reviewing $CONFIG_DIR/config.prod.yaml"
   elif systemctl is-enabled --quiet "$SYSTEMD_UNIT_NAME" 2>/dev/null; then
     systemctl restart "$SYSTEMD_UNIT_NAME"
     log "Restarted existing service: ${SYSTEMD_UNIT_NAME%.service}"
@@ -189,6 +185,7 @@ cat <<EOF
 Installed Cohesion
 - Binary: $INSTALL_DIR/bin/cohesion
 - Updater: $INSTALL_DIR/bin/cohesion-updater
+- State root: $APP_HOME
 - Runtime root: $RUNTIME_ROOT
 - Config: $CONFIG_DIR/config.prod.yaml
 - Data directory: $DATA_DIR

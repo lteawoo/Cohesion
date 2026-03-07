@@ -88,7 +88,7 @@ export const koTranslations = {
     packageUpdateHint: "Linux 패키지 설치본은 앱 내 업데이트를 지원하지 않습니다.",
     packageUpdateDetail: "최신 `.deb`/`.rpm` 패키지로 업그레이드하거나 시스템 패키지 매니저를 사용하세요.",
     systemdUpdateHint: "Linux systemd 서비스 설치본은 앱 내 업데이트를 지원하지 않습니다.",
-    systemdUpdateDetail: "최신 릴리즈 아카이브를 다시 내려받아 설치 스크립트를 재실행하세요.",
+    systemdUpdateDetail: "최신 릴리즈 아카이브를 다시 내려받아 같은 서비스 계정으로 설치 스크립트를 재실행하세요.",
     macOsDirectUpdateHint: "macOS 직접 설치본은 앱 내 업데이트를 지원하지 않습니다.",
     macOsDirectUpdateDetail: "최신 릴리즈를 다시 설치하거나, 이후에는 Homebrew 설치를 사용하세요.",
   },

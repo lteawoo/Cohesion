@@ -24,15 +24,18 @@ pnpm release:homebrew-formula
 Render a specific tag:
 
 ```bash
-pnpm release:homebrew-formula -- --tag v0.5.17
+pnpm release:homebrew-formula --tag v0.5.18
 ```
 
 ## Publish Checklist
 
 1. Create the `homebrew-cohesion` repository.
 2. Copy `Formula/cohesion.rb` into `homebrew-cohesion/Formula/cohesion.rb`.
-3. Add a tap README with install and service instructions.
-4. Verify:
+3. Commit and push the updated tap repository after every release.
+4. Add a tap README with install and service instructions.
+5. Verify:
    - `brew install lteawoo/cohesion/cohesion`
    - `brew services start cohesion`
    - `brew upgrade cohesion`
+
+Homebrew only upgrades to a new Cohesion release after the tap repository's `Formula/cohesion.rb` is updated and pushed.

@@ -9,6 +9,7 @@ User=cohesion
 Group=cohesion
 WorkingDirectory=/var/lib/cohesion
 Environment=HOME=/var/lib/cohesion
+Environment=COHESION_STATE_ROOT=/var/lib/cohesion
 Environment=COHESION_RUNTIME_ROOT=/var/lib/cohesion/runtime
 Environment=COHESION_INSTALL_CHANNEL=package
 Environment=COHESION_LAUNCH_MODE=background

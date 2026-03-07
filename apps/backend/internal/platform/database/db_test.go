@@ -8,9 +8,9 @@ import (
 	"taeu.kr/cohesion/internal/config"
 )
 
-func TestNewDB_ProductionDefaultCreatesDatabaseInHiddenHomeDir(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+func TestNewDB_ProductionDefaultCreatesDatabaseInStateRoot(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(config.ProductionStateRootEnv, stateRoot)
 
 	config.SetConfig("production")
 
@@ -22,7 +22,7 @@ func TestNewDB_ProductionDefaultCreatesDatabaseInHiddenHomeDir(t *testing.T) {
 		_ = db.Close()
 	})
 
-	expected := filepath.Join(homeDir, ".cohesion", "data", "cohesion.db")
+	expected := filepath.Join(stateRoot, "data", "cohesion.db")
 	if _, err := os.Stat(expected); err != nil {
 		t.Fatalf("expected db file at %q: %v", expected, err)
 	}

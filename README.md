@@ -143,7 +143,8 @@ sudo systemctl status cohesion --no-pager
 The Linux installer:
 
 - installs the release files into `/opt/cohesion`
-- creates `~/.cohesion/config`, `~/.cohesion/data`, and `~/.cohesion/secrets` for the selected service user
+- creates `/var/lib/cohesion/config`, `/var/lib/cohesion/data`, and `/var/lib/cohesion/secrets`
+- writes runtime files under `/var/lib/cohesion/runtime`
 - writes `/etc/systemd/system/cohesion.service`
 - enables and starts the service by default
 
@@ -166,14 +167,17 @@ Native packages:
 - install the `cohesion` binary into `/usr/bin`
 - install the systemd service unit into the distribution-specific systemd directory
 - run the service as the `cohesion` system user
-- keep config/data/secrets under `/var/lib/cohesion/.cohesion` (`~/.cohesion` for the `cohesion` system user)
+- keep config/data/secrets under `/var/lib/cohesion`
 - keep runtime files under `/var/lib/cohesion/runtime`
 
-On first production run, Cohesion creates its operational files under `~/.cohesion` when they are missing.
+On first production run, Cohesion creates its operational files under the platform default state root when they are missing.
 
-- Config: `~/.cohesion/config/config.prod.yaml`
-- Database: `~/.cohesion/data/cohesion.db`
-- Secrets: `~/.cohesion/secrets/`
+- macOS / Homebrew: `~/.cohesion`
+- Windows: `%USERPROFILE%\\.cohesion`
+- Linux: `/var/lib/cohesion`
+- Config: `<state-root>/config/config.prod.yaml`
+- Database: `<state-root>/data/cohesion.db`
+- Secrets: `<state-root>/secrets/`
 - Windows: the `.cohesion` root directory is marked hidden when the OS supports the hidden attribute.
 
 ### Upgrade Notes
@@ -181,16 +185,20 @@ On first production run, Cohesion creates its operational files under `~/.cohesi
 - Homebrew installs do not support in-app self-update. Use `brew upgrade cohesion`.
 - Linux package installs do not support in-app self-update. Upgrade with a newer `.deb`/`.rpm` package or your system package manager.
 - macOS direct-download installs do not support in-app self-update. Reinstall the latest release or switch to the Homebrew install path.
-- Linux direct-download installs can keep using the bundled binary replacement flow or manual replacement.
-- Linux systemd installs do not support in-app self-update. Download the latest release archive again and rerun `sudo ./install.sh --user "$(id -un)"`.
+- Linux direct-download installs should be reinstalled with the latest release archive unless the running account can update both the binary location and the configured state root.
+- Linux systemd installs do not support in-app self-update. Download the latest release archive again and rerun `sudo ./install.sh --user <service-user>`.
 - Stop the running process before replacing the binary.
-- If you are upgrading from an older production install that kept `config/` or `data/` next to the binary, move those files into `~/.cohesion/` before starting the new build.
+- If you are upgrading from an older Linux production install that kept files under `~/.cohesion` or next to the binary, move them into `/var/lib/cohesion/` before starting the new build.
+- If you are upgrading from an older macOS/Windows production install that kept files next to the binary, move them into `~/.cohesion/` before starting the new build.
 
 ## Environment Variables
 
+- `COHESION_STATE_ROOT` (optional)
+  - Overrides the production config/data/secrets root directory
+  - Useful when Linux deployments need a different operational state root
 - `COHESION_JWT_SECRET`
   - Recommended to be at least 32 characters in production
-  - If not set, a random value is generated in `~/.cohesion/secrets/jwt_secret`
+  - If not set, a random value is generated in `<state-root>/secrets/jwt_secret`
 - `COHESION_JWT_SECRET_FILE` (optional)
 - `COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`, `COHESION_ADMIN_NICKNAME` (optional)
   - `COHESION_ADMIN_USER` and `COHESION_ADMIN_PASSWORD` must be set together

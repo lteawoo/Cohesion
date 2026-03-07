@@ -165,16 +165,16 @@ func TestDefaultConfigForEnv_ProductionUsesHomeDataSibling(t *testing.T) {
 	}
 }
 
-func TestResolveConfigSearchPaths_ProductionUsesHiddenHomeConfigDir(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+func TestResolveConfigSearchPaths_ProductionUsesStateRootConfigDir(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(ProductionStateRootEnv, stateRoot)
 
 	paths := resolveConfigSearchPaths("production")
 	if len(paths) != 1 {
 		t.Fatalf("expected a single production config path, got %v", paths)
 	}
 
-	expected := filepath.Join(homeDir, ".cohesion", "config")
+	expected := filepath.Join(stateRoot, "config")
 	if paths[0] != expected {
 		t.Fatalf("expected %q, got %q", expected, paths[0])
 	}

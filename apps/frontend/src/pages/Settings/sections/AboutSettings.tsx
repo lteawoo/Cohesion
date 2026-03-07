@@ -117,7 +117,7 @@ export default function AboutSettings() {
             <Space direction="vertical" size={4} className="settings-stack-full">
               <Text type="secondary">{t('aboutSettings.systemdUpdateHint')}</Text>
               <Text type="secondary">{t('aboutSettings.systemdUpdateDetail')}</Text>
-              <Text code>sudo ./install.sh --user "$(id -un)"</Text>
+              <Text code>sudo ./install.sh --user &lt;service-user&gt;</Text>
             </Space>
           ) : isMacOS ? (
             <Space direction="vertical" size={4} className="settings-stack-full">
