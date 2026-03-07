@@ -131,6 +131,24 @@ Expand-Archive .\cohesion_<version>_windows_amd64.zip .
 .\cohesion.exe
 ```
 
+Linux systemd service install:
+
+```bash
+tar -xzf cohesion_<version>_linux_<arch>.tar.gz
+cd cohesion_<version>_linux_<arch>
+sudo ./install.sh --user "$(id -un)"
+sudo systemctl status cohesion --no-pager
+```
+
+The Linux installer:
+
+- installs the release files into `/opt/cohesion`
+- creates `~/.cohesion/config`, `~/.cohesion/data`, and `~/.cohesion/secrets` for the selected service user
+- writes `/etc/systemd/system/cohesion.service`
+- enables and starts the service by default
+
+Use `sudo ./install.sh --help` to see optional flags such as `--skip-start`.
+
 On first production run, Cohesion creates its operational files under `~/.cohesion` when they are missing.
 
 - Config: `~/.cohesion/config/config.prod.yaml`
@@ -143,6 +161,7 @@ On first production run, Cohesion creates its operational files under `~/.cohesi
 - Homebrew installs do not support in-app self-update. Use `brew upgrade cohesion`.
 - macOS direct-download installs do not support in-app self-update. Reinstall the latest release or switch to the Homebrew install path.
 - Linux direct-download installs can keep using the bundled binary replacement flow or manual replacement.
+- Linux systemd installs do not support in-app self-update. Download the latest release archive again and rerun `sudo ./install.sh --user "$(id -un)"`.
 - Stop the running process before replacing the binary.
 - If you are upgrading from an older production install that kept `config/` or `data/` next to the binary, move those files into `~/.cohesion/` before starting the new build.
 

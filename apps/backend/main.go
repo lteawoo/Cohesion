@@ -100,11 +100,18 @@ func resolveRuntimeRootDir() (string, error) {
 func detectInstallChannel() string {
 	executablePath, err := os.Executable()
 	if err != nil {
-		return "direct"
+		return detectInstallChannelFromEnvAndPath(os.Getenv(system.InstallChannelEnv), "")
 	}
 	executablePath = filepath.Clean(executablePath)
 	if resolvedPath, err := filepath.EvalSymlinks(executablePath); err == nil && strings.TrimSpace(resolvedPath) != "" {
 		executablePath = resolvedPath
+	}
+	return detectInstallChannelFromEnvAndPath(os.Getenv(system.InstallChannelEnv), executablePath)
+}
+
+func detectInstallChannelFromEnvAndPath(rawEnv, executablePath string) string {
+	if override, ok := system.ParseInstallChannel(rawEnv); ok {
+		return override
 	}
 	return detectInstallChannelFromPath(executablePath)
 }
@@ -113,10 +120,10 @@ func detectInstallChannelFromPath(executablePath string) string {
 	pathParts := strings.Split(filepath.ToSlash(filepath.Clean(executablePath)), "/")
 	for idx := 0; idx+1 < len(pathParts); idx++ {
 		if pathParts[idx] == "Cellar" && pathParts[idx+1] == "cohesion" {
-			return "homebrew"
+			return system.InstallChannelHomebrew
 		}
 	}
-	return "direct"
+	return system.InstallChannelDirect
 }
 
 func openRootLogFile(fileName string) (*os.File, string, error) {

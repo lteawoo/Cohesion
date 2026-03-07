@@ -2,6 +2,20 @@
 
 ## 아키텍처 (Architecture)
 
+### Linux systemd 설치본은 `install.sh`로 배치하고 앱 내 self-update를 비활성화한다 (2026-03-07)
+- 상황:
+  - Linux direct-download는 유지하고 싶지만, systemd 서비스로 설치한 바이너리는 서비스 관리와 self-update 프로세스 교체가 충돌할 수 있다.
+  - 운영 파일 기본 경로는 계속 사용자 홈의 `~/.cohesion`를 유지해야 한다.
+- 결정:
+  - 릴리즈 Linux 아카이브에 `install.sh`와 `cohesion.service`를 포함한다.
+  - installer는 `/opt/cohesion` 아래에 바이너리와 runtime root를 배치하고, 서비스 유저의 `~/.cohesion` 아래에 config/data/secrets 경로를 준비한다.
+  - systemd service는 `COHESION_INSTALL_CHANNEL=systemd`, `HOME=<service-user-home>`, `COHESION_RUNTIME_ROOT=/opt/cohesion/runtime`를 명시한다.
+  - `systemd` 설치 채널은 앱 내 self-update를 허용하지 않고, 최신 릴리즈 아카이브를 다시 설치하는 방식으로 업그레이드한다.
+  - GoReleaser `archives.files`는 OS별 조건 분기가 어려워 Linux 설치 자산은 모든 OS 아카이브에 공통 포함하고, README에서는 Linux용 자산으로만 안내한다.
+- 이유:
+  - systemd가 관리하는 서비스는 프로세스 교체와 재시작 정책이 패키지/서비스 매니저 쪽에 있어야 중복 기동과 상태 꼬임을 피할 수 있다.
+  - 설치 위치와 운영 상태를 분리하되, 사용자가 원하는 `~/.cohesion` 운영 파일 정책은 그대로 유지할 수 있다.
+
 ### Windows에서는 `~/.cohesion` 루트에 hidden attribute를 적용한다 (2026-03-07)
 - 상황:
   - production 운영 파일 기본 경로를 `~/.cohesion`로 통일했지만, Windows는 점(`.`) prefix만으로 Explorer에서 숨김 폴더로 취급하지 않는다.

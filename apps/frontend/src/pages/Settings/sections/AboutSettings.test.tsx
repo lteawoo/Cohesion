@@ -152,6 +152,25 @@ describe('AboutSettings', () => {
     expect(view.queryByRole('button', { name: 'aboutSettings.updateNow' })).toBeNull();
   });
 
+  it('shows systemd guidance for Linux service installs', () => {
+    h.useSystemVersion.mockReturnValue({
+      versionInfo: {
+        version: 'v0.5.17',
+        commit: 'abc123',
+        buildDate: '2026-03-07T00:00:00Z',
+        os: 'linux',
+        installChannel: 'systemd',
+      },
+    });
+
+    const view = render(<AboutSettings />);
+
+    expect(view.getByText('aboutSettings.systemdUpdateHint')).toBeTruthy();
+    expect(view.getByText('aboutSettings.systemdUpdateDetail')).toBeTruthy();
+    expect(view.getByText('sudo ./install.sh --user "$(id -un)"')).toBeTruthy();
+    expect(view.queryByRole('button', { name: 'aboutSettings.updateNow' })).toBeNull();
+  });
+
   it('starts self-update on Linux', async () => {
     const startUpdate = vi.fn().mockResolvedValue(undefined);
     h.useSelfUpdate.mockReturnValue({

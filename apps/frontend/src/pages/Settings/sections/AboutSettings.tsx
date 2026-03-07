@@ -30,8 +30,9 @@ export default function AboutSettings() {
 
   const latestVersion = updateInfo?.latestVersion ?? '-';
   const isHomebrewInstall = installChannel === 'homebrew';
+  const isSystemdInstall = installChannel === 'systemd';
   const isMacOS = runtimeOs === 'darwin';
-  const canStartUpdate = currentVersion !== 'dev' && !isMacOS && !isHomebrewInstall;
+  const canStartUpdate = currentVersion !== 'dev' && !isMacOS && !isHomebrewInstall && !isSystemdInstall;
   const isForceUpdate = canStartUpdate && updateInfo !== null && !updateInfo.updateAvailable;
 
   const handleStartUpdate = async () => {
@@ -102,6 +103,12 @@ export default function AboutSettings() {
               <Text type="secondary">{t('aboutSettings.homebrewUpdateHint')}</Text>
               <Text type="secondary">{t('aboutSettings.homebrewUpdateDetail')}</Text>
               <Text code>brew upgrade cohesion</Text>
+            </Space>
+          ) : isSystemdInstall ? (
+            <Space direction="vertical" size={4} className="settings-stack-full">
+              <Text type="secondary">{t('aboutSettings.systemdUpdateHint')}</Text>
+              <Text type="secondary">{t('aboutSettings.systemdUpdateDetail')}</Text>
+              <Text code>sudo ./install.sh --user "$(id -un)"</Text>
             </Space>
           ) : isMacOS ? (
             <Space direction="vertical" size={4} className="settings-stack-full">
