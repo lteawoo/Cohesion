@@ -149,6 +149,26 @@ The Linux installer:
 
 Use `sudo ./install.sh --help` to see optional flags such as `--skip-start`.
 
+Linux native packages:
+
+```bash
+# Debian / Ubuntu
+sudo dpkg -i ./cohesion_<version>_<arch>.deb
+sudo systemctl enable --now cohesion
+
+# RHEL / Fedora
+sudo rpm -Uvh ./cohesion-<version>-1.<arch>.rpm
+sudo systemctl enable --now cohesion
+```
+
+Native packages:
+
+- install the `cohesion` binary into `/usr/bin`
+- install the systemd service unit into the distribution-specific systemd directory
+- run the service as the `cohesion` system user
+- keep config/data/secrets under `/var/lib/cohesion/.cohesion` (`~/.cohesion` for the `cohesion` system user)
+- keep runtime files under `/var/lib/cohesion/runtime`
+
 On first production run, Cohesion creates its operational files under `~/.cohesion` when they are missing.
 
 - Config: `~/.cohesion/config/config.prod.yaml`
@@ -159,6 +179,7 @@ On first production run, Cohesion creates its operational files under `~/.cohesi
 ### Upgrade Notes
 
 - Homebrew installs do not support in-app self-update. Use `brew upgrade cohesion`.
+- Linux package installs do not support in-app self-update. Upgrade with a newer `.deb`/`.rpm` package or your system package manager.
 - macOS direct-download installs do not support in-app self-update. Reinstall the latest release or switch to the Homebrew install path.
 - Linux direct-download installs can keep using the bundled binary replacement flow or manual replacement.
 - Linux systemd installs do not support in-app self-update. Download the latest release archive again and rerun `sudo ./install.sh --user "$(id -un)"`.

@@ -6,6 +6,7 @@ const (
 	InstallChannelEnv      = "COHESION_INSTALL_CHANNEL"
 	InstallChannelDirect   = "direct"
 	InstallChannelHomebrew = "homebrew"
+	InstallChannelPackage  = "package"
 	InstallChannelSystemd  = "systemd"
 )
 
@@ -15,6 +16,8 @@ func ParseInstallChannel(raw string) (string, bool) {
 		return InstallChannelDirect, true
 	case InstallChannelHomebrew:
 		return InstallChannelHomebrew, true
+	case InstallChannelPackage:
+		return InstallChannelPackage, true
 	case InstallChannelSystemd:
 		return InstallChannelSystemd, true
 	default:

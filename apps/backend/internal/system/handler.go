@@ -153,6 +153,23 @@ func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error
 			Code:    http.StatusBadRequest,
 			Message: "Homebrew 설치본은 앱 내 업데이트를 지원하지 않습니다. `brew upgrade cohesion`를 사용하세요.",
 		}
+	case InstallChannelPackage:
+		h.recordAudit(r, audit.Event{
+			Action: "system.update.start",
+			Result: audit.ResultFailure,
+			Target: "self-update",
+			Metadata: map[string]any{
+				"force":           force,
+				"reason":          "package_managed_install",
+				"os":              h.meta.RuntimeOS,
+				"install_channel": h.meta.InstallChannel,
+			},
+		})
+		return &web.Error{
+			Err:     ErrSelfUpdateUnsupportedBuild,
+			Code:    http.StatusBadRequest,
+			Message: "패키지 매니저 설치본은 앱 내 업데이트를 지원하지 않습니다. 최신 `.deb`/`.rpm` 패키지로 업그레이드하거나 apt/dnf 업그레이드를 사용하세요.",
+		}
 	case InstallChannelSystemd:
 		h.recordAudit(r, audit.Event{
 			Action: "system.update.start",

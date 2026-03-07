@@ -2,6 +2,18 @@
 
 ## 아키텍처 (Architecture)
 
+### Linux native package는 `cohesion` 시스템 유저 홈을 기준으로 운영 파일을 둔다 (2026-03-07)
+- 상황:
+  - `.deb` / `.rpm` 패키지는 특정 로그인 사용자 홈을 전제로 설치할 수 없고, 패키지 설치본도 direct-download와 구분된 업데이트 정책이 필요하다.
+- 결정:
+  - Linux native package는 `cohesion` 시스템 유저를 생성하고 홈을 `/var/lib/cohesion`으로 둔다.
+  - 서비스는 `HOME=/var/lib/cohesion`, `COHESION_RUNTIME_ROOT=/var/lib/cohesion/runtime`, `COHESION_INSTALL_CHANNEL=package`를 사용한다.
+  - config/data/secrets는 `/var/lib/cohesion/.cohesion` 아래에 두고, 패키지 postinstall이 기본 디렉터리와 config seed를 준비한다.
+  - 패키지 설치본은 앱 내 self-update를 허용하지 않고 `.deb` / `.rpm` 재설치 또는 시스템 패키지 매니저 업그레이드를 사용한다.
+- 이유:
+  - 패키지 설치는 OS 관리 대상이라 특정 사람의 홈 경로를 가정하기 어렵고, 서비스 유저 홈 기준이 가장 예측 가능하다.
+  - direct-download/install.sh 경로와 package-managed 경로를 분리해야 업그레이드 주체와 운영 파일 위치가 일관된다.
+
 ### Linux systemd 설치본은 `install.sh`로 배치하고 앱 내 self-update를 비활성화한다 (2026-03-07)
 - 상황:
   - Linux direct-download는 유지하고 싶지만, systemd 서비스로 설치한 바이너리는 서비스 관리와 self-update 프로세스 교체가 충돌할 수 있다.

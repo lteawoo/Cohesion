@@ -133,6 +133,26 @@ describe('AboutSettings', () => {
     expect(view.queryByRole('button', { name: 'aboutSettings.updateNow' })).toBeNull();
   });
 
+  it('shows package guidance for package-managed Linux installs', () => {
+    h.useSystemVersion.mockReturnValue({
+      versionInfo: {
+        version: 'v0.5.17',
+        commit: 'abc123',
+        buildDate: '2026-03-07T00:00:00Z',
+        os: 'linux',
+        installChannel: 'package',
+      },
+    });
+
+    const view = render(<AboutSettings />);
+
+    expect(view.getByText('aboutSettings.packageUpdateHint')).toBeTruthy();
+    expect(view.getByText('aboutSettings.packageUpdateDetail')).toBeTruthy();
+    expect(view.getByText('sudo dpkg -i ./cohesion_<version>_<arch>.deb')).toBeTruthy();
+    expect(view.getByText('sudo rpm -Uvh ./cohesion-<version>-1.<arch>.rpm')).toBeTruthy();
+    expect(view.queryByRole('button', { name: 'aboutSettings.updateNow' })).toBeNull();
+  });
+
   it('shows direct-install guidance instead of the update button on macOS', () => {
     h.useSystemVersion.mockReturnValue({
       versionInfo: {

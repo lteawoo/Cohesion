@@ -77,3 +77,33 @@ checksum:
 
 changelog:
   use: github-native
+
+nfpms:
+  - id: linux-packages
+    ids:
+      - backend
+    package_name: cohesion
+    file_name_template: "{{ .ConventionalFileName }}"
+    homepage: https://github.com/lteawoo/Cohesion
+    maintainer: Taeu Lee
+    description: |-
+      Self-hosted file service for browsing and sharing files.
+    license: AGPL-3.0-only
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: README.md
+        dst: /usr/share/doc/cohesion/README.md
+      - src: apps/backend/config/config.prod.yaml
+        dst: /usr/share/cohesion/config.prod.yaml
+      - src: apps/backend/scripts/release/cohesion-package.service
+        dst: /lib/systemd/system/cohesion.service
+        packager: deb
+      - src: apps/backend/scripts/release/cohesion-package.service
+        dst: /usr/lib/systemd/system/cohesion.service
+        packager: rpm
+    scripts:
+      postinstall: apps/backend/scripts/release/package/postinstall.sh
+      postremove: apps/backend/scripts/release/package/postremove.sh

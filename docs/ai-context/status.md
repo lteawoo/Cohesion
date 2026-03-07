@@ -1,6 +1,21 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- #240 Linux deb/rpm 패키징과 package-managed 설치 채널 추가 완료:
+  - GoReleaser `nfpms`로 Linux `backend` 빌드 기준 `.deb` / `.rpm` 패키지 생성을 추가
+  - 패키지용 `cohesion-package.service`와 postinstall/postremove 스크립트를 추가해 `cohesion` 시스템 유저, `/var/lib/cohesion`, `/var/lib/cohesion/.cohesion`, `/var/lib/cohesion/runtime`를 준비
+  - 패키지 설치본은 `COHESION_INSTALL_CHANNEL=package`로 식별하고 앱 내 self-update를 차단
+  - `Settings > About`와 README에 패키지 설치/업그레이드 안내를 추가
+  - 검증 완료:
+    - `cd apps/backend && go test ./...`
+    - `pnpm --dir apps/frontend test -- AboutSettings.test.tsx`
+    - `pnpm --dir apps/frontend typecheck`
+    - `sh -n apps/backend/scripts/release/package/postinstall.sh`
+    - `sh -n apps/backend/scripts/release/package/postremove.sh`
+    - `pnpm release:check`
+    - `pnpm release:snapshot`
+    - `ar t dist/release/cohesion_0.5.18~SNAPSHOT-0457cfd_amd64.deb`
+    - `bsdtar -tf dist/release/cohesion-0.5.18~SNAPSHOT_0457cfd-1.x86_64.rpm`
 - #238 Linux release artifact 설치 스크립트와 systemd 서비스 초안 완료:
   - release archive에 `install.sh`, `cohesion.service`를 추가하고 `pnpm release:snapshot`에서 Linux 아카이브 포함 여부를 확인
   - Linux systemd 서비스 설치 스크립트는 `/opt/cohesion` 배치, `~/.cohesion` 운영 파일 준비, `cohesion.service` 설치/재시작 흐름을 제공

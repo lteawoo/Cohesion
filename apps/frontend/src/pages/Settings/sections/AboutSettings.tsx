@@ -30,9 +30,11 @@ export default function AboutSettings() {
 
   const latestVersion = updateInfo?.latestVersion ?? '-';
   const isHomebrewInstall = installChannel === 'homebrew';
+  const isPackageInstall = installChannel === 'package';
   const isSystemdInstall = installChannel === 'systemd';
   const isMacOS = runtimeOs === 'darwin';
-  const canStartUpdate = currentVersion !== 'dev' && !isMacOS && !isHomebrewInstall && !isSystemdInstall;
+  const canStartUpdate =
+    currentVersion !== 'dev' && !isMacOS && !isHomebrewInstall && !isPackageInstall && !isSystemdInstall;
   const isForceUpdate = canStartUpdate && updateInfo !== null && !updateInfo.updateAvailable;
 
   const handleStartUpdate = async () => {
@@ -103,6 +105,13 @@ export default function AboutSettings() {
               <Text type="secondary">{t('aboutSettings.homebrewUpdateHint')}</Text>
               <Text type="secondary">{t('aboutSettings.homebrewUpdateDetail')}</Text>
               <Text code>brew upgrade cohesion</Text>
+            </Space>
+          ) : isPackageInstall ? (
+            <Space direction="vertical" size={4} className="settings-stack-full">
+              <Text type="secondary">{t('aboutSettings.packageUpdateHint')}</Text>
+              <Text type="secondary">{t('aboutSettings.packageUpdateDetail')}</Text>
+              <Text code>sudo dpkg -i ./cohesion_&lt;version&gt;_&lt;arch&gt;.deb</Text>
+              <Text code>sudo rpm -Uvh ./cohesion-&lt;version&gt;-1.&lt;arch&gt;.rpm</Text>
             </Space>
           ) : isSystemdInstall ? (
             <Space direction="vertical" size={4} className="settings-stack-full">
