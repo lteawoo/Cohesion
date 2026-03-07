@@ -1,6 +1,31 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- #230 Homebrew tap 초기 구성과 설치 채널 감지 추가 진행 완료 (브랜치 작업, 미머지):
+  - `/api/system/version` 응답에 `installChannel`을 추가하고 실행 경로가 Homebrew Cellar면 `homebrew`로 식별
+  - Homebrew 설치본은 OS와 무관하게 `/api/system/update/start`에서 앱 내 self-update를 차단하고 `brew upgrade cohesion` 안내를 반환
+  - macOS 직접 설치본은 앱 내 self-update를 차단하고 최신 릴리즈 재설치 또는 `brew install lteawoo/cohesion/cohesion` 안내를 반환
+  - runtime 파일 루트 override(`COHESION_RUNTIME_ROOT`)를 추가해 Homebrew 서비스에서 로그/PID/status를 안정 경로로 분리할 수 있게 함
+  - `packaging/homebrew/Formula/cohesion.rb`, `packaging/homebrew/README.md`, `scripts/release/render-homebrew-formula.mjs`를 추가해 tap 저장소에 복사 가능한 formula bootstrap을 준비
+  - README에 Homebrew 설치/업데이트 경로를 추가
+  - 검증 완료:
+    - `pnpm release:homebrew-formula --tag v0.5.17 --output /tmp/cohesion-formula.rb`
+    - `diff -u /tmp/cohesion-formula.rb packaging/homebrew/Formula/cohesion.rb`
+    - `cd apps/backend && go test ./internal/system ./...`
+    - `pnpm --dir apps/frontend test -- AboutSettings.test.tsx`
+    - `pnpm --dir apps/frontend typecheck`
+  - 추가 메모:
+    - GitHub MCP 토큰 권한 부족으로 `lteawoo/homebrew-cohesion` 저장소 자동 생성은 실패 (`403 Resource not accessible by personal access token`)
+- #229 macOS self-update를 Homebrew 안내 흐름으로 전환 완료 (브랜치 작업, 미머지):
+  - `/api/system/version` 응답에 서버 runtime OS를 추가
+  - macOS에서는 `/api/system/update/start`가 앱 내 self-update를 차단하고 Homebrew/직접 재설치 안내를 반환
+  - `Settings > About`는 macOS에서 `brew upgrade cohesion` 안내와 직접 설치 재설치 문구를 노출하고, Linux는 기존 업데이트 버튼 흐름을 유지
+  - `AboutSettings` 회귀 테스트와 system handler 테스트를 보강
+  - README 업그레이드 노트에 macOS self-update 비활성화 정책을 반영
+  - 검증 완료:
+    - `cd apps/backend && go test ./internal/system`
+    - `pnpm --dir apps/frontend test -- AboutSettings.test.tsx`
+    - `pnpm --dir apps/frontend typecheck`
 - #227 macOS self-update 릴리즈 자산 선택 보정 완료 (브랜치 작업, 미머지):
   - self-update archive candidate 생성에 `apple_darwin` macOS 자산명을 추가
   - 기존 `darwin`, `linux`, `windows` 후보 규칙은 유지하고 중복 제거 로직은 그대로 재사용

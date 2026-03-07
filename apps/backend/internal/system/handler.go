@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
@@ -15,9 +16,11 @@ import (
 )
 
 type Meta struct {
-	Version   string
-	Commit    string
-	BuildDate string
+	Version        string
+	Commit         string
+	BuildDate      string
+	RuntimeOS      string
+	InstallChannel string
 }
 
 // Handler는 system API 핸들러입니다
@@ -36,6 +39,14 @@ func NewHandler(restartChan chan RestartRequest, shutdownChan chan struct{}, met
 	if version == "" {
 		version = "dev"
 	}
+	runtimeOS := strings.TrimSpace(meta.RuntimeOS)
+	if runtimeOS == "" {
+		runtimeOS = runtime.GOOS
+	}
+	installChannel := strings.TrimSpace(meta.InstallChannel)
+	if installChannel == "" {
+		installChannel = "direct"
+	}
 	if statusStore == nil {
 		statusStore = NewStatusStore()
 	}
@@ -45,9 +56,11 @@ func NewHandler(restartChan chan RestartRequest, shutdownChan chan struct{}, met
 		shutdownChan: shutdownChan,
 		statusStore:  statusStore,
 		meta: Meta{
-			Version:   version,
-			Commit:    strings.TrimSpace(meta.Commit),
-			BuildDate: strings.TrimSpace(meta.BuildDate),
+			Version:        version,
+			Commit:         strings.TrimSpace(meta.Commit),
+			BuildDate:      strings.TrimSpace(meta.BuildDate),
+			RuntimeOS:      runtimeOS,
+			InstallChannel: installChannel,
 		},
 		updateChecker: NewUpdateChecker(UpdateCheckerConfig{
 			RepoOwner:      "lteawoo",
@@ -79,9 +92,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 func (h *Handler) GetVersion(w http.ResponseWriter, r *http.Request) *web.Error {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]string{
-		"version":   h.meta.Version,
-		"commit":    h.meta.Commit,
-		"buildDate": h.meta.BuildDate,
+		"version":        h.meta.Version,
+		"commit":         h.meta.Commit,
+		"buildDate":      h.meta.BuildDate,
+		"os":             h.meta.RuntimeOS,
+		"installChannel": h.meta.InstallChannel,
 	}); err != nil {
 		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to encode version response"}
 	}
@@ -122,6 +137,42 @@ func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error
 	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("force"))) {
 	case "1", "true", "yes", "y":
 		force = true
+	}
+	if strings.EqualFold(h.meta.InstallChannel, "homebrew") {
+		h.recordAudit(r, audit.Event{
+			Action: "system.update.start",
+			Result: audit.ResultFailure,
+			Target: "self-update",
+			Metadata: map[string]any{
+				"force":           force,
+				"reason":          "homebrew_managed_install",
+				"os":              h.meta.RuntimeOS,
+				"install_channel": h.meta.InstallChannel,
+			},
+		})
+		return &web.Error{
+			Err:     ErrSelfUpdateUnsupportedBuild,
+			Code:    http.StatusBadRequest,
+			Message: "Homebrew 설치본은 앱 내 업데이트를 지원하지 않습니다. `brew upgrade cohesion`를 사용하세요.",
+		}
+	}
+	if strings.EqualFold(h.meta.RuntimeOS, "darwin") {
+		h.recordAudit(r, audit.Event{
+			Action: "system.update.start",
+			Result: audit.ResultFailure,
+			Target: "self-update",
+			Metadata: map[string]any{
+				"force":           force,
+				"reason":          "unsupported_platform",
+				"os":              h.meta.RuntimeOS,
+				"install_channel": h.meta.InstallChannel,
+			},
+		})
+		return &web.Error{
+			Err:     ErrSelfUpdateUnsupportedBuild,
+			Code:    http.StatusBadRequest,
+			Message: "macOS 직접 설치본은 앱 내 업데이트를 지원하지 않습니다. 최신 릴리즈를 다시 설치하거나 Homebrew(`brew install lteawoo/cohesion/cohesion`)를 사용하세요.",
+		}
 	}
 
 	if err := h.updateManager.Start(h.meta.Version, force); err != nil {

@@ -271,6 +271,9 @@ func resolveLifecycleStatusPath() (string, error) {
 	if override := strings.TrimSpace(os.Getenv(lifecycleStatusPathEnv)); override != "" {
 		return filepath.Clean(override), nil
 	}
+	if runtimeRoot := strings.TrimSpace(os.Getenv(RuntimeRootDirEnv)); runtimeRoot != "" {
+		return filepath.Join(filepath.Clean(runtimeRoot), "data", "system-status.json"), nil
+	}
 
 	executablePath, err := os.Executable()
 	if err != nil {

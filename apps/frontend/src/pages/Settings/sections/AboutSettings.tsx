@@ -15,6 +15,8 @@ export default function AboutSettings() {
   const { updateInfo } = useUpdateCheck();
   const { versionInfo } = useSystemVersion();
   const { status: selfUpdateStatus, isStarting, isUpdating, startUpdate } = useSelfUpdate();
+  const runtimeOs = versionInfo?.os ?? '';
+  const installChannel = versionInfo?.installChannel ?? 'direct';
 
   const currentVersion = useMemo(() => {
     if (updateInfo?.currentVersion) {
@@ -27,7 +29,9 @@ export default function AboutSettings() {
   }, [updateInfo?.currentVersion, versionInfo?.version]);
 
   const latestVersion = updateInfo?.latestVersion ?? '-';
-  const canStartUpdate = currentVersion !== 'dev';
+  const isHomebrewInstall = installChannel === 'homebrew';
+  const isMacOS = runtimeOs === 'darwin';
+  const canStartUpdate = currentVersion !== 'dev' && !isMacOS && !isHomebrewInstall;
   const isForceUpdate = canStartUpdate && updateInfo !== null && !updateInfo.updateAvailable;
 
   const handleStartUpdate = async () => {
@@ -93,16 +97,30 @@ export default function AboutSettings() {
               {selfUpdateStatus.message}
             </Text>
           )}
-          <Button
-            type="primary"
-            disabled={!canStartUpdate}
-            loading={isStarting || isUpdating}
-            onClick={handleStartUpdate}
-          >
-            {isStarting || isUpdating
-              ? t('aboutSettings.updateInProgress')
-              : (isForceUpdate ? t('aboutSettings.reinstallNow') : t('aboutSettings.updateNow'))}
-          </Button>
+          {isHomebrewInstall ? (
+            <Space direction="vertical" size={4} className="settings-stack-full">
+              <Text type="secondary">{t('aboutSettings.homebrewUpdateHint')}</Text>
+              <Text type="secondary">{t('aboutSettings.homebrewUpdateDetail')}</Text>
+              <Text code>brew upgrade cohesion</Text>
+            </Space>
+          ) : isMacOS ? (
+            <Space direction="vertical" size={4} className="settings-stack-full">
+              <Text type="secondary">{t('aboutSettings.macOsDirectUpdateHint')}</Text>
+              <Text type="secondary">{t('aboutSettings.macOsDirectUpdateDetail')}</Text>
+              <Text code>brew install lteawoo/cohesion/cohesion</Text>
+            </Space>
+          ) : (
+            <Button
+              type="primary"
+              disabled={!canStartUpdate}
+              loading={isStarting || isUpdating}
+              onClick={handleStartUpdate}
+            >
+              {isStarting || isUpdating
+                ? t('aboutSettings.updateInProgress')
+                : (isForceUpdate ? t('aboutSettings.reinstallNow') : t('aboutSettings.updateNow'))}
+            </Button>
+          )}
         </Space>
       </Card>
     </Space>

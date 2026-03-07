@@ -8,6 +8,7 @@
     "typecheck": "pnpm -C apps/frontend typecheck",
     "release:check": "go run github.com/goreleaser/goreleaser/v2@v2.13.3 check --config .goreleaser.yaml",
     "release:snapshot": "go run github.com/goreleaser/goreleaser/v2@v2.13.3 release --snapshot --clean --config .goreleaser.yaml",
+    "release:homebrew-formula": "node scripts/release/render-homebrew-formula.mjs",
     "lint": "turbo lint",
     "clean": "rimraf --glob **/dist **/build **/.turbo **/tmp",
     "clean-all": "rimraf --glob **/dist **/build **/.turbo **/tmp node_modules **/node_modules"

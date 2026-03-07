@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -89,12 +90,41 @@ func resolveExecutableDir() (string, error) {
 	return filepath.Dir(executablePath), nil
 }
 
+func resolveRuntimeRootDir() (string, error) {
+	if override := strings.TrimSpace(os.Getenv(system.RuntimeRootDirEnv)); override != "" {
+		return filepath.Clean(override), nil
+	}
+	return resolveExecutableDir()
+}
+
+func detectInstallChannel() string {
+	executablePath, err := os.Executable()
+	if err != nil {
+		return "direct"
+	}
+	executablePath = filepath.Clean(executablePath)
+	if resolvedPath, err := filepath.EvalSymlinks(executablePath); err == nil && strings.TrimSpace(resolvedPath) != "" {
+		executablePath = resolvedPath
+	}
+	return detectInstallChannelFromPath(executablePath)
+}
+
+func detectInstallChannelFromPath(executablePath string) string {
+	pathParts := strings.Split(filepath.ToSlash(filepath.Clean(executablePath)), "/")
+	for idx := 0; idx+1 < len(pathParts); idx++ {
+		if pathParts[idx] == "Cellar" && pathParts[idx+1] == "cohesion" {
+			return "homebrew"
+		}
+	}
+	return "direct"
+}
+
 func openRootLogFile(fileName string) (*os.File, string, error) {
-	executableDir, err := resolveExecutableDir()
+	runtimeRootDir, err := resolveRuntimeRootDir()
 	if err != nil {
 		return nil, "", err
 	}
-	logsDir := filepath.Join(executableDir, "logs")
+	logsDir := filepath.Join(runtimeRootDir, "logs")
 	if err := os.MkdirAll(logsDir, 0o755); err != nil {
 		return nil, "", err
 	}
@@ -161,11 +191,11 @@ func emitAccessLog(r *http.Request, status, size int, duration time.Duration) {
 }
 
 func writePIDFile() (func(), string, error) {
-	executableDir, err := resolveExecutableDir()
+	runtimeRootDir, err := resolveRuntimeRootDir()
 	if err != nil {
 		return func() {}, "", err
 	}
-	pidPath := filepath.Join(executableDir, "cohesion.pid")
+	pidPath := filepath.Join(runtimeRootDir, "cohesion.pid")
 	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 		return func() {}, "", err
 	}
@@ -231,9 +261,11 @@ func createServer(db *sql.DB, restartChan chan system.RestartRequest, shutdownCh
 	statusHandler := status.NewHandler(db, spaceService, config.Conf.Server.Port)
 	configHandler := config.NewHandler()
 	systemHandler := system.NewHandler(restartChan, shutdownChan, system.Meta{
-		Version:   appVersion,
-		Commit:    appCommit,
-		BuildDate: appBuildDate,
+		Version:        appVersion,
+		Commit:         appCommit,
+		BuildDate:      appBuildDate,
+		RuntimeOS:      runtime.GOOS,
+		InstallChannel: detectInstallChannel(),
 	}, statusStore)
 	authService.SetAuditRecorder(auditService)
 	accountHandler.SetAuditRecorder(auditService)

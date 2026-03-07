@@ -24,4 +24,6 @@ export interface SystemVersionResponse {
   version: string;
   commit: string;
   buildDate: string;
+  os?: string;
+  installChannel?: string;
 }
