@@ -15,6 +15,9 @@
 - [x] 운영 문서 최종 정합성 점검
 - [x] worktree별 `docs/ai-context` 잔여 동기화 및 commit/PR 정리
 - [x] #219 루트 Playwright 검증 환경 정리
+- [x] #221 self-update 전환 성공 판정과 롤백 보강
+- [x] #222 업데이트와 재시작 상태 지속성 추가
+- [x] #223 재시작 API semantics와 운영 UX 정리
 - [x] 회귀 테스트 보강 필요 항목 확인
 
 ## 점검 체크리스트

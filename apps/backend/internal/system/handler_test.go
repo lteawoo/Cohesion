@@ -4,17 +4,31 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
+func newTestStatusStore(t *testing.T) *StatusStore {
+	t.Helper()
+
+	statusPath := filepath.Join(t.TempDir(), "system-status.json")
+	t.Setenv(lifecycleStatusPathEnv, statusPath)
+	store := NewStatusStore()
+	t.Cleanup(func() {
+		_ = os.Unsetenv(lifecycleStatusPathEnv)
+	})
+	return store
+}
+
 func TestGetVersion(t *testing.T) {
-	handler := NewHandler(make(chan bool, 1), make(chan struct{}, 1), Meta{
+	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
 		Version:   "v0.3.0",
 		Commit:    "abc123",
 		BuildDate: "2026-02-24T00:00:00Z",
-	})
+	}, newTestStatusStore(t))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/system/version", nil)
 	rec := httptest.NewRecorder()
@@ -48,9 +62,9 @@ func TestGetUpdateCheckReturnsGracefulPayloadOnFailure(t *testing.T) {
 	}))
 	defer failingServer.Close()
 
-	handler := NewHandler(make(chan bool, 1), make(chan struct{}, 1), Meta{
+	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
 		Version: "v0.3.0",
-	})
+	}, newTestStatusStore(t))
 	handler.updateChecker = NewUpdateChecker(UpdateCheckerConfig{
 		APIBaseURL:     failingServer.URL,
 		CacheTTL:       time.Minute,
@@ -84,9 +98,14 @@ func TestGetUpdateCheckReturnsGracefulPayloadOnFailure(t *testing.T) {
 }
 
 func TestGetUpdateStatus(t *testing.T) {
-	handler := NewHandler(make(chan bool, 1), make(chan struct{}, 1), Meta{
+	store := newTestStatusStore(t)
+	if _, err := store.MarkRestartAccepted(RestartRequest{Actor: "admin", RequestID: "req-1", Port: "3000"}, "v0.3.0"); err != nil {
+		t.Fatalf("failed to seed restart state: %v", err)
+	}
+
+	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
 		Version: "v0.3.0",
-	})
+	}, store)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/system/update/status", nil)
 	rec := httptest.NewRecorder()
@@ -105,12 +124,15 @@ func TestGetUpdateStatus(t *testing.T) {
 	if payload.State == "" {
 		t.Fatal("expected state to be set")
 	}
+	if payload.RuntimeState != "restarting" {
+		t.Fatalf("expected runtimeState restarting, got %q", payload.RuntimeState)
+	}
 }
 
 func TestStartUpdateReturnsBadRequestOnDevBuild(t *testing.T) {
-	handler := NewHandler(make(chan bool, 1), make(chan struct{}, 1), Meta{
+	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
 		Version: "dev",
-	})
+	}, newTestStatusStore(t))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/system/update/start", nil)
 	rec := httptest.NewRecorder()
@@ -124,5 +146,40 @@ func TestStartUpdateReturnsBadRequestOnDevBuild(t *testing.T) {
 	}
 	if !strings.Contains(err.Message, "release builds") {
 		t.Fatalf("unexpected message: %s", err.Message)
+	}
+}
+
+func TestRestartServerReturnsAcceptedResponse(t *testing.T) {
+	restartChan := make(chan RestartRequest, 1)
+	handler := NewHandler(restartChan, make(chan struct{}, 1), Meta{
+		Version: "v0.3.0",
+	}, newTestStatusStore(t))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/system/restart", nil)
+	req.Header.Set("X-Request-Id", "req-restart")
+	rec := httptest.NewRecorder()
+
+	if err := handler.RestartServer(rec, req); err != nil {
+		t.Fatalf("expected no error, got %+v", err)
+	}
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected status %d, got %d", http.StatusAccepted, rec.Code)
+	}
+
+	var payload map[string]string
+	if decodeErr := json.Unmarshal(rec.Body.Bytes(), &payload); decodeErr != nil {
+		t.Fatalf("failed to decode response: %v", decodeErr)
+	}
+	if payload["status"] != "accepted" {
+		t.Fatalf("expected accepted status, got %q", payload["status"])
+	}
+
+	select {
+	case restartRequest := <-restartChan:
+		if restartRequest.RequestID != "req-restart" {
+			t.Fatalf("expected request id req-restart, got %q", restartRequest.RequestID)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected restart signal to be sent")
 	}
 }

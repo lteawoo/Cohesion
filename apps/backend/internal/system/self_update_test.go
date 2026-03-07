@@ -53,3 +53,35 @@ func TestFindChecksumForAsset(t *testing.T) {
 		t.Fatalf("unexpected checksum: %s", checksum)
 	}
 }
+
+func TestBuildLocalHealthURL(t *testing.T) {
+	url, err := buildLocalHealthURL("3000")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if url != "http://127.0.0.1:3000/api/health" {
+		t.Fatalf("unexpected health url: %s", url)
+	}
+}
+
+func TestBuildLocalHealthURLRejectsInvalidPort(t *testing.T) {
+	if _, err := buildLocalHealthURL("invalid"); err == nil {
+		t.Fatal("expected invalid port error")
+	}
+}
+
+func TestBuildLocalVersionURL(t *testing.T) {
+	url, err := buildLocalVersionURL("3000")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if url != "http://127.0.0.1:3000/api/system/version" {
+		t.Fatalf("unexpected version url: %s", url)
+	}
+}
+
+func TestBuildLocalVersionURLRejectsInvalidPort(t *testing.T) {
+	if _, err := buildLocalVersionURL("invalid"); err == nil {
+		t.Fatal("expected invalid port error")
+	}
+}

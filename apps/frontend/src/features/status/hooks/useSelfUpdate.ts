@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getSelfUpdateStatus, startSelfUpdate, type SelfUpdateStatus } from '@/api/config';
 
 const POLL_INTERVAL = 3000;
-const RUNNING_STATES = new Set(['checking', 'downloading', 'staging', 'switching']);
+const RUNNING_STATES = new Set(['checking', 'downloading', 'staging', 'switching', 'verifying', 'rolling_back']);
 
 export function useSelfUpdate() {
   const [status, setStatus] = useState<SelfUpdateStatus | null>(null);

@@ -70,18 +70,20 @@ func TestMiddleware_AllowsPublicAPIWithoutToken(t *testing.T) {
 	authSvc, _, db := setupAuthTestService(t)
 	defer db.Close()
 
-	called := false
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
-	rec := executeMiddlewareRequest(t, authSvc, req, func(w http.ResponseWriter, _ *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusNoContent)
-	})
+	for _, path := range []string{"/api/health", "/api/system/version"} {
+		called := false
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := executeMiddlewareRequest(t, authSvc, req, func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusNoContent)
+		})
 
-	if !called {
-		t.Fatal("expected next handler to be called for public path")
-	}
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+		if !called {
+			t.Fatalf("expected next handler to be called for public path %s", path)
+		}
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("expected status %d for %s, got %d", http.StatusNoContent, path, rec.Code)
+		}
 	}
 }
 

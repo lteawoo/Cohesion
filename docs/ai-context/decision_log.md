@@ -2,6 +2,36 @@
 
 ## 아키텍처 (Architecture)
 
+### self-update 전환 성공은 새 바이너리 health/version probe 통과 후에만 인정한다 (2026-03-07)
+- 상황:
+  - 현재 self-update는 업데이터가 replacement 바이너리를 `cmd.Start()`만 하면 성공 경로로 넘어갔다.
+  - 실제 새 프로세스가 포트를 열지 못하거나 즉시 종료되면 서비스가 중단된 채 남을 수 있었다.
+- 결정:
+  - 업데이터는 새 바이너리 재기동 후 loopback `/api/health`와 `/api/system/version` probe가 모두 통과해야만 전환 성공으로 간주한다.
+  - probe 실패 시 replacement 프로세스를 중단하고 `.bak`로 롤백한 뒤 이전 바이너리 재기동까지 검증한다.
+- 이유:
+  - 바이너리 교체 성공과 서비스 재기동 성공을 분리해 판단해야 운영 안정성을 확보할 수 있기 때문이다.
+
+### update/restart lifecycle 상태는 실행 파일 기준 data 디렉터리에 저장한다 (2026-03-07)
+- 상황:
+  - update status는 프로세스 메모리에만 있어 self-update나 restart 이후 이력이 사라졌다.
+  - config 디렉터리에 runtime 상태를 쓰면 개발 환경에서 저장소 추적 파일과 섞일 수 있었다.
+- 결정:
+  - lifecycle 상태는 실행 파일 기준 `data/system-status.json`에 저장한다.
+  - status 표면은 마지막 전환 상태와 현재 runtime 상태를 함께 노출한다.
+- 이유:
+  - 프로세스 교체 뒤에도 상태를 복구할 수 있어야 하고, runtime 산출물은 설정 파일과 분리하는 편이 운영/개발 모두에서 더 안전하기 때문이다.
+
+### restart API는 완료가 아니라 accepted semantics를 기준으로 노출한다 (2026-03-07)
+- 상황:
+  - 기존 `/api/system/restart`는 실제 재기동 완료 전에도 성공 응답과 success audit을 먼저 남겼다.
+- 결정:
+  - `/api/system/restart`는 `202 Accepted`와 `accepted` 상태를 반환한다.
+  - 프론트는 `요청 수락 -> 재연결 대기 -> 재연결 확인` 흐름으로 UX를 정리한다.
+  - 감사 이벤트는 `system.restart.accepted`, `system.restart.completed`, `system.restart.failed`로 구분한다.
+- 이유:
+  - API 의미와 실제 시스템 상태, 운영 로그 해석을 일치시켜 오해를 줄이기 위함이다.
+
 ### 로컬 UI 시각 검증은 루트 Playwright + js_repl 조합을 기준으로 사용한다 (2026-03-07)
 - 상황:
   - 프로젝트 작업 규칙상 UI 변경 검증에는 `playwright-interaction` 기반 실제 렌더 확인이 필요하다.

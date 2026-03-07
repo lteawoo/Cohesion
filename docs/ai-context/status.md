@@ -48,6 +48,33 @@
   - 루트 워크스페이스에 `playwright` devDependency 설치
   - `js_repl`에서 `import('playwright')` 확인 완료
   - headed Chromium launch 확인 완료
+- 운영 안정성 후속 이슈 등록 완료:
+  - #221 self-update 전환 성공 판정과 롤백 보강
+  - #222 업데이트와 재시작 상태 지속성 추가
+  - #223 재시작 API semantics와 운영 UX 정리
+- 운영 안정성 후속 이슈 구현 완료:
+  - #221 self-update 전환 성공 판정과 롤백 보강
+    - updater 실행 인자에 loopback `health/version` probe URL과 target version 전달 추가
+    - 새 바이너리 재기동 후 `/api/health` + `/api/system/version` 검증이 모두 통과해야 성공으로 기록
+    - probe 실패 시 replacement 프로세스 종료, `.bak` 롤백, 이전 바이너리 재기동 검증 경로 추가
+  - #222 업데이트와 재시작 상태 지속성 추가
+    - 실행 파일 기준 `data/system-status.json`에 lifecycle 상태를 저장
+    - self-update와 restart 결과를 프로세스 교체 후에도 `/api/system/update/status`에서 조회 가능하도록 보강
+    - 현재 전환 상태와 현재 runtime 상태를 함께 구분할 수 있도록 `operation`, `runtimeState`, `runtimeMessage` 표면 추가
+  - #223 재시작 API semantics와 운영 UX 정리
+    - `/api/system/restart`를 `202 Accepted`와 `accepted` 상태 응답으로 정리
+    - 감사 이벤트를 `system.restart.accepted/completed/failed`로 구분
+    - `Settings > 서버` 재시작 UX를 `요청 수락 -> 재연결 대기 -> 재연결 확인` 흐름으로 정리
+  - 검증 완료:
+    - `cd apps/backend && go test ./internal/system ./cmd/updater ./internal/auth`
+    - `cd apps/backend && go test ./...`
+    - `pnpm --dir apps/frontend typecheck`
+    - `pnpm --dir apps/frontend test -- ServerSettings.test.tsx`
+    - `pnpm --dir apps/frontend test`
+    - 수동 확인:
+      - Playwright 서버 설정 화면 스크린샷: `/tmp/cohesion-server-settings-restart-flow.png`
+      - Playwright 재시작 요청 후 화면 스크린샷: `/tmp/cohesion-server-settings-restart-after-request.png`
+      - `curl`로 `/api/system/update/status` 확인: `restart succeeded + runtime healthy`
 - #197 스페이스 설정 관리 구현 완료:
   - 백엔드 `PATCH /api/spaces/{id}` rename 지원 추가
   - `Settings > Spaces`에서 이름 변경 + 기존 쿼터 관리 통합
@@ -171,8 +198,9 @@
 
 ## 검증 상태
 - 백엔드: `cd apps/backend && go test ./...` 통과
-- 프론트엔드: 주요 빌드/타입 검증 경로 정상
+- 프론트엔드: `pnpm --dir apps/frontend typecheck`, `pnpm --dir apps/frontend test` 통과
+- 수동 UI 검증: Playwright로 `Settings > 서버` 재시작 UI와 재시작 후 상태 조회 확인
 
 ## 다음 작업
-1. 다음 UI 변경 시 루트 `playwright-interactive` 기준으로 시각 검증 재사용
-2. 루트 의존성 변경 시 `docs/ai-context/decision_log.md`와 함께 동기화 유지
+1. SMB 관련 탐색은 보류 상태 유지
+2. 다음 운영 안정화/백로그 우선순위 재정렬
