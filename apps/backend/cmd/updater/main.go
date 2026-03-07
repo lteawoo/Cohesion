@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"taeu.kr/cohesion/internal/platform/logging"
+	"taeu.kr/cohesion/internal/system"
 )
 
 type updaterArgs struct {
@@ -23,6 +25,9 @@ type updaterArgs struct {
 	workdir     string
 	argsFile    string
 	cleanupDir  string
+	healthURL   string
+	versionURL  string
+	targetVer   string
 }
 
 func openRootLogFile(targetPath, fileName string) (*os.File, string, error) {
@@ -95,6 +100,9 @@ func parseFlags() (updaterArgs, error) {
 	flag.StringVar(&parsed.workdir, "workdir", "", "working directory for restart")
 	flag.StringVar(&parsed.argsFile, "args-file", "", "json file path for app arguments")
 	flag.StringVar(&parsed.cleanupDir, "cleanup-dir", "", "temporary directory to cleanup")
+	flag.StringVar(&parsed.healthURL, "health-url", "", "health endpoint url used to verify restarted app")
+	flag.StringVar(&parsed.versionURL, "version-url", "", "version endpoint url used to verify restarted app")
+	flag.StringVar(&parsed.targetVer, "target-version", "", "target version for logging")
 	flag.Parse()
 
 	if parsed.pid <= 0 {
@@ -108,6 +116,12 @@ func parseFlags() (updaterArgs, error) {
 	}
 	if strings.TrimSpace(parsed.argsFile) == "" {
 		return updaterArgs{}, errors.New("args-file is required")
+	}
+	if strings.TrimSpace(parsed.healthURL) == "" {
+		return updaterArgs{}, errors.New("health-url is required")
+	}
+	if strings.TrimSpace(parsed.versionURL) == "" {
+		return updaterArgs{}, errors.New("version-url is required")
 	}
 
 	parsed.target = filepath.Clean(parsed.target)
@@ -139,10 +153,74 @@ func run(args updaterArgs, appLogPath string, logger zerolog.Logger) error {
 		return err
 	}
 
-	if err := restartApplication(args.target, args.workdir, appArgs, appLogPath, logger); err != nil {
+	process, processExitCh, err := restartApplication(args.target, args.workdir, appArgs, appLogPath, logger)
+	if err != nil {
 		_ = rollbackBinary(args.target, backupPath)
 		return err
 	}
+	logging.Event(logger.Info(), logging.ComponentUpdater, "updater.verify.started").
+		Str("health_url", args.healthURL).
+		Str("version_url", args.versionURL).
+		Str("target_version", strings.TrimSpace(args.targetVer)).
+		Msg("verifying restarted application")
+	statusStore := system.NewStatusStore()
+	if _, statusErr := statusStore.MarkUpdateVerifying(args.targetVer); statusErr != nil {
+		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.verify_status_persist_failed").
+			Err(statusErr).
+			Msg("failed to persist verifying status")
+	}
+	if err := waitForReadyProcess(args.healthURL, args.versionURL, args.targetVer, 45*time.Second, processExitCh); err != nil {
+		logging.Event(logger.Error(), logging.ComponentUpdater, "error.updater.verify_failed").
+			Str("health_url", args.healthURL).
+			Str("version_url", args.versionURL).
+			Str("target_version", strings.TrimSpace(args.targetVer)).
+			Err(err).
+			Msg("replacement app failed verification")
+		if process != nil && process.Process != nil {
+			_ = process.Process.Kill()
+		}
+		if _, statusErr := statusStore.MarkUpdateRollingBack(err); statusErr != nil {
+			logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.rollback_status_persist_failed").
+				Err(statusErr).
+				Msg("failed to persist rolling back status")
+		}
+		if rollbackErr := rollbackBinary(args.target, backupPath); rollbackErr != nil {
+			return fmt.Errorf("verification failed: %w (rollback failed: %v)", err, rollbackErr)
+		}
+		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.rollback_started").
+			Str("target", args.target).
+			Msg("rolling back to previous binary")
+		rollbackProcess, rollbackExitCh, restartErr := restartApplication(args.target, args.workdir, appArgs, appLogPath, logger)
+		if restartErr != nil {
+			return fmt.Errorf("verification failed: %w (rollback restart failed: %v)", err, restartErr)
+		}
+		if rollbackVerifyErr := waitForReadyProcess(args.healthURL, args.versionURL, "", 45*time.Second, rollbackExitCh); rollbackVerifyErr != nil {
+			if rollbackProcess != nil && rollbackProcess.Process != nil {
+				_ = rollbackProcess.Process.Kill()
+			}
+			return fmt.Errorf("verification failed: %w (rollback verification failed: %v)", err, rollbackVerifyErr)
+		}
+		if _, statusErr := statusStore.MarkUpdateRolledBack(err); statusErr != nil {
+			logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.rollback_result_persist_failed").
+				Err(statusErr).
+				Msg("failed to persist rollback result")
+		}
+		logging.Event(logger.Info(), logging.ComponentUpdater, "updater.rollback_completed").
+			Str("health_url", args.healthURL).
+			Msg("rollback app verified successfully")
+		return err
+	}
+	if _, statusErr := statusStore.MarkUpdateSucceeded(args.targetVer); statusErr != nil {
+		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.verify_result_persist_failed").
+			Err(statusErr).
+			Msg("failed to persist update result")
+	}
+	logging.Event(logger.Info(), logging.ComponentUpdater, "updater.verify.completed").
+		Str("health_url", args.healthURL).
+		Str("version_url", args.versionURL).
+		Str("target_version", strings.TrimSpace(args.targetVer)).
+		Msg("replacement app verified successfully")
+	_ = os.Remove(backupPath)
 
 	return nil
 }
@@ -206,7 +284,7 @@ func rollbackBinary(targetPath, backupPath string) error {
 	return os.Rename(backupPath, targetPath)
 }
 
-func restartApplication(targetPath, workdir string, appArgs []string, appLogPath string, logger zerolog.Logger) error {
+func restartApplication(targetPath, workdir string, appArgs []string, appLogPath string, logger zerolog.Logger) (*exec.Cmd, <-chan error, error) {
 	cmd := exec.Command(targetPath, appArgs...)
 	cmd.Dir = workdir
 	appLogFile, err := openAppLogFile(appLogPath)
@@ -230,10 +308,15 @@ func restartApplication(targetPath, workdir string, appArgs []string, appLogPath
 	cmd.Env = os.Environ()
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to restart app: %w", err)
+		return nil, nil, fmt.Errorf("failed to restart app: %w", err)
 	}
 
-	return nil
+	exitCh := make(chan error, 1)
+	go func() {
+		exitCh <- cmd.Wait()
+	}()
+
+	return cmd, exitCh, nil
 }
 
 func openAppLogFile(appLogPath string) (*os.File, error) {
@@ -241,4 +324,79 @@ func openAppLogFile(appLogPath string) (*os.File, error) {
 		return nil, err
 	}
 	return os.OpenFile(appLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+}
+
+func waitForReadyProcess(healthURL, versionURL, targetVersion string, timeout time.Duration, processExitCh <-chan error) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		select {
+		case err := <-processExitCh:
+			if err == nil {
+				return errors.New("replacement process exited before health check passed")
+			}
+			return fmt.Errorf("replacement process exited before health check passed: %w", err)
+		default:
+		}
+
+		if err := probeHealthEndpoint(healthURL); err == nil {
+			if err := probeVersionEndpoint(versionURL, targetVersion); err == nil {
+				return nil
+			}
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("readiness check did not succeed within %s", timeout)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+func probeVersionEndpoint(versionURL, targetVersion string) error {
+	if strings.TrimSpace(targetVersion) == "" {
+		return nil
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(versionURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected version status: %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return err
+	}
+	if got, want := normalizeVersionTag(payload.Version), normalizeVersionTag(targetVersion); got != want {
+		return fmt.Errorf("unexpected version: got %q want %q", got, want)
+	}
+	return nil
+}
+
+func probeHealthEndpoint(healthURL string) error {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(healthURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected health status: %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func normalizeVersionTag(version string) string {
+	trimmed := strings.TrimSpace(version)
+	if trimmed == "" {
+		return ""
+	}
+	if !strings.HasPrefix(trimmed, "v") {
+		return "v" + trimmed
+	}
+	return trimmed
 }

@@ -67,7 +67,7 @@ type jwtSecretResult struct {
 }
 
 // 재시작 신호를 받기 위한 채널
-var restartChan = make(chan bool, 1)
+var restartChan = make(chan system.RestartRequest, 1)
 var shutdownChan = make(chan struct{}, 1)
 
 func init() {
@@ -180,7 +180,7 @@ func registerWebDAVRoutes(mux *http.ServeMux, handler http.Handler) {
 }
 
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
-func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{}) (*http.Server, *ftp.Service, *sftpserver.Service, *audit.Service, error) {
+func createServer(db *sql.DB, restartChan chan system.RestartRequest, shutdownChan chan struct{}, statusStore *system.StatusStore) (*http.Server, *ftp.Service, *sftpserver.Service, *audit.Service, error) {
 	// 의존성 주입
 	accountRepo := accountStore.NewStore(db)
 	accountService := account.NewService(accountRepo)
@@ -233,7 +233,7 @@ func createServer(db *sql.DB, restartChan chan bool, shutdownChan chan struct{})
 		Version:   appVersion,
 		Commit:    appCommit,
 		BuildDate: appBuildDate,
-	})
+	}, statusStore)
 	authService.SetAuditRecorder(auditService)
 	accountHandler.SetAuditRecorder(auditService)
 	spaceHandler.SetAuditRecorder(auditService)
@@ -364,17 +364,48 @@ func main() {
 	// OS 시그널 핸들링 (Ctrl+C)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	statusStore := system.NewStatusStore()
+	var pendingRestartRequest *system.RestartRequest
+	var pendingRestartAuditService *audit.Service
 
 	// 서버 시작/재시작 루프
 	for {
 		// 서버 생성
-		server, ftpService, sftpService, auditService, err := createServer(db, restartChan, shutdownChan)
+		server, ftpService, sftpService, auditService, err := createServer(db, restartChan, shutdownChan, statusStore)
 		if err != nil {
+			if pendingRestartRequest != nil {
+				if _, statusErr := statusStore.MarkRestartFailed(err); statusErr != nil {
+					logging.Event(log.Warn(), logging.ComponentServer, "warn.restart.status_persist_failed").
+						Err(statusErr).
+						Msg("failed to persist restart failure status")
+				}
+				recordRestartAudit(pendingRestartAuditService, *pendingRestartRequest, "system.restart.failed", audit.ResultFailure, map[string]any{
+					"port":  strings.TrimSpace(config.Conf.Server.Port),
+					"error": err.Error(),
+				})
+				closeAuditService(pendingRestartAuditService)
+				pendingRestartRequest = nil
+				pendingRestartAuditService = nil
+			}
 			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.server.create_failed").
 				Err(err).
 				Msg("failed to create server")
 		}
 		if err := ftpService.Start(); err != nil {
+			if pendingRestartRequest != nil {
+				if _, statusErr := statusStore.MarkRestartFailed(err); statusErr != nil {
+					logging.Event(log.Warn(), logging.ComponentServer, "warn.restart.status_persist_failed").
+						Err(statusErr).
+						Msg("failed to persist restart failure status")
+				}
+				recordRestartAudit(pendingRestartAuditService, *pendingRestartRequest, "system.restart.failed", audit.ResultFailure, map[string]any{
+					"port":  strings.TrimSpace(config.Conf.Server.Port),
+					"error": err.Error(),
+				})
+				closeAuditService(pendingRestartAuditService)
+				pendingRestartRequest = nil
+				pendingRestartAuditService = nil
+			}
 			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.service.start_failed").
 				Str("service", "ftp").
 				Int("port", ftpService.Port()).
@@ -392,6 +423,20 @@ func main() {
 					Str("service", "ftp").
 					Err(stopErr).
 					Msg("failed to stop service")
+			}
+			if pendingRestartRequest != nil {
+				if _, statusErr := statusStore.MarkRestartFailed(err); statusErr != nil {
+					logging.Event(log.Warn(), logging.ComponentServer, "warn.restart.status_persist_failed").
+						Err(statusErr).
+						Msg("failed to persist restart failure status")
+				}
+				recordRestartAudit(pendingRestartAuditService, *pendingRestartRequest, "system.restart.failed", audit.ResultFailure, map[string]any{
+					"port":  strings.TrimSpace(config.Conf.Server.Port),
+					"error": err.Error(),
+				})
+				closeAuditService(pendingRestartAuditService)
+				pendingRestartRequest = nil
+				pendingRestartAuditService = nil
 			}
 			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.service.start_failed").
 				Str("service", "sftp").
@@ -417,6 +462,22 @@ func main() {
 		logging.Event(log.Info(), logging.ComponentServer, logging.EventServerReady).
 			Str("port", port).
 			Msg("server ready")
+		if _, err := statusStore.MarkServerReady(appVersion); err != nil {
+			logging.Event(log.Warn(), logging.ComponentServer, "warn.lifecycle.ready_persist_failed").
+				Err(err).
+				Msg("failed to persist ready lifecycle status")
+		}
+		if pendingRestartRequest != nil {
+			recordRestartAudit(auditService, *pendingRestartRequest, "system.restart.completed", audit.ResultSuccess, map[string]any{
+				"port": strings.TrimSpace(config.Conf.Server.Port),
+			})
+			closeAuditService(pendingRestartAuditService)
+			pendingRestartRequest = nil
+			pendingRestartAuditService = nil
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerRestarted).
+				Str("port", config.Conf.Server.Port).
+				Msg("restart completed")
+		}
 
 		// 서버를 별도 고루틴에서 실행
 		serverErr := make(chan error, 1)
@@ -452,12 +513,13 @@ func main() {
 					Msg("failed to shutdown server")
 			}
 			closeAuditService(auditService)
+			closeAuditService(pendingRestartAuditService)
 			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerShutdownDone).
 				Str("source", "signal").
 				Msg("server shutdown completed")
 			return
 
-		case <-restartChan:
+		case restartRequest := <-restartChan:
 			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerRestartRequest).
 				Msg("restart requested")
 			if err := sftpService.Stop(); err != nil {
@@ -479,7 +541,8 @@ func main() {
 					Msg("failed to shutdown server")
 			}
 			cancel()
-			closeAuditService(auditService)
+			pendingRestartRequest = &restartRequest
+			pendingRestartAuditService = auditService
 
 			// 설정 다시 로드
 			config.SetConfig(goEnv)
@@ -487,9 +550,6 @@ func main() {
 				Str("environment", goEnv).
 				Str("config_dir", config.ConfigDir()).
 				Msg("configuration loaded")
-			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerRestarted).
-				Str("port", config.Conf.Server.Port).
-				Msg("restart completed")
 		// 루프 계속 (재시작)
 
 		case <-shutdownChan:
@@ -516,6 +576,7 @@ func main() {
 					Msg("failed to shutdown server")
 			}
 			closeAuditService(auditService)
+			closeAuditService(pendingRestartAuditService)
 			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerShutdownDone).
 				Str("source", "updater").
 				Msg("server shutdown completed")
@@ -534,7 +595,20 @@ func main() {
 					Err(stopErr).
 					Msg("failed to stop service")
 			}
+			if pendingRestartRequest != nil {
+				if _, statusErr := statusStore.MarkRestartFailed(err); statusErr != nil {
+					logging.Event(log.Warn(), logging.ComponentServer, "warn.restart.status_persist_failed").
+						Err(statusErr).
+						Msg("failed to persist restart failure status")
+				}
+				recordRestartAudit(auditService, *pendingRestartRequest, "system.restart.failed", audit.ResultFailure, map[string]any{
+					"port":  strings.TrimSpace(config.Conf.Server.Port),
+					"error": err.Error(),
+				})
+				pendingRestartRequest = nil
+			}
 			closeAuditService(auditService)
+			closeAuditService(pendingRestartAuditService)
 			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.server.runtime_failed").
 				Err(err).
 				Msg("server runtime failure")
@@ -554,6 +628,28 @@ func closeAuditService(auditService *audit.Service) {
 			Err(err).
 			Msg("audit service shutdown timed out")
 	}
+}
+
+func recordRestartAudit(recorder audit.Recorder, request system.RestartRequest, action string, result audit.Result, metadata map[string]any) {
+	if recorder == nil || strings.TrimSpace(action) == "" {
+		return
+	}
+
+	sanitizedMetadata := map[string]any{
+		"port": strings.TrimSpace(request.Port),
+	}
+	for key, value := range metadata {
+		sanitizedMetadata[key] = value
+	}
+
+	recorder.RecordBestEffort(audit.Event{
+		Action:    action,
+		Result:    result,
+		Actor:     strings.TrimSpace(request.Actor),
+		Target:    "server",
+		RequestID: strings.TrimSpace(request.RequestID),
+		Metadata:  sanitizedMetadata,
+	})
 }
 
 func readEnv(key, fallback string) string {

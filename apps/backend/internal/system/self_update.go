@@ -21,17 +21,23 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
+	"taeu.kr/cohesion/internal/config"
 )
 
 type SelfUpdateStatus struct {
 	State          string `json:"state"`
 	Message        string `json:"message,omitempty"`
+	Operation      string `json:"operation,omitempty"`
 	CurrentVersion string `json:"currentVersion,omitempty"`
 	TargetVersion  string `json:"targetVersion,omitempty"`
 	ReleaseURL     string `json:"releaseUrl,omitempty"`
 	StartedAt      string `json:"startedAt,omitempty"`
 	UpdatedAt      string `json:"updatedAt,omitempty"`
 	Error          string `json:"error,omitempty"`
+	RuntimeState   string `json:"runtimeState,omitempty"`
+	RuntimeMessage string `json:"runtimeMessage,omitempty"`
 }
 
 type SelfUpdateManagerConfig struct {
@@ -47,6 +53,7 @@ type SelfUpdateManager struct {
 	apiBaseURL   string
 	client       *http.Client
 	shutdownChan chan struct{}
+	store        *StatusStore
 
 	mu      sync.Mutex
 	running bool
@@ -69,7 +76,7 @@ type githubReleaseAsset struct {
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
-func NewSelfUpdateManager(cfg SelfUpdateManagerConfig, shutdownChan chan struct{}) *SelfUpdateManager {
+func NewSelfUpdateManager(cfg SelfUpdateManagerConfig, shutdownChan chan struct{}, store *StatusStore) *SelfUpdateManager {
 	repoOwner := strings.TrimSpace(cfg.RepoOwner)
 	if repoOwner == "" {
 		repoOwner = defaultRepoOwner
@@ -85,6 +92,16 @@ func NewSelfUpdateManager(cfg SelfUpdateManagerConfig, shutdownChan chan struct{
 		requestTimeout = 30 * time.Second
 	}
 
+	if store == nil {
+		store = NewStatusStore()
+	}
+	initialStatus := defaultLifecycleStatus()
+	if persistedStatus, err := store.Load(); err == nil {
+		initialStatus = persistedStatus
+	} else {
+		log.Warn().Err(err).Msg("[System] failed to load persisted lifecycle status")
+	}
+
 	return &SelfUpdateManager{
 		repoOwner:  repoOwner,
 		repoName:   repoName,
@@ -93,9 +110,8 @@ func NewSelfUpdateManager(cfg SelfUpdateManagerConfig, shutdownChan chan struct{
 			Timeout: requestTimeout,
 		},
 		shutdownChan: shutdownChan,
-		status: SelfUpdateStatus{
-			State: "idle",
-		},
+		store:        store,
+		status:       initialStatus,
 	}
 }
 
@@ -116,13 +132,20 @@ func (m *SelfUpdateManager) Start(currentVersion string, force bool) error {
 		m.mu.Unlock()
 		return ErrSelfUpdateAlreadyRunning
 	}
+	now := time.Now().UTC().Format(time.RFC3339)
 	m.running = true
 	m.status = SelfUpdateStatus{
 		State:          "checking",
 		Message:        "업데이트 준비 중입니다",
+		Operation:      "update",
 		CurrentVersion: normalizedCurrent,
-		StartedAt:      time.Now().UTC().Format(time.RFC3339),
-		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
+		StartedAt:      now,
+		UpdatedAt:      now,
+		RuntimeState:   "healthy",
+		RuntimeMessage: "서버가 정상 동작 중입니다",
+	}
+	if err := m.syncStatusLocked(); err != nil {
+		log.Warn().Err(err).Msg("[System] failed to persist self-update start status")
 	}
 	m.mu.Unlock()
 
@@ -226,6 +249,14 @@ func (m *SelfUpdateManager) execute(ctx context.Context, currentVersion string, 
 	if err := os.WriteFile(argsPath, argsPayload, 0o600); err != nil {
 		return err
 	}
+	healthURL, err := buildLocalHealthURL(config.Conf.Server.Port)
+	if err != nil {
+		return err
+	}
+	versionURL, err := buildLocalVersionURL(config.Conf.Server.Port)
+	if err != nil {
+		return err
+	}
 
 	m.setStatus("switching", "업데이터를 실행했습니다. 서버를 종료합니다", targetVersion, release.HTMLURL)
 	cmd := exec.Command(
@@ -236,6 +267,9 @@ func (m *SelfUpdateManager) execute(ctx context.Context, currentVersion string, 
 		"--workdir", workDir,
 		"--args-file", argsPath,
 		"--cleanup-dir", tmpDir,
+		"--health-url", healthURL,
+		"--version-url", versionURL,
+		"--target-version", targetVersion,
 	)
 	cmd.Env = os.Environ()
 	if err := cmd.Start(); err != nil {
@@ -262,13 +296,25 @@ func (m *SelfUpdateManager) setStatus(state, message, targetVersion, releaseURL 
 	defer m.mu.Unlock()
 	m.status.State = state
 	m.status.Message = message
+	m.status.Operation = "update"
 	if targetVersion != "" {
 		m.status.TargetVersion = targetVersion
 	}
 	if releaseURL != "" {
 		m.status.ReleaseURL = releaseURL
 	}
+	switch state {
+	case "switching":
+		m.status.RuntimeState = "updating"
+		m.status.RuntimeMessage = "새 버전으로 전환 중입니다"
+	default:
+		m.status.RuntimeState = "healthy"
+		m.status.RuntimeMessage = "서버가 정상 동작 중입니다"
+	}
 	m.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if err := m.syncStatusLocked(); err != nil {
+		log.Warn().Err(err).Msg("[System] failed to persist self-update status")
+	}
 }
 
 func (m *SelfUpdateManager) complete(state, message, targetVersion, releaseURL string) {
@@ -277,6 +323,7 @@ func (m *SelfUpdateManager) complete(state, message, targetVersion, releaseURL s
 	m.running = false
 	m.status.State = state
 	m.status.Message = message
+	m.status.Operation = "update"
 	if targetVersion != "" {
 		m.status.TargetVersion = targetVersion
 	}
@@ -285,6 +332,11 @@ func (m *SelfUpdateManager) complete(state, message, targetVersion, releaseURL s
 	}
 	m.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	m.status.Error = ""
+	m.status.RuntimeState = "healthy"
+	m.status.RuntimeMessage = "서버가 정상 동작 중입니다"
+	if err := m.syncStatusLocked(); err != nil {
+		log.Warn().Err(err).Msg("[System] failed to persist self-update completion status")
+	}
 }
 
 func (m *SelfUpdateManager) fail(err error) {
@@ -293,8 +345,39 @@ func (m *SelfUpdateManager) fail(err error) {
 	m.running = false
 	m.status.State = "failed"
 	m.status.Message = "업데이트 적용에 실패했습니다"
+	m.status.Operation = "update"
 	m.status.Error = err.Error()
 	m.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	m.status.RuntimeState = "healthy"
+	m.status.RuntimeMessage = "서버가 정상 동작 중입니다"
+	if syncErr := m.syncStatusLocked(); syncErr != nil {
+		log.Warn().Err(syncErr).Msg("[System] failed to persist self-update failure status")
+	}
+}
+
+func buildLocalHealthURL(port string) (string, error) {
+	trimmed := strings.TrimSpace(port)
+	parsed, err := strconv.Atoi(trimmed)
+	if err != nil || parsed < 1 || parsed > 65535 {
+		return "", fmt.Errorf("invalid server port for health probe: %q", trimmed)
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d/api/health", parsed), nil
+}
+
+func buildLocalVersionURL(port string) (string, error) {
+	trimmed := strings.TrimSpace(port)
+	parsed, err := strconv.Atoi(trimmed)
+	if err != nil || parsed < 1 || parsed > 65535 {
+		return "", fmt.Errorf("invalid server port for version probe: %q", trimmed)
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d/api/system/version", parsed), nil
+}
+
+func (m *SelfUpdateManager) syncStatusLocked() error {
+	if m.store == nil {
+		return nil
+	}
+	return m.store.Save(m.status)
 }
 
 func (m *SelfUpdateManager) fetchLatestRelease(ctx context.Context) (*githubRelease, error) {

@@ -18,12 +18,21 @@ export interface Config {
 export interface SelfUpdateStatus {
   state: string;
   message?: string;
+  operation?: string;
   currentVersion?: string;
   targetVersion?: string;
   releaseUrl?: string;
   startedAt?: string;
   updatedAt?: string;
   error?: string;
+  runtimeState?: string;
+  runtimeMessage?: string;
+}
+
+export interface RestartServerResponse {
+  status: string;
+  message?: string;
+  newPort: string;
 }
 
 async function extractErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
@@ -69,9 +78,9 @@ export async function updateConfig(config: Config): Promise<void> {
 
 /**
  * 서버를 재시작합니다
- * @returns 새로운 포트 번호
+ * @returns 재시작 요청 수락 결과와 포트 정보
  */
-export async function restartServer(): Promise<string> {
+export async function restartServer(): Promise<RestartServerResponse> {
   const response = await apiFetch('/api/system/restart', {
     method: 'POST',
   });
@@ -80,8 +89,16 @@ export async function restartServer(): Promise<string> {
     throw new Error(i18n.t('apiErrors.serverRestartFailed'));
   }
 
-  const data = await response.json();
-  return data.new_port;
+  const data = (await response.json()) as {
+    status?: string;
+    message?: string;
+    new_port?: string;
+  };
+  return {
+    status: data.status ?? 'accepted',
+    message: data.message,
+    newPort: data.new_port ?? '',
+  };
 }
 
 export async function startSelfUpdate(force = false): Promise<void> {

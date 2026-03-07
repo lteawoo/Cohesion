@@ -27,7 +27,7 @@ const h = vi.hoisted(() => {
     };
     auditLogRetentionDays: number;
   }) => Promise<void>>();
-  const restartServer = vi.fn<() => Promise<string>>();
+  const restartServer = vi.fn<() => Promise<{ status: string; newPort: string; message?: string }>>();
   const waitForReconnect = vi.fn<() => Promise<boolean>>();
   const messageApi = {
     success: vi.fn(),
@@ -189,7 +189,7 @@ describe('ServerSettings', () => {
     });
     h.getConfig.mockResolvedValue(baseConfig);
     h.updateConfig.mockResolvedValue();
-    h.restartServer.mockResolvedValue('3000');
+    h.restartServer.mockResolvedValue({ status: 'accepted', newPort: '3000' });
     h.waitForReconnect.mockResolvedValue(true);
   });
 
@@ -274,12 +274,17 @@ describe('ServerSettings', () => {
     expect(h.restartServer).toHaveBeenCalledTimes(1);
     expect(h.waitForReconnect).toHaveBeenCalledTimes(1);
     expect(h.messageApi.loading).toHaveBeenCalledWith({
-      content: 'serverSettings.restarting',
+      content: 'serverSettings.restartAccepted',
+      key: 'restart',
+      duration: 0,
+    });
+    expect(h.messageApi.loading).toHaveBeenCalledWith({
+      content: 'serverSettings.restartInProgress',
       key: 'restart',
       duration: 0,
     });
     expect(h.messageApi.error).toHaveBeenCalledWith({
-      content: 'serverSettings.restartFailedOrTimeout',
+      content: 'serverSettings.restartReconnectFailed',
       key: 'restart',
     });
     setTimeoutSpy.mockRestore();

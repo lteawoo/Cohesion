@@ -22,23 +22,28 @@ type Meta struct {
 
 // Handler는 system API 핸들러입니다
 type Handler struct {
-	restartChan   chan bool
+	restartChan   chan RestartRequest
 	shutdownChan  chan struct{}
 	meta          Meta
+	statusStore   *StatusStore
 	updateChecker *UpdateChecker
 	updateManager *SelfUpdateManager
 	auditRecorder audit.Recorder
 }
 
-func NewHandler(restartChan chan bool, shutdownChan chan struct{}, meta Meta) *Handler {
+func NewHandler(restartChan chan RestartRequest, shutdownChan chan struct{}, meta Meta, statusStore *StatusStore) *Handler {
 	version := strings.TrimSpace(meta.Version)
 	if version == "" {
 		version = "dev"
+	}
+	if statusStore == nil {
+		statusStore = NewStatusStore()
 	}
 
 	return &Handler{
 		restartChan:  restartChan,
 		shutdownChan: shutdownChan,
+		statusStore:  statusStore,
 		meta: Meta{
 			Version:   version,
 			Commit:    strings.TrimSpace(meta.Commit),
@@ -54,7 +59,7 @@ func NewHandler(restartChan chan bool, shutdownChan chan struct{}, meta Meta) *H
 			RepoOwner:      "lteawoo",
 			RepoName:       "Cohesion",
 			RequestTimeout: 30 * time.Second,
-		}, shutdownChan),
+		}, shutdownChan, statusStore),
 	}
 }
 
@@ -100,7 +105,11 @@ func (h *Handler) GetUpdateCheck(w http.ResponseWriter, r *http.Request) *web.Er
 
 func (h *Handler) GetUpdateStatus(w http.ResponseWriter, r *http.Request) *web.Error {
 	w.Header().Set("Content-Type", "application/json")
-	status := h.updateManager.GetStatus()
+	status, err := h.statusStore.Load()
+	if err != nil {
+		log.Warn().Err(err).Msg("[System] failed to load persisted lifecycle status")
+		status = h.updateManager.GetStatus()
+	}
 	if err := json.NewEncoder(w).Encode(status); err != nil {
 		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to encode update status response"}
 	}
@@ -155,8 +164,27 @@ func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error
 // RestartServer는 서버를 재시작합니다
 func (h *Handler) RestartServer(w http.ResponseWriter, r *http.Request) *web.Error {
 	log.Info().Msg("[System] Restart request received")
+
+	actor := ""
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok {
+		actor = claims.Username
+	}
+	restartRequest := RestartRequest{
+		Actor:     actor,
+		RequestID: strings.TrimSpace(r.Header.Get("X-Request-Id")),
+		Port:      strings.TrimSpace(config.Conf.Server.Port),
+	}
+	if _, err := h.statusStore.MarkRestartAccepted(restartRequest, h.meta.Version); err != nil {
+		switch {
+		case errors.Is(err, ErrRestartAlreadyInProgress):
+			return &web.Error{Err: err, Code: http.StatusConflict, Message: "Restart is already in progress"}
+		default:
+			return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to persist restart request"}
+		}
+	}
+
 	h.recordAudit(r, audit.Event{
-		Action: "system.restart",
+		Action: "system.restart.accepted",
 		Result: audit.ResultSuccess,
 		Target: "server",
 		Metadata: map[string]any{
@@ -166,10 +194,11 @@ func (h *Handler) RestartServer(w http.ResponseWriter, r *http.Request) *web.Err
 
 	// 응답 먼저 전송
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusAccepted)
 
 	response := map[string]interface{}{
-		"message":  "Server is restarting...",
+		"status":   "accepted",
+		"message":  "Restart request accepted",
 		"new_port": config.Conf.Server.Port,
 	}
 
@@ -186,7 +215,7 @@ func (h *Handler) RestartServer(w http.ResponseWriter, r *http.Request) *web.Err
 	go func() {
 		time.Sleep(500 * time.Millisecond)
 		log.Info().Msg("[System] Sending restart signal...")
-		h.restartChan <- true
+		h.restartChan <- restartRequest
 	}()
 
 	return nil

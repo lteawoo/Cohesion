@@ -141,16 +141,21 @@ const ServerSettings = () => {
             await updateConfig(config);
           }
 
-          const newPort = await restartServer();
+          const restartResponse = await restartServer();
 
           message.loading({
-            content: t('serverSettings.restarting'),
+            content: t('serverSettings.restartAccepted'),
             key: 'restart',
             duration: 0,
           });
 
           // 잠시 대기 (서버가 종료될 시간)
           await new Promise(resolve => setTimeout(resolve, 2000));
+          message.loading({
+            content: t('serverSettings.restartInProgress'),
+            key: 'restart',
+            duration: 0,
+          });
 
           if (isDev) {
             // 개발 모드: 프론트엔드(5173)와 백엔드(3000)가 분리되어 있음
@@ -160,7 +165,7 @@ const ServerSettings = () => {
 
             if (success) {
               message.success({
-                content: t('serverSettings.restartSucceeded'),
+                content: t('serverSettings.restartReconnectSucceeded'),
                 key: 'restart',
               });
               setTimeout(() => {
@@ -168,7 +173,7 @@ const ServerSettings = () => {
               }, 500);
             } else {
               message.error({
-                content: t('serverSettings.restartFailedOrTimeout'),
+                content: t('serverSettings.restartReconnectFailed'),
                 key: 'restart',
               });
             }
@@ -176,6 +181,7 @@ const ServerSettings = () => {
             // 프로덕션 모드: 프론트엔드와 백엔드가 같은 서버
             // 포트가 변경되었으면 새 포트로 리다이렉트
             const currentPort = window.location.port || '80';
+            const newPort = restartResponse.newPort;
 
             if (currentPort === newPort) {
               // 같은 포트
@@ -183,7 +189,7 @@ const ServerSettings = () => {
 
               if (success) {
                 message.success({
-                  content: t('serverSettings.restartSucceeded'),
+                  content: t('serverSettings.restartReconnectSucceeded'),
                   key: 'restart',
                 });
                 setTimeout(() => {
@@ -191,14 +197,14 @@ const ServerSettings = () => {
                 }, 500);
               } else {
                 message.error({
-                  content: t('serverSettings.restartFailedOrTimeout'),
+                  content: t('serverSettings.restartReconnectFailed'),
                   key: 'restart',
                 });
               }
             } else {
               // 다른 포트: 리다이렉트
               message.success({
-                content: t('serverSettings.restartSucceededOnPort', { port: newPort }),
+                content: t('serverSettings.restartReconnectSucceededOnPort', { port: newPort }),
                 key: 'restart',
               });
 
