@@ -169,6 +169,16 @@
 - 이유:
   - 구현 이력이 메인 spec에 남아야 후속 변경의 기준선이 일관되고, 태그 릴리즈 전에 배포 경로의 설정 오류를 미리 차단할 수 있기 때문이다.
 
+### New Capability OpenSpec change는 메인 spec을 새로 만든 뒤 archive한다 (2026-03-07)
+- 상황:
+  - `align-operational-documentation-baseline`, `manage-space-membership-from-space-settings`, `add-search-indexing-for-file-discovery`는 모두 완료됐지만 active change로 남아 있었다.
+  - 세 change 모두 proposal 기준 `New Capabilities`였고, 기존 메인 spec을 덮어쓰는 방식은 의도와 맞지 않았다.
+- 결정:
+  - `operational-documentation-baseline`, `space-membership-management`, `file-search-index-lifecycle` 메인 spec을 새로 추가한다.
+  - delta spec 내용을 새 메인 spec으로 동기화한 뒤 change 디렉터리를 archive로 이동한다.
+- 이유:
+  - 새 capability는 기존 capability와 별도 기준선으로 남아야 후속 변경 범위가 명확하고, archive 이후에도 스펙 책임 경계를 유지할 수 있기 때문이다.
+
 ### 프론트 회귀 테스트는 화면별 file-local mock으로 고정한다 (2026-03-06)
 - 상황:
   - `#201`에서 로그인, 설정 페이지, 메인 레이아웃, 서버 설정 테스트를 한 번에 보강해야 했다.

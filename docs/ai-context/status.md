@@ -1,7 +1,11 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
-- #234 Windows에서 `.cohesion` 루트 디렉터리에 hidden attribute 적용 완료 (브랜치 작업, 미머지):
+- OpenSpec active change 아카이브 완료:
+  - `file-search-index-lifecycle`, `space-membership-management`, `operational-documentation-baseline` 메인 spec 동기화 완료
+  - `add-search-indexing-for-file-discovery`, `manage-space-membership-from-space-settings`, `align-operational-documentation-baseline`를 `openspec/changes/archive/2026-03-07-*` 경로로 이동
+  - `openspec list --json` 기준 active change 0건 확인
+- #234 Windows에서 `.cohesion` 루트 디렉터리에 hidden attribute 적용 완료:
   - production `SetConfig` 시점에 `~/.cohesion` 루트 디렉터리를 준비하고 Windows에서는 hidden attribute를 재적용
   - 비-Windows 빌드에서는 no-op stub로 동작을 유지
   - `EnsureProductionHomeDir` 테스트와 Windows 전용 hidden attribute 테스트 파일을 추가
@@ -18,7 +22,7 @@
     - `cd apps/backend && go test ./internal/config ./internal/platform/database ./internal/sftp ./internal/system ./...`
     - `pnpm release:homebrew-formula --tag v0.5.17 --output /tmp/cohesion-formula.rb`
     - `diff -u /tmp/cohesion-formula.rb packaging/homebrew/Formula/cohesion.rb`
-- #230 Homebrew tap 초기 구성과 설치 채널 감지 추가 진행 완료 (브랜치 작업, 미머지):
+- #230 Homebrew tap 초기 구성과 설치 채널 감지 추가 완료:
   - `/api/system/version` 응답에 `installChannel`을 추가하고 실행 경로가 Homebrew Cellar면 `homebrew`로 식별
   - Homebrew 설치본은 OS와 무관하게 `/api/system/update/start`에서 앱 내 self-update를 차단하고 `brew upgrade cohesion` 안내를 반환
   - macOS 직접 설치본은 앱 내 self-update를 차단하고 최신 릴리즈 재설치 또는 `brew install lteawoo/cohesion/cohesion` 안내를 반환
@@ -33,7 +37,7 @@
     - `pnpm --dir apps/frontend typecheck`
   - 추가 메모:
     - GitHub MCP 토큰 권한 부족으로 `lteawoo/homebrew-cohesion` 저장소 자동 생성은 실패 (`403 Resource not accessible by personal access token`)
-- #229 macOS self-update를 Homebrew 안내 흐름으로 전환 완료 (브랜치 작업, 미머지):
+- #229 macOS self-update를 Homebrew 안내 흐름으로 전환 완료:
   - `/api/system/version` 응답에 서버 runtime OS를 추가
   - macOS에서는 `/api/system/update/start`가 앱 내 self-update를 차단하고 Homebrew/직접 재설치 안내를 반환
   - `Settings > About`는 macOS에서 `brew upgrade cohesion` 안내와 직접 설치 재설치 문구를 노출하고, Linux는 기존 업데이트 버튼 흐름을 유지
@@ -43,14 +47,14 @@
     - `cd apps/backend && go test ./internal/system`
     - `pnpm --dir apps/frontend test -- AboutSettings.test.tsx`
     - `pnpm --dir apps/frontend typecheck`
-- #227 macOS self-update 릴리즈 자산 선택 보정 완료 (브랜치 작업, 미머지):
+- #227 macOS self-update 릴리즈 자산 선택 보정 완료:
   - self-update archive candidate 생성에 `apple_darwin` macOS 자산명을 추가
   - 기존 `darwin`, `linux`, `windows` 후보 규칙은 유지하고 중복 제거 로직은 그대로 재사용
   - macOS asset 선택과 Linux naming 유지 테스트를 `self_update_test.go`에 보강
   - 검증 완료:
     - `cd apps/backend && go test ./internal/system`
     - `cd apps/backend && go test ./...`
-- #225 self-update 후 interactive 실행 모드 유지 구현 완료 (브랜치 작업, 미머지):
+- #225 self-update 후 interactive 실행 모드 유지 구현 완료:
   - self-update 시작 시 현재 launch mode를 판별하고 updater에 `launch-mode` 인자로 전달
   - updater가 interactive 모드에서는 새 앱을 `stdout/stderr` 상속으로 재기동하고, background 모드에서는 기존 `app.log` 리다이렉트를 유지
   - rollback 재기동도 동일 launch mode를 재사용하도록 보강
@@ -102,7 +106,7 @@
   - #199 감사 로그 운영 기능 보강
   - #200 내 프로필 수정과 비밀번호 변경 지원
   - #201 프론트엔드 핵심 운영 경로 회귀 테스트 보강
-- OpenSpec 변경안 준비 완료:
+- OpenSpec 변경안 기준선 정리 완료:
   - `space-settings-management` 메인 spec 동기화 완료
   - `manage-space-settings` change archive 완료
 - 신규 backlog 정리 완료:
@@ -245,7 +249,7 @@
   - #213 운영 문서 기준선 정합성 정리
   - #214 Settings > Spaces 기반 스페이스 멤버십 관리
   - #215 파일 검색 인덱싱 도입
-  - OpenSpec change 생성
+  - OpenSpec change 생성 및 archive 완료
     - `align-operational-documentation-baseline`
     - `manage-space-membership-from-space-settings`
     - `add-search-indexing-for-file-discovery`

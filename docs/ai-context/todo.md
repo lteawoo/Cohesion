@@ -33,7 +33,7 @@
 - [x] 릴리즈 워크플로우 dry-run 점검
 - [x] updater handoff 기준 interactive 수동 검증
 - [ ] public GitHub release 기준 macOS self-update 수동 재검증
-- [ ] `lteawoo/homebrew-cohesion` 저장소 생성 및 formula 반영
+- [x] `lteawoo/homebrew-cohesion` 저장소 생성 및 formula 반영
 
 ## 문서 유지보수 체크리스트
 - [ ] 프론트 feature/package 경계가 바뀌면 `docs/frontend.md` 갱신
