@@ -71,7 +71,7 @@ describe('audit api', () => {
       status: 200,
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': 'attachment; filename=\"audit-export.csv\"',
+        'Content-Disposition': 'attachment; filename="audit-export.csv"',
       },
     }));
 

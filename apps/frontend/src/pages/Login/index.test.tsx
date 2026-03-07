@@ -91,7 +91,6 @@ vi.mock('antd', () => {
       children,
       htmlType,
       loading,
-      block,
       ...props
     }: ButtonHTMLAttributes<HTMLButtonElement> & {
       htmlType?: 'button' | 'submit' | 'reset';
