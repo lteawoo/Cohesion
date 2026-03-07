@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -450,42 +451,83 @@ func main() {
 			Int("port", sftpService.Port()).
 			Msg("service status updated")
 
-		port := config.Conf.Server.Port
-		logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
-			Str("service", "http").
-			Str("port", port).
-			Msg("service status updated")
-		logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
-			Str("service", "webdav").
-			Bool("enabled", config.Conf.Server.WebdavEnabled).
-			Msg("service status updated")
-		logging.Event(log.Info(), logging.ComponentServer, logging.EventServerReady).
-			Str("port", port).
-			Msg("server ready")
-		if _, err := statusStore.MarkServerReady(appVersion); err != nil {
-			logging.Event(log.Warn(), logging.ComponentServer, "warn.lifecycle.ready_persist_failed").
-				Err(err).
-				Msg("failed to persist ready lifecycle status")
-		}
-		if pendingRestartRequest != nil {
-			recordRestartAudit(auditService, *pendingRestartRequest, "system.restart.completed", audit.ResultSuccess, map[string]any{
-				"port": strings.TrimSpace(config.Conf.Server.Port),
-			})
-			closeAuditService(pendingRestartAuditService)
-			pendingRestartRequest = nil
-			pendingRestartAuditService = nil
-			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerRestarted).
-				Str("port", config.Conf.Server.Port).
-				Msg("restart completed")
-		}
-
 		// 서버를 별도 고루틴에서 실행
 		serverErr := make(chan error, 1)
+		serverReady := make(chan struct{}, 1)
 		go func() {
-			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			listener, err := net.Listen("tcp", server.Addr)
+			if err != nil {
+				serverErr <- err
+				return
+			}
+			serverReady <- struct{}{}
+			if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 				serverErr <- err
 			}
 		}()
+		select {
+		case <-serverReady:
+			port := config.Conf.Server.Port
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
+				Str("service", "http").
+				Str("port", port).
+				Msg("service status updated")
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServiceReady).
+				Str("service", "webdav").
+				Bool("enabled", config.Conf.Server.WebdavEnabled).
+				Msg("service status updated")
+			logging.Event(log.Info(), logging.ComponentServer, logging.EventServerReady).
+				Str("port", port).
+				Msg("server ready")
+			if _, err := statusStore.MarkServerReady(appVersion); err != nil {
+				logging.Event(log.Warn(), logging.ComponentServer, "warn.lifecycle.ready_persist_failed").
+					Err(err).
+					Msg("failed to persist ready lifecycle status")
+			}
+			if pendingRestartRequest != nil {
+				recordRestartAudit(auditService, *pendingRestartRequest, "system.restart.completed", audit.ResultSuccess, map[string]any{
+					"port": strings.TrimSpace(config.Conf.Server.Port),
+				})
+				closeAuditService(pendingRestartAuditService)
+				pendingRestartRequest = nil
+				pendingRestartAuditService = nil
+				logging.Event(log.Info(), logging.ComponentServer, logging.EventServerRestarted).
+					Str("port", config.Conf.Server.Port).
+					Msg("restart completed")
+			}
+		case err := <-serverErr:
+			if stopErr := sftpService.Stop(); stopErr != nil {
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "sftp").
+					Err(stopErr).
+					Msg("failed to stop service")
+			}
+			if stopErr := ftpService.Stop(); stopErr != nil {
+				logging.Event(log.Error(), logging.ComponentServer, "error.service.stop_failed").
+					Str("service", "ftp").
+					Err(stopErr).
+					Msg("failed to stop service")
+			}
+			if pendingRestartRequest != nil {
+				if _, statusErr := statusStore.MarkRestartFailed(err); statusErr != nil {
+					logging.Event(log.Warn(), logging.ComponentServer, "warn.restart.status_persist_failed").
+						Err(statusErr).
+						Msg("failed to persist restart failure status")
+				}
+				recordRestartAudit(pendingRestartAuditService, *pendingRestartRequest, "system.restart.failed", audit.ResultFailure, map[string]any{
+					"port":  strings.TrimSpace(config.Conf.Server.Port),
+					"error": err.Error(),
+				})
+				closeAuditService(pendingRestartAuditService)
+				pendingRestartRequest = nil
+				pendingRestartAuditService = nil
+			}
+			closeAuditService(auditService)
+			logging.Event(log.Fatal(), logging.ComponentServer, "fatal.server.runtime_failed").
+				Err(err).
+				Msg("server runtime failure")
+			return
+		}
 
 		// 재시작 또는 종료 신호 대기
 		select {

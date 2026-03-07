@@ -202,10 +202,11 @@ const ServerSettings = () => {
                 });
               }
             } else {
-              // 다른 포트: 리다이렉트
-              message.success({
-                content: t('serverSettings.restartReconnectSucceededOnPort', { port: newPort }),
+              // 다른 포트는 현재 페이지에서 실제 health 확인이 어려워, 이동 예정 상태로만 안내한다.
+              message.loading({
+                content: t('serverSettings.restartRedirectingOnPort', { port: newPort }),
                 key: 'restart',
+                duration: 0,
               });
 
               setTimeout(() => {

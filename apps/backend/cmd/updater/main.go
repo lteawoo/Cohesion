@@ -152,18 +152,17 @@ func run(args updaterArgs, appLogPath string, logger zerolog.Logger) error {
 	if err := replaceWithRetry(args.target, args.replacement, backupPath, 30*time.Second); err != nil {
 		return err
 	}
+	statusStore := system.NewStatusStore()
 
 	process, processExitCh, err := restartApplication(args.target, args.workdir, appArgs, appLogPath, logger)
 	if err != nil {
-		_ = rollbackBinary(args.target, backupPath)
-		return err
+		return rollbackAndRestartPrevious(args, backupPath, appArgs, appLogPath, logger, statusStore, fmt.Errorf("replacement start failed: %w", err))
 	}
 	logging.Event(logger.Info(), logging.ComponentUpdater, "updater.verify.started").
 		Str("health_url", args.healthURL).
 		Str("version_url", args.versionURL).
 		Str("target_version", strings.TrimSpace(args.targetVer)).
 		Msg("verifying restarted application")
-	statusStore := system.NewStatusStore()
 	if _, statusErr := statusStore.MarkUpdateVerifying(args.targetVer); statusErr != nil {
 		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.verify_status_persist_failed").
 			Err(statusErr).
@@ -184,31 +183,7 @@ func run(args updaterArgs, appLogPath string, logger zerolog.Logger) error {
 				Err(statusErr).
 				Msg("failed to persist rolling back status")
 		}
-		if rollbackErr := rollbackBinary(args.target, backupPath); rollbackErr != nil {
-			return fmt.Errorf("verification failed: %w (rollback failed: %v)", err, rollbackErr)
-		}
-		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.rollback_started").
-			Str("target", args.target).
-			Msg("rolling back to previous binary")
-		rollbackProcess, rollbackExitCh, restartErr := restartApplication(args.target, args.workdir, appArgs, appLogPath, logger)
-		if restartErr != nil {
-			return fmt.Errorf("verification failed: %w (rollback restart failed: %v)", err, restartErr)
-		}
-		if rollbackVerifyErr := waitForReadyProcess(args.healthURL, args.versionURL, "", 45*time.Second, rollbackExitCh); rollbackVerifyErr != nil {
-			if rollbackProcess != nil && rollbackProcess.Process != nil {
-				_ = rollbackProcess.Process.Kill()
-			}
-			return fmt.Errorf("verification failed: %w (rollback verification failed: %v)", err, rollbackVerifyErr)
-		}
-		if _, statusErr := statusStore.MarkUpdateRolledBack(err); statusErr != nil {
-			logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.rollback_result_persist_failed").
-				Err(statusErr).
-				Msg("failed to persist rollback result")
-		}
-		logging.Event(logger.Info(), logging.ComponentUpdater, "updater.rollback_completed").
-			Str("health_url", args.healthURL).
-			Msg("rollback app verified successfully")
-		return err
+		return rollbackAndRestartPrevious(args, backupPath, appArgs, appLogPath, logger, statusStore, err)
 	}
 	if _, statusErr := statusStore.MarkUpdateSucceeded(args.targetVer); statusErr != nil {
 		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.verify_result_persist_failed").
@@ -223,6 +198,67 @@ func run(args updaterArgs, appLogPath string, logger zerolog.Logger) error {
 	_ = os.Remove(backupPath)
 
 	return nil
+}
+
+func rollbackAndRestartPrevious(
+	args updaterArgs,
+	backupPath string,
+	appArgs []string,
+	appLogPath string,
+	logger zerolog.Logger,
+	statusStore *system.StatusStore,
+	cause error,
+) error {
+	if _, statusErr := statusStore.MarkUpdateRollingBack(cause); statusErr != nil {
+		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.rollback_status_persist_failed").
+			Err(statusErr).
+			Msg("failed to persist rolling back status")
+	}
+
+	if rollbackErr := rollbackBinary(args.target, backupPath); rollbackErr != nil {
+		combinedErr := fmt.Errorf("%w (rollback failed: %v)", cause, rollbackErr)
+		if _, statusErr := statusStore.MarkUpdateFailed(combinedErr); statusErr != nil {
+			logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.failure_status_persist_failed").
+				Err(statusErr).
+				Msg("failed to persist update failure status")
+		}
+		return combinedErr
+	}
+
+	logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.rollback_started").
+		Str("target", args.target).
+		Msg("rolling back to previous binary")
+	rollbackProcess, rollbackExitCh, restartErr := restartApplication(args.target, args.workdir, appArgs, appLogPath, logger)
+	if restartErr != nil {
+		combinedErr := fmt.Errorf("%w (rollback restart failed: %v)", cause, restartErr)
+		if _, statusErr := statusStore.MarkUpdateFailed(combinedErr); statusErr != nil {
+			logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.failure_status_persist_failed").
+				Err(statusErr).
+				Msg("failed to persist update failure status")
+		}
+		return combinedErr
+	}
+	if rollbackVerifyErr := waitForReadyProcess(args.healthURL, args.versionURL, "", 45*time.Second, rollbackExitCh); rollbackVerifyErr != nil {
+		if rollbackProcess != nil && rollbackProcess.Process != nil {
+			_ = rollbackProcess.Process.Kill()
+		}
+		combinedErr := fmt.Errorf("%w (rollback verification failed: %v)", cause, rollbackVerifyErr)
+		if _, statusErr := statusStore.MarkUpdateFailed(combinedErr); statusErr != nil {
+			logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.failure_status_persist_failed").
+				Err(statusErr).
+				Msg("failed to persist update failure status")
+		}
+		return combinedErr
+	}
+	if _, statusErr := statusStore.MarkUpdateRolledBack(cause); statusErr != nil {
+		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.rollback_result_persist_failed").
+			Err(statusErr).
+			Msg("failed to persist rollback result")
+	}
+	logging.Event(logger.Info(), logging.ComponentUpdater, "updater.rollback_completed").
+		Str("health_url", args.healthURL).
+		Msg("rollback app verified successfully")
+	return cause
 }
 
 func readAppArgs(argsFilePath string) ([]string, error) {
