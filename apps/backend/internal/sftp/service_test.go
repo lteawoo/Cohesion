@@ -44,9 +44,9 @@ func TestPrewarmHostKey_SourceGeneratedThenEnvWithEnvPathOverride(t *testing.T) 
 	}
 }
 
-func TestResolveHostKeyPath_UsesHiddenHomeSecretsDirForProductionConfig(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+func TestResolveHostKeyPath_UsesStateRootSecretsDirForProductionConfig(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(config.ProductionStateRootEnv, stateRoot)
 	t.Setenv("COHESION_SFTP_HOST_KEY_FILE", "")
 	config.SetConfig("production")
 
@@ -55,7 +55,7 @@ func TestResolveHostKeyPath_UsesHiddenHomeSecretsDirForProductionConfig(t *testi
 		t.Fatalf("resolve host key path: %v", err)
 	}
 
-	expected := filepath.Join(homeDir, ".cohesion", "secrets", defaultSFTPHostKeyName)
+	expected := filepath.Join(stateRoot, "secrets", defaultSFTPHostKeyName)
 	if hostKeyPath != expected {
 		t.Fatalf("expected %q, got %q", expected, hostKeyPath)
 	}

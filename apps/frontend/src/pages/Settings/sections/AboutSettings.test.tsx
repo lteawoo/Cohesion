@@ -187,7 +187,7 @@ describe('AboutSettings', () => {
 
     expect(view.getByText('aboutSettings.systemdUpdateHint')).toBeTruthy();
     expect(view.getByText('aboutSettings.systemdUpdateDetail')).toBeTruthy();
-    expect(view.getByText('sudo ./install.sh --user "$(id -un)"')).toBeTruthy();
+    expect(view.getByText('sudo ./install.sh --user <service-user>')).toBeTruthy();
     expect(view.queryByRole('button', { name: 'aboutSettings.updateNow' })).toBeNull();
   });
 

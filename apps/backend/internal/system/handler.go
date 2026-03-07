@@ -185,7 +185,7 @@ func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error
 		return &web.Error{
 			Err:     ErrSelfUpdateUnsupportedBuild,
 			Code:    http.StatusBadRequest,
-			Message: "Linux systemd 설치본은 앱 내 업데이트를 지원하지 않습니다. 최신 릴리즈 아카이브에서 `sudo ./install.sh --user \"$(id -un)\"`를 다시 실행하세요.",
+			Message: "Linux systemd 설치본은 앱 내 업데이트를 지원하지 않습니다. 최신 릴리즈 아카이브에서 같은 서비스 계정으로 `sudo ./install.sh --user <service-user>`를 다시 실행하세요.",
 		}
 	}
 	if strings.EqualFold(h.meta.RuntimeOS, "darwin") {

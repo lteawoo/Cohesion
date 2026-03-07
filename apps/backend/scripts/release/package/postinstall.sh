@@ -4,7 +4,7 @@ set -eu
 SERVICE_USER="cohesion"
 SERVICE_GROUP="cohesion"
 SERVICE_HOME="/var/lib/cohesion"
-APP_HOME="$SERVICE_HOME/.cohesion"
+APP_HOME="$SERVICE_HOME"
 CONFIG_DIR="$APP_HOME/config"
 DATA_DIR="$APP_HOME/data"
 SECRETS_DIR="$APP_HOME/secrets"

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"taeu.kr/cohesion/internal/config"
 	"taeu.kr/cohesion/internal/platform/logging"
 )
 
@@ -166,18 +167,18 @@ func TestResolveJWTSecret_DevelopmentGeneratesSecretFile(t *testing.T) {
 	}
 }
 
-func TestResolveJWTSecretPath_ProductionUsesHiddenHomeDir(t *testing.T) {
+func TestResolveJWTSecretPath_ProductionUsesStateRoot(t *testing.T) {
 	setGoEnvForTest(t, "production")
 	t.Setenv("COHESION_JWT_SECRET_FILE", "")
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	stateRoot := t.TempDir()
+	t.Setenv(config.ProductionStateRootEnv, stateRoot)
 
 	secretPath, err := resolveJWTSecretPath()
 	if err != nil {
 		t.Fatalf("resolve jwt secret path: %v", err)
 	}
 
-	expected := filepath.Join(homeDir, ".cohesion", "secrets", "jwt_secret")
+	expected := filepath.Join(stateRoot, "secrets", "jwt_secret")
 	if secretPath != expected {
 		t.Fatalf("expected %q, got %q", expected, secretPath)
 	}
