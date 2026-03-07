@@ -64,7 +64,7 @@ function buildListQuery(params: AuditLogListParams): string {
 }
 
 function extractFilename(headerValue: string | null): string {
-  const match = headerValue ? /filename=\"?([^\";]+)\"?/i.exec(headerValue) : null;
+  const match = headerValue ? /filename="?([^";]+)"?/i.exec(headerValue) : null;
   return match?.[1] ?? 'audit-logs.csv';
 }
 
