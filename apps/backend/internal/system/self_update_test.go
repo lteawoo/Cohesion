@@ -2,6 +2,7 @@ package system
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -83,5 +84,31 @@ func TestBuildLocalVersionURL(t *testing.T) {
 func TestBuildLocalVersionURLRejectsInvalidPort(t *testing.T) {
 	if _, err := buildLocalVersionURL("invalid"); err == nil {
 		t.Fatal("expected invalid port error")
+	}
+}
+
+func TestConfigureUpdaterCommandIOInheritsTerminalWhenInteractive(t *testing.T) {
+	cmd := exec.Command("echo")
+
+	configureUpdaterCommandIO(cmd, LaunchModeInteractive)
+
+	if cmd.Stdout != os.Stdout {
+		t.Fatal("expected updater stdout to inherit current stdout")
+	}
+	if cmd.Stderr != os.Stderr {
+		t.Fatal("expected updater stderr to inherit current stderr")
+	}
+}
+
+func TestConfigureUpdaterCommandIOKeepsBackgroundDefault(t *testing.T) {
+	cmd := exec.Command("echo")
+
+	configureUpdaterCommandIO(cmd, LaunchModeBackground)
+
+	if cmd.Stdout != nil {
+		t.Fatal("expected background updater stdout to remain unset")
+	}
+	if cmd.Stderr != nil {
+		t.Fatal("expected background updater stderr to remain unset")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -137,5 +138,46 @@ func TestRollbackAndRestartPreviousPersistsFailureWhenRollbackFails(t *testing.T
 	}
 	if status.RuntimeState != "failed" {
 		t.Fatalf("expected failed runtime state, got %q", status.RuntimeState)
+	}
+}
+
+func TestConfigureRestartApplicationOutputUsesTerminalForInteractiveMode(t *testing.T) {
+	cmd := exec.Command("echo")
+	logger := newUpdaterLogger(io.Discard)
+
+	cleanup, err := configureRestartApplicationOutput(cmd, system.LaunchModeInteractive, filepath.Join(t.TempDir(), "app.log"), logger)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	defer cleanup()
+
+	if cmd.Stdout != os.Stdout {
+		t.Fatal("expected interactive stdout inheritance")
+	}
+	if cmd.Stderr != os.Stderr {
+		t.Fatal("expected interactive stderr inheritance")
+	}
+}
+
+func TestConfigureRestartApplicationOutputWritesToLogFileForBackgroundMode(t *testing.T) {
+	cmd := exec.Command("echo")
+	logger := newUpdaterLogger(io.Discard)
+	logPath := filepath.Join(t.TempDir(), "app.log")
+
+	cleanup, err := configureRestartApplicationOutput(cmd, system.LaunchModeBackground, logPath, logger)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	defer cleanup()
+
+	stdoutFile, ok := cmd.Stdout.(*os.File)
+	if !ok {
+		t.Fatalf("expected stdout to be file sink, got %T", cmd.Stdout)
+	}
+	if stdoutFile.Name() != logPath {
+		t.Fatalf("expected stdout log path %q, got %q", logPath, stdoutFile.Name())
+	}
+	if cmd.Stderr != cmd.Stdout {
+		t.Fatal("expected stdout and stderr to share the same log file")
 	}
 }
