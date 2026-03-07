@@ -63,6 +63,10 @@ archives:
       - README.md
       - src: apps/backend/config/config.prod.yaml
         dst: config/config.prod.yaml
+      - src: apps/backend/scripts/release/install-cohesion.sh
+        dst: install.sh
+      - src: apps/backend/scripts/release/cohesion.service
+        dst: cohesion.service
       - src: apps/backend/scripts/release/stop-cohesion.command
         dst: stop-cohesion.command
       - src: apps/backend/scripts/release/stop-cohesion.bat

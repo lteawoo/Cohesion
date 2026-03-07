@@ -195,6 +195,12 @@ func TestDetectInstallChannel(t *testing.T) {
 			t.Fatalf("expected direct, got %q", actual)
 		}
 	})
+
+	t.Run("returns env override when provided", func(t *testing.T) {
+		if actual := detectInstallChannelFromEnvAndPath("systemd", "/usr/local/bin/cohesion"); actual != "systemd" {
+			t.Fatalf("expected systemd, got %q", actual)
+		}
+	})
 }
 
 func readTrimmedFile(t *testing.T, path string) string {

@@ -1,0 +1,21 @@
+[Unit]
+Description=Cohesion file service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=__COHESION_USER__
+Group=__COHESION_GROUP__
+WorkingDirectory=__COHESION_INSTALL_DIR__
+Environment=HOME=__COHESION_HOME__
+Environment=COHESION_RUNTIME_ROOT=__COHESION_RUNTIME_ROOT__
+Environment=COHESION_INSTALL_CHANNEL=systemd
+Environment=COHESION_LAUNCH_MODE=background
+ExecStart=__COHESION_INSTALL_DIR__/bin/cohesion
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

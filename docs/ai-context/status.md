@@ -1,6 +1,19 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- #238 Linux release artifact 설치 스크립트와 systemd 서비스 초안 완료:
+  - release archive에 `install.sh`, `cohesion.service`를 추가하고 `pnpm release:snapshot`에서 Linux 아카이브 포함 여부를 확인
+  - Linux systemd 서비스 설치 스크립트는 `/opt/cohesion` 배치, `~/.cohesion` 운영 파일 준비, `cohesion.service` 설치/재시작 흐름을 제공
+  - `COHESION_INSTALL_CHANNEL=systemd`를 도입해 Linux systemd 설치본의 앱 내 self-update를 차단
+  - `Settings > About`와 README에 Linux service 설치/업그레이드 안내를 추가
+  - 검증 완료:
+    - `cd apps/backend && go test ./...`
+    - `pnpm --dir apps/frontend test -- AboutSettings.test.tsx`
+    - `pnpm --dir apps/frontend typecheck`
+    - `bash -n apps/backend/scripts/release/install-cohesion.sh`
+    - `pnpm release:check`
+    - `pnpm release:snapshot`
+    - `tar -tzf dist/release/cohesion_0.5.18-SNAPSHOT-8e88aae_linux_amd64.tar.gz | rg "install\\.sh|cohesion\\.service"`
 - OpenSpec active change 아카이브 완료:
   - `file-search-index-lifecycle`, `space-membership-management`, `operational-documentation-baseline` 메인 spec 동기화 완료
   - `add-search-indexing-for-file-discovery`, `manage-space-membership-from-space-settings`, `align-operational-documentation-baseline`를 `openspec/changes/archive/2026-03-07-*` 경로로 이동

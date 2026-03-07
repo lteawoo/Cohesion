@@ -201,6 +201,28 @@ func TestStartUpdateReturnsBadRequestOnHomebrewInstall(t *testing.T) {
 	}
 }
 
+func TestStartUpdateReturnsBadRequestOnSystemdInstall(t *testing.T) {
+	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
+		Version:        "v0.3.0",
+		RuntimeOS:      "linux",
+		InstallChannel: "systemd",
+	}, newTestStatusStore(t))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/system/update/start", nil)
+	rec := httptest.NewRecorder()
+
+	err := handler.StartUpdate(rec, req)
+	if err == nil {
+		t.Fatal("expected error response for systemd install")
+	}
+	if err.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, err.Code)
+	}
+	if !strings.Contains(err.Message, "install.sh") {
+		t.Fatalf("unexpected message: %s", err.Message)
+	}
+}
+
 func TestRestartServerReturnsAcceptedResponse(t *testing.T) {
 	restartChan := make(chan RestartRequest, 1)
 	handler := NewHandler(restartChan, make(chan struct{}, 1), Meta{

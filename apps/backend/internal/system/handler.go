@@ -43,10 +43,7 @@ func NewHandler(restartChan chan RestartRequest, shutdownChan chan struct{}, met
 	if runtimeOS == "" {
 		runtimeOS = runtime.GOOS
 	}
-	installChannel := strings.TrimSpace(meta.InstallChannel)
-	if installChannel == "" {
-		installChannel = "direct"
-	}
+	installChannel := NormalizeInstallChannel(meta.InstallChannel)
 	if statusStore == nil {
 		statusStore = NewStatusStore()
 	}
@@ -138,7 +135,8 @@ func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error
 	case "1", "true", "yes", "y":
 		force = true
 	}
-	if strings.EqualFold(h.meta.InstallChannel, "homebrew") {
+	switch NormalizeInstallChannel(h.meta.InstallChannel) {
+	case InstallChannelHomebrew:
 		h.recordAudit(r, audit.Event{
 			Action: "system.update.start",
 			Result: audit.ResultFailure,
@@ -154,6 +152,23 @@ func (h *Handler) StartUpdate(w http.ResponseWriter, r *http.Request) *web.Error
 			Err:     ErrSelfUpdateUnsupportedBuild,
 			Code:    http.StatusBadRequest,
 			Message: "Homebrew 설치본은 앱 내 업데이트를 지원하지 않습니다. `brew upgrade cohesion`를 사용하세요.",
+		}
+	case InstallChannelSystemd:
+		h.recordAudit(r, audit.Event{
+			Action: "system.update.start",
+			Result: audit.ResultFailure,
+			Target: "self-update",
+			Metadata: map[string]any{
+				"force":           force,
+				"reason":          "systemd_managed_install",
+				"os":              h.meta.RuntimeOS,
+				"install_channel": h.meta.InstallChannel,
+			},
+		})
+		return &web.Error{
+			Err:     ErrSelfUpdateUnsupportedBuild,
+			Code:    http.StatusBadRequest,
+			Message: "Linux systemd 설치본은 앱 내 업데이트를 지원하지 않습니다. 최신 릴리즈 아카이브에서 `sudo ./install.sh --user \"$(id -un)\"`를 다시 실행하세요.",
 		}
 	}
 	if strings.EqualFold(h.meta.RuntimeOS, "darwin") {
