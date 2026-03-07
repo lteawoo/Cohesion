@@ -28,6 +28,7 @@ type updaterArgs struct {
 	healthURL   string
 	versionURL  string
 	targetVer   string
+	launchMode  system.LaunchMode
 }
 
 func openRootLogFile(targetPath, fileName string) (*os.File, string, error) {
@@ -103,6 +104,8 @@ func parseFlags() (updaterArgs, error) {
 	flag.StringVar(&parsed.healthURL, "health-url", "", "health endpoint url used to verify restarted app")
 	flag.StringVar(&parsed.versionURL, "version-url", "", "version endpoint url used to verify restarted app")
 	flag.StringVar(&parsed.targetVer, "target-version", "", "target version for logging")
+	var launchModeRaw string
+	flag.StringVar(&launchModeRaw, "launch-mode", "", "launch mode for restarted app")
 	flag.Parse()
 
 	if parsed.pid <= 0 {
@@ -130,6 +133,11 @@ func parseFlags() (updaterArgs, error) {
 		parsed.workdir = filepath.Dir(parsed.target)
 	}
 	parsed.workdir = filepath.Clean(parsed.workdir)
+	if strings.TrimSpace(launchModeRaw) == "" {
+		parsed.launchMode = system.DetectLaunchMode()
+	} else {
+		parsed.launchMode = system.ParseLaunchMode(launchModeRaw)
+	}
 
 	return parsed, nil
 }
@@ -154,7 +162,7 @@ func run(args updaterArgs, appLogPath string, logger zerolog.Logger) error {
 	}
 	statusStore := system.NewStatusStore()
 
-	process, processExitCh, err := restartApplication(args.target, args.workdir, appArgs, appLogPath, logger)
+	process, processExitCh, err := restartApplication(args.target, args.workdir, appArgs, appLogPath, args.launchMode, logger)
 	if err != nil {
 		return rollbackAndRestartPrevious(args, backupPath, appArgs, appLogPath, logger, statusStore, fmt.Errorf("replacement start failed: %w", err))
 	}
@@ -228,7 +236,7 @@ func rollbackAndRestartPrevious(
 	logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.rollback_started").
 		Str("target", args.target).
 		Msg("rolling back to previous binary")
-	rollbackProcess, rollbackExitCh, restartErr := restartApplication(args.target, args.workdir, appArgs, appLogPath, logger)
+	rollbackProcess, rollbackExitCh, restartErr := restartApplication(args.target, args.workdir, appArgs, appLogPath, args.launchMode, logger)
 	if restartErr != nil {
 		combinedErr := fmt.Errorf("%w (rollback restart failed: %v)", cause, restartErr)
 		if _, statusErr := statusStore.MarkUpdateFailed(combinedErr); statusErr != nil {
@@ -320,26 +328,14 @@ func rollbackBinary(targetPath, backupPath string) error {
 	return os.Rename(backupPath, targetPath)
 }
 
-func restartApplication(targetPath, workdir string, appArgs []string, appLogPath string, logger zerolog.Logger) (*exec.Cmd, <-chan error, error) {
+func restartApplication(targetPath, workdir string, appArgs []string, appLogPath string, launchMode system.LaunchMode, logger zerolog.Logger) (*exec.Cmd, <-chan error, error) {
 	cmd := exec.Command(targetPath, appArgs...)
 	cmd.Dir = workdir
-	appLogFile, err := openAppLogFile(appLogPath)
+	cleanupOutput, err := configureRestartApplicationOutput(cmd, launchMode, appLogPath, logger)
 	if err != nil {
-		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.app_log_open_failed").
-			Str("path", appLogPath).
-			Err(err).
-			Msg("failed to open app log file, falling back to stdio")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	} else {
-		defer appLogFile.Close()
-		cmd.Stdout = appLogFile
-		cmd.Stderr = appLogFile
-		logging.Event(logger.Info(), logging.ComponentUpdater, logging.EventServiceReady).
-			Str("service", "app-log-redirect").
-			Str("path", appLogPath).
-			Msg("service status updated")
+		return nil, nil, err
 	}
+	defer cleanupOutput()
 	cmd.Stdin = nil
 	cmd.Env = os.Environ()
 
@@ -353,6 +349,39 @@ func restartApplication(targetPath, workdir string, appArgs []string, appLogPath
 	}()
 
 	return cmd, exitCh, nil
+}
+
+func configureRestartApplicationOutput(cmd *exec.Cmd, launchMode system.LaunchMode, appLogPath string, logger zerolog.Logger) (func(), error) {
+	if launchMode.IsInteractive() {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		logging.Event(logger.Info(), logging.ComponentUpdater, logging.EventServiceReady).
+			Str("service", "app-stdio-inherit").
+			Str("launch_mode", launchMode.String()).
+			Msg("service status updated")
+		return func() {}, nil
+	}
+
+	appLogFile, err := openAppLogFile(appLogPath)
+	if err != nil {
+		logging.Event(logger.Warn(), logging.ComponentUpdater, "warn.updater.app_log_open_failed").
+			Str("path", appLogPath).
+			Err(err).
+			Msg("failed to open app log file, falling back to stdio")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return func() {}, nil
+	}
+
+	cmd.Stdout = appLogFile
+	cmd.Stderr = appLogFile
+	logging.Event(logger.Info(), logging.ComponentUpdater, logging.EventServiceReady).
+		Str("service", "app-log-redirect").
+		Str("path", appLogPath).
+		Msg("service status updated")
+	return func() {
+		_ = appLogFile.Close()
+	}, nil
 }
 
 func openAppLogFile(appLogPath string) (*os.File, error) {

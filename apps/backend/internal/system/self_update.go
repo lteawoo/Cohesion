@@ -257,6 +257,7 @@ func (m *SelfUpdateManager) execute(ctx context.Context, currentVersion string, 
 	if err != nil {
 		return err
 	}
+	launchMode := DetectLaunchMode()
 
 	m.setStatus("switching", "업데이터를 실행했습니다. 서버를 종료합니다", targetVersion, release.HTMLURL)
 	cmd := exec.Command(
@@ -270,8 +271,10 @@ func (m *SelfUpdateManager) execute(ctx context.Context, currentVersion string, 
 		"--health-url", healthURL,
 		"--version-url", versionURL,
 		"--target-version", targetVersion,
+		"--launch-mode", launchMode.String(),
 	)
 	cmd.Env = os.Environ()
+	configureUpdaterCommandIO(cmd, launchMode)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -289,6 +292,14 @@ func (m *SelfUpdateManager) execute(ctx context.Context, currentVersion string, 
 	// 종료 채널이 없으면 전환 상태를 마무리 처리한다.
 	m.complete("idle", "업데이터 실행이 완료되었습니다", targetVersion, release.HTMLURL)
 	return nil
+}
+
+func configureUpdaterCommandIO(cmd *exec.Cmd, launchMode LaunchMode) {
+	if !launchMode.IsInteractive() {
+		return
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 }
 
 func (m *SelfUpdateManager) setStatus(state, message, targetVersion, releaseURL string) {

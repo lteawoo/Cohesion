@@ -1,6 +1,22 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- #225 self-update 후 interactive 실행 모드 유지 구현 완료 (브랜치 작업, 미머지):
+  - self-update 시작 시 현재 launch mode를 판별하고 updater에 `launch-mode` 인자로 전달
+  - updater가 interactive 모드에서는 새 앱을 `stdout/stderr` 상속으로 재기동하고, background 모드에서는 기존 `app.log` 리다이렉트를 유지
+  - rollback 재기동도 동일 launch mode를 재사용하도록 보강
+  - `internal/system/launch_mode.go`로 terminal 기반 실행 모드 판별 로직 추가
+  - 검증 완료:
+    - `cd apps/backend && go test ./internal/system ./cmd/updater`
+    - `cd apps/backend && go test ./...`
+    - 수동 updater handoff smoke test:
+      - `v0.5.15-test` 바이너리를 `/tmp/cohesion-update-smoke.HWjKMG`에서 interactive 실행
+      - `cohesion-updater --launch-mode interactive`로 로컬 replacement `v0.5.16-local` 전환
+      - updater 터미널에서 새 앱 부팅 로그와 종료 로그가 직접 출력되는 것 확인
+      - `/api/system/version`이 `v0.5.16-local`을 반환하는 것 확인
+  - 추가 발견:
+    - macOS 공개 릴리즈 self-update는 현재 `지원되는 아카이브 자산을 찾을 수 없습니다 (tag=v0.5.16, os=darwin, arch=arm64)`로 실패
+    - 원인 후보는 release asset 명명(`apple_darwin_*`)과 self-update asset picker 불일치
 - 운영 문서 기준선 리뷰 보정 완료:
   - `docs/backend.md`에 JWT/SFTP secret bootstrap 제약과 실행 바이너리 기준 로그 경로를 보강
   - `docs/frontend.md`의 `Settings` 섹션 목록을 현재 라우트와 동일하게 정리
@@ -202,5 +218,6 @@
 - 수동 UI 검증: Playwright로 `Settings > 서버` 재시작 UI와 재시작 후 상태 조회 확인
 
 ## 다음 작업
-1. SMB 관련 탐색은 보류 상태 유지
-2. 다음 운영 안정화/백로그 우선순위 재정렬
+1. #225 commit/PR/수동 release-binary 검증 여부 결정
+2. SMB 관련 탐색은 보류 상태 유지
+3. 다음 운영 안정화/백로그 우선순위 재정렬

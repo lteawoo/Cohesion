@@ -2,6 +2,19 @@
 
 ## 아키텍처 (Architecture)
 
+### self-update는 현재 launch mode를 전달해 interactive 실행을 유지한다 (2026-03-07)
+- 상황:
+  - 일반 재시작은 같은 프로세스 루프 안에서 처리돼 처음 터미널/콘솔 맥락이 유지되지만, self-update는 updater가 새 앱을 `app.log` 기반 백그라운드 성격으로 다시 띄웠다.
+  - 사용자는 새 창/새 콘솔은 허용하지만, 수동 실행한 앱이 조용히 백그라운드 앱처럼 바뀌는 경험을 원하지 않았다.
+- 결정:
+  - self-update 시작 시 현재 프로세스의 launch mode를 terminal attachment 기준으로 판별한다.
+  - updater에는 `launch-mode` 인자를 넘기고, interactive 모드에서는 새 앱과 rollback 앱을 현재 `stdout/stderr` 상속으로 재기동한다.
+  - background 모드에서는 기존 `logs/app.log` 리다이렉트 방식을 유지한다.
+- 검증 메모:
+  - updater handoff를 직접 실행한 macOS 수동 smoke test에서 `launch-mode=interactive`일 때 updater 터미널에 새 앱의 부팅/종료 로그가 출력되는 것을 확인했다.
+- 이유:
+  - self-update 이후에도 사용자가 인지하는 실행 모델을 유지해야 일반 재시작과의 차이를 줄이고, 포터블 수동 실행 시 UX 일관성을 확보할 수 있기 때문이다.
+
 ### self-update 전환 성공은 새 바이너리 health/version probe 통과 후에만 인정한다 (2026-03-07)
 - 상황:
   - 현재 self-update는 업데이터가 replacement 바이너리를 `cmd.Start()`만 하면 성공 경로로 넘어갔다.
