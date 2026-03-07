@@ -9,32 +9,51 @@ import (
 
 func TestBuildArchiveNameCandidates(t *testing.T) {
 	candidates := buildArchiveNameCandidates("v0.4.0", "darwin", "arm64")
-	if len(candidates) != 2 {
-		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	if len(candidates) != 4 {
+		t.Fatalf("expected 4 candidates, got %d", len(candidates))
 	}
-	if candidates[0] != "cohesion_v0.4.0_darwin_arm64.tar.gz" {
+	if candidates[0] != "cohesion_v0.4.0_apple_darwin_arm64.tar.gz" {
 		t.Fatalf("unexpected first candidate: %s", candidates[0])
 	}
-	if candidates[1] != "cohesion_0.4.0_darwin_arm64.tar.gz" {
+	if candidates[1] != "cohesion_v0.4.0_darwin_arm64.tar.gz" {
 		t.Fatalf("unexpected second candidate: %s", candidates[1])
+	}
+	if candidates[2] != "cohesion_0.4.0_apple_darwin_arm64.tar.gz" {
+		t.Fatalf("unexpected third candidate: %s", candidates[2])
+	}
+	if candidates[3] != "cohesion_0.4.0_darwin_arm64.tar.gz" {
+		t.Fatalf("unexpected fourth candidate: %s", candidates[3])
 	}
 }
 
 func TestPickArchiveAsset(t *testing.T) {
 	assets := []githubReleaseAsset{
 		{Name: "checksums.txt", BrowserDownloadURL: "https://example/checksums.txt"},
-		{Name: "cohesion_0.4.0_darwin_arm64.tar.gz", BrowserDownloadURL: "https://example/archive.tar.gz"},
+		{Name: "cohesion_0.4.0_apple_darwin_arm64.tar.gz", BrowserDownloadURL: "https://example/archive.tar.gz"},
 	}
 
 	name, url, err := pickArchiveAsset(assets, "v0.4.0", "darwin", "arm64")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if name != "cohesion_0.4.0_darwin_arm64.tar.gz" {
+	if name != "cohesion_0.4.0_apple_darwin_arm64.tar.gz" {
 		t.Fatalf("unexpected archive name: %s", name)
 	}
 	if url != "https://example/archive.tar.gz" {
 		t.Fatalf("unexpected archive url: %s", url)
+	}
+}
+
+func TestBuildArchiveNameCandidatesKeepsLinuxNaming(t *testing.T) {
+	candidates := buildArchiveNameCandidates("v0.4.0", "linux", "amd64")
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	}
+	if candidates[0] != "cohesion_v0.4.0_linux_amd64.tar.gz" {
+		t.Fatalf("unexpected first linux candidate: %s", candidates[0])
+	}
+	if candidates[1] != "cohesion_0.4.0_linux_amd64.tar.gz" {
+		t.Fatalf("unexpected second linux candidate: %s", candidates[1])
 	}
 }
 

@@ -1,6 +1,13 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- #227 macOS self-update 릴리즈 자산 선택 보정 완료 (브랜치 작업, 미머지):
+  - self-update archive candidate 생성에 `apple_darwin` macOS 자산명을 추가
+  - 기존 `darwin`, `linux`, `windows` 후보 규칙은 유지하고 중복 제거 로직은 그대로 재사용
+  - macOS asset 선택과 Linux naming 유지 테스트를 `self_update_test.go`에 보강
+  - 검증 완료:
+    - `cd apps/backend && go test ./internal/system`
+    - `cd apps/backend && go test ./...`
 - #225 self-update 후 interactive 실행 모드 유지 구현 완료 (브랜치 작업, 미머지):
   - self-update 시작 시 현재 launch mode를 판별하고 updater에 `launch-mode` 인자로 전달
   - updater가 interactive 모드에서는 새 앱을 `stdout/stderr` 상속으로 재기동하고, background 모드에서는 기존 `app.log` 리다이렉트를 유지
@@ -218,6 +225,6 @@
 - 수동 UI 검증: Playwright로 `Settings > 서버` 재시작 UI와 재시작 후 상태 조회 확인
 
 ## 다음 작업
-1. #225 commit/PR/수동 release-binary 검증 여부 결정
+1. #227 commit/PR/머지 및 실제 macOS release self-update 재검증 여부 결정
 2. SMB 관련 탐색은 보류 상태 유지
 3. 다음 운영 안정화/백로그 우선순위 재정렬

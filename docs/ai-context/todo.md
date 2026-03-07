@@ -1,8 +1,9 @@
 # 작업 목록 (To-Do)
 
 ## 현재 우선순위
+- [x] #227 macOS self-update 릴리즈 자산 선택 보정
 - [x] #225 self-update 후 interactive 실행 모드 유지
-- [ ] macOS release self-update asset picker와 실제 릴리즈 자산명 불일치 점검
+- [x] macOS release self-update asset picker와 실제 릴리즈 자산명 불일치 점검
 - [x] 서비스 범위 정리 및 불필요 경로 제거
 - [x] CI/Release 워크플로우 불일치 단계 정리
 - [x] #213 운영 문서 기준선 정합성 정리
@@ -27,7 +28,7 @@
 - [x] 프론트 빌드/타입체크 통과 확인
 - [x] 릴리즈 워크플로우 dry-run 점검
 - [x] updater handoff 기준 interactive 수동 검증
-- [ ] public GitHub release 기준 macOS self-update 수동 검증
+- [ ] public GitHub release 기준 macOS self-update 수동 재검증
 
 ## 문서 유지보수 체크리스트
 - [ ] 프론트 feature/package 경계가 바뀌면 `docs/frontend.md` 갱신

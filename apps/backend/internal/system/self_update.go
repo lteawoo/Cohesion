@@ -486,17 +486,26 @@ func buildArchiveNameCandidates(tag, goos, goarch string) []string {
 		ext = ".zip"
 	}
 
-	candidates := []string{
-		fmt.Sprintf("cohesion_%s_%s_%s%s", version, goos, goarch, ext),
-	}
-
+	versionCandidates := []string{version}
 	if strings.HasPrefix(version, "v") || strings.HasPrefix(version, "V") {
 		withoutPrefix := strings.TrimSpace(version[1:])
 		if withoutPrefix != "" {
-			candidates = append(candidates, fmt.Sprintf("cohesion_%s_%s_%s%s", withoutPrefix, goos, goarch, ext))
+			versionCandidates = append(versionCandidates, withoutPrefix)
 		}
 	} else {
-		candidates = append(candidates, fmt.Sprintf("cohesion_v%s_%s_%s%s", version, goos, goarch, ext))
+		versionCandidates = append(versionCandidates, "v"+version)
+	}
+
+	osNameCandidates := []string{goos}
+	if goos == "darwin" {
+		osNameCandidates = append([]string{"apple_darwin"}, osNameCandidates...)
+	}
+
+	candidates := make([]string, 0, len(versionCandidates)*len(osNameCandidates))
+	for _, versionCandidate := range versionCandidates {
+		for _, osNameCandidate := range osNameCandidates {
+			candidates = append(candidates, fmt.Sprintf("cohesion_%s_%s_%s%s", versionCandidate, osNameCandidate, goarch, ext))
+		}
 	}
 
 	seen := make(map[string]struct{}, len(candidates))

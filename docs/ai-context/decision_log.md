@@ -15,6 +15,15 @@
 - 이유:
   - self-update 이후에도 사용자가 인지하는 실행 모델을 유지해야 일반 재시작과의 차이를 줄이고, 포터블 수동 실행 시 UX 일관성을 확보할 수 있기 때문이다.
 
+### macOS self-update archive picker는 `apple_darwin` 릴리즈 자산명을 우선 지원한다 (2026-03-07)
+- 상황:
+  - 실제 macOS 릴리즈 자산명은 GoReleaser 설정상 `cohesion_<version>_apple_darwin_<arch>.tar.gz`인데, self-update picker는 `darwin` 이름만 찾고 있어 공개 릴리즈 self-update가 asset-not-found로 실패했다.
+- 결정:
+  - macOS archive candidate 생성 시 `apple_darwin` 패턴을 우선 포함하고, 기존 `darwin` 후보도 fallback으로 유지한다.
+  - Linux/Windows candidate 규칙은 바꾸지 않는다.
+- 이유:
+  - 현재 배포 산출물 이름과 self-update downloader가 같은 기준을 봐야 동일 버전 재설치와 일반 self-update가 정상 동작하기 때문이다.
+
 ### self-update 전환 성공은 새 바이너리 health/version probe 통과 후에만 인정한다 (2026-03-07)
 - 상황:
   - 현재 self-update는 업데이터가 replacement 바이너리를 `cmd.Start()`만 하면 성공 경로로 넘어갔다.
