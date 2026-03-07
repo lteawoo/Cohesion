@@ -3,13 +3,17 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"taeu.kr/cohesion/internal/platform/logging"
+	"taeu.kr/cohesion/internal/system"
 )
 
 func TestNewUpdaterLogger_MirroredWriter(t *testing.T) {
@@ -96,5 +100,42 @@ func TestProbeVersionEndpointRejectsUnexpectedVersion(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unexpected version") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRollbackAndRestartPreviousPersistsFailureWhenRollbackFails(t *testing.T) {
+	statusPath := filepath.Join(t.TempDir(), "system-status.json")
+	t.Setenv("COHESION_SYSTEM_STATUS_PATH", statusPath)
+
+	store := system.NewStatusStore()
+	logger := newUpdaterLogger(io.Discard)
+	cause := errors.New("replacement start failed")
+
+	err := rollbackAndRestartPrevious(
+		updaterArgs{
+			target:     filepath.Join(t.TempDir(), "app"),
+			healthURL:  "http://127.0.0.1:1/api/health",
+			versionURL: "http://127.0.0.1:1/api/system/version",
+		},
+		filepath.Join(t.TempDir(), "missing.bak"),
+		nil,
+		filepath.Join(t.TempDir(), "app.log"),
+		logger,
+		store,
+		cause,
+	)
+	if err == nil {
+		t.Fatal("expected rollback failure error")
+	}
+
+	status, loadErr := store.Load()
+	if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+		t.Fatalf("failed to load persisted status: %v", loadErr)
+	}
+	if status.State != "failed" {
+		t.Fatalf("expected failed state, got %q", status.State)
+	}
+	if status.RuntimeState != "failed" {
+		t.Fatalf("expected failed runtime state, got %q", status.RuntimeState)
 	}
 }

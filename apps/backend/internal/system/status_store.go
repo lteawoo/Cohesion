@@ -159,6 +159,9 @@ func (s *StatusStore) MarkServerReady(currentVersion string) (SelfUpdateStatus, 
 			}
 			snapshot.PendingRestart = nil
 		}
+		if status.Operation == "update" && strings.TrimSpace(status.UpdatedAt) == "" {
+			status.UpdatedAt = now
+		}
 
 		snapshot.Status = status
 		return nil
@@ -240,6 +243,25 @@ func (s *StatusStore) MarkUpdateRolledBack(err error) (SelfUpdateStatus, error) 
 		status.UpdatedAt = now
 		status.RuntimeState = "healthy"
 		status.RuntimeMessage = "서버가 정상 동작 중입니다"
+		snapshot.Status = status
+		return nil
+	})
+}
+
+func (s *StatusStore) MarkUpdateFailed(err error) (SelfUpdateStatus, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	return s.Update(func(snapshot *persistedLifecycleStatus) error {
+		status := snapshot.Status
+		status.Operation = "update"
+		status.State = "failed"
+		status.Message = "업데이트 전환에 실패했습니다"
+		status.Error = strings.TrimSpace(err.Error())
+		if strings.TrimSpace(status.StartedAt) == "" {
+			status.StartedAt = now
+		}
+		status.UpdatedAt = now
+		status.RuntimeState = "failed"
+		status.RuntimeMessage = "업데이트 전환 중 오류가 발생했습니다"
 		snapshot.Status = status
 		return nil
 	})
