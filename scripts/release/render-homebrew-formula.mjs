@@ -99,16 +99,10 @@ function renderFormula({ version, tag, darwinAmd64, darwinArm64, linuxAmd64, lin
   end
 
   def post_install
-    config_dir = var/"cohesion/config"
     runtime_dir = var/"cohesion/runtime"
 
-    config_dir.mkpath
-    (config_dir/"data").mkpath
     (runtime_dir/"data").mkpath
     (runtime_dir/"logs").mkpath
-
-    config_path = config_dir/"config.prod.yaml"
-    config_path.write((pkgshare/"config.prod.yaml").read) unless config_path.exist?
   end
 
   service do
@@ -123,7 +117,13 @@ function renderFormula({ version, tag, darwinAmd64, darwinArm64, linuxAmd64, lin
   def caveats
     <<~EOS
       Cohesion config path:
-        #{var}/cohesion/config/config.prod.yaml
+        ~/.cohesion/config/config.prod.yaml
+
+      Cohesion data path:
+        ~/.cohesion/data/cohesion.db
+
+      Cohesion secrets path:
+        ~/.cohesion/secrets/
 
       Start the service:
         brew services start cohesion

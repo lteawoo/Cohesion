@@ -166,6 +166,23 @@ func TestResolveJWTSecret_DevelopmentGeneratesSecretFile(t *testing.T) {
 	}
 }
 
+func TestResolveJWTSecretPath_ProductionUsesHiddenHomeDir(t *testing.T) {
+	setGoEnvForTest(t, "production")
+	t.Setenv("COHESION_JWT_SECRET_FILE", "")
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	secretPath, err := resolveJWTSecretPath()
+	if err != nil {
+		t.Fatalf("resolve jwt secret path: %v", err)
+	}
+
+	expected := filepath.Join(homeDir, ".cohesion", "secrets", "jwt_secret")
+	if secretPath != expected {
+		t.Fatalf("expected %q, got %q", expected, secretPath)
+	}
+}
+
 func TestDetectInstallChannel(t *testing.T) {
 	t.Run("returns homebrew for Cellar path", func(t *testing.T) {
 		if actual := detectInstallChannelFromPath("/opt/homebrew/Cellar/cohesion/0.5.17/bin/cohesion"); actual != "homebrew" {

@@ -7,6 +7,7 @@ This directory keeps the Cohesion Homebrew formula source before it is published
 - Tap repository name: `lteawoo/homebrew-cohesion`
 - Install command: `brew install lteawoo/cohesion/cohesion`
 - Update command: `brew upgrade cohesion`
+- Production config/data/secrets: `~/.cohesion`
 
 ## Files
 

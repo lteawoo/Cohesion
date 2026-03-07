@@ -107,11 +107,19 @@ func resolveSQLiteDBPath(dbPath string) string {
 	if dbPath == "" || isInMemorySQLiteDB(dbPath) {
 		return dbPath
 	}
+	if expandedPath, ok := config.ExpandHomePath(dbPath); ok {
+		return expandedPath
+	}
 	if filepath.IsAbs(dbPath) || strings.HasPrefix(dbPath, "file:") {
 		return dbPath
 	}
 
 	if configDir := strings.TrimSpace(config.ConfigDir()); configDir != "" {
+		if config.IsDefaultProductionConfigDir(configDir) && config.IsLegacyProductionDatabaseURL(dbPath) {
+			if productionDBPath, err := config.ResolveProductionDatabasePath(); err == nil && strings.TrimSpace(productionDBPath) != "" {
+				return productionDBPath
+			}
+		}
 		return filepath.Clean(filepath.Join(configDir, dbPath))
 	}
 

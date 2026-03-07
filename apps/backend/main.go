@@ -817,7 +817,17 @@ func prewarmJWTSecret() (jwtSecretResult, error) {
 
 func resolveJWTSecretPath() (string, error) {
 	if customPath := strings.TrimSpace(os.Getenv("COHESION_JWT_SECRET_FILE")); customPath != "" {
+		if expandedPath, ok := config.ExpandHomePath(customPath); ok {
+			return expandedPath, nil
+		}
 		return customPath, nil
+	}
+
+	if goEnv == "production" {
+		secretsDir, err := config.ResolveProductionSecretsDir()
+		if err == nil && strings.TrimSpace(secretsDir) != "" {
+			return filepath.Join(secretsDir, "jwt_secret"), nil
+		}
 	}
 
 	userConfigDir, err := os.UserConfigDir()

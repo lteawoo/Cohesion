@@ -2,6 +2,19 @@
 
 ## 아키텍처 (Architecture)
 
+### 프로덕션 설정·시크릿·DB 기본 경로는 설치 위치와 분리해 `~/.cohesion` 아래로 모은다 (2026-03-07)
+- 상황:
+  - 설치 채널이 direct download와 Homebrew로 나뉘면서 production 운영 파일 위치가 실행 파일 옆 `config/`, `data/`, Homebrew `var/` 경로로 흩어졌다.
+  - 사용자는 설치 위치와 무관하게 설정 파일, 시크릿, 데이터베이스를 사용자 홈의 숨김 디렉터리 하나로 관리하길 원했다.
+- 결정:
+  - production 기본 config search path를 `~/.cohesion/config`로 고정한다.
+  - production 기본 DB 경로는 `~/.cohesion/data/cohesion.db`, 시크릿 경로는 `~/.cohesion/secrets`로 정리한다.
+  - `COHESION_JWT_SECRET_FILE`, `COHESION_SFTP_HOST_KEY_FILE`, DB 경로 override에서 `~` shortcut을 해석한다.
+  - dev 기본 경로와 runtime/log 루트 정책은 그대로 둔다.
+- 이유:
+  - 업그레이드/설치 경로와 운영 상태를 분리해야 백업, 복구, 사용자가 직접 파일을 확인하는 경험이 단순해진다.
+  - Homebrew Cellar나 실행 파일 옆 경로에 상태 파일이 남는 구조보다 사용자 홈의 단일 경로가 운영 설명과 문서화를 더 쉽게 만든다.
+
 ### macOS release build self-update는 비활성화하고 Homebrew/재설치 안내로 전환한다 (2026-03-07)
 - 상황:
   - notarization이 없는 macOS 직접 다운로드 빌드는 self-update 이후 Gatekeeper 경고를 유발할 수 있다.

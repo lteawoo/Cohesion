@@ -231,10 +231,18 @@ func loadOrCreateHostSigner() (xssh.Signer, string, bool, error) {
 
 func resolveHostKeyPath() (string, error) {
 	if custom := strings.TrimSpace(os.Getenv(sftpHostKeyFilePathEnv)); custom != "" {
+		if expandedPath, ok := config.ExpandHomePath(custom); ok {
+			return expandedPath, nil
+		}
 		return custom, nil
 	}
 
 	if configDir := strings.TrimSpace(config.ConfigDir()); configDir != "" {
+		if config.IsDefaultProductionConfigDir(configDir) {
+			if secretsDir, err := config.ResolveProductionSecretsDir(); err == nil && strings.TrimSpace(secretsDir) != "" {
+				return filepath.Join(secretsDir, defaultSFTPHostKeyName), nil
+			}
+		}
 		return filepath.Join(configDir, "secrets", defaultSFTPHostKeyName), nil
 	}
 

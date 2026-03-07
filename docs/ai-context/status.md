@@ -1,6 +1,16 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- #232 프로덕션 설정·시크릿·DB 경로를 `~/.cohesion`으로 통일 완료:
+  - production 기본 config search path를 실행 파일 옆 `config/` 대신 `~/.cohesion/config`로 전환
+  - production 기본 SQLite DB 경로를 `~/.cohesion/data/cohesion.db` 기준으로 정리하고, 기존 기본값 `data/cohesion.db`도 새 홈 경로로 해석되도록 보정
+  - JWT secret과 SFTP host key 기본 경로를 `~/.cohesion/secrets`로 정리
+  - `~` 경로 확장 helper를 추가해 DB/secret override에 홈 shortcut을 사용할 수 있게 함
+  - README와 Homebrew formula/caveats를 `~/.cohesion` 운영 경로 기준으로 갱신
+  - 검증 완료:
+    - `cd apps/backend && go test ./internal/config ./internal/platform/database ./internal/sftp ./internal/system ./...`
+    - `pnpm release:homebrew-formula --tag v0.5.17 --output /tmp/cohesion-formula.rb`
+    - `diff -u /tmp/cohesion-formula.rb packaging/homebrew/Formula/cohesion.rb`
 - #230 Homebrew tap 초기 구성과 설치 채널 감지 추가 진행 완료 (브랜치 작업, 미머지):
   - `/api/system/version` 응답에 `installChannel`을 추가하고 실행 경로가 Homebrew Cellar면 `homebrew`로 식별
   - Homebrew 설치본은 OS와 무관하게 `/api/system/update/start`에서 앱 내 self-update를 차단하고 `brew upgrade cohesion` 안내를 반환

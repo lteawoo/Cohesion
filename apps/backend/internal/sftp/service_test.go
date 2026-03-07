@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"taeu.kr/cohesion/internal/config"
 )
 
 func TestPrewarmHostKey_SourceGeneratedThenEnvWithEnvPathOverride(t *testing.T) {
@@ -39,5 +41,22 @@ func TestPrewarmHostKey_SourceGeneratedThenEnvWithEnvPathOverride(t *testing.T) 
 	}
 	if strings.TrimSpace(string(content)) == "" {
 		t.Fatalf("expected non-empty host key file, got %q", string(content))
+	}
+}
+
+func TestResolveHostKeyPath_UsesHiddenHomeSecretsDirForProductionConfig(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("COHESION_SFTP_HOST_KEY_FILE", "")
+	config.SetConfig("production")
+
+	hostKeyPath, err := resolveHostKeyPath()
+	if err != nil {
+		t.Fatalf("resolve host key path: %v", err)
+	}
+
+	expected := filepath.Join(homeDir, ".cohesion", "secrets", defaultSFTPHostKeyName)
+	if hostKeyPath != expected {
+		t.Fatalf("expected %q, got %q", expected, hostKeyPath)
 	}
 }
