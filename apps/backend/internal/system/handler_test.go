@@ -201,6 +201,28 @@ func TestStartUpdateReturnsBadRequestOnHomebrewInstall(t *testing.T) {
 	}
 }
 
+func TestStartUpdateReturnsBadRequestOnPackageInstall(t *testing.T) {
+	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
+		Version:        "v0.3.0",
+		RuntimeOS:      "linux",
+		InstallChannel: "package",
+	}, newTestStatusStore(t))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/system/update/start", nil)
+	rec := httptest.NewRecorder()
+
+	err := handler.StartUpdate(rec, req)
+	if err == nil {
+		t.Fatal("expected error response for package install")
+	}
+	if err.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, err.Code)
+	}
+	if !strings.Contains(err.Message, ".deb") {
+		t.Fatalf("unexpected message: %s", err.Message)
+	}
+}
+
 func TestStartUpdateReturnsBadRequestOnSystemdInstall(t *testing.T) {
 	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
 		Version:        "v0.3.0",

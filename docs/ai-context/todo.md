@@ -1,6 +1,7 @@
 # 작업 목록 (To-Do)
 
 ## 현재 우선순위
+- [x] #240 Linux deb/rpm 패키징과 package-managed 설치 채널 추가
 - [x] #238 Linux release artifact 설치 스크립트와 systemd 서비스 초안 추가
 - [x] #234 Windows에서 `.cohesion` 루트 디렉터리에 hidden attribute 적용
 - [x] #232 프로덕션 설정·시크릿·DB 경로를 `~/.cohesion`으로 통일
