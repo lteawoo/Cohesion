@@ -166,6 +166,20 @@ func TestResolveJWTSecret_DevelopmentGeneratesSecretFile(t *testing.T) {
 	}
 }
 
+func TestDetectInstallChannel(t *testing.T) {
+	t.Run("returns homebrew for Cellar path", func(t *testing.T) {
+		if actual := detectInstallChannelFromPath("/opt/homebrew/Cellar/cohesion/0.5.17/bin/cohesion"); actual != "homebrew" {
+			t.Fatalf("expected homebrew, got %q", actual)
+		}
+	})
+
+	t.Run("returns direct for non Cellar path", func(t *testing.T) {
+		if actual := detectInstallChannelFromPath("/usr/local/bin/cohesion"); actual != "direct" {
+			t.Fatalf("expected direct, got %q", actual)
+		}
+	})
+}
+
 func readTrimmedFile(t *testing.T, path string) string {
 	t.Helper()
 

@@ -97,6 +97,19 @@ Release artifacts are published on GitHub Releases:
 
 - https://github.com/lteawoo/Cohesion/releases
 
+### Homebrew Install
+
+```bash
+brew install lteawoo/cohesion/cohesion
+brew services start cohesion
+```
+
+Homebrew installs should be updated with:
+
+```bash
+brew upgrade cohesion
+```
+
 ### Run from Release Artifact
 
 1. Download the artifact that matches your OS/architecture.
@@ -122,6 +135,9 @@ On first run, Cohesion creates a default config file when missing. The default p
 
 ### Upgrade Notes
 
+- Homebrew installs do not support in-app self-update. Use `brew upgrade cohesion`.
+- macOS direct-download installs do not support in-app self-update. Reinstall the latest release or switch to the Homebrew install path.
+- Linux direct-download installs can keep using the bundled binary replacement flow or manual replacement.
 - Stop the running process before replacing the binary.
 - Keep your existing `config/` and `data/` directories to preserve settings and data.
 

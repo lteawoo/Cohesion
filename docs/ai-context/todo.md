@@ -1,6 +1,8 @@
 # 작업 목록 (To-Do)
 
 ## 현재 우선순위
+- [x] #230 Homebrew tap 초기 구성과 설치 채널 감지 추가
+- [x] #229 macOS self-update를 Homebrew 안내 흐름으로 전환
 - [x] #227 macOS self-update 릴리즈 자산 선택 보정
 - [x] #225 self-update 후 interactive 실행 모드 유지
 - [x] macOS release self-update asset picker와 실제 릴리즈 자산명 불일치 점검
@@ -29,6 +31,7 @@
 - [x] 릴리즈 워크플로우 dry-run 점검
 - [x] updater handoff 기준 interactive 수동 검증
 - [ ] public GitHub release 기준 macOS self-update 수동 재검증
+- [ ] `lteawoo/homebrew-cohesion` 저장소 생성 및 formula 반영
 
 ## 문서 유지보수 체크리스트
 - [ ] 프론트 feature/package 경계가 바뀌면 `docs/frontend.md` 갱신

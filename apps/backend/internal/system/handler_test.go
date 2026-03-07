@@ -25,9 +25,11 @@ func newTestStatusStore(t *testing.T) *StatusStore {
 
 func TestGetVersion(t *testing.T) {
 	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
-		Version:   "v0.3.0",
-		Commit:    "abc123",
-		BuildDate: "2026-02-24T00:00:00Z",
+		Version:        "v0.3.0",
+		Commit:         "abc123",
+		BuildDate:      "2026-02-24T00:00:00Z",
+		RuntimeOS:      "linux",
+		InstallChannel: "direct",
 	}, newTestStatusStore(t))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/system/version", nil)
@@ -53,6 +55,12 @@ func TestGetVersion(t *testing.T) {
 	}
 	if payload["buildDate"] != "2026-02-24T00:00:00Z" {
 		t.Fatalf("expected buildDate 2026-02-24T00:00:00Z, got %q", payload["buildDate"])
+	}
+	if payload["os"] != "linux" {
+		t.Fatalf("expected os linux, got %q", payload["os"])
+	}
+	if payload["installChannel"] != "direct" {
+		t.Fatalf("expected installChannel direct, got %q", payload["installChannel"])
 	}
 }
 
@@ -131,7 +139,8 @@ func TestGetUpdateStatus(t *testing.T) {
 
 func TestStartUpdateReturnsBadRequestOnDevBuild(t *testing.T) {
 	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
-		Version: "dev",
+		Version:   "dev",
+		RuntimeOS: "linux",
 	}, newTestStatusStore(t))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/system/update/start", nil)
@@ -145,6 +154,49 @@ func TestStartUpdateReturnsBadRequestOnDevBuild(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, err.Code)
 	}
 	if !strings.Contains(err.Message, "release builds") {
+		t.Fatalf("unexpected message: %s", err.Message)
+	}
+}
+
+func TestStartUpdateReturnsBadRequestOnMacOS(t *testing.T) {
+	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
+		Version:   "v0.3.0",
+		RuntimeOS: "darwin",
+	}, newTestStatusStore(t))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/system/update/start", nil)
+	rec := httptest.NewRecorder()
+
+	err := handler.StartUpdate(rec, req)
+	if err == nil {
+		t.Fatal("expected error response for macOS build")
+	}
+	if err.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, err.Code)
+	}
+	if !strings.Contains(err.Message, "brew install lteawoo/cohesion/cohesion") {
+		t.Fatalf("unexpected message: %s", err.Message)
+	}
+}
+
+func TestStartUpdateReturnsBadRequestOnHomebrewInstall(t *testing.T) {
+	handler := NewHandler(make(chan RestartRequest, 1), make(chan struct{}, 1), Meta{
+		Version:        "v0.3.0",
+		RuntimeOS:      "linux",
+		InstallChannel: "homebrew",
+	}, newTestStatusStore(t))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/system/update/start", nil)
+	rec := httptest.NewRecorder()
+
+	err := handler.StartUpdate(rec, req)
+	if err == nil {
+		t.Fatal("expected error response for homebrew install")
+	}
+	if err.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, err.Code)
+	}
+	if !strings.Contains(err.Message, "brew upgrade cohesion") {
 		t.Fatalf("unexpected message: %s", err.Message)
 	}
 }

@@ -83,6 +83,10 @@ export const koTranslations = {
     updateStartHint: "업데이트를 시작했습니다. 잠시 후 서버가 재시작됩니다.",
     reinstallStartHint: "동일 버전 재설치를 시작했습니다. 잠시 후 서버가 재시작됩니다.",
     updateFailed: "업데이트 시작에 실패했습니다.",
+    homebrewUpdateHint: "Homebrew 설치본은 앱 내 업데이트를 지원하지 않습니다.",
+    homebrewUpdateDetail: "아래 명령으로 패키지를 업데이트하세요.",
+    macOsDirectUpdateHint: "macOS 직접 설치본은 앱 내 업데이트를 지원하지 않습니다.",
+    macOsDirectUpdateDetail: "최신 릴리즈를 다시 설치하거나, 이후에는 Homebrew 설치를 사용하세요.",
   },
   generalSettings: {
     sectionTitle: "일반 설정",
@@ -725,6 +729,10 @@ export const enTranslations = {
     updateStartHint: "Update started. The server will restart shortly.",
     reinstallStartHint: "Reinstall started. The server will restart shortly.",
     updateFailed: "Failed to start update.",
+    homebrewUpdateHint: "In-app updates are not available for Homebrew installs.",
+    homebrewUpdateDetail: "Update the package with the command below.",
+    macOsDirectUpdateHint: "In-app updates are not available for direct macOS installs.",
+    macOsDirectUpdateDetail: "Reinstall the latest release, or switch to the Homebrew install path for future updates.",
   },
   generalSettings: {
     sectionTitle: "General Settings",

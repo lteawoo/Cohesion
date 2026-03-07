@@ -2,6 +2,30 @@
 
 ## 아키텍처 (Architecture)
 
+### macOS release build self-update는 비활성화하고 Homebrew/재설치 안내로 전환한다 (2026-03-07)
+- 상황:
+  - notarization이 없는 macOS 직접 다운로드 빌드는 self-update 이후 Gatekeeper 경고를 유발할 수 있다.
+  - 제품 정책상 macOS는 Homebrew formula를 기본 배포 채널로 보고, Linux는 direct download + self-update를 유지하는 편이 현재 비용/운영 복잡도에 더 맞는다.
+- 결정:
+  - system version 응답에 서버 runtime OS를 포함한다.
+  - macOS(`darwin`)에서는 `/api/system/update/start`가 앱 내 self-update를 시작하지 않고 Homebrew 또는 최신 릴리즈 재설치 안내를 반환한다.
+  - `Settings > About`는 macOS에서 업데이트 버튼 대신 `brew upgrade cohesion` 안내와 직접 설치 재설치 문구를 노출한다.
+  - Linux/기타 OS에서는 기존 self-update 흐름을 유지한다.
+- 이유:
+  - 패키지 매니저가 설치한 바이너리는 패키지 매니저가 업데이트해야 하고, 서명/공증이 없는 macOS self-update UX를 제품 기본 경로로 유지하는 것은 지원 비용 대비 이득이 작기 때문이다.
+
+### Homebrew 설치본은 실행 경로 기반 설치 채널 감지와 runtime root override로 지원한다 (2026-03-07)
+- 상황:
+  - macOS만 기준으로 self-update를 막으면 향후 Linux Homebrew 설치본에서 패키지 매니저와 앱 내 업데이트가 충돌할 수 있다.
+  - Cohesion은 로그/PID/lifecycle status 일부를 실행 파일 기준 경로에 기록하기 때문에 Homebrew Cellar 버전 디렉터리를 그대로 runtime 루트로 쓰면 업그레이드 시 운영 파일이 분산될 수 있다.
+- 결정:
+  - 실행 파일 실경로가 `.../Cellar/cohesion/<version>/...` 패턴이면 설치 채널을 `homebrew`로 식별한다.
+  - system version 응답에 `installChannel`을 포함하고, Homebrew 설치본은 OS와 무관하게 앱 내 self-update를 차단한다.
+  - `COHESION_RUNTIME_ROOT` 환경 변수로 로그/PID/lifecycle status의 runtime 루트를 override할 수 있게 한다.
+  - Homebrew formula service는 `working_dir=var/cohesion`, `COHESION_RUNTIME_ROOT=var/cohesion/runtime`를 사용한다.
+- 이유:
+  - 설치 채널과 업데이트 주체를 일치시켜 패키지 매니저 상태 불일치를 막고, Homebrew 업그레이드 전후에도 운영 파일 위치를 안정적으로 유지하기 위함이다.
+
 ### self-update는 현재 launch mode를 전달해 interactive 실행을 유지한다 (2026-03-07)
 - 상황:
   - 일반 재시작은 같은 프로세스 루프 안에서 처리돼 처음 터미널/콘솔 맥락이 유지되지만, self-update는 updater가 새 앱을 `app.log` 기반 백그라운드 성격으로 다시 띄웠다.
