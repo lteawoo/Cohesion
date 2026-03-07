@@ -29,6 +29,20 @@ func ResolveProductionHomeDir() (string, error) {
 	return filepath.Join(homeDir, defaultProductionAppDirName), nil
 }
 
+func EnsureProductionHomeDir() (string, error) {
+	homeDir, err := ResolveProductionHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(homeDir, 0o700); err != nil {
+		return "", err
+	}
+	if err := applyHiddenAttribute(homeDir); err != nil {
+		return "", err
+	}
+	return homeDir, nil
+}
+
 func ResolveProductionConfigDir() (string, error) {
 	homeDir, err := ResolveProductionHomeDir()
 	if err != nil {

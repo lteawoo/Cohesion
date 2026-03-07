@@ -27,6 +27,14 @@ func SetConfig(goEnv string) {
 	viper.Reset()
 	viper.SetConfigType("yaml")
 
+	if goEnv == "production" {
+		if productionHomeDir, err := EnsureProductionHomeDir(); err != nil {
+			log.Warn().Err(err).Msg("Failed to prepare production home directory metadata")
+		} else {
+			log.Debug().Str("path", productionHomeDir).Msg("Prepared production home directory")
+		}
+	}
+
 	configSearchPaths := resolveConfigSearchPaths(goEnv)
 	for _, path := range configSearchPaths {
 		viper.AddConfigPath(path)
