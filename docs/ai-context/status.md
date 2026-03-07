@@ -1,6 +1,13 @@
 # 프로젝트 상태 (Status)
 
 ## 현재 진행 상황
+- #234 Windows에서 `.cohesion` 루트 디렉터리에 hidden attribute 적용 완료 (브랜치 작업, 미머지):
+  - production `SetConfig` 시점에 `~/.cohesion` 루트 디렉터리를 준비하고 Windows에서는 hidden attribute를 재적용
+  - 비-Windows 빌드에서는 no-op stub로 동작을 유지
+  - `EnsureProductionHomeDir` 테스트와 Windows 전용 hidden attribute 테스트 파일을 추가
+  - 검증 완료:
+    - `cd apps/backend && go test ./internal/config ./...`
+    - `cd apps/backend && GOOS=windows GOARCH=amd64 go test -c -o /tmp/cohesion-config-windows.test.exe ./internal/config`
 - #232 프로덕션 설정·시크릿·DB 경로를 `~/.cohesion`으로 통일 완료:
   - production 기본 config search path를 실행 파일 옆 `config/` 대신 `~/.cohesion/config`로 전환
   - production 기본 SQLite DB 경로를 `~/.cohesion/data/cohesion.db` 기준으로 정리하고, 기존 기본값 `data/cohesion.db`도 새 홈 경로로 해석되도록 보정

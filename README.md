@@ -136,6 +136,7 @@ On first production run, Cohesion creates its operational files under `~/.cohesi
 - Config: `~/.cohesion/config/config.prod.yaml`
 - Database: `~/.cohesion/data/cohesion.db`
 - Secrets: `~/.cohesion/secrets/`
+- Windows: the `.cohesion` root directory is marked hidden when the OS supports the hidden attribute.
 
 ### Upgrade Notes
 

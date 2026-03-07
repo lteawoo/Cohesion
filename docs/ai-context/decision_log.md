@@ -2,6 +2,17 @@
 
 ## 아키텍처 (Architecture)
 
+### Windows에서는 `~/.cohesion` 루트에 hidden attribute를 적용한다 (2026-03-07)
+- 상황:
+  - production 운영 파일 기본 경로를 `~/.cohesion`로 통일했지만, Windows는 점(`.`) prefix만으로 Explorer에서 숨김 폴더로 취급하지 않는다.
+- 결정:
+  - production 설정 로드 시 `~/.cohesion` 루트 디렉터리를 준비하고, Windows에서는 hidden attribute를 적용한다.
+  - 비-Windows에서는 no-op로 유지한다.
+  - hidden attribute 적용 실패는 경고 수준으로만 다루고 서비스 부팅을 중단시키지 않는다.
+- 이유:
+  - 사용자 기대상 `.cohesion`는 숨김 운영 폴더여야 하고, Windows에서도 가능한 한 같은 의미를 유지해야 한다.
+  - attribute 적용 실패를 치명 오류로 다루면 권한/파일시스템 차이로 불필요한 부팅 실패를 만들 수 있다.
+
 ### 프로덕션 설정·시크릿·DB 기본 경로는 설치 위치와 분리해 `~/.cohesion` 아래로 모은다 (2026-03-07)
 - 상황:
   - 설치 채널이 direct download와 Homebrew로 나뉘면서 production 운영 파일 위치가 실행 파일 옆 `config/`, `data/`, Homebrew `var/` 경로로 흩어졌다.
