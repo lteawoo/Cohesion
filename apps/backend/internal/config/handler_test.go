@@ -157,3 +157,25 @@ func TestUpdateConfig_PreservesAuditLogRetentionDaysWhenFieldIsOmitted(t *testin
 		t.Fatalf("expected retention days to remain 30, got %d", Conf.AuditLogRetentionDays)
 	}
 }
+
+func TestDefaultConfigForEnv_ProductionUsesHomeDataSibling(t *testing.T) {
+	conf := defaultConfigForEnv("production")
+	if conf.Datasource.URL != "../data/cohesion.db" {
+		t.Fatalf("expected production db url ../data/cohesion.db, got %q", conf.Datasource.URL)
+	}
+}
+
+func TestResolveConfigSearchPaths_ProductionUsesHiddenHomeConfigDir(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	paths := resolveConfigSearchPaths("production")
+	if len(paths) != 1 {
+		t.Fatalf("expected a single production config path, got %v", paths)
+	}
+
+	expected := filepath.Join(homeDir, ".cohesion", "config")
+	if paths[0] != expected {
+		t.Fatalf("expected %q, got %q", expected, paths[0])
+	}
+}

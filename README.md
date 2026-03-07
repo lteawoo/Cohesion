@@ -131,7 +131,11 @@ Expand-Archive .\cohesion_<version>_windows_amd64.zip .
 .\cohesion.exe
 ```
 
-On first run, Cohesion creates a default config file when missing. The default production config uses `data/cohesion.db` for SQLite, and secret files are generated locally when needed.
+On first production run, Cohesion creates its operational files under `~/.cohesion` when they are missing.
+
+- Config: `~/.cohesion/config/config.prod.yaml`
+- Database: `~/.cohesion/data/cohesion.db`
+- Secrets: `~/.cohesion/secrets/`
 
 ### Upgrade Notes
 
@@ -139,13 +143,13 @@ On first run, Cohesion creates a default config file when missing. The default p
 - macOS direct-download installs do not support in-app self-update. Reinstall the latest release or switch to the Homebrew install path.
 - Linux direct-download installs can keep using the bundled binary replacement flow or manual replacement.
 - Stop the running process before replacing the binary.
-- Keep your existing `config/` and `data/` directories to preserve settings and data.
+- If you are upgrading from an older production install that kept `config/` or `data/` next to the binary, move those files into `~/.cohesion/` before starting the new build.
 
 ## Environment Variables
 
 - `COHESION_JWT_SECRET`
   - Recommended to be at least 32 characters in production
-  - If not set, a random value is generated in a local secret file
+  - If not set, a random value is generated in `~/.cohesion/secrets/jwt_secret`
 - `COHESION_JWT_SECRET_FILE` (optional)
 - `COHESION_ADMIN_USER`, `COHESION_ADMIN_PASSWORD`, `COHESION_ADMIN_NICKNAME` (optional)
   - `COHESION_ADMIN_USER` and `COHESION_ADMIN_PASSWORD` must be set together

@@ -1,6 +1,7 @@
 # 작업 목록 (To-Do)
 
 ## 현재 우선순위
+- [x] #232 프로덕션 설정·시크릿·DB 경로를 `~/.cohesion`으로 통일
 - [x] #230 Homebrew tap 초기 구성과 설치 채널 감지 추가
 - [x] #229 macOS self-update를 Homebrew 안내 흐름으로 전환
 - [x] #227 macOS self-update 릴리즈 자산 선택 보정

@@ -27,7 +27,7 @@ func SetConfig(goEnv string) {
 	viper.Reset()
 	viper.SetConfigType("yaml")
 
-	configSearchPaths := resolveConfigSearchPaths()
+	configSearchPaths := resolveConfigSearchPaths(goEnv)
 	for _, path := range configSearchPaths {
 		viper.AddConfigPath(path)
 	}
@@ -108,7 +108,7 @@ func defaultConfigForEnv(goEnv string) Config {
 		},
 		AuditLogRetentionDays: 0,
 		Datasource: Datasource{
-			URL: "data/cohesion.db",
+			URL: DefaultProductionDatabaseURL(),
 		},
 	}
 
@@ -119,7 +119,7 @@ func defaultConfigForEnv(goEnv string) Config {
 	return config
 }
 
-func resolveConfigSearchPaths() []string {
+func resolveConfigSearchPaths(goEnv string) []string {
 	paths := make([]string, 0, 3)
 	seen := make(map[string]struct{})
 
@@ -130,6 +130,13 @@ func resolveConfigSearchPaths() []string {
 		}
 		seen[clean] = struct{}{}
 		paths = append(paths, clean)
+	}
+
+	if goEnv == "production" {
+		if configDir, err := ResolveProductionConfigDir(); err == nil && strings.TrimSpace(configDir) != "" {
+			addPath(configDir)
+			return paths
+		}
 	}
 
 	if exePath, err := os.Executable(); err == nil {
