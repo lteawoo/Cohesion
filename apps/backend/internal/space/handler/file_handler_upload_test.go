@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"taeu.kr/cohesion/internal/space"
@@ -50,20 +52,23 @@ func newUploadRequest(t *testing.T, fileName, fileContent string, extraFields ma
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 
+	if err := writer.WriteField("path", ""); err != nil {
+		t.Fatalf("failed to write path field: %v", err)
+	}
+	if err := writer.WriteField("size", strconv.Itoa(len(fileContent))); err != nil {
+		t.Fatalf("failed to write size field: %v", err)
+	}
+	for key, value := range extraFields {
+		if err := writer.WriteField(key, value); err != nil {
+			t.Fatalf("failed to write field %s: %v", key, err)
+		}
+	}
 	formFile, err := writer.CreateFormFile("file", fileName)
 	if err != nil {
 		t.Fatalf("failed to create form file: %v", err)
 	}
 	if _, err := io.WriteString(formFile, fileContent); err != nil {
 		t.Fatalf("failed to write form file content: %v", err)
-	}
-	if err := writer.WriteField("path", ""); err != nil {
-		t.Fatalf("failed to write path field: %v", err)
-	}
-	for key, value := range extraFields {
-		if err := writer.WriteField(key, value); err != nil {
-			t.Fatalf("failed to write field %s: %v", key, err)
-		}
 	}
 	if err := writer.Close(); err != nil {
 		t.Fatalf("failed to close multipart writer: %v", err)
@@ -82,6 +87,69 @@ func decodeUploadResponse(t *testing.T, rec *httptest.ResponseRecorder) map[stri
 		t.Fatalf("failed to decode upload response: %v", err)
 	}
 	return payload
+}
+
+type failingUploadReader struct {
+	data      []byte
+	failAfter int
+	offset    int
+}
+
+func (r *failingUploadReader) Read(p []byte) (int, error) {
+	if r.offset >= len(r.data) {
+		return 0, io.EOF
+	}
+
+	remainingUntilFailure := r.failAfter - r.offset
+	if remainingUntilFailure <= 0 {
+		return 0, errors.New("forced upload stream failure")
+	}
+
+	n := remainingUntilFailure
+	if n > len(p) {
+		n = len(p)
+	}
+	if remainingData := len(r.data) - r.offset; n > remainingData {
+		n = remainingData
+	}
+	copy(p[:n], r.data[r.offset:r.offset+n])
+	r.offset += n
+	if r.offset >= r.failAfter {
+		return n, errors.New("forced upload stream failure")
+	}
+	return n, nil
+}
+
+func newFailingUploadRequest(t *testing.T, fileName, fileContent string, failAfter int) *http.Request {
+	t.Helper()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("path", ""); err != nil {
+		t.Fatalf("failed to write path field: %v", err)
+	}
+	if err := writer.WriteField("size", strconv.Itoa(len(fileContent))); err != nil {
+		t.Fatalf("failed to write size field: %v", err)
+	}
+	formFile, err := writer.CreateFormFile("file", fileName)
+	if err != nil {
+		t.Fatalf("failed to create form file: %v", err)
+	}
+	if _, err := io.WriteString(formFile, fileContent); err != nil {
+		t.Fatalf("failed to write form file content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("failed to close multipart writer: %v", err)
+	}
+
+	reader := &failingUploadReader{
+		data:      body.Bytes(),
+		failAfter: failAfter,
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/spaces/1/files/upload", reader)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return req
 }
 
 func TestHandleFileUpload_ConflictPolicies(t *testing.T) {
@@ -258,6 +326,29 @@ func TestHandleFileUpload_ConflictPolicies(t *testing.T) {
 		}
 		if string(got) != "new-legacy" {
 			t.Fatalf("expected overwritten content new-legacy, got %q", string(got))
+		}
+	})
+
+	t.Run("cleans up staged file when upload stream fails", func(t *testing.T) {
+		handler, root := setup(t)
+
+		req := newFailingUploadRequest(t, "broken.bin", strings.Repeat("x", 512), 256)
+		rec := httptest.NewRecorder()
+		webErr := handler.handleFileUpload(rec, req, 1)
+		if webErr == nil {
+			t.Fatal("expected upload failure")
+		}
+
+		if _, err := os.Stat(filepath.Join(root, "broken.bin")); !os.IsNotExist(err) {
+			t.Fatalf("destination file should not exist after interrupted upload, err=%v", err)
+		}
+
+		stageMatches, err := filepath.Glob(filepath.Join(root, ".broken.bin.cohesion-upload-*"))
+		if err != nil {
+			t.Fatalf("failed to inspect staged files: %v", err)
+		}
+		if len(stageMatches) != 0 {
+			t.Fatalf("expected staged files to be removed, found %v", stageMatches)
 		}
 	})
 }

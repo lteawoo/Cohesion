@@ -1,0 +1,702 @@
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useTransferCenterStore } from '@/stores/transferCenterStore';
+import { useFileOperations } from './useFileOperations';
+
+const h = vi.hoisted(() => {
+  const apiFetch = vi.fn();
+  const apiUpload = vi.fn();
+  const message = {
+    error: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+  };
+  const modal = {
+    confirm: vi.fn(),
+  };
+  const fetchSpaceContents = vi.fn();
+  const invalidateTree = vi.fn();
+  const browseState = {
+    content: [
+      {
+        name: 'docs',
+        path: '/docs',
+        isDir: true,
+        size: 0,
+        modTime: '2026-03-01T00:00:00.000Z',
+      },
+      {
+        name: 'report.pdf',
+        path: '/report.pdf',
+        isDir: false,
+        size: 128,
+        modTime: '2026-03-01T00:00:00.000Z',
+      },
+    ],
+    fetchSpaceContents,
+    invalidateTree,
+  };
+
+  return {
+    apiFetch,
+    apiUpload,
+    message,
+    modal,
+    browseState,
+    fetchSpaceContents,
+    invalidateTree,
+  };
+});
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, string | number>) => {
+      if (values?.name) {
+        return `${key}:${values.name}`;
+      }
+      return key;
+    },
+  }),
+}));
+
+vi.mock('antd', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('antd');
+  return {
+    ...actual,
+    App: {
+      useApp: () => ({
+        message: h.message,
+        modal: h.modal,
+      }),
+    },
+  };
+});
+
+vi.mock('@/stores/browseStore', () => ({
+  useBrowseStore: (selector: (state: typeof h.browseState) => unknown) => selector(h.browseState),
+}));
+
+vi.mock('@/api/client', () => ({
+  apiFetch: h.apiFetch,
+  apiUpload: h.apiUpload,
+}));
+
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function createStreamResponse(chunks: string[], headers: Record<string, string> = {}): Response {
+  const encoder = new TextEncoder();
+  let index = 0;
+  const body = new ReadableStream({
+    pull(controller) {
+      if (index >= chunks.length) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(encoder.encode(chunks[index]));
+      index += 1;
+    },
+  });
+
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      ...headers,
+    },
+  });
+}
+
+function createErroredStreamResponse(chunks: string[], errorMessage: string, headers: Record<string, string> = {}): Response {
+  const encoder = new TextEncoder();
+  let index = 0;
+  const body = new ReadableStream({
+    pull(controller) {
+      if (index >= chunks.length) {
+        controller.error(new Error(errorMessage));
+        return;
+      }
+      controller.enqueue(encoder.encode(chunks[index]));
+      index += 1;
+    },
+  });
+
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      ...headers,
+    },
+  });
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
+describe('useFileOperations transfer states', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    window.sessionStorage.clear();
+    useTransferCenterStore.persist.clearStorage();
+    useTransferCenterStore.getState().reset();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(() => 'blob:mock-download'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
+    h.browseState.content = [
+      {
+        name: 'docs',
+        path: '/docs',
+        isDir: true,
+        size: 0,
+        modTime: '2026-03-01T00:00:00.000Z',
+      },
+      {
+        name: 'report.pdf',
+        path: '/report.pdf',
+        isDir: false,
+        size: 128,
+        modTime: '2026-03-01T00:00:00.000Z',
+      },
+    ];
+  });
+
+  it('tracks upload progress and keeps canceled uploads visible', async () => {
+    h.apiUpload.mockImplementation(async (_url: string, _init: RequestInit, options?: { onUploadProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) => {
+      options?.onUploadProgress?.(32, 64);
+      await new Promise<never>((_resolve, reject) => {
+        options?.signal?.addEventListener(
+          'abort',
+          () => reject(new DOMException('The operation was aborted.', 'AbortError')),
+          { once: true }
+        );
+      });
+      return jsonResponse({});
+    });
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+    act(() => {
+      void result.current.handleFileUpload([new File(['x'.repeat(64)], 'large.bin')], '/');
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'upload',
+        name: 'large.bin',
+        status: 'uploading',
+        progressPercent: 50,
+      });
+    });
+
+    act(() => {
+      result.current.cancelUpload(result.current.transfers[0].id);
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'upload',
+        name: 'large.bin',
+        status: 'canceled',
+        message: 'fileOperations.transferCanceled',
+      });
+    });
+    expect(h.message.info).toHaveBeenCalled();
+  });
+
+  it('keeps completed uploads visible in session history', async () => {
+    h.apiUpload.mockResolvedValueOnce(jsonResponse({
+      filename: 'large.bin',
+      status: 'uploaded',
+    }));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await act(async () => {
+      await result.current.handleFileUpload([new File(['x'.repeat(64)], 'large.bin')], '/');
+    });
+
+    expect(result.current.transfers[0]).toMatchObject({
+      kind: 'upload',
+      name: 'large.bin',
+      status: 'completed',
+      progressPercent: 100,
+    });
+  });
+
+  it('queues excess upload batches and lets queued uploads be canceled before execution', async () => {
+    const uploadResponses = [
+      createDeferred<Response>(),
+      createDeferred<Response>(),
+      createDeferred<Response>(),
+    ];
+    let uploadCallIndex = 0;
+    h.apiUpload.mockImplementation(() => uploadResponses[uploadCallIndex++].promise);
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    let firstPromise!: Promise<void>;
+    let secondPromise!: Promise<void>;
+    let thirdPromise!: Promise<void>;
+
+    act(() => {
+      firstPromise = result.current.handleFileUpload([new File(['1'], 'first.bin')], '/');
+      secondPromise = result.current.handleFileUpload([new File(['2'], 'second.bin')], '/');
+      thirdPromise = result.current.handleFileUpload([new File(['3'], 'third.bin')], '/');
+    });
+
+    await waitFor(() => {
+      expect(h.apiUpload).toHaveBeenCalledTimes(2);
+      expect(result.current.transfers.find((transfer) => transfer.name === 'third.bin')).toMatchObject({
+        kind: 'upload',
+        status: 'queued',
+      });
+    });
+
+    act(() => {
+      const queuedTransfer = result.current.transfers.find((transfer) => transfer.name === 'third.bin');
+      if (!queuedTransfer) {
+        throw new Error('third upload transfer not found');
+      }
+      result.current.cancelUpload(queuedTransfer.id);
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers.find((transfer) => transfer.name === 'third.bin')).toMatchObject({
+        kind: 'upload',
+        status: 'canceled',
+        message: 'fileOperations.transferCanceled',
+      });
+    });
+    expect(h.apiUpload).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      uploadResponses[0].resolve(jsonResponse({ filename: 'first.bin', status: 'uploaded' }));
+      uploadResponses[1].resolve(jsonResponse({ filename: 'second.bin', status: 'uploaded' }));
+      await Promise.all([firstPromise, secondPromise, thirdPromise]);
+    });
+
+    expect(h.apiUpload).toHaveBeenCalledTimes(2);
+  });
+
+  it('polls archive preparation until browser handoff and keeps the transfer entry visible', async () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation((handler: TimerHandler) => {
+      if (typeof handler === 'function') {
+        handler();
+      }
+      return 0 as unknown as number;
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    h.apiFetch
+      .mockResolvedValueOnce(jsonResponse({
+        jobId: 'archive-1',
+        status: 'queued',
+        fileName: 'docs.zip',
+        totalItems: 0,
+        processedItems: 0,
+        totalSourceBytes: 0,
+        processedSourceBytes: 0,
+      }, 202))
+      .mockResolvedValueOnce(jsonResponse({
+        jobId: 'archive-1',
+        status: 'running',
+        fileName: 'docs.zip',
+        totalItems: 4,
+        processedItems: 2,
+        totalSourceBytes: 400,
+        processedSourceBytes: 200,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        jobId: 'archive-1',
+        status: 'ready',
+        fileName: 'docs.zip',
+        totalItems: 4,
+        processedItems: 4,
+        totalSourceBytes: 400,
+        processedSourceBytes: 400,
+        artifactSize: 240,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        downloadUrl: '/api/downloads/archive-1',
+        fileName: 'docs.zip',
+      }));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await act(async () => {
+      await result.current.handleBulkDownload(['/docs']);
+    });
+
+    expect(h.apiFetch).toHaveBeenNthCalledWith(
+      1,
+      '/api/spaces/1/files/archive-downloads',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(result.current.transfers[0]).toMatchObject({
+      kind: 'archive',
+      name: 'docs.zip',
+      status: 'handed_off',
+      processedItems: 4,
+      totalItems: 4,
+    });
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(h.message.success).toHaveBeenCalledWith('fileOperations.archiveReady:docs.zip');
+    clickSpy.mockRestore();
+    setTimeoutSpy.mockRestore();
+  });
+
+  it('records direct single-file downloads as handed off to the browser', async () => {
+    h.browseState.content = [
+      {
+        name: 'report.pdf',
+        path: '/report.pdf',
+        isDir: false,
+        size: 80 * 1024 * 1024,
+        modTime: '2026-03-01T00:00:00.000Z',
+      },
+    ];
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    h.apiFetch.mockResolvedValueOnce(jsonResponse({
+      downloadUrl: '/api/downloads/report',
+      fileName: 'report.pdf',
+    }));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await act(async () => {
+      await result.current.handleBulkDownload(['/report.pdf']);
+    });
+
+    expect(result.current.transfers[0]).toMatchObject({
+      kind: 'download',
+      name: 'report.pdf',
+      status: 'handed_off',
+      deliveryMode: 'browser',
+    });
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
+  });
+
+  it('streams small direct downloads inside the app before saving', async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    h.apiFetch
+      .mockResolvedValueOnce(jsonResponse({
+        downloadUrl: '/api/downloads/report',
+        fileName: 'report.pdf',
+      }))
+      .mockResolvedValueOnce(createStreamResponse(['abc', 'def'], {
+        'Content-Length': '6',
+        'Content-Type': 'application/pdf',
+      }));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await act(async () => {
+      await result.current.handleBulkDownload(['/report.pdf']);
+    });
+
+    expect(result.current.transfers[0]).toMatchObject({
+      kind: 'download',
+      name: 'report.pdf',
+      status: 'completed',
+      deliveryMode: 'managed',
+      loaded: 6,
+      total: 6,
+    });
+    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
+  });
+
+  it('marks managed direct downloads as failed when the response stream breaks mid-transfer', async () => {
+    h.apiFetch
+      .mockResolvedValueOnce(jsonResponse({
+        downloadUrl: '/api/downloads/report',
+        fileName: 'report.pdf',
+      }))
+      .mockResolvedValueOnce(createErroredStreamResponse(['abc'], 'stream broke', {
+        'Content-Length': '6',
+        'Content-Type': 'application/pdf',
+      }));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await act(async () => {
+      await result.current.handleBulkDownload(['/report.pdf']);
+    });
+
+    expect(result.current.transfers[0]).toMatchObject({
+      kind: 'download',
+      name: 'report.pdf',
+      status: 'failed',
+      deliveryMode: 'managed',
+      loaded: 3,
+      total: 6,
+      message: 'stream broke',
+    });
+    expect(h.message.error).toHaveBeenCalledWith('stream broke');
+  });
+
+  it('marks managed direct downloads as failed when the download request rejects', async () => {
+    h.apiFetch
+      .mockResolvedValueOnce(jsonResponse({
+        downloadUrl: '/api/downloads/report',
+        fileName: 'report.pdf',
+      }))
+      .mockRejectedValueOnce(new Error('network down'));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await act(async () => {
+      await result.current.handleBulkDownload(['/report.pdf']);
+    });
+
+    expect(result.current.transfers[0]).toMatchObject({
+      kind: 'download',
+      name: 'report.pdf',
+      status: 'failed',
+      deliveryMode: 'managed',
+      loaded: 0,
+      total: 128,
+      message: 'network down',
+    });
+    expect(h.message.error).toHaveBeenCalledWith('network down');
+  });
+
+  it('marks persisted uploads as interrupted after reload hydration', async () => {
+    vi.spyOn(window.performance, 'getEntriesByType').mockImplementation((entryType: string) => (
+      entryType === 'navigation' ? [{ type: 'reload' } as PerformanceNavigationTiming] : []
+    ));
+    useTransferCenterStore.getState().upsertTransfer({
+      id: 'upload-1',
+      kind: 'upload',
+      name: 'resume.bin',
+      status: 'uploading',
+      loaded: 32,
+      total: 64,
+      progressPercent: 50,
+      spaceId: 1,
+      updatedAt: 1,
+    });
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        id: 'upload-1',
+        status: 'failed',
+        message: 'fileOperations.transferInterruptedOnReload',
+      });
+    });
+  });
+
+  it('marks persisted queued uploads as interrupted after reload hydration', async () => {
+    vi.spyOn(window.performance, 'getEntriesByType').mockImplementation((entryType: string) => (
+      entryType === 'navigation' ? [{ type: 'reload' } as PerformanceNavigationTiming] : []
+    ));
+    useTransferCenterStore.getState().upsertTransfer({
+      id: 'upload-queued',
+      kind: 'upload',
+      name: 'queued.bin',
+      status: 'queued',
+      loaded: 0,
+      total: 64,
+      progressPercent: 0,
+      spaceId: 1,
+      updatedAt: 1,
+    });
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        id: 'upload-queued',
+        status: 'failed',
+        message: 'fileOperations.transferInterruptedOnReload',
+      });
+    });
+  });
+
+  it('reattaches persisted archive jobs after reload hydration', async () => {
+    vi.spyOn(window.performance, 'getEntriesByType').mockImplementation((entryType: string) => (
+      entryType === 'navigation' ? [{ type: 'reload' } as PerformanceNavigationTiming] : []
+    ));
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    useTransferCenterStore.getState().upsertTransfer({
+      id: 'archive-restore',
+      kind: 'archive',
+      name: 'docs.zip',
+      status: 'running',
+      jobId: 'job-restore',
+      spaceId: 1,
+      processedItems: 1,
+      totalItems: 4,
+      processedSourceBytes: 100,
+      totalSourceBytes: 400,
+      updatedAt: 2,
+    });
+
+    h.apiFetch
+      .mockResolvedValueOnce(jsonResponse({
+        jobId: 'job-restore',
+        status: 'ready',
+        fileName: 'docs.zip',
+        totalItems: 4,
+        processedItems: 4,
+        totalSourceBytes: 400,
+        processedSourceBytes: 400,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        downloadUrl: '/api/downloads/archive-restore',
+        fileName: 'docs.zip',
+      }));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        id: 'archive-restore',
+        kind: 'archive',
+        status: 'handed_off',
+      });
+    });
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
+  });
+
+  it('surfaces archive preparation failures in transfer state', async () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation((handler: TimerHandler) => {
+      if (typeof handler === 'function') {
+        handler();
+      }
+      return 0 as unknown as number;
+    });
+    h.apiFetch
+      .mockResolvedValueOnce(jsonResponse({
+        jobId: 'archive-2',
+        status: 'queued',
+        fileName: 'docs.zip',
+      }, 202))
+      .mockResolvedValueOnce(jsonResponse({
+        jobId: 'archive-2',
+        status: 'failed',
+        fileName: 'docs.zip',
+        failureReason: 'archive failed',
+      }));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await act(async () => {
+      await result.current.handleBulkDownload(['/docs']);
+    });
+
+    expect(result.current.transfers[0]).toMatchObject({
+      kind: 'archive',
+      name: 'docs.zip',
+      status: 'failed',
+      message: 'archive failed',
+    });
+    expect(h.message.error).toHaveBeenCalledWith('archive failed');
+    setTimeoutSpy.mockRestore();
+  });
+
+  it('queues excess archive preparations and lets queued archive work be canceled before execution', async () => {
+    h.browseState.content = [
+      {
+        name: 'docs',
+        path: '/docs',
+        isDir: true,
+        size: 0,
+        modTime: '2026-03-01T00:00:00.000Z',
+      },
+      {
+        name: 'media',
+        path: '/media',
+        isDir: true,
+        size: 0,
+        modTime: '2026-03-01T00:00:00.000Z',
+      },
+      {
+        name: 'backup',
+        path: '/backup',
+        isDir: true,
+        size: 0,
+        modTime: '2026-03-01T00:00:00.000Z',
+      },
+    ];
+    const archiveResponses = [
+      createDeferred<Response>(),
+      createDeferred<Response>(),
+      createDeferred<Response>(),
+    ];
+    let archiveCallIndex = 0;
+    h.apiFetch.mockImplementation((url: string) => {
+      if (url === '/api/spaces/1/files/archive-downloads') {
+        return archiveResponses[archiveCallIndex++].promise;
+      }
+      throw new Error(`Unexpected apiFetch call: ${url}`);
+    });
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    let firstPromise!: Promise<void>;
+    let secondPromise!: Promise<void>;
+    let thirdPromise!: Promise<void>;
+
+    act(() => {
+      firstPromise = result.current.handleBulkDownload(['/docs']);
+      secondPromise = result.current.handleBulkDownload(['/media']);
+      thirdPromise = result.current.handleBulkDownload(['/backup']);
+    });
+
+    await waitFor(() => {
+      expect(archiveCallIndex).toBe(2);
+      expect(result.current.transfers.find((transfer) => transfer.name === 'backup.zip')).toMatchObject({
+        kind: 'archive',
+        status: 'queued',
+      });
+    });
+
+    act(() => {
+      const queuedTransfer = result.current.transfers.find((transfer) => transfer.name === 'backup.zip');
+      if (!queuedTransfer) {
+        throw new Error('queued archive transfer not found');
+      }
+      result.current.cancelUpload(queuedTransfer.id);
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers.find((transfer) => transfer.name === 'backup.zip')).toMatchObject({
+        kind: 'archive',
+        status: 'canceled',
+        message: 'fileOperations.transferCanceled',
+      });
+    });
+    expect(archiveCallIndex).toBe(2);
+
+    await act(async () => {
+      archiveResponses[0].resolve(jsonResponse({ message: 'archive failed' }, 500));
+      archiveResponses[1].resolve(jsonResponse({ message: 'archive failed' }, 500));
+      await Promise.all([firstPromise, secondPromise, thirdPromise]);
+    });
+
+    expect(archiveCallIndex).toBe(2);
+  });
+});

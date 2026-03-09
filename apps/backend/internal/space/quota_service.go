@@ -16,6 +16,11 @@ type cachedSpaceUsage struct {
 	scannedAt time.Time
 }
 
+type quotaReservation struct {
+	spaceID    int64
+	deltaBytes int64
+}
+
 type SpaceUsage struct {
 	SpaceID    int64     `json:"spaceId"`
 	SpaceName  string    `json:"spaceName"`
@@ -41,15 +46,19 @@ type QuotaService struct {
 	spaceService *Service
 	ttl          time.Duration
 
-	mu    sync.RWMutex
-	cache map[int64]cachedSpaceUsage
+	mu              sync.RWMutex
+	cache           map[int64]cachedSpaceUsage
+	reservations    map[string]quotaReservation
+	reservedBySpace map[int64]int64
 }
 
 func NewQuotaService(spaceService *Service) *QuotaService {
 	return &QuotaService{
-		spaceService: spaceService,
-		ttl:          defaultQuotaUsageCacheTTL,
-		cache:        make(map[int64]cachedSpaceUsage),
+		spaceService:    spaceService,
+		ttl:             defaultQuotaUsageCacheTTL,
+		cache:           make(map[int64]cachedSpaceUsage),
+		reservations:    make(map[string]quotaReservation),
+		reservedBySpace: make(map[int64]int64),
 	}
 }
 
@@ -106,6 +115,78 @@ func (s *QuotaService) EnsureCanWrite(ctx context.Context, spaceID int64, deltaB
 		QuotaBytes: quota,
 		DeltaBytes: deltaBytes,
 	}
+}
+
+func (s *QuotaService) AcquireWriteReservation(ctx context.Context, spaceID int64, reservationID string, deltaBytes int64) (*SpaceUsage, error) {
+	if deltaBytes <= 0 {
+		return s.GetSpaceUsage(ctx, spaceID)
+	}
+
+	usage, err := s.GetSpaceUsage(ctx, spaceID)
+	if err != nil {
+		return nil, err
+	}
+	if usage.QuotaBytes == nil {
+		return usage, nil
+	}
+
+	quota := *usage.QuotaBytes
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if existingReservation, ok := s.reservations[reservationID]; ok {
+		if currentReserved := s.reservedBySpace[existingReservation.spaceID] - existingReservation.deltaBytes; currentReserved > 0 {
+			s.reservedBySpace[existingReservation.spaceID] = currentReserved
+		} else {
+			delete(s.reservedBySpace, existingReservation.spaceID)
+		}
+		delete(s.reservations, reservationID)
+	}
+
+	reservedBytes := s.reservedBySpace[spaceID]
+	projected := usage.UsedBytes + reservedBytes + deltaBytes
+	if projected > quota {
+		return nil, &QuotaExceededError{
+			SpaceID:    usage.SpaceID,
+			SpaceName:  usage.SpaceName,
+			UsedBytes:  usage.UsedBytes + reservedBytes,
+			QuotaBytes: quota,
+			DeltaBytes: deltaBytes,
+		}
+	}
+
+	s.reservations[reservationID] = quotaReservation{
+		spaceID:    spaceID,
+		deltaBytes: deltaBytes,
+	}
+	s.reservedBySpace[spaceID] = reservedBytes + deltaBytes
+
+	return usage, nil
+}
+
+func (s *QuotaService) ReleaseWriteReservation(reservationID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	reservation, ok := s.reservations[reservationID]
+	if !ok {
+		return
+	}
+	delete(s.reservations, reservationID)
+
+	nextReserved := s.reservedBySpace[reservation.spaceID] - reservation.deltaBytes
+	if nextReserved > 0 {
+		s.reservedBySpace[reservation.spaceID] = nextReserved
+		return
+	}
+	delete(s.reservedBySpace, reservation.spaceID)
+}
+
+func (s *QuotaService) ReservedBytes(spaceID int64) int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.reservedBySpace[spaceID]
 }
 
 func (s *QuotaService) CalculatePathSize(ctx context.Context, absPath string) (int64, error) {

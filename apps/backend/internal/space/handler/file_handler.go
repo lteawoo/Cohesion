@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -391,6 +392,10 @@ func (h *Handler) handleSpaceFiles(w http.ResponseWriter, r *http.Request, space
 		webErr = h.handleFileDownload(w, r, spaceID)
 	case "download-ticket":
 		webErr = h.handleFileDownloadTicket(w, r, spaceID)
+	case "archive-downloads":
+		webErr = h.handleArchiveDownloads(w, r, spaceID)
+	case "archive-download-ticket":
+		webErr = h.handleArchiveDownloadTicket(w, r, spaceID)
 	case "rename":
 		webErr = h.handleFileRename(w, r, spaceID)
 	case "delete":
@@ -614,7 +619,7 @@ func (h *Handler) handleFileDownload(w http.ResponseWriter, r *http.Request, spa
 		return downloadErr
 	}
 
-	downloadErr := h.streamFileDownload(w, absPath)
+	downloadErr := h.streamFileDownload(w, r, absPath)
 	if downloadErr != nil {
 		h.recordSpaceAudit(r, audit.Event{
 			Action: "file.download",
@@ -648,7 +653,7 @@ func (h *Handler) handleFileDownload(w http.ResponseWriter, r *http.Request, spa
 	return downloadErr
 }
 
-func (h *Handler) streamFileDownload(w http.ResponseWriter, absPath string) *web.Error {
+func (h *Handler) streamFileDownload(w http.ResponseWriter, r *http.Request, absPath string) *web.Error {
 	file, err := os.Open(absPath)
 	if err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to open file", Err: err}
@@ -660,14 +665,7 @@ func (h *Handler) streamFileDownload(w http.ResponseWriter, absPath string) *web
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect file", Err: err}
 	}
 
-	fileName := filepath.Base(absPath)
-	w.Header().Set("Content-Disposition", `attachment; filename="`+fileName+`"`)
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-
-	if _, err := io.Copy(w, file); err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to send file", Err: err}
-	}
+	serveAttachmentContent(w, r, file, fileInfo, filepath.Base(absPath), "")
 	return nil
 }
 
@@ -1480,117 +1478,204 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 		return webErr
 	}
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	reader, err := r.MultipartReader()
+	if err != nil {
 		return &web.Error{Code: http.StatusBadRequest, Message: "Failed to parse multipart form", Err: err}
 	}
 
-	targetRelPath := r.FormValue("path")
-	if err := ensurePathOutsideTrash(targetRelPath); err != nil {
-		return &web.Error{Code: http.StatusForbidden, Message: "Access denied: invalid path", Err: err}
-	}
-	absTarget, err := resolveAbsPath(spaceData.SpacePath, targetRelPath)
-	if err != nil {
-		return &web.Error{Code: http.StatusForbidden, Message: "Access denied: invalid path"}
-	}
+	var (
+		targetRelPath       string
+		rawConflictPolicy   string
+		overwriteLegacy     bool
+		pathProvided        bool
+		declaredUploadSize  int64 = -1
+		fileName            string
+		resultFileName      string
+		stageFile           *os.File
+		stagePath           string
+		fileSize            int64
+		plan                *uploadPlan
+		uploadReservationID string
+	)
 
-	targetInfo, err := os.Stat(absTarget)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return &web.Error{Code: http.StatusNotFound, Message: "Target directory not found", Err: err}
+	defer func() {
+		if uploadReservationID != "" && h.quotaService != nil {
+			h.quotaService.ReleaseWriteReservation(uploadReservationID)
 		}
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to access target directory", Err: err}
-	}
-	if !targetInfo.IsDir() {
-		return &web.Error{Code: http.StatusBadRequest, Message: "Target path must be a directory"}
-	}
-
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		return &web.Error{Code: http.StatusBadRequest, Message: "Failed to get uploaded file", Err: err}
-	}
-	defer file.Close()
-
-	destPath := filepath.Join(absTarget, header.Filename)
-	resultFileName := header.Filename
-	projectedDelta := header.Size
-	overwriteLegacy := r.FormValue("overwrite") == "true"
-	conflictPolicy, hasConflictPolicy, err := resolveUploadConflictPolicy(r.FormValue("conflictPolicy"), overwriteLegacy)
-	if err != nil {
-		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid conflict policy", Err: err}
-	}
-
-	if existingInfo, err := os.Stat(destPath); err == nil {
-		if !hasConflictPolicy {
-			return &web.Error{Code: http.StatusConflict, Message: "File already exists"}
+		if stageFile != nil {
+			_ = stageFile.Close()
 		}
-		switch conflictPolicy {
-		case uploadConflictPolicyOverwrite:
-			if existingInfo.IsDir() {
-				return &web.Error{Code: http.StatusConflict, Message: "Directory already exists"}
+		if stagePath != "" {
+			_ = os.Remove(stagePath)
+		}
+	}()
+
+	for {
+		part, nextErr := reader.NextPart()
+		if errors.Is(nextErr, io.EOF) {
+			break
+		}
+		if nextErr != nil {
+			return &web.Error{Code: http.StatusBadRequest, Message: "Failed to read multipart form", Err: nextErr}
+		}
+
+		if part.FileName() == "" {
+			value, readErr := readMultipartFieldValue(part)
+			if readErr != nil {
+				return &web.Error{Code: http.StatusBadRequest, Message: "Failed to read multipart field", Err: readErr}
 			}
-			projectedDelta = header.Size - existingInfo.Size()
-		case uploadConflictPolicyRename:
-			renamedPath, renamedFileName, resolveErr := resolveUploadRenamePath(destPath)
-			if resolveErr != nil {
-				return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to resolve rename destination", Err: resolveErr}
+			switch part.FormName() {
+			case "path":
+				targetRelPath = value
+				pathProvided = true
+			case "conflictPolicy":
+				rawConflictPolicy = value
+			case "overwrite":
+				overwriteLegacy = strings.EqualFold(strings.TrimSpace(value), "true")
+			case "size":
+				if strings.TrimSpace(value) == "" {
+					declaredUploadSize = -1
+					break
+				}
+				parsedSize, parseErr := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+				if parseErr != nil || parsedSize < 0 {
+					return &web.Error{Code: http.StatusBadRequest, Message: "Invalid upload size", Err: parseErr}
+				}
+				declaredUploadSize = parsedSize
 			}
-			destPath = renamedPath
-			resultFileName = renamedFileName
-		case uploadConflictPolicySkip:
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{
-				"message":  "Skipped existing file",
-				"filename": header.Filename,
-				"status":   "skipped",
-			})
-			h.recordSpaceAudit(r, audit.Event{
-				Action: "file.upload",
-				Result: audit.ResultPartial,
-				Target: filepath.ToSlash(filepath.Join(targetRelPath, header.Filename)),
-				Metadata: map[string]any{
-					"filename":       header.Filename,
-					"status":         "skipped",
-					"conflictPolicy": string(conflictPolicy),
-				},
-			}, spaceID)
-			return nil
+			continue
 		}
-	} else if !os.IsNotExist(err) {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect destination path", Err: err}
+
+		if fileName != "" {
+			return &web.Error{Code: http.StatusBadRequest, Message: "Only one file upload is supported"}
+		}
+
+		fileName = part.FileName()
+		if strings.TrimSpace(fileName) == "" {
+			return &web.Error{Code: http.StatusBadRequest, Message: "Uploaded file name is required"}
+		}
+
+		if pathProvided {
+			plan, webErr = h.buildUploadPlan(r.Context(), spaceID, spaceData.SpacePath, targetRelPath, fileName, declaredUploadSize, rawConflictPolicy, overwriteLegacy)
+			if webErr != nil {
+				return webErr
+			}
+			if uploadReservationID == "" {
+				uploadReservationID, webErr = h.acquireUploadReservation(r.Context(), spaceID, plan)
+				if webErr != nil {
+					return webErr
+				}
+			}
+		}
+
+		if plan != nil && plan.skip {
+			if _, err := io.Copy(io.Discard, part); err != nil {
+				return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to discard skipped upload", Err: err}
+			}
+			resultFileName = plan.resultFileName
+			fileSize = declaredUploadSize
+			continue
+		}
+
+		stageDestPath := ""
+		if plan != nil {
+			stageDestPath = plan.destPath
+		}
+		stageFile, stagePath, err = createUploadStageFile(stageDestPath)
+		if err != nil {
+			return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to prepare upload staging file", Err: err}
+		}
+
+		var writer io.Writer = stageFile
+		if plan != nil && plan.quotaWindow.enabled {
+			writer = &quotaEnforcingWriter{writer: stageFile, remaining: plan.quotaWindow.maxBytes}
+		}
+		fileSize, err = io.Copy(writer, part)
+		if err != nil {
+			if errors.Is(err, errUploadQuotaExceeded) {
+				return createQuotaExceededWebError(spaceID, plan.quotaWindow.usedBytes, plan.quotaWindow.quotaBytes, fileSize-plan.existingBytes)
+			}
+			return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to save uploaded file", Err: err}
+		}
 	}
 
+	if strings.TrimSpace(fileName) == "" {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Failed to get uploaded file"}
+	}
+
+	if plan == nil {
+		plan, webErr = h.buildUploadPlan(r.Context(), spaceID, spaceData.SpacePath, targetRelPath, fileName, fileSize, rawConflictPolicy, overwriteLegacy)
+		if webErr != nil {
+			return webErr
+		}
+	}
+
+	if plan.skip {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(map[string]string{
+			"message":  "Skipped existing file",
+			"filename": plan.resultFileName,
+			"status":   "skipped",
+		}); err != nil {
+			return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to encode upload response", Err: err}
+		}
+		h.recordSpaceAudit(r, audit.Event{
+			Action: "file.upload",
+			Result: audit.ResultPartial,
+			Target: filepath.ToSlash(filepath.Join(targetRelPath, plan.resultFileName)),
+			Metadata: map[string]any{
+				"filename":       plan.resultFileName,
+				"status":         "skipped",
+				"conflictPolicy": string(plan.conflictPolicy),
+			},
+		}, spaceID)
+		return nil
+	}
+
+	if stageFile == nil {
+		return &web.Error{Code: http.StatusBadRequest, Message: "Failed to stage uploaded file"}
+	}
+	if err := stageFile.Close(); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to finalize upload staging file", Err: err}
+	}
+	stageFile = nil
+
+	projectedDelta := fileSize - plan.existingBytes
+	if projectedDelta < 0 {
+		projectedDelta = 0
+	}
+	if h.quotaService != nil {
+		h.quotaService.Invalidate(spaceID)
+	}
 	if webErr := h.ensureSpaceQuotaForWrite(r.Context(), spaceID, projectedDelta); webErr != nil {
 		return webErr
 	}
 
-	destFile, err := os.Create(destPath)
-	if err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to create destination file", Err: err}
+	if err := finalizeUploadedFile(stagePath, plan.destPath, plan.existingBytes > 0); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to finalize uploaded file", Err: err}
 	}
-	defer destFile.Close()
-
-	if _, err := io.Copy(destFile, file); err != nil {
-		os.Remove(destPath)
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to save uploaded file", Err: err}
-	}
+	stagePath = ""
+	resultFileName = plan.resultFileName
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"message":  "Successfully uploaded",
 		"filename": resultFileName,
 		"status":   "uploaded",
-	})
+	}); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to encode upload response", Err: err}
+	}
 	h.recordSpaceAudit(r, audit.Event{
 		Action: "file.upload",
 		Result: audit.ResultSuccess,
 		Target: filepath.ToSlash(filepath.Join(targetRelPath, resultFileName)),
 		Metadata: map[string]any{
 			"filename":       resultFileName,
-			"size":           header.Size,
+			"size":           fileSize,
 			"status":         "uploaded",
-			"conflictPolicy": string(conflictPolicy),
+			"conflictPolicy": string(plan.conflictPolicy),
 		},
 	}, spaceID)
 	if h.quotaService != nil {
@@ -2152,7 +2237,7 @@ func (h *Handler) handleFileDownloadMultiple(w http.ResponseWriter, r *http.Requ
 			return downloadErr
 		}
 
-		downloadErr := h.streamFileDownload(w, absPaths[0])
+		downloadErr := h.streamFileDownload(w, r, absPaths[0])
 		if downloadErr != nil {
 			h.recordSpaceAudit(r, audit.Event{
 				Action: "file.download",
