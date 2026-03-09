@@ -5,7 +5,6 @@ import type { TreeInvalidationTarget } from '@/stores/browseStore';
 import { useTransferCenterStore } from '@/stores/transferCenterStore';
 import type {
   ArchiveTransferItem,
-  BrowserDownloadDeliveryMode,
   BrowserTransferItem,
   BrowserTransferStatus,
   DownloadTransferItem,
@@ -80,7 +79,6 @@ interface ArchiveDownloadJobResponse {
 }
 
 interface DownloadTransferOptions {
-  deliveryMode?: BrowserDownloadDeliveryMode;
   loaded?: number;
   total?: number;
   message?: string;
@@ -199,7 +197,6 @@ interface TrashEmptyResponsePayload {
   failed?: TrashEmptyFailurePayload[];
 }
 
-const MANAGED_DIRECT_DOWNLOAD_MAX_BYTES = 64 * 1024 * 1024;
 const MAX_ACTIVE_UPLOAD_BATCHES = 2;
 const MAX_ACTIVE_ARCHIVE_TASKS = 2;
 
@@ -232,22 +229,6 @@ function triggerBrowserDownloadFromUrl(url: string, fileName?: string): void {
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
-}
-
-function triggerBrowserDownloadFromBlob(blob: Blob, fileName: string): void {
-  const objectUrl = URL.createObjectURL(blob);
-  try {
-    triggerBrowserDownloadFromUrl(objectUrl, fileName);
-  } finally {
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-  }
-}
-
-function shouldUseManagedDirectDownload(item?: { isDir: boolean; size: number }): boolean {
-  if (!item || item.isDir || item.size <= 0 || item.size > MANAGED_DIRECT_DOWNLOAD_MAX_BYTES) {
-    return false;
-  }
-  return typeof window !== 'undefined' && typeof URL.createObjectURL === 'function';
 }
 
 function wasPageReloaded(): boolean {
@@ -297,6 +278,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
   const upsertTransfer = useTransferCenterStore((state) => state.upsertTransfer);
   const dismissTransferFromStore = useTransferCenterStore((state) => state.dismissTransfer);
   const uploadAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const downloadAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const canceledQueuedUploadTransferIdsRef = useRef<Set<string>>(new Set());
   const uploadBatchQueueRef = useRef<UploadBatchQueueEntry[]>([]);
   const activeUploadBatchCountRef = useRef(0);
@@ -310,7 +292,10 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
   }
 
   const dismissTransfer = useCallback((transferId: string) => {
+    uploadAbortControllersRef.current.get(transferId)?.abort();
     uploadAbortControllersRef.current.delete(transferId);
+    downloadAbortControllersRef.current.get(transferId)?.abort();
+    downloadAbortControllersRef.current.delete(transferId);
     canceledQueuedUploadTransferIdsRef.current.delete(transferId);
     const archiveTaskIndex = archiveQueueRef.current.findIndex((task) => task.transferId === transferId);
     if (archiveTaskIndex !== -1) {
@@ -368,7 +353,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
   const setDownloadTransferStatus = useCallback((
     transferId: string,
     name: string,
-    status: Extract<BrowserTransferStatus, 'running' | 'completed' | 'handed_off' | 'failed' | 'expired'>,
+    status: Extract<BrowserTransferStatus, 'running' | 'completed' | 'handed_off' | 'failed' | 'expired' | 'canceled'>,
     options: DownloadTransferOptions = {}
   ) => {
     upsertTransfer({
@@ -377,7 +362,6 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       name,
       status,
       spaceId: options.spaceId ?? selectedSpace?.id,
-      deliveryMode: options.deliveryMode,
       loaded: options.loaded,
       total: options.total,
       message: options.message,
@@ -388,6 +372,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     const activeUploadController = uploadAbortControllersRef.current.get(transferId);
     if (activeUploadController) {
       activeUploadController.abort();
+      return;
+    }
+
+    const activeDownloadController = downloadAbortControllersRef.current.get(transferId);
+    if (activeDownloadController) {
+      activeDownloadController.abort();
       return;
     }
 
@@ -469,96 +459,6 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     }
     return fallback;
   }, []);
-
-  const performManagedDirectDownload = useCallback(async (
-    transferId: string,
-    fileName: string,
-    downloadUrl: string,
-    expectedSize: number,
-    spaceId?: number
-  ): Promise<void> => {
-    setDownloadTransferStatus(transferId, fileName, 'running', {
-      deliveryMode: 'managed',
-      loaded: 0,
-      total: expectedSize,
-      spaceId,
-    });
-
-    let loadedBytes = 0;
-    let totalBytes = expectedSize;
-    try {
-      const response = await apiFetch(downloadUrl);
-      if (!response.ok) {
-        const errorMessage = await readErrorMessage(response, t('fileOperations.downloadFailed'));
-        setDownloadTransferStatus(transferId, fileName, 'failed', {
-          deliveryMode: 'managed',
-          loaded: 0,
-          total: expectedSize,
-          message: errorMessage,
-          spaceId,
-        });
-        throw new Error(errorMessage);
-      }
-
-      const contentLength = Number(response.headers.get('Content-Length') ?? '');
-      totalBytes = Number.isFinite(contentLength) && contentLength > 0 ? contentLength : expectedSize;
-      const reader = response.body?.getReader();
-
-      if (!reader) {
-        const blob = await response.blob();
-        triggerBrowserDownloadFromBlob(blob, fileName);
-        const fallbackTotal = totalBytes > 0 ? totalBytes : blob.size;
-        setDownloadTransferStatus(transferId, fileName, 'completed', {
-          deliveryMode: 'managed',
-          loaded: fallbackTotal,
-          total: fallbackTotal,
-          spaceId,
-        });
-        return;
-      }
-
-      const chunks: Uint8Array[] = [];
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-        if (!value) {
-          continue;
-        }
-        chunks.push(value);
-        loadedBytes += value.byteLength;
-        setDownloadTransferStatus(transferId, fileName, 'running', {
-          deliveryMode: 'managed',
-          loaded: loadedBytes,
-          total: totalBytes,
-          spaceId,
-        });
-      }
-
-      const blob = new Blob(chunks, {
-        type: response.headers.get('Content-Type') ?? 'application/octet-stream',
-      });
-      triggerBrowserDownloadFromBlob(blob, fileName);
-      const finalBytes = totalBytes > 0 ? totalBytes : loadedBytes;
-      setDownloadTransferStatus(transferId, fileName, 'completed', {
-        deliveryMode: 'managed',
-        loaded: finalBytes,
-        total: finalBytes,
-        spaceId,
-      });
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : t('fileOperations.downloadFailed');
-      setDownloadTransferStatus(transferId, fileName, 'failed', {
-        deliveryMode: 'managed',
-        loaded: loadedBytes,
-        total: totalBytes,
-        message: errorMessage,
-        spaceId,
-      });
-      throw new Error(errorMessage);
-    }
-  }, [readErrorMessage, setDownloadTransferStatus, t]);
 
   const driveArchiveDownloadFlow = useCallback(async ({
     transferId,
@@ -1614,49 +1514,61 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         if (!useArchiveDownload) {
           const transferId = createTransferId();
           const downloadName = singleItem?.name ?? relativePaths[0].split('/').pop() ?? t('fileOperations.archiveFallbackName');
-          const ticketResponse = await apiFetch(`/api/spaces/${selectedSpace.id}/files/download-ticket`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: relativePaths[0] }),
-          });
-
-          if (!ticketResponse.ok) {
-            const errorMessage = await readErrorMessage(ticketResponse, t('fileOperations.downloadPrepareFailed'));
-            setDownloadTransferStatus(transferId, downloadName, 'failed', {
-              deliveryMode: 'browser',
-              message: errorMessage,
-            });
-            throw new Error(errorMessage);
-          }
-
-          const payload = (await ticketResponse.json()) as DownloadTicketResponse;
-          if (!payload.downloadUrl || typeof payload.downloadUrl !== 'string') {
-            const errorMessage = t('fileOperations.downloadUrlCreateFailed');
-            setDownloadTransferStatus(transferId, downloadName, 'failed', {
-              deliveryMode: 'browser',
-              message: errorMessage,
-            });
-            throw new Error(errorMessage);
-          }
-
-          const resolvedDownloadName = payload.fileName ?? downloadName;
-          if (shouldUseManagedDirectDownload(singleItem)) {
-            await performManagedDirectDownload(
-              transferId,
-              resolvedDownloadName,
-              payload.downloadUrl,
-              singleItem?.size ?? 0,
-              selectedSpace.id
-            );
-            return;
-          }
-
-          setDownloadTransferStatus(transferId, resolvedDownloadName, 'handed_off', {
-            deliveryMode: 'browser',
+          const abortController = new AbortController();
+          downloadAbortControllersRef.current.set(transferId, abortController);
+          setDownloadTransferStatus(transferId, downloadName, 'running', {
             spaceId: selectedSpace.id,
           });
-          triggerBrowserDownloadFromUrl(payload.downloadUrl, payload.fileName);
-          return;
+          try {
+            const ticketResponse = await apiFetch(`/api/spaces/${selectedSpace.id}/files/download-ticket`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: relativePaths[0] }),
+              signal: abortController.signal,
+            });
+            downloadAbortControllersRef.current.delete(transferId);
+
+            if (!ticketResponse.ok) {
+              const errorMessage = await readErrorMessage(ticketResponse, t('fileOperations.downloadPrepareFailed'));
+              setDownloadTransferStatus(transferId, downloadName, 'failed', {
+                message: errorMessage,
+                spaceId: selectedSpace.id,
+              });
+              throw new Error(errorMessage);
+            }
+
+            const payload = (await ticketResponse.json()) as DownloadTicketResponse;
+            if (!payload.downloadUrl || typeof payload.downloadUrl !== 'string') {
+              const errorMessage = t('fileOperations.downloadUrlCreateFailed');
+              setDownloadTransferStatus(transferId, downloadName, 'failed', {
+                message: errorMessage,
+                spaceId: selectedSpace.id,
+              });
+              throw new Error(errorMessage);
+            }
+
+            const resolvedDownloadName = payload.fileName ?? downloadName;
+            setDownloadTransferStatus(transferId, resolvedDownloadName, 'handed_off', {
+              spaceId: selectedSpace.id,
+            });
+            triggerBrowserDownloadFromUrl(payload.downloadUrl, payload.fileName);
+            return;
+          } catch (error) {
+            downloadAbortControllersRef.current.delete(transferId);
+            if (isAbortError(error)) {
+              setDownloadTransferStatus(transferId, downloadName, 'canceled', {
+                message: t('fileOperations.transferCanceled'),
+                spaceId: selectedSpace.id,
+              });
+              return;
+            }
+            const errorMessage = error instanceof Error ? error.message : t('fileOperations.downloadFailed');
+            setDownloadTransferStatus(transferId, downloadName, 'failed', {
+              message: errorMessage,
+              spaceId: selectedSpace.id,
+            });
+            throw error;
+          }
         }
 
         const transferId = createTransferId();
@@ -1686,7 +1598,6 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       content,
       enqueueArchiveTask,
       message,
-      performManagedDirectDownload,
       selectedSpace,
       setArchiveTransferStatus,
       setDownloadTransferStatus,

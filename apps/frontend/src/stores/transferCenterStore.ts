@@ -14,8 +14,6 @@ export type BrowserTransferStatus =
   | 'canceled';
 
 export type BrowserTransferKind = 'upload' | 'archive' | 'download';
-export type BrowserDownloadDeliveryMode = 'managed' | 'browser';
-
 interface BaseTransferItem {
   id: string;
   kind: BrowserTransferKind;
@@ -44,7 +42,6 @@ export interface ArchiveTransferItem extends BaseTransferItem {
 
 export interface DownloadTransferItem extends BaseTransferItem {
   kind: 'download';
-  deliveryMode?: BrowserDownloadDeliveryMode;
   loaded?: number;
   total?: number;
 }

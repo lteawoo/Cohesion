@@ -55,7 +55,7 @@ function getTransferLabel(
   t: (key: string) => string
 ): { color: string; text: string } | null {
   if (transfer.kind === 'download' && transfer.status === 'running') {
-    return { color: 'processing', text: t('fileOperations.transferStatusDownloading') };
+    return { color: 'processing', text: t('fileOperations.transferStatusRequesting') };
   }
   switch (transfer.status) {
     case 'uploading':
@@ -81,6 +81,11 @@ function getTransferLabel(
   }
 }
 
+function getTransferStatusText(transfer: BrowserTransferItem, t: (key: string) => string): string {
+  const label = getTransferLabel(transfer, t);
+  return label?.text ?? transfer.status;
+}
+
 function getTransferProgressPercent(transfer: BrowserTransferItem): number {
   if (transfer.kind === 'upload') {
     return transfer.progressPercent;
@@ -98,6 +103,49 @@ function getTransferProgressPercent(transfer: BrowserTransferItem): number {
   return transfer.status === 'completed' || transfer.status === 'ready' || transfer.status === 'handed_off' ? 100 : 0;
 }
 
+function getTransferProgressPresentation(transfer: BrowserTransferItem): {
+  percent: number;
+  progressStatus: 'normal' | 'exception' | 'active' | 'success';
+  showInfo: boolean;
+  indeterminate: boolean;
+} {
+  const percent = getTransferProgressPercent(transfer);
+
+  if (transfer.status === 'failed' || transfer.status === 'expired' || transfer.status === 'canceled') {
+    return {
+      percent,
+      progressStatus: 'exception',
+      showInfo: transfer.kind !== 'download',
+      indeterminate: false,
+    };
+  }
+
+  if (transfer.kind === 'download' && transfer.status === 'running') {
+    return {
+      percent: 0,
+      progressStatus: 'active',
+      showInfo: false,
+      indeterminate: true,
+    };
+  }
+
+  if (transfer.status === 'completed' || transfer.status === 'ready' || transfer.status === 'handed_off') {
+    return {
+      percent,
+      progressStatus: 'success',
+      showInfo: transfer.kind !== 'download',
+      indeterminate: false,
+    };
+  }
+
+  return {
+    percent,
+    progressStatus: transfer.status === 'uploading' || transfer.status === 'running' ? 'active' : 'normal',
+    showInfo: transfer.kind !== 'download',
+    indeterminate: false,
+  };
+}
+
 function TransferRow({
   transfer,
   onCancelUpload,
@@ -110,13 +158,14 @@ function TransferRow({
   const { token } = theme.useToken();
   const { t } = useTranslation();
   const label = getTransferLabel(transfer, t);
+  const statusText = getTransferStatusText(transfer, t);
   const canCancel = (
     (transfer.kind === 'upload' && (transfer.status === 'queued' || transfer.status === 'uploading'))
     || (transfer.kind === 'archive' && transfer.status === 'queued')
+    || (transfer.kind === 'download' && transfer.status === 'running')
   );
   const canDismiss = !isActiveTransferStatus(transfer.status);
-  const showProgress = true;
-  const progressPercent = getTransferProgressPercent(transfer);
+  const progress = getTransferProgressPresentation(transfer);
   const displayName = formatTransferName(transfer.name);
   const transferIcon = transfer.kind === 'upload'
     ? <UploadOutlined style={{ color: token.colorPrimary }} />
@@ -149,11 +198,6 @@ function TransferRow({
             </Typography.Text>
             {label ? <Tag color={label.color}>{label.text}</Tag> : null}
           </div>
-          {transfer.message ? (
-            <Typography.Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
-              {transfer.message}
-            </Typography.Text>
-          ) : null}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {canCancel ? (
@@ -176,15 +220,47 @@ function TransferRow({
         </div>
       </div>
 
-      {showProgress ? (
-        <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 12 }}>
+        {progress.indeterminate ? (
+          <div
+            aria-busy="true"
+            aria-valuetext={statusText}
+            role="progressbar"
+            style={{
+              position: 'relative',
+              height: 6,
+              borderRadius: 999,
+              overflow: 'hidden',
+              background: token.colorFillSecondary ?? token.colorBorderSecondary,
+            }}
+          >
+            <div
+              style={{
+                width: '36%',
+                height: '100%',
+                borderRadius: 999,
+                background: token.colorPrimary,
+              }}
+            />
+          </div>
+        ) : (
           <Progress
-            percent={progressPercent}
+            percent={progress.percent}
+            status={progress.progressStatus}
+            showInfo={progress.showInfo}
             size="small"
             format={(percent) => `${percent ?? 0}%`}
           />
-        </div>
-      ) : null}
+        )}
+        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
+          {statusText}
+        </Typography.Text>
+        {transfer.message ? (
+          <Typography.Text type="secondary" style={{ display: 'block', marginTop: 2 }}>
+            {transfer.message}
+          </Typography.Text>
+        ) : null}
+      </div>
     </div>
   );
 }

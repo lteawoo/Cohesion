@@ -73,8 +73,9 @@ describe('TransferPanel', () => {
     const rowLabels = within(panel).getAllByText(/active\.bin|report\.pdf/);
     expect(rowLabels[0].textContent).toContain('active.bin');
     expect(rowLabels[1].textContent).toContain('report.pdf');
-    expect(screen.getByText('fileOperations.transferStatusCompleted')).toBeTruthy();
-    expect(screen.getByText('100%')).toBeTruthy();
+    expect(screen.getAllByText('fileOperations.transferStatusCompleted').length).toBeGreaterThan(0);
+    expect(screen.getByText('50%')).toBeTruthy();
+    expect(screen.queryByText('100%')).toBeNull();
 
     await user.click(screen.getByText('fileOperations.cancelTransfer'));
     expect(cancelUpload).toHaveBeenCalledWith('active-1');
@@ -121,6 +122,24 @@ describe('TransferPanel', () => {
     expect(screen.queryByText('abcdefghijklmnopqrstuvwxyz1234567890.pdf')).toBeNull();
   });
 
+  it('shows request-state download rows without numeric direct-download progress', () => {
+    const cancelUpload = vi.fn();
+    useTransferCenterStore.getState().upsertTransfer({
+      id: 'download-running-1',
+      kind: 'download',
+      name: 'manual.pdf',
+      status: 'running',
+      updatedAt: 5,
+    });
+
+    render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
+
+    expect(screen.getAllByText('fileOperations.transferStatusRequesting').length).toBeGreaterThan(0);
+    expect(screen.queryByText('0%')).toBeNull();
+    expect(screen.queryByText('100%')).toBeNull();
+    expect(screen.getByText('fileOperations.cancelTransfer')).toBeTruthy();
+  });
+
   it('opens the mobile transfer sheet from the floating trigger', async () => {
     const user = userEvent.setup();
 
@@ -142,7 +161,7 @@ describe('TransferPanel', () => {
     expect(mobileList.style.overflowY).toBe('auto');
     expect(mobileList.style.maxHeight).toBe('480px');
     expect(screen.getByText('manual.pdf')).toBeTruthy();
-    expect(screen.getByText('fileOperations.transferStatusCompleted')).toBeTruthy();
-    expect(screen.getByText('100%')).toBeTruthy();
+    expect(screen.getAllByText('fileOperations.transferStatusCompleted').length).toBeGreaterThan(0);
+    expect(screen.queryByText('100%')).toBeNull();
   });
 });

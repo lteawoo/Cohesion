@@ -89,52 +89,6 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-function createStreamResponse(chunks: string[], headers: Record<string, string> = {}): Response {
-  const encoder = new TextEncoder();
-  let index = 0;
-  const body = new ReadableStream({
-    pull(controller) {
-      if (index >= chunks.length) {
-        controller.close();
-        return;
-      }
-      controller.enqueue(encoder.encode(chunks[index]));
-      index += 1;
-    },
-  });
-
-  return new Response(body, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      ...headers,
-    },
-  });
-}
-
-function createErroredStreamResponse(chunks: string[], errorMessage: string, headers: Record<string, string> = {}): Response {
-  const encoder = new TextEncoder();
-  let index = 0;
-  const body = new ReadableStream({
-    pull(controller) {
-      if (index >= chunks.length) {
-        controller.error(new Error(errorMessage));
-        return;
-      }
-      controller.enqueue(encoder.encode(chunks[index]));
-      index += 1;
-    },
-  });
-
-  return new Response(body, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      ...headers,
-    },
-  });
-}
-
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>((nextResolve) => {
@@ -150,16 +104,6 @@ describe('useFileOperations transfer states', () => {
     window.sessionStorage.clear();
     useTransferCenterStore.persist.clearStorage();
     useTransferCenterStore.getState().reset();
-    Object.defineProperty(URL, 'createObjectURL', {
-      configurable: true,
-      writable: true,
-      value: vi.fn(() => 'blob:mock-download'),
-    });
-    Object.defineProperty(URL, 'revokeObjectURL', {
-      configurable: true,
-      writable: true,
-      value: vi.fn(),
-    });
     h.browseState.content = [
       {
         name: 'docs',
@@ -362,15 +306,6 @@ describe('useFileOperations transfer states', () => {
   });
 
   it('records direct single-file downloads as handed off to the browser', async () => {
-    h.browseState.content = [
-      {
-        name: 'report.pdf',
-        path: '/report.pdf',
-        isDir: false,
-        size: 80 * 1024 * 1024,
-        modTime: '2026-03-01T00:00:00.000Z',
-      },
-    ];
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     h.apiFetch.mockResolvedValueOnce(jsonResponse({
       downloadUrl: '/api/downloads/report',
@@ -387,79 +322,86 @@ describe('useFileOperations transfer states', () => {
       kind: 'download',
       name: 'report.pdf',
       status: 'handed_off',
-      deliveryMode: 'browser',
     });
+    expect(h.apiFetch).toHaveBeenCalledTimes(1);
     expect(clickSpy).toHaveBeenCalledTimes(1);
     clickSpy.mockRestore();
   });
 
-  it('streams small direct downloads inside the app before saving', async () => {
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-    h.apiFetch
-      .mockResolvedValueOnce(jsonResponse({
-        downloadUrl: '/api/downloads/report',
-        fileName: 'report.pdf',
-      }))
-      .mockResolvedValueOnce(createStreamResponse(['abc', 'def'], {
-        'Content-Length': '6',
-        'Content-Type': 'application/pdf',
-      }));
-
+  it('creates a running transfer row while a direct download ticket request is pending', async () => {
+    const pendingTicket = createDeferred<Response>();
+    h.apiFetch.mockReturnValueOnce(pendingTicket.promise);
     const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
 
-    await act(async () => {
-      await result.current.handleBulkDownload(['/report.pdf']);
+    act(() => {
+      void result.current.handleBulkDownload(['/report.pdf']);
     });
 
-    expect(result.current.transfers[0]).toMatchObject({
-      kind: 'download',
-      name: 'report.pdf',
-      status: 'completed',
-      deliveryMode: 'managed',
-      loaded: 6,
-      total: 6,
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'download',
+        name: 'report.pdf',
+        status: 'running',
+      });
     });
-    expect(URL.createObjectURL).toHaveBeenCalled();
-    expect(clickSpy).toHaveBeenCalledTimes(1);
-    clickSpy.mockRestore();
+
+    await act(async () => {
+      pendingTicket.resolve(jsonResponse({
+        downloadUrl: '/api/downloads/report',
+        fileName: 'report.pdf',
+      }));
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'download',
+        name: 'report.pdf',
+        status: 'handed_off',
+      });
+    });
   });
 
-  it('marks managed direct downloads as failed when the response stream breaks mid-transfer', async () => {
-    h.apiFetch
-      .mockResolvedValueOnce(jsonResponse({
-        downloadUrl: '/api/downloads/report',
-        fileName: 'report.pdf',
-      }))
-      .mockResolvedValueOnce(createErroredStreamResponse(['abc'], 'stream broke', {
-        'Content-Length': '6',
-        'Content-Type': 'application/pdf',
-      }));
-
+  it('allows pending direct downloads to be canceled before browser handoff', async () => {
+    h.apiFetch.mockImplementationOnce(async (_url: string, init?: RequestInit) => {
+      await new Promise<never>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          () => reject(new DOMException('The operation was aborted.', 'AbortError')),
+          { once: true }
+        );
+      });
+      return jsonResponse({});
+    });
     const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
 
-    await act(async () => {
-      await result.current.handleBulkDownload(['/report.pdf']);
+    act(() => {
+      void result.current.handleBulkDownload(['/report.pdf']);
     });
 
-    expect(result.current.transfers[0]).toMatchObject({
-      kind: 'download',
-      name: 'report.pdf',
-      status: 'failed',
-      deliveryMode: 'managed',
-      loaded: 3,
-      total: 6,
-      message: 'stream broke',
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'download',
+        status: 'running',
+      });
     });
-    expect(h.message.error).toHaveBeenCalledWith('stream broke');
+
+    act(() => {
+      result.current.cancelUpload(result.current.transfers[0].id);
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'download',
+        name: 'report.pdf',
+        status: 'canceled',
+        message: 'fileOperations.transferCanceled',
+      });
+    });
+    expect(h.message.error).not.toHaveBeenCalled();
   });
 
-  it('marks managed direct downloads as failed when the download request rejects', async () => {
-    h.apiFetch
-      .mockResolvedValueOnce(jsonResponse({
-        downloadUrl: '/api/downloads/report',
-        fileName: 'report.pdf',
-      }))
-      .mockRejectedValueOnce(new Error('network down'));
+  it('marks direct single-file downloads as failed when the ticket request rejects', async () => {
+    h.apiFetch.mockRejectedValueOnce(new Error('network down'));
 
     const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
 
@@ -467,14 +409,13 @@ describe('useFileOperations transfer states', () => {
       await result.current.handleBulkDownload(['/report.pdf']);
     });
 
-    expect(result.current.transfers[0]).toMatchObject({
-      kind: 'download',
-      name: 'report.pdf',
-      status: 'failed',
-      deliveryMode: 'managed',
-      loaded: 0,
-      total: 128,
-      message: 'network down',
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'download',
+        name: 'report.pdf',
+        status: 'failed',
+        message: 'network down',
+      });
     });
     expect(h.message.error).toHaveBeenCalledWith('network down');
   });
