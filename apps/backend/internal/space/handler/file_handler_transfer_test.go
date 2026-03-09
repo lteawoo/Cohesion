@@ -21,6 +21,14 @@ type fakeTransferSpaceStore struct {
 	spacesByID map[int64]*space.Space
 }
 
+func writePatternFile(path string, size int) error {
+	data := make([]byte, size)
+	for index := range data {
+		data[index] = byte(index % 251)
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
 func (f *fakeTransferSpaceStore) GetAll(ctx context.Context) ([]*space.Space, error) {
 	return nil, errors.New("not implemented")
 }
@@ -330,5 +338,200 @@ func TestArchiveDownloadJobLifecycle(t *testing.T) {
 	}
 	if webErr.Code != http.StatusGone {
 		t.Fatalf("expected status %d, got %+v", http.StatusGone, webErr)
+	}
+}
+
+func TestArchiveDownloadJobRunningCancelStopsPreparationAndRejectsTickets(t *testing.T) {
+	spaceRoot := t.TempDir()
+	docsDir := filepath.Join(spaceRoot, "docs")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatalf("failed to create archive directory: %v", err)
+	}
+	if err := writePatternFile(filepath.Join(docsDir, "large.bin"), 24*1024*1024); err != nil {
+		t.Fatalf("failed to seed large archive file: %v", err)
+	}
+
+	store := &fakeTransferSpaceStore{
+		spacesByID: map[int64]*space.Space{
+			1: {
+				ID:        1,
+				SpaceName: "Archive",
+				SpacePath: spaceRoot,
+			},
+		},
+	}
+	handler := NewHandler(space.NewService(store), nil, nil)
+	handler.archiveDownloads = newArchiveDownloadManager(1, 2*time.Second)
+
+	createBody, err := json.Marshal(map[string]any{
+		"paths": []string{"docs"},
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal create body: %v", err)
+	}
+	createReq := httptest.NewRequest(http.MethodPost, "/api/spaces/1/files/archive-downloads", bytes.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq = withClaims(createReq, "tester")
+	createRec := httptest.NewRecorder()
+
+	if webErr := handler.handleArchiveDownloadCreate(createRec, createReq, 1); webErr != nil {
+		t.Fatalf("unexpected create web error: %+v", webErr)
+	}
+
+	var createPayload archiveDownloadStatusResponse
+	if err := json.NewDecoder(createRec.Body).Decode(&createPayload); err != nil {
+		t.Fatalf("failed to decode archive create response: %v", err)
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		statusReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/spaces/1/files/archive-downloads?jobId=%s", createPayload.JobID), nil)
+		statusReq = withClaims(statusReq, "tester")
+		statusRec := httptest.NewRecorder()
+		if webErr := handler.handleArchiveDownloadStatus(statusRec, statusReq, 1); webErr != nil {
+			t.Fatalf("unexpected status web error: %+v", webErr)
+		}
+
+		var statusPayload archiveDownloadStatusResponse
+		if err := json.NewDecoder(statusRec.Body).Decode(&statusPayload); err != nil {
+			t.Fatalf("failed to decode archive status response: %v", err)
+		}
+		if statusPayload.Status == string(archiveDownloadStateRunning) {
+			break
+		}
+		if statusPayload.Status == string(archiveDownloadStateReady) {
+			t.Fatalf("archive job reached ready before running cancel could be tested: %+v", statusPayload)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("archive job did not reach running state: %+v", statusPayload)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	cancelReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/spaces/1/files/archive-downloads?jobId=%s", createPayload.JobID), nil)
+	cancelReq = withClaims(cancelReq, "tester")
+	cancelRec := httptest.NewRecorder()
+	if webErr := handler.handleArchiveDownloadCancel(cancelRec, cancelReq, 1); webErr != nil {
+		t.Fatalf("unexpected cancel web error: %+v", webErr)
+	}
+
+	var cancelPayload archiveDownloadStatusResponse
+	if err := json.NewDecoder(cancelRec.Body).Decode(&cancelPayload); err != nil {
+		t.Fatalf("failed to decode cancel response: %v", err)
+	}
+	if cancelPayload.Status != string(archiveDownloadStateCanceled) {
+		t.Fatalf("expected canceled status, got %+v", cancelPayload)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	statusReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/spaces/1/files/archive-downloads?jobId=%s", createPayload.JobID), nil)
+	statusReq = withClaims(statusReq, "tester")
+	statusRec := httptest.NewRecorder()
+	if webErr := handler.handleArchiveDownloadStatus(statusRec, statusReq, 1); webErr != nil {
+		t.Fatalf("unexpected final status web error: %+v", webErr)
+	}
+
+	var statusPayload archiveDownloadStatusResponse
+	if err := json.NewDecoder(statusRec.Body).Decode(&statusPayload); err != nil {
+		t.Fatalf("failed to decode final archive status response: %v", err)
+	}
+	if statusPayload.Status != string(archiveDownloadStateCanceled) {
+		t.Fatalf("expected canceled status after running cancel, got %+v", statusPayload)
+	}
+	if statusPayload.ArtifactSize != 0 {
+		t.Fatalf("expected canceled archive to expose no artifact, got %+v", statusPayload)
+	}
+
+	ticketBody, err := json.Marshal(map[string]string{"jobId": createPayload.JobID})
+	if err != nil {
+		t.Fatalf("failed to marshal ticket body: %v", err)
+	}
+	ticketReq := httptest.NewRequest(http.MethodPost, "/api/spaces/1/files/archive-download-ticket", bytes.NewReader(ticketBody))
+	ticketReq.Header.Set("Content-Type", "application/json")
+	ticketReq = withClaims(ticketReq, "tester")
+	ticketRec := httptest.NewRecorder()
+	webErr := handler.handleArchiveDownloadTicket(ticketRec, ticketReq, 1)
+	if webErr == nil {
+		t.Fatal("expected canceled archive ticket request to fail")
+	}
+	if webErr.Code != http.StatusConflict {
+		t.Fatalf("expected status %d, got %+v", http.StatusConflict, webErr)
+	}
+}
+
+func TestArchiveDownloadJobReadyCancelRemovesArtifact(t *testing.T) {
+	spaceRoot := t.TempDir()
+	docsDir := filepath.Join(spaceRoot, "docs")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatalf("failed to create archive directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(docsDir, "guide.txt"), []byte("guide"), 0o644); err != nil {
+		t.Fatalf("failed to seed guide file: %v", err)
+	}
+
+	store := &fakeTransferSpaceStore{
+		spacesByID: map[int64]*space.Space{
+			1: {
+				ID:        1,
+				SpaceName: "Archive",
+				SpacePath: spaceRoot,
+			},
+		},
+	}
+	handler := NewHandler(space.NewService(store), nil, nil)
+	handler.archiveDownloads = newArchiveDownloadManager(1, time.Second)
+
+	createBody, err := json.Marshal(map[string]any{
+		"paths": []string{"docs"},
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal create body: %v", err)
+	}
+	createReq := httptest.NewRequest(http.MethodPost, "/api/spaces/1/files/archive-downloads", bytes.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq = withClaims(createReq, "tester")
+	createRec := httptest.NewRecorder()
+	if webErr := handler.handleArchiveDownloadCreate(createRec, createReq, 1); webErr != nil {
+		t.Fatalf("unexpected create web error: %+v", webErr)
+	}
+
+	var createPayload archiveDownloadStatusResponse
+	if err := json.NewDecoder(createRec.Body).Decode(&createPayload); err != nil {
+		t.Fatalf("failed to decode archive create response: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	var readyJob *archiveDownloadJob
+	for {
+		job, webErr := handler.archiveDownloads.getJob(createPayload.JobID, "tester")
+		if webErr != nil {
+			t.Fatalf("unexpected archive getJob error: %+v", webErr)
+		}
+		if job.State == archiveDownloadStateReady {
+			readyJob = job
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("archive job did not reach ready state: %+v", job)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if readyJob == nil || strings.TrimSpace(readyJob.ArtifactPath) == "" {
+		t.Fatalf("expected ready archive artifact path, got %+v", readyJob)
+	}
+	if _, err := os.Stat(readyJob.ArtifactPath); err != nil {
+		t.Fatalf("expected ready archive artifact to exist, got %v", err)
+	}
+
+	cancelReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/spaces/1/files/archive-downloads?jobId=%s", createPayload.JobID), nil)
+	cancelReq = withClaims(cancelReq, "tester")
+	cancelRec := httptest.NewRecorder()
+	if webErr := handler.handleArchiveDownloadCancel(cancelRec, cancelReq, 1); webErr != nil {
+		t.Fatalf("unexpected cancel web error: %+v", webErr)
+	}
+
+	if _, err := os.Stat(readyJob.ArtifactPath); !os.IsNotExist(err) {
+		t.Fatalf("expected ready archive artifact to be removed on cancel, err=%v", err)
 	}
 }

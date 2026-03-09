@@ -2,6 +2,7 @@ package handler
 
 import (
 	"archive/zip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +33,7 @@ const (
 	archiveDownloadStateRunning archiveDownloadState = "running"
 	archiveDownloadStateReady   archiveDownloadState = "ready"
 	archiveDownloadStateFailed  archiveDownloadState = "failed"
+	archiveDownloadStateCanceled archiveDownloadState = "canceled"
 	archiveDownloadStateExpired archiveDownloadState = "expired"
 )
 
@@ -54,6 +56,8 @@ type archiveDownloadJob struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	ExpiresAt            time.Time
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 type archiveDownloadManager struct {
@@ -111,6 +115,7 @@ func (m *archiveDownloadManager) createJob(owner string, spaceID int64, requestI
 	}
 
 	now := time.Now()
+	jobCtx, cancel := context.WithCancel(context.Background())
 	job := &archiveDownloadJob{
 		ID:             jobID,
 		Owner:          owner,
@@ -122,12 +127,42 @@ func (m *archiveDownloadManager) createJob(owner string, spaceID int64, requestI
 		SourceCount:    len(requestedPaths),
 		CreatedAt:      now,
 		UpdatedAt:      now,
+		ctx:            jobCtx,
+		cancel:         cancel,
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.jobs[jobID] = job
 	return job.copy(), nil
+}
+
+func (m *archiveDownloadManager) cancelJob(jobID string, owner string) (*archiveDownloadJob, context.CancelFunc, string, *web.Error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	job, ok := m.jobs[jobID]
+	if !ok {
+		return nil, nil, "", &web.Error{Code: http.StatusNotFound, Message: "Archive job not found"}
+	}
+	if job.Owner != owner {
+		return nil, nil, "", &web.Error{Code: http.StatusForbidden, Message: "Archive job access denied"}
+	}
+	if job.State == archiveDownloadStateCanceled {
+		return job.copy(), nil, "", nil
+	}
+	if job.State == archiveDownloadStateFailed || job.State == archiveDownloadStateExpired {
+		return nil, nil, "", &web.Error{Code: http.StatusConflict, Message: "Archive job can no longer be canceled"}
+	}
+
+	artifactPath := job.ArtifactPath
+	job.ArtifactPath = ""
+	job.ArtifactSize = 0
+	job.State = archiveDownloadStateCanceled
+	job.FailureReason = "archive canceled"
+	job.ExpiresAt = time.Now().Add(m.ttl)
+	job.UpdatedAt = time.Now()
+	return job.copy(), job.cancel, artifactPath, nil
 }
 
 func (m *archiveDownloadManager) getJob(jobID string, owner string) (*archiveDownloadJob, *web.Error) {
@@ -207,6 +242,8 @@ func (h *Handler) handleArchiveDownloads(w http.ResponseWriter, r *http.Request,
 		return h.handleArchiveDownloadCreate(w, r, spaceID)
 	case http.MethodGet:
 		return h.handleArchiveDownloadStatus(w, r, spaceID)
+	case http.MethodDelete:
+		return h.handleArchiveDownloadCancel(w, r, spaceID)
 	default:
 		return &web.Error{Code: http.StatusMethodNotAllowed, Message: "Method not allowed"}
 	}
@@ -269,12 +306,69 @@ func (h *Handler) handleArchiveDownloadCreate(w http.ResponseWriter, r *http.Req
 		},
 	}, spaceID)
 
-	go h.runArchiveDownloadJob(job.ID, claims.Username, spaceID, strings.TrimSpace(r.Header.Get("X-Request-Id")), archiveFileName, sources)
+	go h.runArchiveDownloadJob(job.ID, job.ctx, claims.Username, spaceID, strings.TrimSpace(r.Header.Get("X-Request-Id")), archiveFileName, sources)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(job.toStatusResponse()); err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to encode archive job response", Err: err}
+	}
+	return nil
+}
+
+func (h *Handler) handleArchiveDownloadCancel(w http.ResponseWriter, r *http.Request, spaceID int64) *web.Error {
+	h.cleanupArchiveDownloadJobs()
+
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		return &web.Error{Code: http.StatusUnauthorized, Message: "Unauthorized"}
+	}
+
+	jobID := strings.TrimSpace(r.URL.Query().Get("jobId"))
+	if jobID == "" {
+		return &web.Error{Code: http.StatusBadRequest, Message: "jobId is required"}
+	}
+
+	jobSnapshot, webErr := h.archiveDownloads.getJob(jobID, claims.Username)
+	if webErr != nil {
+		return webErr
+	}
+	if jobSnapshot.SpaceID != spaceID {
+		return &web.Error{Code: http.StatusForbidden, Message: "Archive job access denied"}
+	}
+
+	job, cancelFn, artifactPath, webErr := h.archiveDownloads.cancelJob(jobID, claims.Username)
+	if webErr != nil {
+		return webErr
+	}
+	if cancelFn != nil {
+		cancelFn()
+	}
+	if strings.TrimSpace(artifactPath) != "" {
+		_ = os.Remove(artifactPath)
+	}
+
+	h.logArchiveJobEvent("info.archive.job_canceled", job, nil)
+	h.recordSpaceAudit(r, audit.Event{
+		Action: "file.archive-download",
+		Result: audit.ResultSuccess,
+		Target: job.ID,
+		Metadata: map[string]any{
+			"jobId":                job.ID,
+			"filename":             job.FileName,
+			"status":               string(job.State),
+			"sourceCount":          job.SourceCount,
+			"processedItems":       job.ProcessedItems,
+			"totalItems":           job.TotalItems,
+			"processedSourceBytes": job.ProcessedSourceBytes,
+			"totalSourceBytes":     job.TotalSourceBytes,
+		},
+	}, spaceID)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(job.toStatusResponse()); err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to encode archive job cancel response", Err: err}
 	}
 	return nil
 }
@@ -336,6 +430,9 @@ func (h *Handler) handleArchiveDownloadTicket(w http.ResponseWriter, r *http.Req
 	}
 	if job.State == archiveDownloadStateExpired {
 		return &web.Error{Code: http.StatusGone, Message: "Archive job expired"}
+	}
+	if job.State == archiveDownloadStateCanceled {
+		return &web.Error{Code: http.StatusConflict, Message: "Archive job was canceled"}
 	}
 	if job.State != archiveDownloadStateReady || strings.TrimSpace(job.ArtifactPath) == "" {
 		return &web.Error{Code: http.StatusConflict, Message: "Archive job is not ready"}
@@ -441,22 +538,40 @@ func (h *Handler) resolveArchiveDownloadSources(spaceRoot string, paths []string
 
 func (h *Handler) runArchiveDownloadJob(
 	jobID string,
+	jobCtx context.Context,
 	owner string,
 	spaceID int64,
 	requestID string,
 	fileName string,
 	sources []archiveDownloadSource,
 ) {
-	h.archiveDownloads.workers <- struct{}{}
+	acquiredWorker := false
+	select {
+	case h.archiveDownloads.workers <- struct{}{}:
+		acquiredWorker = true
+	case <-jobCtx.Done():
+		return
+	}
 	defer func() {
-		<-h.archiveDownloads.workers
+		if acquiredWorker {
+			<-h.archiveDownloads.workers
+		}
 		h.cleanupArchiveDownloadJobs()
 	}()
 
-	h.archiveDownloads.updateJob(jobID, func(job *archiveDownloadJob) {
+	job := h.archiveDownloads.updateJob(jobID, func(job *archiveDownloadJob) {
+		if job.State == archiveDownloadStateCanceled {
+			return
+		}
 		job.State = archiveDownloadStateRunning
 		job.FailureReason = ""
 	})
+	if job == nil || job.State == archiveDownloadStateCanceled {
+		return
+	}
+	if err := jobCtx.Err(); err != nil {
+		return
+	}
 
 	entries, totalItems, totalBytes, err := scanArchiveZipEntries(sources)
 	if err != nil {
@@ -473,8 +588,14 @@ func (h *Handler) runArchiveDownloadJob(
 
 	zipTempPath, zipSize, webErr := h.buildZipTempArchive(func(zipWriter *zip.Writer) *web.Error {
 		for _, entry := range entries {
-			writtenBytes, writeErr := writeArchiveZipEntry(zipWriter, entry)
+			if err := jobCtx.Err(); err != nil {
+				return &web.Error{Code: http.StatusConflict, Message: "Archive download canceled", Err: err}
+			}
+			writtenBytes, writeErr := writeArchiveZipEntry(jobCtx, zipWriter, entry)
 			if writeErr != nil {
+				if errors.Is(writeErr, context.Canceled) {
+					return &web.Error{Code: http.StatusConflict, Message: "Archive download canceled", Err: writeErr}
+				}
 				return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to prepare archive entry", Err: writeErr}
 			}
 			h.archiveDownloads.updateJob(jobID, func(job *archiveDownloadJob) {
@@ -485,12 +606,24 @@ func (h *Handler) runArchiveDownloadJob(
 		return nil
 	})
 	if webErr != nil {
+		if errors.Is(webErr.Err, context.Canceled) {
+			return
+		}
 		h.failArchiveDownloadJob(jobID, owner, requestID, webErr.Message)
+		return
+	}
+	if err := jobCtx.Err(); err != nil {
+		_ = os.Remove(zipTempPath)
 		return
 	}
 
 	expiresAt := time.Now().Add(h.archiveDownloads.ttlDuration())
-	job := h.archiveDownloads.updateJob(jobID, func(job *archiveDownloadJob) {
+	publishCanceled := false
+	job = h.archiveDownloads.updateJob(jobID, func(job *archiveDownloadJob) {
+		if job.State == archiveDownloadStateCanceled {
+			publishCanceled = true
+			return
+		}
 		job.State = archiveDownloadStateReady
 		job.FailureReason = ""
 		job.ArtifactPath = zipTempPath
@@ -499,6 +632,10 @@ func (h *Handler) runArchiveDownloadJob(
 		job.ExpiresAt = expiresAt
 	})
 	if job == nil {
+		_ = os.Remove(zipTempPath)
+		return
+	}
+	if publishCanceled {
 		_ = os.Remove(zipTempPath)
 		return
 	}
@@ -526,6 +663,9 @@ func (h *Handler) runArchiveDownloadJob(
 
 func (h *Handler) failArchiveDownloadJob(jobID string, owner string, requestID string, reason string) {
 	job := h.archiveDownloads.updateJob(jobID, func(job *archiveDownloadJob) {
+		if job.State == archiveDownloadStateCanceled {
+			return
+		}
 		if job.ArtifactPath != "" {
 			_ = os.Remove(job.ArtifactPath)
 			job.ArtifactPath = ""
@@ -698,7 +838,7 @@ func scanArchiveZipEntries(sources []archiveDownloadSource) ([]archiveZipEntry, 
 	return entries, totalItems, totalBytes, nil
 }
 
-func writeArchiveZipEntry(zipWriter *zip.Writer, entry archiveZipEntry) (int64, error) {
+func writeArchiveZipEntry(ctx context.Context, zipWriter *zip.Writer, entry archiveZipEntry) (int64, error) {
 	info, err := os.Stat(entry.AbsPath)
 	if err != nil {
 		return 0, err
@@ -730,9 +870,36 @@ func writeArchiveZipEntry(zipWriter *zip.Writer, entry archiveZipEntry) (int64, 
 	}
 	defer file.Close()
 
-	writtenBytes, err := io.Copy(writer, file)
+	writtenBytes, err := copyWithContext(ctx, writer, file)
 	if err != nil {
 		return writtenBytes, err
 	}
 	return writtenBytes, nil
+}
+
+func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
+	buffer := make([]byte, 64*1024)
+	var written int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return written, err
+		}
+		readBytes, readErr := src.Read(buffer)
+		if readBytes > 0 {
+			writeBytes, writeErr := dst.Write(buffer[:readBytes])
+			written += int64(writeBytes)
+			if writeErr != nil {
+				return written, writeErr
+			}
+			if writeBytes != readBytes {
+				return written, io.ErrShortWrite
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return written, nil
+			}
+			return written, readErr
+		}
+	}
 }

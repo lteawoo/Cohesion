@@ -34,6 +34,7 @@ export interface UploadTransferItem extends BaseTransferItem {
 export interface ArchiveTransferItem extends BaseTransferItem {
   kind: 'archive';
   jobId?: string;
+  requestedPaths?: string[];
   processedItems: number;
   totalItems: number;
   processedSourceBytes: number;

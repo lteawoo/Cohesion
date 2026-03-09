@@ -152,6 +152,7 @@ const FolderContent: React.FC = () => {
     handleBulkDownload,
     handleFileUpload,
     cancelUpload,
+    retryTransfer,
   } = useFileOperations(selectedPath, selectedSpace);
 
   const {
@@ -1066,6 +1067,7 @@ const FolderContent: React.FC = () => {
             <TransferPanel
               isMobile={isMobileLayout}
               onCancelUpload={cancelUpload}
+              onRetryTransfer={retryTransfer}
             />
             {showSearchSummary && (
               <div

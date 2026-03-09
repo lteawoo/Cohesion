@@ -558,6 +558,268 @@ describe('useFileOperations transfer states', () => {
     setTimeoutSpy.mockRestore();
   });
 
+  it('cancels a running archive job without letting stale polling revive the transfer', async () => {
+    const originalSetTimeout = window.setTimeout.bind(window);
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation((handler: TimerHandler, timeout?: number) => {
+      if (timeout === 800 && typeof handler === 'function') {
+        handler();
+        return 0 as unknown as number;
+      }
+      return originalSetTimeout(handler, timeout);
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const statusPoll = createDeferred<Response>();
+    const apiCalls: Array<{ url: string; method: string; body?: string }> = [];
+
+    h.apiFetch.mockImplementation((url: string, init?: RequestInit) => {
+      apiCalls.push({
+        url,
+        method: init?.method ?? 'GET',
+        body: typeof init?.body === 'string' ? init.body : undefined,
+      });
+
+      if (url === '/api/spaces/1/files/archive-downloads' && init?.method === 'POST') {
+        return Promise.resolve(jsonResponse({
+          jobId: 'archive-cancel-1',
+          status: 'queued',
+          fileName: 'docs.zip',
+          totalItems: 4,
+          processedItems: 0,
+          totalSourceBytes: 400,
+          processedSourceBytes: 0,
+        }, 202));
+      }
+
+      if (url === '/api/spaces/1/files/archive-downloads?jobId=archive-cancel-1') {
+        if (init?.method === 'DELETE') {
+          return Promise.resolve(jsonResponse({
+            jobId: 'archive-cancel-1',
+            status: 'canceled',
+            fileName: 'docs.zip',
+            totalItems: 4,
+            processedItems: 1,
+            totalSourceBytes: 400,
+            processedSourceBytes: 100,
+            failureReason: 'archive canceled',
+          }));
+        }
+        return statusPoll.promise;
+      }
+
+      throw new Error(`Unexpected apiFetch call: ${init?.method ?? 'GET'} ${url}`);
+    });
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    let archivePromise!: Promise<void>;
+    act(() => {
+      archivePromise = result.current.handleBulkDownload(['/docs']);
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'archive',
+        name: 'docs.zip',
+        status: 'queued',
+        jobId: 'archive-cancel-1',
+      });
+    });
+
+    act(() => {
+      result.current.cancelUpload(result.current.transfers[0].id);
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'archive',
+        status: 'canceled',
+        message: 'fileOperations.transferCanceled',
+      });
+    });
+
+    await act(async () => {
+      statusPoll.resolve(jsonResponse({
+        jobId: 'archive-cancel-1',
+        status: 'ready',
+        fileName: 'docs.zip',
+        totalItems: 4,
+        processedItems: 4,
+        totalSourceBytes: 400,
+        processedSourceBytes: 400,
+      }));
+      await archivePromise;
+    });
+
+    expect(result.current.transfers[0]).toMatchObject({
+      kind: 'archive',
+      status: 'canceled',
+      message: 'fileOperations.transferCanceled',
+    });
+    expect(
+      apiCalls.some(({ url }) => url === '/api/spaces/1/files/archive-download-ticket')
+    ).toBe(false);
+    expect(clickSpy).not.toHaveBeenCalled();
+
+    clickSpy.mockRestore();
+    setTimeoutSpy.mockRestore();
+  });
+
+  it('keeps canceled archive rows intact when a late poll returns an error response', async () => {
+    const originalSetTimeout = window.setTimeout.bind(window);
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout').mockImplementation((handler: TimerHandler, timeout?: number) => {
+      if (timeout === 800 && typeof handler === 'function') {
+        handler();
+        return 0 as unknown as number;
+      }
+      return originalSetTimeout(handler, timeout);
+    });
+    const lateStatusResponse = createDeferred<Response>();
+
+    h.apiFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === '/api/spaces/1/files/archive-downloads' && init?.method === 'POST') {
+        return Promise.resolve(jsonResponse({
+          jobId: 'archive-cancel-2',
+          status: 'queued',
+          fileName: 'docs.zip',
+        }, 202));
+      }
+
+      if (url === '/api/spaces/1/files/archive-downloads?jobId=archive-cancel-2') {
+        if (init?.method === 'DELETE') {
+          return Promise.resolve(jsonResponse({
+            jobId: 'archive-cancel-2',
+            status: 'canceled',
+            fileName: 'docs.zip',
+            failureReason: 'archive canceled',
+          }));
+        }
+        return lateStatusResponse.promise;
+      }
+
+      throw new Error(`Unexpected apiFetch call: ${init?.method ?? 'GET'} ${url}`);
+    });
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    let archivePromise!: Promise<void>;
+    act(() => {
+      archivePromise = result.current.handleBulkDownload(['/docs']);
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'archive',
+        status: 'queued',
+        jobId: 'archive-cancel-2',
+      });
+    });
+
+    act(() => {
+      result.current.cancelUpload(result.current.transfers[0].id);
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        kind: 'archive',
+        status: 'canceled',
+        message: 'fileOperations.transferCanceled',
+      });
+    });
+
+    await act(async () => {
+      lateStatusResponse.resolve(new Response(JSON.stringify({ message: 'gone' }), { status: 410 }));
+      await archivePromise;
+    });
+
+    expect(result.current.transfers[0]).toMatchObject({
+      kind: 'archive',
+      status: 'canceled',
+      message: 'fileOperations.transferCanceled',
+    });
+    expect(h.message.warning).not.toHaveBeenCalledWith('gone');
+    setTimeoutSpy.mockRestore();
+  });
+
+  it('retries terminal archive rows with preserved requested paths', async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const apiCalls: Array<{ url: string; method: string; body?: string }> = [];
+    h.apiFetch.mockImplementation((url: string, init?: RequestInit) => {
+      apiCalls.push({
+        url,
+        method: init?.method ?? 'GET',
+        body: typeof init?.body === 'string' ? init.body : undefined,
+      });
+
+      if (url === '/api/spaces/1/files/archive-downloads' && init?.method === 'POST') {
+        return Promise.resolve(jsonResponse({
+          jobId: 'archive-retry-1',
+          status: 'ready',
+          fileName: 'docs.zip',
+          totalItems: 4,
+          processedItems: 4,
+          totalSourceBytes: 400,
+          processedSourceBytes: 400,
+          artifactSize: 240,
+        }, 202));
+      }
+
+      if (url === '/api/spaces/1/files/archive-download-ticket' && init?.method === 'POST') {
+        return Promise.resolve(jsonResponse({
+          downloadUrl: '/api/downloads/archive-retry-1',
+          fileName: 'docs.zip',
+        }));
+      }
+
+      throw new Error(`Unexpected apiFetch call: ${init?.method ?? 'GET'} ${url}`);
+    });
+
+    useTransferCenterStore.getState().upsertTransfer({
+      id: 'archive-failed-1',
+      kind: 'archive',
+      name: 'docs.zip',
+      status: 'failed',
+      spaceId: 1,
+      requestedPaths: ['docs'],
+      processedItems: 1,
+      totalItems: 4,
+      processedSourceBytes: 100,
+      totalSourceBytes: 400,
+      message: 'archive failed',
+      updatedAt: 9,
+    });
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    act(() => {
+      result.current.retryTransfer('archive-failed-1');
+    });
+
+    await waitFor(() => {
+      expect(result.current.transfers[0]).toMatchObject({
+        id: 'archive-failed-1',
+        kind: 'archive',
+        name: 'docs.zip',
+        status: 'handed_off',
+        requestedPaths: ['docs'],
+        jobId: 'archive-retry-1',
+      });
+    });
+
+    expect(apiCalls).toContainEqual({
+      url: '/api/spaces/1/files/archive-downloads',
+      method: 'POST',
+      body: JSON.stringify({ paths: ['docs'] }),
+    });
+    expect(apiCalls).toContainEqual({
+      url: '/api/spaces/1/files/archive-download-ticket',
+      method: 'POST',
+      body: JSON.stringify({ jobId: 'archive-retry-1' }),
+    });
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+
+    clickSpy.mockRestore();
+  });
+
   it('queues excess archive preparations and lets queued archive work be canceled before execution', async () => {
     h.browseState.content = [
       {

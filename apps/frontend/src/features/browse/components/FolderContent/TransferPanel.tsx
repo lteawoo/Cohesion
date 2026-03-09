@@ -25,6 +25,7 @@ import type { BrowserTransferItem } from '@/stores/transferCenterStore';
 interface TransferPanelProps {
   isMobile: boolean;
   onCancelUpload: (transferId: string) => void;
+  onRetryTransfer?: (transferId: string) => void;
 }
 
 function formatTransferName(name: string, maxLength = 32): string {
@@ -149,10 +150,12 @@ function getTransferProgressPresentation(transfer: BrowserTransferItem): {
 function TransferRow({
   transfer,
   onCancelUpload,
+  onRetryTransfer,
   onDismiss,
 }: {
   transfer: BrowserTransferItem;
   onCancelUpload: (transferId: string) => void;
+  onRetryTransfer?: (transferId: string) => void;
   onDismiss: (transferId: string) => void;
 }): React.ReactElement {
   const { token } = theme.useToken();
@@ -161,10 +164,15 @@ function TransferRow({
   const statusText = getTransferStatusText(transfer, t);
   const canCancel = (
     (transfer.kind === 'upload' && (transfer.status === 'queued' || transfer.status === 'uploading'))
-    || (transfer.kind === 'archive' && transfer.status === 'queued')
+    || (transfer.kind === 'archive' && (transfer.status === 'queued' || transfer.status === 'running'))
     || (transfer.kind === 'download' && transfer.status === 'running')
   );
   const canDismiss = !isActiveTransferStatus(transfer.status);
+  const canRetry = Boolean(
+    onRetryTransfer
+    && transfer.kind === 'archive'
+    && (transfer.status === 'failed' || transfer.status === 'expired' || transfer.status === 'canceled')
+  );
   const progress = getTransferProgressPresentation(transfer);
   const displayName = formatTransferName(transfer.name);
   const transferIcon = transfer.kind === 'upload'
@@ -207,6 +215,14 @@ function TransferRow({
               onClick={() => onCancelUpload(transfer.id)}
             >
               {t('fileOperations.cancelTransfer')}
+            </Button>
+          ) : null}
+          {canRetry ? (
+            <Button
+              size="small"
+              onClick={() => onRetryTransfer?.(transfer.id)}
+            >
+              {t('fileOperations.retryTransfer')}
             </Button>
           ) : null}
           {canDismiss ? (
@@ -265,7 +281,7 @@ function TransferRow({
   );
 }
 
-const TransferPanel: React.FC<TransferPanelProps> = ({ isMobile, onCancelUpload }) => {
+const TransferPanel: React.FC<TransferPanelProps> = ({ isMobile, onCancelUpload, onRetryTransfer }) => {
   const { token } = theme.useToken();
   const { t } = useTranslation();
   const transfers = useTransferCenterStore((state) => state.transfers);
@@ -334,12 +350,13 @@ const TransferPanel: React.FC<TransferPanelProps> = ({ isMobile, onCancelUpload 
         }}
       >
         {transfers.map((transfer) => (
-          <TransferRow
-            key={transfer.id}
-            transfer={transfer}
-            onCancelUpload={onCancelUpload}
-            onDismiss={dismissTransfer}
-          />
+            <TransferRow
+              key={transfer.id}
+              transfer={transfer}
+              onCancelUpload={onCancelUpload}
+              onRetryTransfer={onRetryTransfer}
+              onDismiss={dismissTransfer}
+            />
         ))}
       </div>
     </div>

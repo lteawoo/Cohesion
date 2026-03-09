@@ -107,6 +107,56 @@ describe('TransferPanel', () => {
     expect(cancelUpload).toHaveBeenCalledWith('archive-queued-1');
   });
 
+  it('allows running archive rows to be canceled from the stacked panel', async () => {
+    const user = userEvent.setup();
+    const cancelUpload = vi.fn();
+
+    useTransferCenterStore.getState().upsertTransfer({
+      id: 'archive-running-1',
+      kind: 'archive',
+      name: 'docs.zip',
+      status: 'running',
+      processedItems: 2,
+      totalItems: 4,
+      processedSourceBytes: 200,
+      totalSourceBytes: 400,
+      updatedAt: 4,
+    });
+
+    render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
+
+    await user.click(screen.getByText('fileOperations.cancelTransfer'));
+    expect(cancelUpload).toHaveBeenCalledWith('archive-running-1');
+  });
+
+  it('renders retry actions for terminal archive rows', async () => {
+    const user = userEvent.setup();
+    const retryTransfer = vi.fn();
+
+    useTransferCenterStore.getState().upsertTransfer({
+      id: 'archive-failed-1',
+      kind: 'archive',
+      name: 'docs.zip',
+      status: 'failed',
+      processedItems: 1,
+      totalItems: 4,
+      processedSourceBytes: 100,
+      totalSourceBytes: 400,
+      updatedAt: 5,
+    });
+
+    render(
+      <TransferPanel
+        isMobile={false}
+        onCancelUpload={vi.fn()}
+        onRetryTransfer={retryTransfer}
+      />
+    );
+
+    await user.click(screen.getByText('fileOperations.retryTransfer'));
+    expect(retryTransfer).toHaveBeenCalledWith('archive-failed-1');
+  });
+
   it('renders long transfer names with middle truncation while preserving the extension', () => {
     useTransferCenterStore.getState().upsertTransfer({
       id: 'long-name-1',

@@ -46,6 +46,7 @@ interface UseFileOperationsReturn {
   handleFileUpload: (files: UploadSource, targetPath: string) => Promise<void>;
   transfers: BrowserTransferItem[];
   cancelUpload: (transferId: string) => void;
+  retryTransfer: (transferId: string) => void;
   dismissTransfer: (transferId: string) => void;
 }
 
@@ -67,7 +68,7 @@ interface UploadResult {
 
 interface ArchiveDownloadJobResponse {
   jobId?: string;
-  status?: 'queued' | 'running' | 'ready' | 'failed' | 'expired';
+  status?: 'queued' | 'running' | 'ready' | 'failed' | 'expired' | 'canceled';
   fileName?: string;
   sourceCount?: number;
   totalItems?: number;
@@ -332,9 +333,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     payload: ArchiveDownloadJobResponse,
     overrideStatus?: BrowserTransferStatus,
     overrideMessage?: string,
-    spaceId?: number
+    spaceId?: number,
+    requestedPaths?: string[]
   ) => {
     const status = overrideStatus ?? payload.status ?? 'queued';
+    const currentTransfer = useTransferCenterStore.getState().transfers.find((transfer) => transfer.id === transferId);
+    const persistedRequestedPaths = currentTransfer?.kind === 'archive' ? currentTransfer.requestedPaths : undefined;
     upsertTransfer({
       id: transferId,
       kind: 'archive',
@@ -346,9 +350,30 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       totalItems: payload.totalItems ?? 0,
       processedSourceBytes: payload.processedSourceBytes ?? 0,
       totalSourceBytes: payload.totalSourceBytes ?? 0,
+      requestedPaths: requestedPaths ?? persistedRequestedPaths,
       message: overrideMessage ?? payload.failureReason,
     });
   }, [selectedSpace?.id, upsertTransfer]);
+
+  const isArchiveTransferCanceled = useCallback((transferId: string): boolean => {
+    const transfer = useTransferCenterStore.getState().transfers.find((item) => item.id === transferId);
+    return transfer?.kind === 'archive' && transfer.status === 'canceled';
+  }, []);
+
+  const readErrorMessage = useCallback(async (response: Response, fallback: string): Promise<string> => {
+    try {
+      const error = await response.json();
+      if (error?.message && typeof error.message === 'string') {
+        return error.message;
+      }
+      if (error?.error && typeof error.error === 'string') {
+        return error.error;
+      }
+    } catch {
+      // ignore parse errors and fallback to default message
+    }
+    return fallback;
+  }, []);
 
   const setDownloadTransferStatus = useCallback((
     transferId: string,
@@ -378,6 +403,42 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     const activeDownloadController = downloadAbortControllersRef.current.get(transferId);
     if (activeDownloadController) {
       activeDownloadController.abort();
+      return;
+    }
+
+    const activeArchiveTransfer = useTransferCenterStore.getState().transfers.find((transfer) => (
+      transfer.id === transferId
+      && transfer.kind === 'archive'
+      && (transfer.status === 'queued' || transfer.status === 'running')
+      && Boolean(transfer.jobId)
+      && Boolean(transfer.spaceId)
+    ));
+    if (activeArchiveTransfer?.kind === 'archive' && activeArchiveTransfer.jobId && activeArchiveTransfer.spaceId) {
+      void (async () => {
+        const cancelResponse = await apiFetch(
+          `/api/spaces/${activeArchiveTransfer.spaceId}/files/archive-downloads?jobId=${encodeURIComponent(activeArchiveTransfer.jobId)}`,
+          { method: 'DELETE' }
+        );
+        if (!cancelResponse.ok) {
+          const errorMessage = await readErrorMessage(cancelResponse, t('fileOperations.downloadPrepareFailed'));
+          message.error(errorMessage);
+          return;
+        }
+
+        const canceledPayload = (await cancelResponse.json()) as ArchiveDownloadJobResponse;
+        setArchiveTransferStatus(
+          activeArchiveTransfer.id,
+          canceledPayload.fileName ?? activeArchiveTransfer.name,
+          canceledPayload,
+          'canceled',
+          t('fileOperations.transferCanceled'),
+          activeArchiveTransfer.spaceId,
+          activeArchiveTransfer.requestedPaths
+        );
+      })().catch((error: unknown) => {
+        const errorMessage = error instanceof Error ? error.message : t('fileOperations.downloadPrepareFailed');
+        message.error(errorMessage);
+      });
       return;
     }
 
@@ -429,11 +490,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         { status: 'queued', fileName: queuedArchiveTask.fallbackArchiveName },
         'canceled',
         t('fileOperations.transferCanceled'),
-        queuedArchiveTask.archiveSpaceId
+        queuedArchiveTask.archiveSpaceId,
+        queuedArchiveTask.relativePaths
       );
       queuedArchiveTask.resolve();
     }
-  }, [setArchiveTransferStatus, setUploadTransferStatus, t]);
+  }, [apiFetch, message, readErrorMessage, setArchiveTransferStatus, setUploadTransferStatus, t]);
 
   const waitForNextArchivePoll = useCallback(async () => {
     await new Promise((resolve) => window.setTimeout(resolve, 800));
@@ -445,44 +507,37 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     await fetchSpaceContents(selectedSpace.id, normalizeRelativePath(selectedPath));
   }, [selectedPath, selectedSpace, fetchSpaceContents]);
 
-  const readErrorMessage = useCallback(async (response: Response, fallback: string): Promise<string> => {
-    try {
-      const error = await response.json();
-      if (error?.message && typeof error.message === 'string') {
-        return error.message;
-      }
-      if (error?.error && typeof error.error === 'string') {
-        return error.error;
-      }
-    } catch {
-      // ignore parse errors and fallback to default message
-    }
-    return fallback;
-  }, []);
-
   const driveArchiveDownloadFlow = useCallback(async ({
     transferId,
     archiveSpaceId,
     initialJob,
     fallbackName,
     notify,
+    requestedPaths,
   }: {
     transferId: string;
     archiveSpaceId: number;
     initialJob: ArchiveDownloadJobResponse;
     fallbackName: string;
     notify: boolean;
+    requestedPaths?: string[];
   }): Promise<void> => {
     let archiveJob = initialJob;
     let archiveName = archiveJob.fileName ?? fallbackName;
-    setArchiveTransferStatus(transferId, archiveName, archiveJob, undefined, undefined, archiveSpaceId);
+    setArchiveTransferStatus(transferId, archiveName, archiveJob, undefined, undefined, archiveSpaceId, requestedPaths);
 
     while (archiveJob.status === 'queued' || archiveJob.status === 'running') {
+      if (isArchiveTransferCanceled(transferId)) {
+        return;
+      }
       await waitForNextArchivePoll();
       const statusResponse = await apiFetch(
         `/api/spaces/${archiveSpaceId}/files/archive-downloads?jobId=${encodeURIComponent(archiveJob.jobId ?? '')}`
       );
       if (!statusResponse.ok) {
+        if (isArchiveTransferCanceled(transferId)) {
+          return;
+        }
         const errorMessage = await readErrorMessage(statusResponse, t('fileOperations.downloadPrepareFailed'));
         const terminalStatus = statusResponse.status === 404 || statusResponse.status === 410 ? 'expired' : 'failed';
         setArchiveTransferStatus(
@@ -491,7 +546,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           { ...archiveJob, failureReason: errorMessage },
           terminalStatus,
           errorMessage,
-          archiveSpaceId
+          archiveSpaceId,
+          requestedPaths
         );
         if (notify) {
           if (terminalStatus === 'expired') {
@@ -504,7 +560,24 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       }
       archiveJob = (await statusResponse.json()) as ArchiveDownloadJobResponse;
       archiveName = archiveJob.fileName ?? archiveName;
-      setArchiveTransferStatus(transferId, archiveName, archiveJob, undefined, undefined, archiveSpaceId);
+      if (isArchiveTransferCanceled(transferId)) {
+        return;
+      }
+      setArchiveTransferStatus(transferId, archiveName, archiveJob, undefined, undefined, archiveSpaceId, requestedPaths);
+    }
+
+    if (archiveJob.status === 'canceled') {
+      const canceledMessage = t('fileOperations.transferCanceled');
+      setArchiveTransferStatus(
+        transferId,
+        archiveName,
+        archiveJob,
+        'canceled',
+        canceledMessage,
+        archiveSpaceId,
+        requestedPaths
+      );
+      return;
     }
 
     if (archiveJob.status === 'failed') {
@@ -515,7 +588,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         archiveJob,
         'failed',
         failureReason,
-        archiveSpaceId
+        archiveSpaceId,
+        requestedPaths
       );
       if (notify) {
         message.error(failureReason);
@@ -531,7 +605,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         archiveJob,
         'expired',
         expiredMessage,
-        archiveSpaceId
+        archiveSpaceId,
+        requestedPaths
       );
       if (notify) {
         message.warning(expiredMessage);
@@ -539,6 +614,9 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       return;
     }
 
+    if (isArchiveTransferCanceled(transferId)) {
+      return;
+    }
     const ticketResponse = await apiFetch(`/api/spaces/${archiveSpaceId}/files/archive-download-ticket`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -553,7 +631,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         { ...archiveJob, failureReason: errorMessage },
         terminalStatus,
         errorMessage,
-        archiveSpaceId
+        archiveSpaceId,
+        requestedPaths
       );
       if (notify) {
         if (terminalStatus === 'expired') {
@@ -574,7 +653,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         { ...archiveJob, failureReason: errorMessage },
         'failed',
         errorMessage,
-        archiveSpaceId
+        archiveSpaceId,
+        requestedPaths
       );
       if (notify) {
         message.error(errorMessage);
@@ -589,13 +669,14 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       { ...archiveJob, fileName: readyName, status: 'ready' },
       'handed_off',
       undefined,
-      archiveSpaceId
+      archiveSpaceId,
+      requestedPaths
     );
     triggerBrowserDownloadFromUrl(payload.downloadUrl, payload.fileName);
     if (notify) {
       message.success(t('fileOperations.archiveReady', { name: readyName }));
     }
-  }, [apiFetch, message, readErrorMessage, setArchiveTransferStatus, t, waitForNextArchivePoll]);
+  }, [apiFetch, isArchiveTransferCanceled, message, readErrorMessage, setArchiveTransferStatus, t, waitForNextArchivePoll]);
 
   // 파일 업로드 실행 함수
   const performUpload = useCallback(
@@ -886,7 +967,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         { status: 'failed', failureReason: errorMessage },
         'failed',
         errorMessage,
-        task.archiveSpaceId
+        task.archiveSpaceId,
+        task.relativePaths
       );
       throw new Error(errorMessage);
     }
@@ -901,7 +983,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         { status: 'failed', failureReason: errorMessage },
         'failed',
         errorMessage,
-        task.archiveSpaceId
+        task.archiveSpaceId,
+        task.relativePaths
       );
       throw new Error(errorMessage);
     }
@@ -912,6 +995,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       initialJob: archiveJob,
       fallbackName: archiveJob.fileName ?? task.fallbackArchiveName,
       notify: true,
+      requestedPaths: task.relativePaths,
     });
   }, [apiFetch, driveArchiveDownloadFlow, readErrorMessage, setArchiveTransferStatus, t]);
 
@@ -947,6 +1031,43 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       pumpArchiveQueue();
     });
   }, [pumpArchiveQueue]);
+
+  const retryTransfer = useCallback((transferId: string) => {
+    const transfer = useTransferCenterStore.getState().transfers.find((item) => item.id === transferId);
+    if (!transfer || transfer.kind !== 'archive') {
+      return;
+    }
+    if (!transfer.spaceId || !transfer.requestedPaths?.length) {
+      message.error(t('fileOperations.downloadPrepareFailed'));
+      return;
+    }
+
+    setArchiveTransferStatus(
+      transfer.id,
+      transfer.name,
+      {
+        status: 'queued',
+        fileName: transfer.name,
+        totalItems: 0,
+        processedItems: 0,
+        totalSourceBytes: 0,
+        processedSourceBytes: 0,
+      },
+      undefined,
+      undefined,
+      transfer.spaceId,
+      transfer.requestedPaths
+    );
+
+    void enqueueArchiveTask({
+      transferId: transfer.id,
+      archiveSpaceId: transfer.spaceId,
+      relativePaths: transfer.requestedPaths,
+      fallbackArchiveName: transfer.name,
+    }).catch((error: unknown) => {
+      message.error(error instanceof Error ? error.message : t('fileOperations.downloadPrepareFailed'));
+    });
+  }, [enqueueArchiveTask, message, setArchiveTransferStatus, t]);
 
   useEffect(() => {
     if (reconciledPersistedTransfersRef.current) {
@@ -1009,6 +1130,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           },
           fallbackName: archiveTransfer.name,
           notify: false,
+          requestedPaths: archiveTransfer.requestedPaths,
         });
       }
     });
@@ -1582,7 +1704,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           processedItems: 0,
           totalSourceBytes: 0,
           processedSourceBytes: 0,
-        }, undefined, undefined, selectedSpace.id);
+        }, undefined, undefined, selectedSpace.id, relativePaths);
 
         await enqueueArchiveTask({
           transferId,
@@ -1974,6 +2096,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     handleFileUpload,
     transfers,
     cancelUpload,
+    retryTransfer,
     dismissTransfer,
   };
 }
