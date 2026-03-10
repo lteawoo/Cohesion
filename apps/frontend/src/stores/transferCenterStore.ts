@@ -48,7 +48,22 @@ export interface DownloadTransferItem extends BaseTransferItem {
 }
 
 export type BrowserTransferItem = UploadTransferItem | ArchiveTransferItem | DownloadTransferItem;
-type TransferInsert = Omit<BrowserTransferItem, 'updatedAt'> & { updatedAt?: number };
+type UploadTransferInsert = Omit<UploadTransferItem, 'updatedAt'> & { updatedAt?: number };
+type ArchiveTransferInsert = Omit<
+  ArchiveTransferItem,
+  'updatedAt' | 'processedItems' | 'totalItems' | 'processedSourceBytes' | 'totalSourceBytes'
+> & {
+  updatedAt?: number;
+  processedItems?: number;
+  totalItems?: number;
+  processedSourceBytes?: number;
+  totalSourceBytes?: number;
+};
+type DownloadTransferInsert = Omit<DownloadTransferItem, 'updatedAt'> & { updatedAt?: number };
+type TransferInsert =
+  | UploadTransferInsert
+  | ArchiveTransferInsert
+  | DownloadTransferInsert;
 
 const ACTIVE_TRANSFER_STATUSES: BrowserTransferStatus[] = ['uploading', 'queued', 'running'];
 const CLEARABLE_TRANSFER_STATUSES: BrowserTransferStatus[] = ['completed', 'handed_off'];
@@ -101,6 +116,25 @@ function applyTerminalRetention(transfers: BrowserTransferItem[]): BrowserTransf
   ]);
 }
 
+function toBrowserTransferItem(transfer: TransferInsert): BrowserTransferItem {
+  const updatedAt = transfer.updatedAt ?? Date.now();
+  if (transfer.kind === 'archive') {
+    return {
+      ...transfer,
+      updatedAt,
+      processedItems: transfer.processedItems ?? 0,
+      totalItems: transfer.totalItems ?? 0,
+      processedSourceBytes: transfer.processedSourceBytes ?? 0,
+      totalSourceBytes: transfer.totalSourceBytes ?? 0,
+    };
+  }
+
+  return {
+    ...transfer,
+    updatedAt,
+  };
+}
+
 interface TransferCenterStore {
   isOpen: boolean;
   transfers: BrowserTransferItem[];
@@ -130,10 +164,7 @@ export const useTransferCenterStore = create<TransferCenterStore>()(
 
       upsertTransfer: (transfer) => {
         set((state) => {
-          const nextTransfer: BrowserTransferItem = {
-            ...transfer,
-            updatedAt: transfer.updatedAt ?? Date.now(),
-          } as BrowserTransferItem;
+          const nextTransfer = toBrowserTransferItem(transfer);
           const transferIndex = state.transfers.findIndex((item) => item.id === transfer.id);
           const nextTransfers = transferIndex === -1
             ? [nextTransfer, ...state.transfers]

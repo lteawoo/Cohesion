@@ -1,7 +1,9 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTransferCenterStore } from '@/stores/transferCenterStore';
 import { useFileOperations } from './useFileOperations';
+
+const waitFor = vi.waitFor;
 
 const h = vi.hoisted(() => {
   const apiFetch = vi.fn();

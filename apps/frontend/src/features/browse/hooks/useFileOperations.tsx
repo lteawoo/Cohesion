@@ -415,8 +415,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     ));
     if (activeArchiveTransfer?.kind === 'archive' && activeArchiveTransfer.jobId && activeArchiveTransfer.spaceId) {
       void (async () => {
+        const archiveJobId = activeArchiveTransfer.jobId;
+        if (!archiveJobId) {
+          return;
+        }
         const cancelResponse = await apiFetch(
-          `/api/spaces/${activeArchiveTransfer.spaceId}/files/archive-downloads?jobId=${encodeURIComponent(activeArchiveTransfer.jobId)}`,
+          `/api/spaces/${activeArchiveTransfer.spaceId}/files/archive-downloads?jobId=${encodeURIComponent(archiveJobId)}`,
           { method: 'DELETE' }
         );
         if (!cancelResponse.ok) {
@@ -471,7 +475,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     const queuedUploadTransfer = useTransferCenterStore.getState().transfers.find((transfer) => (
       transfer.id === transferId && transfer.kind === 'upload' && transfer.status === 'queued'
     ));
-    if (queuedUploadTransfer) {
+    if (queuedUploadTransfer?.kind === 'upload') {
       canceledQueuedUploadTransferIdsRef.current.add(transferId);
       setUploadTransferStatus(transferId, queuedUploadTransfer.name, 'canceled', {
         loaded: 0,
@@ -495,7 +499,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       );
       queuedArchiveTask.resolve();
     }
-  }, [apiFetch, message, readErrorMessage, setArchiveTransferStatus, setUploadTransferStatus, t]);
+  }, [message, readErrorMessage, setArchiveTransferStatus, setUploadTransferStatus, t]);
 
   const waitForNextArchivePoll = useCallback(async () => {
     await new Promise((resolve) => window.setTimeout(resolve, 800));
@@ -676,7 +680,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     if (notify) {
       message.success(t('fileOperations.archiveReady', { name: readyName }));
     }
-  }, [apiFetch, isArchiveTransferCanceled, message, readErrorMessage, setArchiveTransferStatus, t, waitForNextArchivePoll]);
+  }, [isArchiveTransferCanceled, message, readErrorMessage, setArchiveTransferStatus, t, waitForNextArchivePoll]);
 
   // 파일 업로드 실행 함수
   const performUpload = useCallback(
@@ -997,7 +1001,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       notify: true,
       requestedPaths: task.relativePaths,
     });
-  }, [apiFetch, driveArchiveDownloadFlow, readErrorMessage, setArchiveTransferStatus, t]);
+  }, [driveArchiveDownloadFlow, readErrorMessage, setArchiveTransferStatus, t]);
 
   const pumpArchiveQueue = useCallback(() => {
     while (activeArchiveTaskCountRef.current < MAX_ACTIVE_ARCHIVE_TASKS && archiveQueueRef.current.length > 0) {
@@ -1116,12 +1120,18 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
           return;
         }
 
+        const initialArchiveStatus = archiveTransfer.status === 'ready'
+          ? 'ready'
+          : archiveTransfer.status === 'running'
+            ? 'running'
+            : 'queued';
+
         void driveArchiveDownloadFlow({
           transferId: archiveTransfer.id,
           archiveSpaceId: archiveTransfer.spaceId,
           initialJob: {
             jobId: archiveTransfer.jobId,
-            status: archiveTransfer.status === 'ready' ? 'ready' : archiveTransfer.status,
+            status: initialArchiveStatus,
             fileName: archiveTransfer.name,
             totalItems: archiveTransfer.totalItems,
             processedItems: archiveTransfer.processedItems,
@@ -1723,6 +1733,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       selectedSpace,
       setArchiveTransferStatus,
       setDownloadTransferStatus,
+      readErrorMessage,
       t,
     ]
   );

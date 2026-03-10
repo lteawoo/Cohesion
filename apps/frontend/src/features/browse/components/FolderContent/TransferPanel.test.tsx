@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTransferCenterStore } from '@/stores/transferCenterStore';
@@ -63,26 +63,25 @@ describe('TransferPanel', () => {
       updatedAt: 2,
     });
 
-    render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
+    const view = render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
 
-    expect(screen.getByTestId('transfer-center-trigger')).toBeTruthy();
-    const panel = screen.getByTestId('transfer-center-panel');
-    const desktopList = screen.getByTestId('transfer-center-list') as HTMLDivElement;
+    expect(view.getByTestId('transfer-center-trigger')).toBeTruthy();
+    const desktopList = view.getByTestId('transfer-center-list') as HTMLDivElement;
     expect(desktopList.style.overflowY).toBe('auto');
     expect(desktopList.style.maxHeight).toBe('420px');
-    const rowLabels = within(panel).getAllByText(/active\.bin|report\.pdf/);
+    const rowLabels = view.getAllByText(/active\.bin|report\.pdf/);
     expect(rowLabels[0].textContent).toContain('active.bin');
     expect(rowLabels[1].textContent).toContain('report.pdf');
-    expect(screen.getAllByText('fileOperations.transferStatusCompleted').length).toBeGreaterThan(0);
-    expect(screen.getByText('50%')).toBeTruthy();
-    expect(screen.queryByText('100%')).toBeNull();
+    expect(view.getAllByText('fileOperations.transferStatusCompleted').length).toBeGreaterThan(0);
+    expect(view.getByText('50%')).toBeTruthy();
+    expect(view.queryByText('100%')).toBeNull();
 
-    await user.click(screen.getByText('fileOperations.cancelTransfer'));
+    await user.click(view.getByText('fileOperations.cancelTransfer'));
     expect(cancelUpload).toHaveBeenCalledWith('active-1');
 
-    await user.click(screen.getByTestId('transfer-center-clear-completed'));
-    expect(screen.queryByText('report.pdf')).toBeNull();
-    expect(screen.getByText('active.bin')).toBeTruthy();
+    await user.click(view.getByTestId('transfer-center-clear-completed'));
+    expect(view.queryByText('report.pdf')).toBeNull();
+    expect(view.getByText('active.bin')).toBeTruthy();
   });
 
   it('allows queued archive rows to be canceled from the stacked panel', async () => {
@@ -101,9 +100,9 @@ describe('TransferPanel', () => {
       updatedAt: 3,
     });
 
-    render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
+    const view = render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
 
-    await user.click(screen.getByText('fileOperations.cancelTransfer'));
+    await user.click(view.getByText('fileOperations.cancelTransfer'));
     expect(cancelUpload).toHaveBeenCalledWith('archive-queued-1');
   });
 
@@ -123,9 +122,9 @@ describe('TransferPanel', () => {
       updatedAt: 4,
     });
 
-    render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
+    const view = render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
 
-    await user.click(screen.getByText('fileOperations.cancelTransfer'));
+    await user.click(view.getByText('fileOperations.cancelTransfer'));
     expect(cancelUpload).toHaveBeenCalledWith('archive-running-1');
   });
 
@@ -145,7 +144,7 @@ describe('TransferPanel', () => {
       updatedAt: 5,
     });
 
-    render(
+    const view = render(
       <TransferPanel
         isMobile={false}
         onCancelUpload={vi.fn()}
@@ -153,7 +152,7 @@ describe('TransferPanel', () => {
       />
     );
 
-    await user.click(screen.getByText('fileOperations.retryTransfer'));
+    await user.click(view.getByText('fileOperations.retryTransfer'));
     expect(retryTransfer).toHaveBeenCalledWith('archive-failed-1');
   });
 
@@ -166,10 +165,10 @@ describe('TransferPanel', () => {
       updatedAt: 4,
     });
 
-    render(<TransferPanel isMobile={false} onCancelUpload={vi.fn()} />);
+    const view = render(<TransferPanel isMobile={false} onCancelUpload={vi.fn()} />);
 
-    expect(screen.getByText('abcdefghijklmnopqr...4567890.pdf')).toBeTruthy();
-    expect(screen.queryByText('abcdefghijklmnopqrstuvwxyz1234567890.pdf')).toBeNull();
+    expect(view.getByText('abcdefghijklmnopqr...4567890.pdf')).toBeTruthy();
+    expect(view.queryByText('abcdefghijklmnopqrstuvwxyz1234567890.pdf')).toBeNull();
   });
 
   it('shows request-state download rows without numeric direct-download progress', () => {
@@ -182,12 +181,12 @@ describe('TransferPanel', () => {
       updatedAt: 5,
     });
 
-    render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
+    const view = render(<TransferPanel isMobile={false} onCancelUpload={cancelUpload} />);
 
-    expect(screen.getAllByText('fileOperations.transferStatusRequesting').length).toBeGreaterThan(0);
-    expect(screen.queryByText('0%')).toBeNull();
-    expect(screen.queryByText('100%')).toBeNull();
-    expect(screen.getByText('fileOperations.cancelTransfer')).toBeTruthy();
+    expect(view.getAllByText('fileOperations.transferStatusRequesting').length).toBeGreaterThan(0);
+    expect(view.queryByText('0%')).toBeNull();
+    expect(view.queryByText('100%')).toBeNull();
+    expect(view.getByText('fileOperations.cancelTransfer')).toBeTruthy();
   });
 
   it('opens the mobile transfer sheet from the floating trigger', async () => {
@@ -201,17 +200,17 @@ describe('TransferPanel', () => {
     });
     useTransferCenterStore.getState().setOpen(false);
 
-    render(<TransferPanel isMobile onCancelUpload={vi.fn()} />);
+    const view = render(<TransferPanel isMobile onCancelUpload={vi.fn()} />);
 
-    expect(screen.queryByTestId('mock-bottom-sheet')).toBeNull();
-    await user.click(screen.getByTestId('transfer-center-trigger'));
-    expect(screen.getByTestId('mock-bottom-sheet')).toBeTruthy();
-    expect(screen.getByTestId('transfer-center-mobile-sheet')).toBeTruthy();
-    const mobileList = screen.getByTestId('transfer-center-list') as HTMLDivElement;
+    expect(view.queryByTestId('mock-bottom-sheet')).toBeNull();
+    await user.click(view.getByTestId('transfer-center-trigger'));
+    expect(view.getByTestId('mock-bottom-sheet')).toBeTruthy();
+    expect(view.getByTestId('transfer-center-mobile-sheet')).toBeTruthy();
+    const mobileList = view.getByTestId('transfer-center-list') as HTMLDivElement;
     expect(mobileList.style.overflowY).toBe('auto');
     expect(mobileList.style.maxHeight).toBe('480px');
-    expect(screen.getByText('manual.pdf')).toBeTruthy();
-    expect(screen.getAllByText('fileOperations.transferStatusCompleted').length).toBeGreaterThan(0);
-    expect(screen.queryByText('100%')).toBeNull();
+    expect(view.getByText('manual.pdf')).toBeTruthy();
+    expect(view.getAllByText('fileOperations.transferStatusCompleted').length).toBeGreaterThan(0);
+    expect(view.queryByText('100%')).toBeNull();
   });
 });
