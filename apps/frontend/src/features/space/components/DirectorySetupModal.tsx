@@ -1,8 +1,61 @@
-import { Modal, Input, App, theme } from "antd";
+import { Alert, App, Input, Modal, theme } from "antd";
 import FolderTree from "../../browse/components/FolderTree";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSpaceStore } from "@/stores/spaceStore";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@/api/error";
+import type { SpaceRootValidationCode, SpaceRootValidationResult } from "../types";
+
+type RootValidationState =
+  | { status: 'idle' }
+  | { status: 'validating' }
+  | { status: 'valid'; code: SpaceRootValidationCode; message: string }
+  | { status: 'invalid'; code?: SpaceRootValidationCode; message: string; description?: string };
+
+function isSpaceRootValidationCode(value: string | undefined): value is SpaceRootValidationCode {
+  return value === 'valid'
+    || value === 'not_found'
+    || value === 'not_directory'
+    || value === 'permission_denied';
+}
+
+function buildValidationState(
+  t: (key: string) => string,
+  result: SpaceRootValidationResult,
+): RootValidationState {
+  switch (result.code) {
+    case 'valid':
+      return { status: 'valid', code: result.code, message: t('directorySetup.validation.valid') };
+    case 'not_found':
+      return { status: 'invalid', code: result.code, message: t('directorySetup.validation.notFound') };
+    case 'not_directory':
+      return { status: 'invalid', code: result.code, message: t('directorySetup.validation.notDirectory') };
+    case 'permission_denied':
+      return {
+        status: 'invalid',
+        code: result.code,
+        message: t('directorySetup.validation.permissionDenied'),
+        description: t('directorySetup.validation.permissionDeniedHint'),
+      };
+    default:
+      return { status: 'invalid', message: result.message ?? t('directorySetup.validation.invalid') };
+  }
+}
+
+function buildValidationStateFromApiError(
+  t: (key: string) => string,
+  error: unknown,
+): RootValidationState | null {
+  if (!(error instanceof ApiError) || !isSpaceRootValidationCode(error.code)) {
+    return null;
+  }
+
+  return buildValidationState(t, {
+    valid: false,
+    code: error.code,
+    message: error.message,
+  });
+}
 
 export default function DirectorySetupModal({
   isOpen,
@@ -16,8 +69,11 @@ export default function DirectorySetupModal({
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [spaceName, setSpaceName] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
+  const [rootValidation, setRootValidation] = useState<RootValidationState>({ status: 'idle' });
   const createSpace = useSpaceStore((state) => state.createSpace);
+  const validateSpaceRoot = useSpaceStore((state) => state.validateSpaceRoot);
   const { token } = theme.useToken();
+  const validationRequestIdRef = useRef(0);
 
   const handleClose = () => {
     if (isCreating) {
@@ -25,11 +81,14 @@ export default function DirectorySetupModal({
     }
     setSelectedPath('');
     setSpaceName('');
+    setRootValidation({ status: 'idle' });
+    validationRequestIdRef.current += 1;
     onClose();
   };
 
   const handleSelect = (path: string) => {
     setSelectedPath(path);
+    setRootValidation(path ? { status: 'validating' } : { status: 'idle' });
 
     // 선택된 폴더 이름을 기본 Space 이름으로 설정
     if (!spaceName) {
@@ -50,19 +109,67 @@ export default function DirectorySetupModal({
       return;
     }
 
+    if (rootValidation.status === 'validating' || rootValidation.status === 'invalid') {
+      message.error(t('directorySetup.validation.invalid'));
+      return;
+    }
+
     setIsCreating(true);
     try {
       await createSpace(spaceName.trim(), selectedPath);
       message.success(t('directorySetup.createSuccess'));
       setSelectedPath('');
       setSpaceName('');
+      setRootValidation({ status: 'idle' });
       onClose();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : t('directorySetup.createFailed'));
+      const validationState = buildValidationStateFromApiError(t, error);
+      if (validationState) {
+        setRootValidation(validationState);
+        message.error(validationState.message);
+      } else {
+        message.error(error instanceof Error ? error.message : t('directorySetup.createFailed'));
+      }
     } finally {
       setIsCreating(false);
     }
   };
+
+  useEffect(() => {
+    if (!isOpen || !selectedPath) {
+      return;
+    }
+
+    let active = true;
+    const requestId = validationRequestIdRef.current + 1;
+    validationRequestIdRef.current = requestId;
+    setRootValidation({ status: 'validating' });
+
+    void (async () => {
+      try {
+        const result = await validateSpaceRoot(selectedPath);
+        if (!active || validationRequestIdRef.current !== requestId) {
+          return;
+        }
+        setRootValidation(buildValidationState(t, result));
+      } catch (error) {
+        if (!active || validationRequestIdRef.current !== requestId) {
+          return;
+        }
+        const validationState = buildValidationStateFromApiError(t, error);
+        setRootValidation(validationState ?? {
+          status: 'invalid',
+          message: error instanceof Error ? error.message : t('directorySetup.validationFailed'),
+        });
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, selectedPath, t, validateSpaceRoot]);
+
+  const isRootValidationBlocking = rootValidation.status === 'validating' || rootValidation.status === 'invalid';
 
   return (
     <Modal
@@ -72,7 +179,7 @@ export default function DirectorySetupModal({
       onCancel={handleClose}
       width={600}
       okButtonProps={{
-        disabled: !selectedPath || !spaceName.trim() || isCreating,
+        disabled: !selectedPath || !spaceName.trim() || isCreating || isRootValidationBlocking,
         loading: isCreating
       }}
       cancelButtonProps={{ disabled: isCreating }}
@@ -98,6 +205,15 @@ export default function DirectorySetupModal({
         <div style={{ fontStyle: 'italic', marginBottom: 8, fontSize: 12 }}>
           {t('directorySetup.selectedFolder')}: {selectedPath || t('directorySetup.none')}
         </div>
+        {rootValidation.status !== 'idle' ? (
+          <Alert
+            style={{ marginBottom: 8 }}
+            type={rootValidation.status === 'valid' ? 'success' : rootValidation.status === 'validating' ? 'info' : 'error'}
+            message={rootValidation.status === 'validating' ? t('directorySetup.validation.validating') : rootValidation.message}
+            description={rootValidation.status === 'invalid' ? rootValidation.description : undefined}
+            showIcon={true}
+          />
+        ) : null}
         <div
           style={{
             height: '40vh',
@@ -107,7 +223,11 @@ export default function DirectorySetupModal({
             padding: 8,
           }}
         >
-          <FolderTree onSelect={handleSelect} showBaseDirectories={true} />
+          <FolderTree
+            onSelect={handleSelect}
+            showBaseDirectories={true}
+            hidePartialBrowseErrorAlert={true}
+          />
         </div>
       </div>
     </Modal>

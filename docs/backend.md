@@ -36,7 +36,7 @@ apps/backend/
     ├── sftp/                     # SFTP 런타임
     ├── spa/                      # SPA 정적 파일 서빙
     ├── space/                    # 스페이스, 파일 작업, 쿼터, 검색, 휴지통
-    │   ├── handler/
+    │   ├── handler/              # file dispatcher + upload/download/mutation/archive handlers
     │   └── store/
     ├── status/                   # /api/status
     ├── system/                   # 재시작/업데이트
@@ -76,6 +76,22 @@ apps/backend/
   - 런타임 상태 조회
 - `webdav`, `ftp`, `sftp`
   - 공유 프로토콜 런타임
+
+## Space file handler 경계
+
+- `internal/space/handler/file_handler.go`
+  - `/api/spaces/{id}/files/{action}` dispatcher만 유지한다.
+  - denied audit와 search-index dirty marking 같은 cross-cutting 후처리를 연결한다.
+- `internal/space/handler/file_upload_handler.go`
+  - multipart upload staging, conflict policy, quota reservation/finalize를 담당한다.
+- `internal/space/handler/file_download_handler.go`
+  - direct download, download ticket, multi-download ticket, ZIP streaming을 담당한다.
+- `internal/space/handler/file_mutation_handler.go`
+  - rename, create-folder, move/copy, trash lifecycle를 담당한다.
+- `internal/space/handler/file_handler_shared.go`
+  - path validation, quota invalidation, audit helper, search-index dirty marking, trash helper 같은 공통 로직만 둔다.
+- `archive_download_job.go`, `download_ticket.go`
+  - archive job/ticket 계약은 유지하고 file action handlers가 이를 조합한다.
 
 ## 실행 명령
 
@@ -118,11 +134,17 @@ pnpm release:check
   - 시스템 디렉터리 탐색 전용
   - Space 생성 흐름에서 사용
   - `space.write` 권한 필요
+- `/api/spaces/validate-root`
+  - Space 생성 직전 root 경로 검증 전용
+  - `valid`, `not_found`, `not_directory`, `permission_denied` 결과를 구조화해 반환
+  - `space.write` 권한 필요
 - `/api/spaces/{id}/browse?path=...`
   - 선택한 스페이스 내부 탐색 전용
   - 스페이스 권한 기준으로 접근 제어
 
 `/api/browse`를 스페이스 내부 탐색 대체 경로로 쓰지 않는다.
+
+`POST /api/spaces`는 `ValidateSpaceRoot`와 동일한 검증을 다시 수행해 preflight를 우회한 broken Space 생성을 막는다. 이미 생성된 Space는 이후 OS 권한이 사라져도 레코드를 유지하고 browse 시점에 현재 접근 오류를 surface한다.
 
 ## 운영 로그
 

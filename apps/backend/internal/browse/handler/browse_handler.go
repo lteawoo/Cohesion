@@ -11,11 +11,17 @@ import (
 )
 
 type Handler struct {
-	browseService *browse.Service
+	browseService BrowseService
 	spaceService  *space.Service
 }
 
-func NewHandler(browseService *browse.Service, spaceService *space.Service) *Handler {
+type BrowseService interface {
+	GetBaseDirectories() []browse.FileInfo
+	GetInitialBrowseRoot() string
+	ListDirectory(onlyDir bool, path string) ([]browse.FileInfo, error)
+}
+
+func NewHandler(browseService BrowseService, spaceService *space.Service) *Handler {
 	return &Handler{
 		browseService: browseService,
 		spaceService:  spaceService,
@@ -55,7 +61,7 @@ func (h *Handler) handleBrowse(w http.ResponseWriter, r *http.Request) *web.Erro
 		if os.IsNotExist(err) {
 			return &web.Error{Code: http.StatusNotFound, Message: "Directory not found", Err: err}
 		}
-		if os.IsPermission(err) {
+		if browse.IsPermissionError(err) {
 			return &web.Error{Code: http.StatusForbidden, Message: "Permission denied", Err: err}
 		}
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to list directory", Err: err}

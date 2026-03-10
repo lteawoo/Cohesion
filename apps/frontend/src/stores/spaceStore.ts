@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Space } from '@/features/space/types';
+import type { Space, SpaceRootValidationResult } from '@/features/space/types';
 import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
 import i18n from '@/i18n';
@@ -13,6 +13,7 @@ interface SpaceStore {
   fetchSpaces: () => Promise<void>;
   setSelectedSpace: (space: Space | undefined) => void;
   createSpace: (name: string, path: string) => Promise<void>;
+  validateSpaceRoot: (path: string) => Promise<SpaceRootValidationResult>;
   renameSpace: (id: number, name: string) => Promise<void>;
   deleteSpace: (id: number) => Promise<void>;
 }
@@ -81,6 +82,22 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
       set({ error, isLoading: false });
       throw error;
     }
+  },
+
+  validateSpaceRoot: async (path: string) => {
+    const response = await apiFetch('/api/spaces/validate-root', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        space_path: path,
+      }),
+    });
+
+    if (!response.ok) {
+      throw await toApiError(response, i18n.t('directorySetup.validationFailed'));
+    }
+
+    return await response.json() as SpaceRootValidationResult;
   },
 
   renameSpace: async (id: number, name: string) => {

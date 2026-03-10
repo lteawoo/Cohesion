@@ -2,15 +2,38 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"taeu.kr/cohesion/internal/browse"
 )
+
+type fakeBrowseService struct {
+	baseDirectories   []browse.FileInfo
+	initialBrowseRoot string
+	listDirectory     func(onlyDir bool, path string) ([]browse.FileInfo, error)
+}
+
+func (f *fakeBrowseService) GetBaseDirectories() []browse.FileInfo {
+	return f.baseDirectories
+}
+
+func (f *fakeBrowseService) GetInitialBrowseRoot() string {
+	return f.initialBrowseRoot
+}
+
+func (f *fakeBrowseService) ListDirectory(onlyDir bool, path string) ([]browse.FileInfo, error) {
+	if f.listDirectory != nil {
+		return f.listDirectory(onlyDir, path)
+	}
+	return nil, nil
+}
 
 func TestHandleBrowseTreatsRequestsAsSystemBrowse(t *testing.T) {
 	t.Parallel()
@@ -59,5 +82,33 @@ func TestHandleBrowseTreatsRequestsAsSystemBrowse(t *testing.T) {
 				t.Fatalf("expected at least one entry in response, got %d", len(payload))
 			}
 		})
+	}
+}
+
+func TestHandleBrowseReturnsForbiddenForWrappedPermissionErrors(t *testing.T) {
+	t.Parallel()
+
+	h := NewHandler(&fakeBrowseService{
+		initialBrowseRoot: "/Users/twlee/Downloads",
+		listDirectory: func(_ bool, _ string) ([]browse.FileInfo, error) {
+			return nil, fmt.Errorf(
+				"fail to read directory: %w",
+				&os.PathError{Op: "open", Path: "/Users/twlee/Downloads", Err: syscall.EPERM},
+			)
+		},
+	}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/browse", nil)
+	rec := httptest.NewRecorder()
+
+	webErr := h.handleBrowse(rec, req)
+	if webErr == nil {
+		t.Fatal("expected browse error")
+	}
+	if webErr.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, webErr.Code)
+	}
+	if webErr.Message != "Permission denied" {
+		t.Fatalf("expected permission denied message, got %q", webErr.Message)
 	}
 }

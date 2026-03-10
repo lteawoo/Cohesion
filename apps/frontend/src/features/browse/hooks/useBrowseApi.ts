@@ -4,6 +4,7 @@ import type { FileNode } from '../types';
 import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
 import { useTranslation } from 'react-i18next';
+import { normalizeBrowseError } from '../browseError';
 
 export function useBrowseApi() {
   const { t } = useTranslation();
@@ -21,13 +22,13 @@ export function useBrowseApi() {
       const data = await response.json();
       return data;
     } catch (e) {
-      const apiError = e instanceof Error ? e : new Error(fallbackErrorMessage);
+      const apiError = normalizeBrowseError(e, { fallbackMessage: fallbackErrorMessage, t });
       setError(apiError);
       throw apiError;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const fetchBaseDirectories = useCallback(async () => {
     // System browse root candidates for Space creation flow.

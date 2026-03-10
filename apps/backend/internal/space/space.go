@@ -2,7 +2,6 @@ package space
 
 import (
 	"errors"
-	"os"
 	"strings"
 	"time"
 )
@@ -70,11 +69,6 @@ func (req *CreateSpaceRequest) Validate() error {
 	}
 	if req.QuotaBytes != nil && *req.QuotaBytes < 0 {
 		return errors.New("quota_bytes must be greater than or equal to 0")
-	}
-
-	// 경로 유효성 검사
-	if _, err := os.Stat(req.SpacePath); os.IsNotExist(err) {
-		return errors.New("space_path does not exist")
 	}
 
 	return nil

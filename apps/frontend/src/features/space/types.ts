@@ -31,6 +31,18 @@ export interface CreateSpaceResponse {
   message: string;
 }
 
+export type SpaceRootValidationCode =
+  | 'valid'
+  | 'not_found'
+  | 'not_directory'
+  | 'permission_denied';
+
+export interface SpaceRootValidationResult {
+  valid: boolean;
+  code: SpaceRootValidationCode;
+  message?: string;
+}
+
 export interface SpaceApiError {
   error: string;
 }

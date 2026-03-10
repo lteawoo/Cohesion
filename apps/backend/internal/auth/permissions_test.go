@@ -185,6 +185,12 @@ func TestRequiredPermissionForRequest_SpaceUsageAndQuota(t *testing.T) {
 			path:     "/api/spaces/1/quota",
 			expected: PermissionSpaceWrite,
 		},
+		{
+			name:     "space root validation",
+			method:   http.MethodPost,
+			path:     "/api/spaces/validate-root",
+			expected: PermissionSpaceWrite,
+		},
 	}
 
 	for _, tc := range tests {

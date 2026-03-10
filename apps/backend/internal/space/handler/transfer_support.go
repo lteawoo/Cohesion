@@ -187,10 +187,7 @@ func (h *Handler) buildUploadPlan(
 
 	targetInfo, err := os.Stat(absTarget)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, &web.Error{Code: http.StatusNotFound, Message: "Target directory not found", Err: err}
-		}
-		return nil, &web.Error{Code: http.StatusInternalServerError, Message: "Failed to access target directory", Err: err}
+		return nil, storageAccessWebError(err, "Target directory not found", "Failed to access target directory")
 	}
 	if !targetInfo.IsDir() {
 		return nil, &web.Error{Code: http.StatusBadRequest, Message: "Target path must be a directory"}
@@ -234,7 +231,7 @@ func (h *Handler) buildUploadPlan(
 			}, nil
 		}
 	} else if !os.IsNotExist(err) {
-		return nil, &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect destination path", Err: err}
+		return nil, storageAccessWebError(err, "", "Failed to inspect destination path")
 	}
 
 	quotaWindow, webErr := h.calculateUploadQuotaWindow(ctx, spaceID, existingBytes, estimatedSize)

@@ -904,4 +904,43 @@ describe('useFileOperations transfer states', () => {
 
     expect(archiveCallIndex).toBe(2);
   });
+
+  it('falls back to the rename error message when the server returns a non-JSON error body', async () => {
+    h.apiFetch.mockResolvedValueOnce(new Response('bad gateway', {
+      status: 502,
+      headers: { 'Content-Type': 'text/plain' },
+    }));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await act(async () => {
+      await result.current.handleRename('/report.pdf', 'renamed.pdf');
+    });
+
+    expect(h.message.error).toHaveBeenCalledWith('fileOperations.renameFailed');
+  });
+
+  it('falls back to the delete error message when the server returns a non-JSON error body', async () => {
+    h.apiFetch.mockResolvedValueOnce(new Response('bad gateway', {
+      status: 502,
+      headers: { 'Content-Type': 'text/plain' },
+    }));
+
+    const { result } = renderHook(() => useFileOperations('/', { id: 1, name: 'Workspace' } as never));
+
+    await act(async () => {
+      await result.current.handleDelete({ path: '/report.pdf', name: 'report.pdf', isDir: false });
+    });
+
+    const confirmConfig = h.modal.confirm.mock.calls[0]?.[0] as { onOk?: () => Promise<void> } | undefined;
+    if (!confirmConfig?.onOk) {
+      throw new Error('delete confirm handler was not registered');
+    }
+
+    await act(async () => {
+      await confirmConfig.onOk();
+    });
+
+    expect(h.message.error).toHaveBeenCalledWith('fileOperations.moveToTrashFailed');
+  });
 });

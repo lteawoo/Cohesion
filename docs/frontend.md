@@ -26,7 +26,7 @@ apps/frontend/src/
 │   └── layout/
 ├── features/             # 기능별 모듈
 │   ├── auth/             # 인증 컨텍스트/가드
-│   ├── browse/           # 스페이스 브라우저, 파일 작업, 휴지통
+│   ├── browse/           # 스페이스 브라우저, 파일 작업, 전송 오케스트레이션, 휴지통
 │   ├── search/           # 검색 응답 타입/훅/유틸
 │   ├── space/            # 스페이스 타입/공유 상태
 │   └── status/           # 서버 상태/버전 표시
@@ -67,7 +67,35 @@ apps/frontend/src/
 - 인증/세션: `features/auth`
 - 스페이스 목록과 선택 상태: `stores/spaceStore.ts`
 - 브라우즈 상태와 파일 목록: `stores/browseStore.ts`
+- 전송 이력과 세션 복원 상태: `stores/transferCenterStore.ts`
 - 설정/테마/컨텍스트 메뉴는 별도 store로 분리
+
+## Space 생성 검증 경계
+
+- `features/space/components/DirectorySetupModal.tsx`
+  - Space 생성 모달은 선택된 root 경로에 대해 로컬 `idle -> validating -> valid/invalid` 상태를 유지한다.
+  - root 검증이 끝나기 전이나 `permission_denied` / `not_found` / `not_directory` 결과일 때는 생성 버튼을 비활성화한다.
+- `stores/spaceStore.ts`
+  - `validateSpaceRoot(path)`가 `/api/spaces/validate-root`를 호출해 create-flow 전용 root 검증 결과를 가져온다.
+  - 최종 `createSpace()` 실패가 동일 root validation code를 반환하면 모달은 닫히지 않고 같은 inline validation 표면으로 복귀한다.
+
+## Browse 전송 경계
+
+- `features/browse/hooks/useFileOperations.tsx`
+  - `FolderContent`와 브라우즈 화면이 사용하는 façade다.
+  - move/copy/rename/trash 같은 파일 작업 API와 transfer hooks 조합만 담당한다.
+- `features/browse/hooks/useUploadTransfers.ts`
+  - upload queue, progress, cancel, conflict prompt 이후 재시도 흐름을 담당한다.
+- `features/browse/hooks/useArchiveTransfers.ts`
+  - archive prepare queue, polling, cancel, retry, browser handoff를 담당한다.
+- `features/browse/hooks/useDirectDownloadTransfers.ts`
+  - direct single-file download ticket handoff와 pending cancel을 담당한다.
+- `features/browse/hooks/useTransferHydration.ts`
+  - reload 후 persisted transfer reconciliation과 archive 재연결을 담당한다.
+- `features/browse/hooks/transferOperationsShared.ts`
+  - transfer hook 사이에서 공유하는 타입/경량 helper만 둔다.
+
+`transferCenterStore`는 transfer row 표시와 session persistence를 소유하고, queue/polling/AbortController 같은 실행 제어는 browse hooks가 소유한다.
 
 새 UI를 추가할 때는 가능한 한 기존 store와 feature 경계를 재사용하고, 화면 전용 상태만 컴포넌트 로컬 state로 유지한다.
 

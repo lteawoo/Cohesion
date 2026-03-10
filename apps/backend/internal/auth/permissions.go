@@ -63,6 +63,9 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	if path == "/api/browse" {
 		return PermissionSpaceWrite, true
 	}
+	if path == "/api/spaces/validate-root" && method == http.MethodPost {
+		return PermissionSpaceWrite, true
+	}
 	if path == "/api/search/files" && method == http.MethodGet {
 		return PermissionFileRead, true
 	}
