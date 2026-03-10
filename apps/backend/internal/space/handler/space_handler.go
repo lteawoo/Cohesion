@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -63,6 +64,11 @@ type spaceResponse struct {
 	QuotaBytes    *int64  `json:"quota_bytes,omitempty"`
 }
 
+type spaceRootValidationErrorResponse struct {
+	Error string                        `json:"error"`
+	Code  space.SpaceRootValidationCode `json:"code,omitempty"`
+}
+
 // 의존성 주입 생성자 생성
 func NewHandler(spaceService *space.Service, browseService BrowseService, accountService SpaceAccessService, trashService ...*space.TrashService) *Handler {
 	var resolvedTrashService *space.TrashService
@@ -100,8 +106,29 @@ func newSpaceResponse(item *space.Space) spaceResponse {
 	}
 }
 
+func writeJSON(w http.ResponseWriter, status int, payload any) *web.Error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to encode response",
+			Err:     err,
+		}
+	}
+	return nil
+}
+
+func spaceRootValidationStatusCode(result space.SpaceRootValidationResult) int {
+	if result.Code == space.SpaceRootValidationCodePermissionDenied {
+		return http.StatusForbidden
+	}
+	return http.StatusBadRequest
+}
+
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/spaces", web.Handler(h.handleSpaces))
+	mux.Handle("/api/spaces/validate-root", web.Handler(h.handleValidateSpaceRoot))
 	mux.Handle("/api/spaces/", web.Handler(h.handleSpaceByID))
 	mux.Handle("/api/search/files", web.Handler(h.handleSearchFiles))
 	mux.Handle("/api/downloads/", web.Handler(h.handleDownloadByTicket))
@@ -186,6 +213,15 @@ func (h *Handler) handleCreateSpace(w http.ResponseWriter, r *http.Request) *web
 	// 서비스 호출
 	createdSpace, err := h.spaceService.CreateSpace(r.Context(), &req)
 	if err != nil {
+		var rootValidationErr *space.SpaceRootValidationError
+		if errors.As(err, &rootValidationErr) {
+			result := rootValidationErr.Result()
+			return writeJSON(w, spaceRootValidationStatusCode(result), spaceRootValidationErrorResponse{
+				Error: result.Message,
+				Code:  result.Code,
+			})
+		}
+
 		// 에러 타입에 따라 상태 코드 결정
 		statusCode := http.StatusInternalServerError
 		message := "Failed to create Space"
@@ -195,9 +231,6 @@ func (h *Handler) handleCreateSpace(w http.ResponseWriter, r *http.Request) *web
 		} else if strings.Contains(err.Error(), "already exists") {
 			statusCode = http.StatusConflict
 			message = "Space already exists"
-		} else if strings.Contains(err.Error(), "does not exist") {
-			statusCode = http.StatusBadRequest
-			message = "Space path does not exist"
 		}
 
 		return &web.Error{
@@ -229,6 +262,44 @@ func (h *Handler) handleCreateSpace(w http.ResponseWriter, r *http.Request) *web
 	json.NewEncoder(w).Encode(response)
 
 	return nil
+}
+
+func (h *Handler) handleValidateSpaceRoot(w http.ResponseWriter, r *http.Request) *web.Error {
+	if r.Method != http.MethodPost {
+		return &web.Error{
+			Code:    http.StatusMethodNotAllowed,
+			Message: "Method not allowed",
+			Err:     nil,
+		}
+	}
+
+	var req space.ValidateSpaceRootRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &web.Error{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Err:     err,
+		}
+	}
+	defer r.Body.Close()
+
+	result, err := h.spaceService.ValidateSpaceRoot(r.Context(), req.SpacePath)
+	if err != nil {
+		if strings.Contains(err.Error(), "validation failed") {
+			return &web.Error{
+				Code:    http.StatusBadRequest,
+				Message: "Invalid Space request",
+				Err:     err,
+			}
+		}
+		return &web.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to validate Space root",
+			Err:     err,
+		}
+	}
+
+	return writeJSON(w, http.StatusOK, result)
 }
 
 // handleSpaceByID는 /api/spaces/{id} 요청을 처리합니다
@@ -549,7 +620,7 @@ func (h *Handler) handleSpaceBrowse(w http.ResponseWriter, r *http.Request, spac
 				Err:     err,
 			}
 		}
-		if os.IsPermission(err) {
+		if browse.IsPermissionError(err) {
 			return &web.Error{
 				Code:    http.StatusForbidden,
 				Message: "Permission denied",

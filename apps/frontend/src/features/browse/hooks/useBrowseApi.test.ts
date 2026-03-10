@@ -16,15 +16,20 @@ vi.mock('@/api/client', () => ({
   apiFetch: h.apiFetch,
 }));
 
-vi.mock('@/api/error', () => ({
-  toApiError: vi.fn(async (_response: Response, fallbackErrorMessage: string) => new Error(fallbackErrorMessage)),
-}));
-
 function okJsonResponse(payload: unknown): Response {
   return {
     ok: true,
     json: vi.fn().mockResolvedValue(payload),
   } as unknown as Response;
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
 }
 
 describe('useBrowseApi endpoint boundaries', () => {
@@ -54,5 +59,40 @@ describe('useBrowseApi endpoint boundaries', () => {
 
     expect(h.apiFetch).toHaveBeenCalledWith('/api/spaces/17/browse?path=%2Fdocs');
     expect(h.apiFetch).not.toHaveBeenCalledWith('/api/browse?path=%2Fdocs');
+  });
+
+  it('normalizes permission denied for system browse directory listing', async () => {
+    h.apiFetch.mockResolvedValueOnce(jsonResponse({ message: 'Permission denied' }, 403));
+    const { result } = renderHook(() => useBrowseApi());
+    const expectedMessage = 'browseApi.permissionDeniedReason directorySetup.validation.permissionDeniedHint';
+
+    await act(async () => {
+      await expect(result.current.fetchDirectoryContents('/private/tmp')).rejects.toThrow(expectedMessage);
+    });
+
+    expect(result.current.error?.message).toBe(expectedMessage);
+  });
+
+  it('normalizes permission denied for space-scoped directory listing', async () => {
+    h.apiFetch.mockResolvedValueOnce(jsonResponse({ message: 'Permission denied' }, 403));
+    const { result } = renderHook(() => useBrowseApi());
+    const expectedMessage = 'browseApi.permissionDeniedReason directorySetup.validation.permissionDeniedHint';
+
+    await act(async () => {
+      await expect(result.current.fetchSpaceDirectoryContents(7, '/secret')).rejects.toThrow(expectedMessage);
+    });
+
+    expect(result.current.error?.message).toBe(expectedMessage);
+  });
+
+  it('keeps unrelated 403 browse failures unchanged', async () => {
+    h.apiFetch.mockResolvedValueOnce(jsonResponse({ message: 'Forbidden by policy' }, 403));
+    const { result } = renderHook(() => useBrowseApi());
+
+    await act(async () => {
+      await expect(result.current.fetchDirectoryContents('/policy')).rejects.toThrow('Forbidden by policy');
+    });
+
+    expect(result.current.error?.message).toBe('Forbidden by policy');
   });
 });

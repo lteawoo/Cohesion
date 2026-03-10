@@ -371,6 +371,8 @@ describe('FolderContent activation behavior', () => {
     h.transferItems.length = 0;
     useTransferCenterStore.getState().reset();
     h.storeState.content = h.contentItems;
+    h.storeState.error = null;
+    h.storeState.isLoading = false;
     h.locationPathState.pathname = '/browse';
     h.searchModeState.query = '';
     h.searchModeState.errorMessage = null;
@@ -549,5 +551,29 @@ describe('FolderContent activation behavior', () => {
     expect(getByTestId('transfer-center-trigger')).toBeTruthy();
     expect(getByTestId('transfer-center-panel')).toBeTruthy();
     expect(getByText('docs.zip')).toBeTruthy();
+  });
+
+  it('renders aligned guidance for full browse permission failures', () => {
+    const expectedMessage = 'browseApi.permissionDeniedReason directorySetup.validation.permissionDeniedHint';
+    h.storeState.content = [];
+    h.storeState.error = new Error(expectedMessage);
+
+    const { getByText, getByRole } = render(<FolderContent />);
+
+    expect(getByText(expectedMessage)).toBeTruthy();
+    expect(getByRole('button', { name: 'folderContent.retry' })).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Permission denied');
+  });
+
+  it('renders aligned guidance for inline browse permission failures', () => {
+    const expectedMessage = 'browseApi.permissionDeniedReason directorySetup.validation.permissionDeniedHint';
+    h.storeState.error = new Error(expectedMessage);
+
+    const { getByText, getByRole } = render(<FolderContent />);
+
+    expect(getByText('folderContent.latestFolderLoadFailed')).toBeTruthy();
+    expect(getByText(expectedMessage)).toBeTruthy();
+    expect(getByRole('button', { name: 'folderContent.retryShort' })).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Permission denied');
   });
 });

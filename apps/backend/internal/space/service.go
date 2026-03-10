@@ -57,6 +57,14 @@ func (s *Service) CreateSpace(ctx context.Context, req *CreateSpaceRequest) (*Sp
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
+	rootValidation, err := s.ValidateSpaceRoot(ctx, req.SpacePath)
+	if err != nil {
+		return nil, err
+	}
+	if !rootValidation.Valid {
+		return nil, fmt.Errorf("validation failed: %w", NewSpaceRootValidationError(*rootValidation))
+	}
+
 	// 이름 중복 체크
 	existingSpace, err := s.store.GetByName(ctx, req.SpaceName)
 	if err == nil && existingSpace != nil {
@@ -70,6 +78,20 @@ func (s *Service) CreateSpace(ctx context.Context, req *CreateSpaceRequest) (*Sp
 	}
 
 	return createdSpace, nil
+}
+
+func (s *Service) ValidateSpaceRoot(_ context.Context, path string) (*SpaceRootValidationResult, error) {
+	req := &ValidateSpaceRootRequest{SpacePath: path}
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
+	result, err := ValidateSpaceRoot(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate space root: %w", err)
+	}
+
+	return &result, nil
 }
 
 // DeleteSpace는 Space를 삭제합니다

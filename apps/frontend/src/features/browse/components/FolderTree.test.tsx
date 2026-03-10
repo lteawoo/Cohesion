@@ -26,7 +26,13 @@ const h = vi.hoisted(() => {
     selectedSpace: undefined,
   };
 
+  const browseApiState = {
+    isLoading: false,
+    error: null as Error | null,
+  };
+
   return {
+    browseApiState,
     fetchBaseDirectories,
     fetchDirectoryContents,
     fetchSpaceDirectoryContents,
@@ -59,8 +65,8 @@ vi.mock('@/stores/contextMenuStore', () => ({
 
 vi.mock('../hooks/useBrowseApi', () => ({
   useBrowseApi: () => ({
-    isLoading: false,
-    error: null,
+    isLoading: h.browseApiState.isLoading,
+    error: h.browseApiState.error,
     fetchBaseDirectories: h.fetchBaseDirectories,
     fetchDirectoryContents: h.fetchDirectoryContents,
     fetchSpaceDirectoryContents: h.fetchSpaceDirectoryContents,
@@ -187,6 +193,8 @@ async function waitForNodeKey(key: string): Promise<void> {
 describe('FolderTree (space directory mode)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    h.browseApiState.isLoading = false;
+    h.browseApiState.error = null;
 
     h.fetchBaseDirectories.mockResolvedValue([
       directory('/Users/tester', 'Home'),
@@ -248,5 +256,56 @@ describe('FolderTree (space directory mode)', () => {
     await waitForNodeKey('system::/dev');
     await user.click(getSelectorByKey('system::/dev'));
     expect(h.onSelect).toHaveBeenLastCalledWith('/dev');
+  });
+
+  it('can suppress partial browse warnings while keeping tree data visible', async () => {
+    h.browseApiState.error = new Error('Permission denied');
+
+    render(
+      <FolderTree
+        onSelect={h.onSelect}
+        showBaseDirectories={true}
+        hidePartialBrowseErrorAlert={true}
+      />
+    );
+
+    await vi.waitFor(() => {
+      expect(h.fetchBaseDirectories).toHaveBeenCalledTimes(1);
+    });
+    await waitForNodeKey('base::/');
+
+    expect(document.body.textContent).not.toContain('folderTree.partialFolderTreeLoadFailed');
+    expect(document.body.textContent).toContain('Home');
+  });
+
+  it('renders aligned guidance for full tree permission failures', async () => {
+    const expectedMessage = 'browseApi.permissionDeniedReason directorySetup.validation.permissionDeniedHint';
+    h.browseApiState.error = new Error(expectedMessage);
+    h.fetchBaseDirectories.mockRejectedValueOnce(new Error(expectedMessage));
+
+    render(<FolderTree onSelect={h.onSelect} showBaseDirectories />);
+
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain('folderTree.folderTreeLoadFailed');
+    });
+
+    expect(document.body.textContent).toContain(expectedMessage);
+    expect(document.body.textContent).not.toContain('Permission denied');
+  });
+
+  it('renders aligned guidance for partial tree permission failures', async () => {
+    const expectedMessage = 'browseApi.permissionDeniedReason directorySetup.validation.permissionDeniedHint';
+    h.browseApiState.error = new Error(expectedMessage);
+
+    render(<FolderTree onSelect={h.onSelect} showBaseDirectories />);
+
+    await vi.waitFor(() => {
+      expect(h.fetchBaseDirectories).toHaveBeenCalledTimes(1);
+    });
+    await waitForNodeKey('base::/');
+
+    expect(document.body.textContent).toContain('folderTree.partialFolderTreeLoadFailed');
+    expect(document.body.textContent).toContain(expectedMessage);
+    expect(document.body.textContent).not.toContain('Permission denied');
   });
 });

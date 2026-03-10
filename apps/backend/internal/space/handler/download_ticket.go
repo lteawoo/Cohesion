@@ -129,13 +129,13 @@ func (h *Handler) handleDownloadByTicket(w http.ResponseWriter, r *http.Request)
 	}
 	file, err := os.Open(ticket.FilePath)
 	if err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to open download file", Err: err}
+		return storageAccessWebError(err, "Download file not found", "Failed to open download file")
 	}
 	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect download file", Err: err}
+		return storageAccessWebError(err, "Download file not found", "Failed to inspect download file")
 	}
 
 	serveAttachmentContent(w, r, file, fileInfo, ticket.FileName, ticket.ContentType)

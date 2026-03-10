@@ -49,4 +49,33 @@ describe('useSpaceStore', () => {
     expect(useSpaceStore.getState().spaces).toEqual([{ id: 1, space_name: 'Alpha Renamed' }]);
     expect(useSpaceStore.getState().selectedSpace?.space_name).toBe('Alpha Renamed');
   });
+
+  it('validates a candidate space root through the dedicated endpoint', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce(jsonResponse({
+      valid: false,
+      code: 'permission_denied',
+      message: 'Selected folder is not readable by the server',
+    }));
+
+    const result = await useSpaceStore.getState().validateSpaceRoot('/Users/tester/Downloads');
+
+    expect(apiFetch).toHaveBeenCalledWith('/api/spaces/validate-root', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ space_path: '/Users/tester/Downloads' }),
+    });
+    expect(result).toEqual({
+      valid: false,
+      code: 'permission_denied',
+      message: 'Selected folder is not readable by the server',
+    });
+  });
+
+  it('keeps non-browse 403 handling unchanged for space creation', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce(jsonResponse({ error: 'Permission denied' }, 403));
+
+    await expect(useSpaceStore.getState().createSpace('Alpha', '/Users/tester/Downloads')).rejects.toThrow('Permission denied');
+
+    expect(useSpaceStore.getState().error?.message).toBe('Permission denied');
+  });
 });

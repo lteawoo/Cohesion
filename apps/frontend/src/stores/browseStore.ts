@@ -5,6 +5,7 @@ import { useSpaceStore } from './spaceStore';
 import { apiFetch } from '@/api/client';
 import { toApiError } from '@/api/error';
 import i18n from '@/i18n';
+import { normalizeBrowseError } from '@/features/browse/browseError';
 
 function normalizeRelativePath(path: string): string {
   return path.replace(/^\/+/, '').replace(/\/+$/, '');
@@ -38,13 +39,6 @@ interface BrowseStore {
   requestOpenTrash: (spaceId: number) => void;
   clearTrashOpenRequest: () => void;
   clearContent: () => void;
-}
-
-function normalizeUnknownError(error: unknown, fallbackMessage: string): Error {
-  if (error instanceof Error) {
-    return error;
-  }
-  return new Error(fallbackMessage);
 }
 
 export const useBrowseStore = create<BrowseStore>((set) => ({
@@ -104,7 +98,13 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
       const data: FileNode[] = await response.json();
       set({ content: data, isLoading: false });
     } catch (e) {
-      set({ error: normalizeUnknownError(e, i18n.t('storeErrors.loadDirectoryFailed')), isLoading: false });
+      set({
+        error: normalizeBrowseError(e, {
+          fallbackMessage: i18n.t('storeErrors.loadDirectoryFailed'),
+          t: (key) => i18n.t(key),
+        }),
+        isLoading: false,
+      });
     }
   },
 
@@ -127,7 +127,13 @@ export const useBrowseStore = create<BrowseStore>((set) => ({
         selectedSpace: space,
       });
     } catch (e) {
-      set({ error: normalizeUnknownError(e, i18n.t('storeErrors.loadSpaceDirectoryFailed')), isLoading: false });
+      set({
+        error: normalizeBrowseError(e, {
+          fallbackMessage: i18n.t('storeErrors.loadSpaceDirectoryFailed'),
+          t: (key) => i18n.t(key),
+        }),
+        isLoading: false,
+      });
     }
   },
 

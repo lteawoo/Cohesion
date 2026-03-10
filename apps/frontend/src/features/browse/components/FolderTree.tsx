@@ -68,6 +68,7 @@ interface FolderTreeProps {
   rootPath?: string;
   rootName?: string;
   showBaseDirectories?: boolean;
+  hidePartialBrowseErrorAlert?: boolean;
   onSpaceDelete?: (space: Space) => void;
   selectedKeys?: React.Key[];
   isSearchMode?: boolean;
@@ -240,6 +241,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
   rootPath,
   rootName,
   showBaseDirectories = false,
+  hidePartialBrowseErrorAlert = false,
   onSpaceDelete,
   selectedKeys,
   isSearchMode = false,
@@ -700,7 +702,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({
 
   return (
     <>
-      {browseError && treeData.length > 0 && (
+      {browseError && treeData.length > 0 && !hidePartialBrowseErrorAlert && (
         <div style={{ padding: '0 12px 8px' }}>
           <Alert
             type="warning"

@@ -1,7 +1,9 @@
 package browse
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -25,6 +27,23 @@ type FileInfo struct {
 type Service struct {
 	initialBrowseRoot string     // 사용자의 홈 디렉토리 저장
 	baseDirectories   []FileInfo // User home, disks list
+}
+
+func IsPermissionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if os.IsPermission(err) || errors.Is(err, fs.ErrPermission) {
+		return true
+	}
+
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) && (os.IsPermission(pathErr.Err) || errors.Is(pathErr.Err, fs.ErrPermission)) {
+		return true
+	}
+
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "permission denied") || strings.Contains(message, "operation not permitted")
 }
 
 func normalizeBrowsePath(pathValue string) string {

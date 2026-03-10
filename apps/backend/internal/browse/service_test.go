@@ -1,7 +1,10 @@
 package browse
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 )
 
@@ -102,5 +105,18 @@ func TestMountpointDedupKeyByOS(t *testing.T) {
 	}
 	if actual := mountpointDedupKey("/Volumes/Data", "darwin"); actual != "/Volumes/Data" {
 		t.Fatalf("mountpointDedupKey darwin = %q, want %q", actual, "/Volumes/Data")
+	}
+}
+
+func TestIsPermissionErrorRecognizesWrappedOperationNotPermitted(t *testing.T) {
+	t.Parallel()
+
+	err := fmt.Errorf(
+		"fail to read directory: %w",
+		&os.PathError{Op: "open", Path: "/Users/twlee/Downloads", Err: syscall.EPERM},
+	)
+
+	if !IsPermissionError(err) {
+		t.Fatal("expected wrapped EPERM to be treated as a permission error")
 	}
 }

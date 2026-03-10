@@ -29,12 +29,12 @@ const (
 type archiveDownloadState string
 
 const (
-	archiveDownloadStateQueued  archiveDownloadState = "queued"
-	archiveDownloadStateRunning archiveDownloadState = "running"
-	archiveDownloadStateReady   archiveDownloadState = "ready"
-	archiveDownloadStateFailed  archiveDownloadState = "failed"
+	archiveDownloadStateQueued   archiveDownloadState = "queued"
+	archiveDownloadStateRunning  archiveDownloadState = "running"
+	archiveDownloadStateReady    archiveDownloadState = "ready"
+	archiveDownloadStateFailed   archiveDownloadState = "failed"
 	archiveDownloadStateCanceled archiveDownloadState = "canceled"
-	archiveDownloadStateExpired archiveDownloadState = "expired"
+	archiveDownloadStateExpired  archiveDownloadState = "expired"
 )
 
 type archiveDownloadJob struct {
@@ -513,7 +513,9 @@ func (h *Handler) resolveArchiveDownloadSources(spaceRoot string, paths []string
 			if os.IsNotExist(err) {
 				return nil, "", &web.Error{Code: http.StatusNotFound, Message: fmt.Sprintf("Path not found: %s", relPath), Err: err}
 			}
-			return nil, "", &web.Error{Code: http.StatusInternalServerError, Message: fmt.Sprintf("Failed to access path: %s", relPath), Err: err}
+			if storageErr := storageAccessWebError(err, "", fmt.Sprintf("Failed to access path: %s", relPath)); storageErr != nil {
+				return nil, "", storageErr
+			}
 		}
 		sources = append(sources, archiveDownloadSource{
 			RelativePath: relPath,
@@ -525,7 +527,7 @@ func (h *Handler) resolveArchiveDownloadSources(spaceRoot string, paths []string
 	if len(paths) == 1 {
 		info, err := os.Stat(sources[0].AbsPath)
 		if err != nil {
-			return nil, "", &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect archive source", Err: err}
+			return nil, "", storageAccessWebError(err, "Path not found", "Failed to inspect archive source")
 		}
 		if !info.IsDir() {
 			return nil, "", &web.Error{Code: http.StatusBadRequest, Message: "Single-file downloads must use the direct download flow"}
@@ -575,7 +577,7 @@ func (h *Handler) runArchiveDownloadJob(
 
 	entries, totalItems, totalBytes, err := scanArchiveZipEntries(sources)
 	if err != nil {
-		h.failArchiveDownloadJob(jobID, owner, requestID, fmt.Sprintf("Failed to scan archive sources: %v", err))
+		h.failArchiveDownloadJob(jobID, owner, requestID, safeFilesystemReason("Failed to scan archive sources", err))
 		return
 	}
 
@@ -596,7 +598,7 @@ func (h *Handler) runArchiveDownloadJob(
 				if errors.Is(writeErr, context.Canceled) {
 					return &web.Error{Code: http.StatusConflict, Message: "Archive download canceled", Err: writeErr}
 				}
-				return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to prepare archive entry", Err: writeErr}
+				return &web.Error{Code: http.StatusInternalServerError, Message: safeFilesystemReason("Failed to prepare archive entry", writeErr), Err: writeErr}
 			}
 			h.archiveDownloads.updateJob(jobID, func(job *archiveDownloadJob) {
 				job.ProcessedItems++

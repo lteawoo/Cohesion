@@ -492,6 +492,16 @@ export const koTranslations = {
     folderRequired: "폴더를 선택해주세요.",
     createSuccess: "Space가 성공적으로 생성되었습니다.",
     createFailed: "Space 생성에 실패했습니다.",
+    validationFailed: "선택한 폴더 검증에 실패했습니다.",
+    validation: {
+      validating: "선택한 폴더 접근 여부를 확인하고 있습니다.",
+      valid: "이 폴더는 현재 서버가 읽을 수 있습니다.",
+      invalid: "선택한 폴더를 다시 확인해주세요.",
+      notFound: "선택한 폴더가 더 이상 존재하지 않습니다.",
+      notDirectory: "선택한 경로는 폴더가 아닙니다.",
+      permissionDenied: "현재 서버가 이 폴더를 읽을 수 없습니다.",
+      permissionDeniedHint: "해당 위치 접근 권한을 부여한 뒤 다시 시도하세요.",
+    },
   },
   trashModal: {
     title: "휴지통",
@@ -630,6 +640,7 @@ export const koTranslations = {
     loadBaseDirectoriesFailed: "기본 디렉토리를 불러오지 못했습니다.",
     loadDirectoriesFailed: "디렉토리 목록을 불러오지 못했습니다.",
     loadSpaceDirectoriesFailed: "Space 폴더 목록을 불러오지 못했습니다.",
+    permissionDeniedReason: "현재 서버가 이 위치를 읽을 수 없습니다.",
   },
   browseTable: {
     name: "이름",
@@ -1162,6 +1173,16 @@ export const enTranslations = {
     folderRequired: "Please select a folder.",
     createSuccess: "Space has been created successfully.",
     createFailed: "Failed to create space.",
+    validationFailed: "Failed to validate the selected folder.",
+    validation: {
+      validating: "Checking whether the server can read this folder.",
+      valid: "The server can read this folder.",
+      invalid: "Please check the selected folder again.",
+      notFound: "The selected folder no longer exists.",
+      notDirectory: "The selected path is not a directory.",
+      permissionDenied: "The server cannot read this folder right now.",
+      permissionDeniedHint: "Grant filesystem access to the app or terminal running Cohesion, then try again.",
+    },
   },
   trashModal: {
     title: "Trash",
@@ -1300,6 +1321,7 @@ export const enTranslations = {
     loadBaseDirectoriesFailed: "Failed to load base directories.",
     loadDirectoriesFailed: "Failed to load directory list.",
     loadSpaceDirectoriesFailed: "Failed to load space folder list.",
+    permissionDeniedReason: "The server cannot read this location right now.",
   },
   browseTable: {
     name: "Name",
