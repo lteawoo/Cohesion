@@ -51,6 +51,7 @@ type Handler struct {
 	ticketMu          sync.Mutex
 	downloadTickets   map[string]downloadTicket
 	downloadTicketTTL time.Duration
+	archiveDownloads  *archiveDownloadManager
 	auditRecorder     audit.Recorder
 }
 
@@ -77,6 +78,7 @@ func NewHandler(spaceService *space.Service, browseService BrowseService, accoun
 		accountService:    accountService,
 		downloadTickets:   make(map[string]downloadTicket),
 		downloadTicketTTL: 5 * time.Minute,
+		archiveDownloads:  newArchiveDownloadManager(defaultArchiveDownloadWorkerLimit, defaultArchiveDownloadTTL),
 	}
 }
 

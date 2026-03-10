@@ -19,6 +19,7 @@ import DestinationPickerModal from './DestinationPickerModal';
 import FolderContentToolbar from './FolderContent/FolderContentToolbar';
 import FolderContentTable from './FolderContent/FolderContentTable';
 import FolderContentGrid from './FolderContent/FolderContentGrid';
+import TransferPanel from './FolderContent/TransferPanel';
 import RenameModal from './FolderContent/RenameModal';
 import CreateFolderModal from './FolderContent/CreateFolderModal';
 import TrashModal from './FolderContent/TrashModal';
@@ -150,6 +151,8 @@ const FolderContent: React.FC = () => {
     handleCopy,
     handleBulkDownload,
     handleFileUpload,
+    cancelUpload,
+    retryTransfer,
   } = useFileOperations(selectedPath, selectedSpace);
 
   const {
@@ -1061,6 +1064,11 @@ const FolderContent: React.FC = () => {
                 />
               </div>
             )}
+            <TransferPanel
+              isMobile={isMobileLayout}
+              onCancelUpload={cancelUpload}
+              onRetryTransfer={retryTransfer}
+            />
             {showSearchSummary && (
               <div
                 style={{

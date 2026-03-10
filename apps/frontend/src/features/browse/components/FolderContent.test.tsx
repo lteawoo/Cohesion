@@ -2,6 +2,7 @@ import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useTransferCenterStore } from '@/stores/transferCenterStore';
 import FolderContent from './FolderContent';
 
 const h = vi.hoisted(() => {
@@ -15,6 +16,9 @@ const h = vi.hoisted(() => {
   const mockClearSelection = vi.fn();
   const mockOpenSearchResult = vi.fn();
   const mockLoadMoreSearchResults = vi.fn();
+  const mockCancelUpload = vi.fn();
+  const mockDismissTransfer = vi.fn();
+  const transferItems: Array<{ id: string; kind: 'upload' | 'archive'; name: string; status: string }> = [];
   const locationPathState = { pathname: '/browse' };
   const breakpointState = { lg: true };
   const selectedSpace = { id: 1, name: 'Workspace' };
@@ -70,6 +74,9 @@ const h = vi.hoisted(() => {
     mockClearSelection,
     mockOpenSearchResult,
     mockLoadMoreSearchResults,
+    mockCancelUpload,
+    mockDismissTransfer,
+    transferItems,
     locationPathState,
     breakpointState,
     selectedSpace,
@@ -152,6 +159,9 @@ vi.mock('../hooks/useFileOperations', () => ({
     handleCopy: vi.fn(),
     handleBulkDownload: h.mockHandleBulkDownload,
     handleFileUpload: vi.fn(),
+    transfers: h.transferItems,
+    cancelUpload: h.mockCancelUpload,
+    dismissTransfer: h.mockDismissTransfer,
   }),
 }));
 
@@ -358,6 +368,8 @@ function dispatchTouchEvent(
 describe('FolderContent activation behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    h.transferItems.length = 0;
+    useTransferCenterStore.getState().reset();
     h.storeState.content = h.contentItems;
     h.locationPathState.pathname = '/browse';
     h.searchModeState.query = '';
@@ -522,5 +534,20 @@ describe('FolderContent activation behavior', () => {
     await user.click(getByRole('button', { name: 'folderContent.searchLoadMore' }));
 
     expect(h.mockLoadMoreSearchResults).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders floating transfer center for active transfers', () => {
+    useTransferCenterStore.getState().upsertTransfer({
+      id: 'archive-1',
+      kind: 'archive',
+      name: 'docs.zip',
+      status: 'running',
+    });
+
+    const { getByTestId, getByText } = render(<FolderContent />);
+
+    expect(getByTestId('transfer-center-trigger')).toBeTruthy();
+    expect(getByTestId('transfer-center-panel')).toBeTruthy();
+    expect(getByText('docs.zip')).toBeTruthy();
   });
 });

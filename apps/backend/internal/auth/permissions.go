@@ -103,7 +103,7 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	if strings.HasPrefix(path, "/api/spaces/") {
 		action, ok := extractSpaceFileAction(path)
 		if ok {
-			if action == "download" || action == "download-ticket" || action == "download-multiple" || action == "download-multiple-ticket" {
+			if action == "download" || action == "download-ticket" || action == "download-multiple" || action == "download-multiple-ticket" || action == "archive-downloads" || action == "archive-download-ticket" {
 				return PermissionFileRead, true
 			}
 			return PermissionFileWrite, true
@@ -200,7 +200,7 @@ func requiredSpacePermissionForRequest(r *http.Request) (*spacePermissionRequire
 	action, hasAction := extractSpaceFileAction(path)
 	if hasAction {
 		required := account.PermissionWrite
-		if action == "download" || action == "download-ticket" || action == "download-multiple" || action == "download-multiple-ticket" {
+		if action == "download" || action == "download-ticket" || action == "download-multiple" || action == "download-multiple-ticket" || action == "archive-downloads" || action == "archive-download-ticket" {
 			required = account.PermissionRead
 		}
 		return &spacePermissionRequirement{
@@ -391,6 +391,10 @@ func DeniedAuditActionForSpaceFileAction(action string) (string, bool) {
 		return "file.download-multiple", true
 	case "download-multiple-ticket":
 		return "file.download-multiple-ticket", true
+	case "archive-downloads":
+		return "file.archive-download", true
+	case "archive-download-ticket":
+		return "file.archive-download-ticket", true
 	default:
 		return "", false
 	}

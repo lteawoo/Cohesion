@@ -3,8 +3,6 @@ package handler
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -87,7 +85,7 @@ func (h *Handler) cleanupExpiredDownloadTicketsLocked(now time.Time) {
 	}
 }
 
-func (h *Handler) consumeDownloadTicketForOwner(token string, owner string) (*downloadTicket, *web.Error) {
+func (h *Handler) getDownloadTicketForOwner(token string, owner string) (*downloadTicket, *web.Error) {
 	h.ticketMu.Lock()
 	defer h.ticketMu.Unlock()
 
@@ -103,8 +101,8 @@ func (h *Handler) consumeDownloadTicketForOwner(token string, owner string) (*do
 		return &ticketCopy, &web.Error{Code: http.StatusForbidden, Message: "Download ticket access denied"}
 	}
 
-	delete(h.downloadTickets, token)
-	return &ticket, nil
+	ticketCopy := ticket
+	return &ticketCopy, nil
 }
 
 func (h *Handler) handleDownloadByTicket(w http.ResponseWriter, r *http.Request) *web.Error {
@@ -122,38 +120,25 @@ func (h *Handler) handleDownloadByTicket(w http.ResponseWriter, r *http.Request)
 		return &web.Error{Code: http.StatusBadRequest, Message: "Invalid download ticket"}
 	}
 
-	ticket, webErr := h.consumeDownloadTicketForOwner(token, claims.Username)
+	ticket, webErr := h.getDownloadTicketForOwner(token, claims.Username)
 	if webErr != nil {
 		if webErr.Code == http.StatusForbidden {
 			r = h.recordDownloadTicketDeniedAudit(r, ticket)
 		}
 		return webErr
 	}
-	if ticket.RemoveAfterUse {
-		defer func() {
-			_ = os.Remove(ticket.FilePath)
-		}()
-	}
-
 	file, err := os.Open(ticket.FilePath)
 	if err != nil {
 		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to open download file", Err: err}
 	}
 	defer file.Close()
 
-	contentType := ticket.ContentType
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, ticket.FileName))
-	if ticket.ContentSize > 0 {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", ticket.ContentSize))
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect download file", Err: err}
 	}
 
-	if _, err := io.Copy(w, file); err != nil {
-		return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to send download file", Err: err}
-	}
+	serveAttachmentContent(w, r, file, fileInfo, ticket.FileName, ticket.ContentType)
 	return nil
 }
 

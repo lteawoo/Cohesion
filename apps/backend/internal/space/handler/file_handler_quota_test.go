@@ -141,3 +141,68 @@ func TestHandleFileCopy_FailedWithQuotaExceededCode(t *testing.T) {
 		t.Fatalf("copied file should not exist when quota exceeded, err=%v", err)
 	}
 }
+
+func TestQuotaService_ReservationsPreventConcurrentOversubscription(t *testing.T) {
+	spaceRoot := t.TempDir()
+	quota := int64(5)
+	store := &fakeQuotaSpaceStore{
+		spacesByID: map[int64]*space.Space{
+			1: {
+				ID:         1,
+				SpaceName:  "Quota",
+				SpacePath:  spaceRoot,
+				QuotaBytes: &quota,
+			},
+		},
+	}
+
+	quotaService := space.NewQuotaService(space.NewService(store))
+
+	if _, err := quotaService.AcquireWriteReservation(context.Background(), 1, "upload-1", 4); err != nil {
+		t.Fatalf("expected first reservation to succeed, got %v", err)
+	}
+	if reserved := quotaService.ReservedBytes(1); reserved != 4 {
+		t.Fatalf("expected 4 reserved bytes, got %d", reserved)
+	}
+
+	if _, err := quotaService.AcquireWriteReservation(context.Background(), 1, "upload-2", 2); err == nil {
+		t.Fatal("expected second reservation to fail")
+	}
+
+	quotaService.ReleaseWriteReservation("upload-1")
+	if reserved := quotaService.ReservedBytes(1); reserved != 0 {
+		t.Fatalf("expected reservations to be released, got %d", reserved)
+	}
+
+	if _, err := quotaService.AcquireWriteReservation(context.Background(), 1, "upload-2", 2); err != nil {
+		t.Fatalf("expected reservation after release to succeed, got %v", err)
+	}
+}
+
+func TestHandleFileUpload_ReleasesReservationAfterStreamFailure(t *testing.T) {
+	spaceRoot := t.TempDir()
+	quota := int64(64)
+	store := &fakeQuotaSpaceStore{
+		spacesByID: map[int64]*space.Space{
+			1: {
+				ID:         1,
+				SpaceName:  "Quota",
+				SpacePath:  spaceRoot,
+				QuotaBytes: &quota,
+			},
+		},
+	}
+
+	handler := NewHandler(space.NewService(store), nil, nil)
+	req := newFailingUploadRequest(t, "broken.bin", "1234567890", 5)
+	rec := httptest.NewRecorder()
+
+	webErr := handler.handleFileUpload(rec, req, 1)
+	if webErr == nil {
+		t.Fatal("expected upload failure")
+	}
+
+	if reserved := handler.quotaService.ReservedBytes(1); reserved != 0 {
+		t.Fatalf("expected upload reservation to be released, got %d", reserved)
+	}
+}
