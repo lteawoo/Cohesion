@@ -46,6 +46,26 @@ Then open `http://localhost:3000`.
 3. Run `cohesion` on macOS/Linux or `cohesion.exe` on Windows.
 4. Open `http://localhost:3000` in your browser.
 
+## Updating
+
+### Homebrew Install
+
+Use Homebrew to update Cohesion:
+
+```bash
+brew update
+brew upgrade cohesion
+```
+
+Homebrew installs do not support in-app self-update.
+In the app, update guidance appears in `Settings > About`.
+
+### Direct Release Install
+
+- macOS: Download and reinstall the latest release package from [GitHub Releases](https://github.com/lteawoo/Cohesion/releases).
+- Linux: Use the in-app update flow when available, or replace the binary with the latest release package.
+- Windows: Use the in-app update flow when available, or replace the binary with the latest release package.
+
 ## First Time Setup
 
 1. Open Cohesion in your browser.
