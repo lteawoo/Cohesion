@@ -23,6 +23,7 @@ import {
   type TransferMode,
   type TransferOperationResult,
   type TransferResponsePayload,
+  type TransferSummary,
   type TrashConflictPolicy,
   type TrashDeleteResponsePayload,
   type TrashEmptyResponsePayload,
@@ -661,7 +662,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         message.error(error instanceof Error ? error.message : t('fileOperations.renameFailed'));
       }
     },
-    [selectedSpace, refreshContents, message, invalidateTree, t]
+    [selectedSpace, refreshContents, message, invalidateTree, readErrorMessage, t]
   );
 
   // 새 폴더 만들기 처리
@@ -698,7 +699,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         message.error(error instanceof Error ? error.message : t('fileOperations.createFolderFailed'));
       }
     },
-    [selectedSpace, refreshContents, message, invalidateTree, t]
+    [selectedSpace, refreshContents, message, invalidateTree, readErrorMessage, t]
   );
 
   // 다중 휴지통 이동 처리
@@ -748,7 +749,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         },
       });
     },
-    [selectedSpace, refreshContents, message, modal, invalidateTree, t]
+    [selectedSpace, refreshContents, message, modal, invalidateTree, readErrorMessage, t]
   );
 
   const fetchTrashItems = useCallback(async (): Promise<TrashItem[]> => {
@@ -1052,7 +1053,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
         },
       });
     },
-    [selectedSpace, refreshContents, message, modal, invalidateTree, t]
+    [selectedSpace, refreshContents, message, modal, invalidateTree, readErrorMessage, t]
   );
 
   return {

@@ -248,7 +248,7 @@ export function useUploadTransfers({
     return results;
   }, [performUpload, promptConflictPolicy, setUploadTransferStatus, t]);
 
-  const pumpUploadQueue = useCallback(() => {
+  const pumpUploadQueue = useCallback(function pumpUploadQueue() {
     while (activeUploadBatchCountRef.current < MAX_ACTIVE_UPLOAD_BATCHES && uploadBatchQueueRef.current.length > 0) {
       const nextBatch = uploadBatchQueueRef.current.shift();
       if (!nextBatch) {

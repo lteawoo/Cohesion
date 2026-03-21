@@ -276,7 +276,7 @@ export function useArchiveTransfers({
     });
   }, [driveArchiveDownloadFlow, readErrorMessage, setArchiveTransferStatus, t]);
 
-  const pumpArchiveQueue = useCallback(() => {
+  const pumpArchiveQueue = useCallback(function pumpArchiveQueue() {
     while (activeArchiveTaskCountRef.current < MAX_ACTIVE_ARCHIVE_TASKS && archiveQueueRef.current.length > 0) {
       const nextTask = archiveQueueRef.current.shift();
       if (!nextTask) {
