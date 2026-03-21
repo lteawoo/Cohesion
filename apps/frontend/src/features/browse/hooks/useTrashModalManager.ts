@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { App } from 'antd';
 import type { Space } from '@/features/space/types';
-import type { TrashItem } from './useFileOperations';
+import type { TrashItem } from './transferOperationsShared';
 import { useTranslation } from 'react-i18next';
 
 interface TrashOpenRequest {

@@ -7,8 +7,8 @@ import { ApiError } from "@/api/error";
 import type { SpaceRootValidationCode, SpaceRootValidationResult } from "../types";
 
 type RootValidationState =
-  | { status: 'idle' }
-  | { status: 'validating' }
+  | { status: 'idle'; message?: string; description?: string }
+  | { status: 'validating'; message?: string; description?: string }
   | { status: 'valid'; code: SpaceRootValidationCode; message: string }
   | { status: 'invalid'; code?: SpaceRootValidationCode; message: string; description?: string };
 

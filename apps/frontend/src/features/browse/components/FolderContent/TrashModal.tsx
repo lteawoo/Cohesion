@@ -2,8 +2,8 @@ import React, { useMemo } from 'react';
 import { Modal, Table, Space as AntSpace, Button, Empty } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { DeleteOutlined, RollbackOutlined, FolderFilled, FileOutlined } from '@ant-design/icons';
-import type { TrashItem } from '../../hooks/useFileOperations';
 import { formatDate, formatSize } from '../../constants';
+import type { TrashItem } from '../../hooks/transferOperationsShared';
 import { useTranslation } from 'react-i18next';
 
 interface TrashModalProps {

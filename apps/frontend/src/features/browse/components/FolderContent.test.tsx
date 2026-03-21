@@ -43,7 +43,7 @@ const h = vi.hoisted(() => {
     selectedSpace,
     content: contentItems,
     isLoading: false,
-    error: null,
+    error: null as Error | null,
     setPath: mockSetPath,
     fetchSpaceContents: mockFetchSpaceContents,
     trashOpenRequest: null,

@@ -7,7 +7,6 @@ import {
   normalizeRelativePath,
   triggerBrowserDownloadFromUrl,
   type DownloadTicketResponse,
-  type TransferMessageApi,
   type Translate,
 } from './transferOperationsShared';
 

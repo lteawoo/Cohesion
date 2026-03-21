@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ChangeEvent, ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -139,42 +139,37 @@ describe('DirectorySetupModal', () => {
   it('enables creation after a selected root validates successfully', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    render(<DirectorySetupModal isOpen={true} onClose={onClose} />);
+    const view = render(<DirectorySetupModal isOpen={true} onClose={onClose} />);
 
-    await user.click(screen.getByRole('button', { name: 'select-valid' }));
+    await user.click(view.getByRole('button', { name: 'select-valid' }));
 
-    await waitFor(() => {
-      expect(h.storeState.validateSpaceRoot).toHaveBeenCalledWith('/valid');
-    });
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('valid')).not.toBeNull();
-    });
-    expect(screen.getByText('directorySetup.validation.valid')).not.toBeNull();
+    await view.findByText('directorySetup.validation.valid');
+    expect(h.storeState.validateSpaceRoot).toHaveBeenCalledWith('/valid');
+    expect(view.getByDisplayValue('valid')).not.toBeNull();
+    expect(view.getByText('directorySetup.validation.valid')).not.toBeNull();
 
-    const okButton = screen.getByRole('button', { name: 'ok' });
+    const okButton = view.getByRole('button', { name: 'ok' });
     expect(okButton).toHaveProperty('disabled', false);
 
     await user.click(okButton);
 
-    await waitFor(() => {
-      expect(h.storeState.createSpace).toHaveBeenCalledWith('valid', '/valid');
-    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(h.storeState.createSpace).toHaveBeenCalledWith('valid', '/valid');
     expect(h.messageApi.success).toHaveBeenCalledWith('directorySetup.createSuccess');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('blocks submit and shows permission guidance when the selected root is unreadable', async () => {
     const user = userEvent.setup();
-    render(<DirectorySetupModal isOpen={true} onClose={vi.fn()} />);
+    const view = render(<DirectorySetupModal isOpen={true} onClose={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'select-denied' }));
+    await user.click(view.getByRole('button', { name: 'select-denied' }));
 
-    await waitFor(() => {
-      expect(h.storeState.validateSpaceRoot).toHaveBeenCalledWith('/denied');
-    });
-    expect(screen.getByText('directorySetup.validation.permissionDenied')).not.toBeNull();
-    expect(screen.getByText('directorySetup.validation.permissionDeniedHint')).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'ok' })).toHaveProperty('disabled', true);
+    await view.findByText('directorySetup.validation.permissionDenied');
+    expect(h.storeState.validateSpaceRoot).toHaveBeenCalledWith('/denied');
+    expect(view.getByText('directorySetup.validation.permissionDenied')).not.toBeNull();
+    expect(view.getByText('directorySetup.validation.permissionDeniedHint')).not.toBeNull();
+    expect(view.getByRole('button', { name: 'ok' })).toHaveProperty('disabled', true);
     expect(h.storeState.createSpace).not.toHaveBeenCalled();
   });
 
@@ -188,23 +183,20 @@ describe('DirectorySetupModal', () => {
       })
     );
 
-    render(<DirectorySetupModal isOpen={true} onClose={onClose} />);
+    const view = render(<DirectorySetupModal isOpen={true} onClose={onClose} />);
 
-    await user.click(screen.getByRole('button', { name: 'select-valid' }));
+    await user.click(view.getByRole('button', { name: 'select-valid' }));
 
-    const okButton = await screen.findByRole('button', { name: 'ok' });
-    await waitFor(() => {
-      expect(okButton).toHaveProperty('disabled', false);
-    });
+    const okButton = await view.findByRole('button', { name: 'ok' });
+    expect(okButton).toHaveProperty('disabled', false);
 
     await user.click(okButton);
 
-    await waitFor(() => {
-      expect(h.storeState.createSpace).toHaveBeenCalledWith('valid', '/valid');
-    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(h.storeState.createSpace).toHaveBeenCalledWith('valid', '/valid');
     expect(h.messageApi.error).toHaveBeenCalledWith('directorySetup.validation.permissionDenied');
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByText('directorySetup.title')).not.toBeNull();
-    expect(screen.getByText('directorySetup.validation.permissionDeniedHint')).not.toBeNull();
+    expect(view.getByText('directorySetup.title')).not.toBeNull();
+    expect(view.getByText('directorySetup.validation.permissionDeniedHint')).not.toBeNull();
   });
 });

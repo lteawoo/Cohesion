@@ -937,8 +937,10 @@ describe('useFileOperations transfer states', () => {
       throw new Error('delete confirm handler was not registered');
     }
 
+    const onOk = confirmConfig.onOk;
+
     await act(async () => {
-      await confirmConfig.onOk();
+      await onOk();
     });
 
     expect(h.message.error).toHaveBeenCalledWith('fileOperations.moveToTrashFailed');
