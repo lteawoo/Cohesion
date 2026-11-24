@@ -298,8 +298,12 @@ func (s *QuotaService) getUsedBytes(ctx context.Context, spaceID int64, spacePat
 }
 
 func (s *QuotaService) scanSpaceUsage(ctx context.Context, spacePath string) (int64, error) {
+	root, err := filepath.Abs(spacePath)
+	if err != nil {
+		return 0, err
+	}
 	var usedBytes int64
-	err := filepath.WalkDir(spacePath, func(currentPath string, entry os.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(root, func(currentPath string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if os.IsPermission(walkErr) {
 				if entry != nil && entry.IsDir() {

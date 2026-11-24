@@ -167,9 +167,13 @@ func TestArchiveRecoveryAfterDatabaseReopen(t *testing.T) {
 
 func TestUploadRecoveryReclaimsReservationsAndStagedFiles(t *testing.T) {
 	root := t.TempDir()
+	t.Chdir(root)
 	dbPath := filepath.Join(root, "cohesion.db")
 	statePath := filepath.Join(root, "transfers")
-	spaceRoot := t.TempDir()
+	spaceRoot := "space"
+	if err := os.Mkdir(spaceRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
 	quota := int64(12)
 	service := space.NewService(&fakeQuotaSpaceStore{spacesByID: map[int64]*space.Space{
 		1: {ID: 1, SpaceName: "Uploads", SpacePath: spaceRoot, QuotaBytes: &quota},
