@@ -77,6 +77,16 @@ In the app, update guidance appears in `Settings > About`.
 
 Files larger than 8 MiB upload in 4 MiB chunks. If your connection drops or you reload the page, reconnect and open the transfer center in the same browser tab. Choose **Resume upload** and select the original file. Cohesion checks its name, size and modification time, then continues from the last chunk the server confirmed. A session expires after 24 hours without a successful chunk. Choose **Cancel** to release it sooner.
 
+## Collect files with a request link
+
+1. Open the destination folder with a space account that can upload files. Choose **File request** (the link icon).
+2. Set the expiry in days and total size limit in MiB. Create the link and copy the entire address, including the part after `#`. For people outside your network, open Cohesion at the HTTPS address they can reach before copying.
+3. The recipient opens the link and selects a file on their phone or computer. They can submit without an account and see only their own transfer. Files with the same name get a numbered suffix.
+4. After an interruption or reload, select **Resume upload** in the same tab and choose the original file. The server retains partial uploads for 24 hours after the last accepted chunk, up to the expiry or closure of the link.
+5. Reopen **File request** in the folder to see received bytes or close the link. Closing stops pending submissions and keeps previously received files.
+
+The destination filesystem must support hard links (for example APFS, ext4 or NTFS).
+
 ## Good Fit For
 
 - Personal file hubs at home

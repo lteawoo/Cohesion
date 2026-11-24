@@ -43,9 +43,9 @@ export function newSubmissionKey(): string {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_');
 }
 
-export async function sendSubmission(token: string, key: string, file: File, progress: (offset: number) => void) {
+export async function sendSubmission(token: string, key: string, file: File, progress: (offset: number) => void, signal?: AbortSignal) {
   const created = await submitRequest(token, key, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filename: file.name, size: file.size }),
   });
   let state = await created.json();
@@ -55,12 +55,12 @@ export async function sendSubmission(token: string, key: string, file: File, pro
   while (state.offset < file.size) {
     const end = Math.min(state.offset + 4 * 1024 * 1024, file.size);
     const response = await submitRequest(token, key, {
-      method: 'PATCH', headers: { 'Upload-Offset': String(state.offset) }, body: file.slice(state.offset, end),
+      method: 'PATCH', signal, headers: { 'Upload-Offset': String(state.offset) }, body: file.slice(state.offset, end),
     });
     state = await response.json();
     if (state.offset !== end) throw new Error('Invalid offset');
     progress(end);
   }
-  const completed = await submitRequest(token, key, { method: 'PUT' });
+  const completed = await submitRequest(token, key, { method: 'PUT', signal });
   if ((await completed.json()).status !== 'uploaded') throw new Error('Incomplete submission');
 }

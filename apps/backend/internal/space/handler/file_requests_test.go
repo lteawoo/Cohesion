@@ -156,3 +156,47 @@ func TestFileRequestClosureAndExpiry(t *testing.T) {
 		})
 	}
 }
+
+func TestConcurrentFileRequestSubmissions(t *testing.T) {
+	f, link := newRequestFixture(t)
+	keys := []string{strings.Repeat("D", 32), strings.Repeat("E", 32)}
+	for i, key := range keys {
+		f.drop("POST", link.Token, key, `{"filename":"entry","size":2}`, -1, 200)
+		f.drop("POST", link.Token, key, `{"filename":"changed","size":2}`, -1, 409)
+		f.drop("PATCH", link.Token, key, []string{"aa", "bb"}[i], 0, 200)
+	}
+	gate := make(chan struct{})
+	results := make(chan int, 2)
+	for _, key := range keys {
+		go func() {
+			<-gate
+			req := httptest.NewRequest("PUT", "/api/file-drop", nil)
+			req.Header.Set("X-File-Request", link.Token)
+			req.Header.Set("X-Submission-Key", key)
+			w := httptest.NewRecorder()
+			if e := f.h.handleFileDrop(w, req); e != nil {
+				results <- e.Code
+			} else {
+				results <- w.Code
+			}
+		}()
+	}
+	close(gate)
+	for range keys {
+		if code := <-results; code != 200 {
+			t.Errorf("publish returned %d", code)
+		}
+	}
+	seen := map[string]bool{}
+	for _, name := range []string{"entry", "entry (1)"} {
+		b, err := os.ReadFile(filepath.Join(f.files, "inbox", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen[string(b)] = true
+	}
+	if !seen["aa"] || !seen["bb"] {
+		t.Fatal("concurrent submission lost", seen)
+	}
+	f.assertClean()
+}
