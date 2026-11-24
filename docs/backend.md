@@ -116,6 +116,10 @@ pnpm release:check
 
 - 환경 설정 파일: `apps/backend/config/config.dev.yaml`, `apps/backend/config/config.prod.yaml`
 - 데이터베이스: SQLite
+- 서버 전송 상태:
+  - ZIP 작업 상태와 업로드 용량 예약, 임시 파일 경로는 SQLite에 기록한다.
+  - ZIP 파일은 프로덕션 `<state-root>/data/transfers/archives`, 개발 `dist/data/transfers/archives`에 보관한다. 프로세스 재기동 뒤에도 보존 기간이 남은 ZIP은 새 다운로드 요청으로 받을 수 있다.
+  - 생성 중이던 ZIP 작업은 실패로 표시되며 전송 센터에서 재시도할 수 있다. 중단된 업로드의 용량 예약과 기록된 임시 파일도 정리한다. 접근할 수 없는 임시 경로는 다음 정리 주기에 다시 확인한다.
 - 필수 secret bootstrap:
   - JWT secret은 `COHESION_JWT_SECRET` 또는 `COHESION_JWT_SECRET_FILE`로 공급한다.
   - 개발 환경은 secret file이 없으면 자동 생성할 수 있다.

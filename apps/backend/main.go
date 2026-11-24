@@ -217,8 +217,20 @@ func registerWebDAVRoutes(mux *http.ServeMux, handler http.Handler) {
 	mux.Handle("/dav/", handler)
 }
 
+func resolveTransferRootDir() (string, error) {
+	dataDir := filepath.Join(config.ConfigDir(), "..", "dist", "data")
+	if goEnv == "production" {
+		productionDataDir, err := config.ResolveProductionDataDir()
+		if err != nil {
+			return "", err
+		}
+		dataDir = productionDataDir
+	}
+	return filepath.Join(dataDir, "transfers"), nil
+}
+
 // createServer는 설정을 기반으로 HTTP 서버를 생성합니다
-func createServer(db *sql.DB, restartChan chan system.RestartRequest, shutdownChan chan struct{}, statusStore *system.StatusStore) (*http.Server, *ftp.Service, *sftpserver.Service, *audit.Service, error) {
+func createServer(db *sql.DB, restartChan chan system.RestartRequest, shutdownChan chan struct{}, statusStore *system.StatusStore, spaceService *space.Service, transfers *spaceHandler.TransferRuntime) (*http.Server, *ftp.Service, *sftpserver.Service, *audit.Service, error) {
 	// 의존성 주입
 	accountRepo := accountStore.NewStore(db)
 	accountService := account.NewService(accountRepo)
@@ -239,16 +251,15 @@ func createServer(db *sql.DB, restartChan chan system.RestartRequest, shutdownCh
 	})
 	authHandler := auth.NewHandler(authService)
 
-	spaceRepo := spaceStore.NewStore(db)
 	searchIndexRepo := spaceStore.NewSearchIndexStore(db)
 	trashRepo := spaceStore.NewTrashStore(db)
 	auditRepo := auditStore.NewStore(db)
-	spaceService := space.NewService(spaceRepo)
 	searchIndexManager := space.NewSearchIndexManager(spaceService, searchIndexRepo)
 	trashService := space.NewTrashService(trashRepo)
 	auditService := audit.NewService(auditRepo, audit.Config{BufferSize: 512})
 	browseService := browse.NewService()
 	spaceHandler := spaceHandler.NewHandler(spaceService, browseService, accountService, trashService)
+	spaceHandler.SetTransferRuntime(transfers)
 	spaceHandler.SetSearchIndexer(searchIndexManager)
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	auditHandler := audit.NewHandler(auditService)
@@ -337,6 +348,9 @@ func createServer(db *sql.DB, restartChan chan system.RestartRequest, shutdownCh
 		Addr:    port,
 		Handler: finalLogHandler,
 	}
+	cleanupCtx, stopCleanup := context.WithCancel(context.Background())
+	server.RegisterOnShutdown(stopCleanup)
+	go spaceHandler.RunTransferCleanup(cleanupCtx)
 
 	return server, ftpService, sftpService, auditService, nil
 }
@@ -401,6 +415,16 @@ func main() {
 		Str("datasource_url", config.Conf.Datasource.URL).
 		Msg("database connected")
 
+	transferRoot, err := resolveTransferRootDir()
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to resolve transfer state directory")
+	}
+	spaceService := space.NewService(spaceStore.NewStore(db))
+	transfers, err := spaceHandler.NewTransferRuntime(context.Background(), db, spaceService, transferRoot)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to recover transfer state")
+	}
+
 	// OS 시그널 핸들링 (Ctrl+C)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -411,7 +435,7 @@ func main() {
 	// 서버 시작/재시작 루프
 	for {
 		// 서버 생성
-		server, ftpService, sftpService, auditService, err := createServer(db, restartChan, shutdownChan, statusStore)
+		server, ftpService, sftpService, auditService, err := createServer(db, restartChan, shutdownChan, statusStore, spaceService, transfers)
 		if err != nil {
 			if pendingRestartRequest != nil {
 				if _, statusErr := statusStore.MarkRestartFailed(err); statusErr != nil {

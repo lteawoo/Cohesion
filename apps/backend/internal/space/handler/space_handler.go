@@ -53,6 +53,7 @@ type Handler struct {
 	downloadTickets   map[string]downloadTicket
 	downloadTicketTTL time.Duration
 	archiveDownloads  *archiveDownloadManager
+	transferRuntime   *TransferRuntime
 	auditRecorder     audit.Recorder
 }
 

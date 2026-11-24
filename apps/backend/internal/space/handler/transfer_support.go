@@ -63,7 +63,10 @@ func (w *quotaEnforcingWriter) Write(p []byte) (int, error) {
 	return n, errUploadQuotaExceeded
 }
 
-func createUploadStageFile(destPath string) (*os.File, string, error) {
+func (h *Handler) createUploadStageFile(ctx context.Context, destPath string) (*os.File, string, error) {
+	if h.transferRuntime != nil {
+		return h.transferRuntime.createUploadStage(ctx, destPath)
+	}
 	if strings.TrimSpace(destPath) == "" {
 		file, err := os.CreateTemp("", "cohesion-upload-*")
 		if err != nil {
@@ -83,34 +86,45 @@ func createUploadStageFile(destPath string) (*os.File, string, error) {
 	return file, stagePath, nil
 }
 
-func finalizeUploadedFile(stagePath, destPath string, replaceExisting bool) error {
-	if replaceExisting {
-		if err := moveWithDestinationSwap(stagePath, destPath); err == nil {
-			return nil
-		}
-	} else if err := os.Rename(stagePath, destPath); err == nil {
+func (h *Handler) finalizeUploadedFile(ctx context.Context, stagePath, destPath string) error {
+	if err := os.Rename(stagePath, destPath); err == nil {
 		return nil
 	}
 
-	fallbackStagePath, err := resolveUniqueSiblingPath(destPath, "upload-finalize")
+	fallbackStage, fallbackStagePath, err := h.createUploadStageFile(ctx, destPath)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(fallbackStagePath) //nolint:errcheck
+	defer h.discardUploadStage(fallbackStagePath)
 
-	if err := copyFile(stagePath, fallbackStagePath); err != nil {
+	if err := copyUploadStage(stagePath, fallbackStage); err != nil {
 		return err
 	}
-	if replaceExisting {
-		if err := moveWithDestinationSwap(fallbackStagePath, destPath); err != nil {
-			return err
-		}
-	} else {
-		if err := os.Rename(fallbackStagePath, destPath); err != nil {
-			return err
-		}
+	if err := os.Rename(fallbackStagePath, destPath); err != nil {
+		return err
 	}
-	return os.Remove(stagePath)
+	return nil
+}
+
+func copyUploadStage(path string, destination *os.File) error {
+	defer destination.Close()
+	source, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	info, err := source.Stat()
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(destination, source); err != nil {
+		return err
+	}
+	if err := destination.Chmod(info.Mode().Perm()); err != nil {
+		return err
+	}
+	return destination.Close()
 }
 
 func createQuotaExceededWebError(spaceID, usedBytes, quotaBytes, deltaBytes int64) *web.Error {

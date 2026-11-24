@@ -586,11 +586,15 @@ func (h *Handler) buildZipTempArchive(writeZip func(zipWriter *zip.Writer) *web.
 	if err != nil {
 		return "", 0, &web.Error{Code: http.StatusInternalServerError, Message: "Failed to prepare zip archive", Err: err}
 	}
+	return writeZIPArtifact(tempFile, writeZip)
+}
+
+func writeZIPArtifact(tempFile *os.File, writeZip func(*zip.Writer) *web.Error) (string, int64, *web.Error) {
 	tempFilePath := tempFile.Name()
 	cleanup := true
 	defer func() {
-		tempFile.Close() //nolint:errcheck
 		if cleanup {
+			tempFile.Close()        //nolint:errcheck
 			os.Remove(tempFilePath) //nolint:errcheck
 		}
 	}()
@@ -607,6 +611,9 @@ func (h *Handler) buildZipTempArchive(writeZip func(zipWriter *zip.Writer) *web.
 	zipInfo, err := tempFile.Stat()
 	if err != nil {
 		return "", 0, &web.Error{Code: http.StatusInternalServerError, Message: "Failed to inspect zip archive", Err: err}
+	}
+	if err := tempFile.Close(); err != nil {
+		return "", 0, &web.Error{Code: http.StatusInternalServerError, Message: "Failed to close zip archive", Err: err}
 	}
 	cleanup = false
 	return tempFilePath, zipInfo.Size(), nil

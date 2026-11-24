@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 const defaultQuotaUsageCacheTTL = 10 * time.Second
@@ -19,6 +21,11 @@ type cachedSpaceUsage struct {
 type quotaReservation struct {
 	spaceID    int64
 	deltaBytes int64
+}
+
+type UploadReservationStore interface {
+	SaveUploadReservation(ctx context.Context, id string, spaceID, deltaBytes int64) error
+	DeleteUploadReservation(ctx context.Context, id string) error
 }
 
 type SpaceUsage struct {
@@ -46,10 +53,24 @@ type QuotaService struct {
 	spaceService *Service
 	ttl          time.Duration
 
-	mu              sync.RWMutex
-	cache           map[int64]cachedSpaceUsage
-	reservations    map[string]quotaReservation
-	reservedBySpace map[int64]int64
+	mu               sync.RWMutex
+	cache            map[int64]cachedSpaceUsage
+	reservations     map[string]quotaReservation
+	reservedBySpace  map[int64]int64
+	reservationStore UploadReservationStore
+	uploadStages     sync.Map
+}
+
+func (s *QuotaService) SetUploadReservationStore(store UploadReservationStore) {
+	s.reservationStore = store
+}
+
+func (s *QuotaService) TrackUploadStage(path string) {
+	s.uploadStages.Store(path, struct{}{})
+}
+
+func (s *QuotaService) ForgetUploadStage(path string) {
+	s.uploadStages.Delete(path)
 }
 
 func NewQuotaService(spaceService *Service) *QuotaService {
@@ -135,16 +156,11 @@ func (s *QuotaService) AcquireWriteReservation(ctx context.Context, spaceID int6
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if existingReservation, ok := s.reservations[reservationID]; ok {
-		if currentReserved := s.reservedBySpace[existingReservation.spaceID] - existingReservation.deltaBytes; currentReserved > 0 {
-			s.reservedBySpace[existingReservation.spaceID] = currentReserved
-		} else {
-			delete(s.reservedBySpace, existingReservation.spaceID)
-		}
-		delete(s.reservations, reservationID)
-	}
-
 	reservedBytes := s.reservedBySpace[spaceID]
+	existing, alreadyReserved := s.reservations[reservationID]
+	if alreadyReserved && existing.spaceID == spaceID {
+		reservedBytes -= existing.deltaBytes
+	}
 	projected := usage.UsedBytes + reservedBytes + deltaBytes
 	if projected > quota {
 		return nil, &QuotaExceededError{
@@ -156,6 +172,14 @@ func (s *QuotaService) AcquireWriteReservation(ctx context.Context, spaceID int6
 		}
 	}
 
+	if s.reservationStore != nil {
+		if err := s.reservationStore.SaveUploadReservation(ctx, reservationID, spaceID, deltaBytes); err != nil {
+			return nil, fmt.Errorf("persist upload quota reservation: %w", err)
+		}
+	}
+	if alreadyReserved {
+		s.releaseReservationLocked(reservationID, existing)
+	}
 	s.reservations[reservationID] = quotaReservation{
 		spaceID:    spaceID,
 		deltaBytes: deltaBytes,
@@ -173,6 +197,15 @@ func (s *QuotaService) ReleaseWriteReservation(reservationID string) {
 	if !ok {
 		return
 	}
+	if s.reservationStore != nil {
+		if err := s.reservationStore.DeleteUploadReservation(context.Background(), reservationID); err != nil {
+			log.Error().Err(err).Str("reservation_id", reservationID).Msg("failed to delete closed upload reservation")
+		}
+	}
+	s.releaseReservationLocked(reservationID, reservation)
+}
+
+func (s *QuotaService) releaseReservationLocked(reservationID string, reservation quotaReservation) {
 	delete(s.reservations, reservationID)
 
 	nextReserved := s.reservedBySpace[reservation.spaceID] - reservation.deltaBytes
@@ -265,8 +298,12 @@ func (s *QuotaService) getUsedBytes(ctx context.Context, spaceID int64, spacePat
 }
 
 func (s *QuotaService) scanSpaceUsage(ctx context.Context, spacePath string) (int64, error) {
+	root, err := filepath.Abs(spacePath)
+	if err != nil {
+		return 0, err
+	}
 	var usedBytes int64
-	err := filepath.WalkDir(spacePath, func(currentPath string, entry os.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(root, func(currentPath string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if os.IsPermission(walkErr) {
 				if entry != nil && entry.IsDir() {
@@ -277,6 +314,9 @@ func (s *QuotaService) scanSpaceUsage(ctx context.Context, spacePath string) (in
 			return walkErr
 		}
 		if entry == nil || entry.IsDir() {
+			return nil
+		}
+		if _, staged := s.uploadStages.Load(currentPath); staged {
 			return nil
 		}
 		if err := ctx.Err(); err != nil {

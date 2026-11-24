@@ -54,7 +54,7 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 			_ = stageFile.Close()
 		}
 		if stagePath != "" {
-			_ = os.Remove(stagePath)
+			h.discardUploadStage(stagePath)
 		}
 	}()
 
@@ -129,7 +129,7 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 		if plan != nil {
 			stageDestPath = plan.destPath
 		}
-		stageFile, stagePath, err = createUploadStageFile(stageDestPath)
+		stageFile, stagePath, err = h.createUploadStageFile(r.Context(), stageDestPath)
 		if err != nil {
 			return &web.Error{Code: http.StatusInternalServerError, Message: "Failed to prepare upload staging file", Err: err}
 		}
@@ -198,9 +198,10 @@ func (h *Handler) handleFileUpload(w http.ResponseWriter, r *http.Request, space
 		return webErr
 	}
 
-	if err := finalizeUploadedFile(stagePath, plan.destPath, plan.existingBytes > 0); err != nil {
+	if err := h.finalizeUploadedFile(r.Context(), stagePath, plan.destPath); err != nil {
 		return storageOperationWebError(err, "Failed to finalize uploaded file")
 	}
+	h.discardUploadStage(stagePath)
 	stagePath = ""
 	resultFileName = plan.resultFileName
 
