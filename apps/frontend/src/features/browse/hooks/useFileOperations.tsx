@@ -37,6 +37,8 @@ import {
 import { useTransferHydration } from './useTransferHydration';
 import { useUploadTransfers } from './useUploadTransfers';
 
+import { findUpload } from './resumableUpload';
+
 interface UseFileOperationsReturn {
   handleRename: (oldPath: string, newName: string) => Promise<void>;
   handleCreateFolder: (parentPath: string, folderName: string) => Promise<void>;
@@ -136,10 +138,12 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
   const setUploadTransferStatus = useCallback((
     transferId: string,
     name: string,
-    status: 'queued' | 'uploading' | 'completed' | 'failed' | 'canceled',
+    status: 'queued' | 'uploading' | 'completed' | 'failed' | 'canceled' | 'expired',
     options: { loaded?: number; total?: number; message?: string } = {}
   ) => {
-    const loaded = options.loaded ?? 0;
+    const previous = findUpload(transferId);
+    const resume = status === 'completed' || status === 'canceled' || status === 'expired' ? undefined : previous?.resume;
+    const loaded = resume && status !== 'uploading' ? previous?.loaded ?? 0 : options.loaded ?? 0;
     const total = options.total ?? 0;
     const progressPercent = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
     upsertTransfer({
@@ -147,7 +151,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
       kind: 'upload',
       name,
       status,
-      spaceId: selectedSpace?.id,
+      spaceId: previous?.spaceId ?? selectedSpace?.id,
+      resume,
       loaded,
       total,
       progressPercent,
@@ -205,6 +210,7 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
     handleFileUpload: handleQueuedUpload,
     cancelUploadTransfer,
     dismissUploadTransfer,
+    retryUploadTransfer,
   } = useUploadTransfers({
     selectedSpace,
     t,
@@ -269,8 +275,8 @@ export function useFileOperations(selectedPath: string, selectedSpace?: Space): 
   }, [cancelArchiveTransfer, cancelDirectDownload, cancelUploadTransfer]);
 
   const retryTransfer = useCallback((transferId: string) => {
-    retryArchiveTransfer(transferId);
-  }, [retryArchiveTransfer]);
+    if (!retryUploadTransfer(transferId)) retryArchiveTransfer(transferId);
+  }, [retryArchiveTransfer, retryUploadTransfer]);
 
   const handleFileUpload = useCallback(async (files: UploadSource, targetPath: string) => {
     await handleQueuedUpload(files, targetPath);

@@ -81,10 +81,10 @@ func (s *TransferStore) RecoverUploadTransfers(ctx context.Context) error {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(ctx, "DELETE FROM upload_quota_reservations"); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM upload_quota_reservations WHERE id NOT IN (SELECT id FROM upload_sessions)"); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, "UPDATE upload_staging_files SET abandoned = 1"); err != nil {
+	if _, err := tx.ExecContext(ctx, "UPDATE upload_staging_files SET abandoned = 1 WHERE path NOT IN (SELECT stage_path FROM upload_sessions)"); err != nil {
 		return err
 	}
 	return tx.Commit()

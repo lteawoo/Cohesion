@@ -73,6 +73,10 @@ In the app, update guidance appears in `Settings > About`.
 3. Create a space for your files.
 4. Upload files or connect your WebDAV or SFTP client.
 
+## Resume a browser upload
+
+Files larger than 8 MiB upload in 4 MiB chunks. If your connection drops or you reload the page, reconnect and open the transfer center in the same browser tab. Choose **Resume upload** and select the original file. Cohesion checks its name, size and modification time, then continues from the last chunk the server confirmed. A session expires after 24 hours without a successful chunk. Choose **Cancel** to release it sooner.
+
 ## Good Fit For
 
 - Personal file hubs at home

@@ -124,6 +124,42 @@ describe('useFileOperations transfer states', () => {
     ];
   });
 
+  it('resumes a reselected large file from the server offset in the original space', async () => {
+    const chunk = 4 * 1024 * 1024;
+    const file = new File([new Uint8Array(chunk * 2 + 7)], 'large.bin', { lastModified: 1234 });
+    const active = (offset: number) => jsonResponse({ id: 'session-1', status: 'active', offset });
+    h.apiFetch.mockResolvedValueOnce(active(0)).mockResolvedValueOnce(active(chunk))
+      .mockRejectedValueOnce(new TypeError('offline'));
+    const initial = renderHook(() => useFileOperations('/', { id: 1 } as never));
+    await act(() => initial.result.current.handleFileUpload([file], '/reports'));
+    const [item] = useTransferCenterStore.getState().transfers;
+    expect(item).toMatchObject({ status: 'failed', loaded: chunk, resume: { sessionId: 'session-1', targetPath: 'reports' } });
+    initial.unmount();
+
+    const next = renderHook(() => useFileOperations('/', { id: 2 } as never));
+    const click = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
+    try {
+      act(() => next.result.current.retryTransfer(item.id));
+      const input = click.mock.contexts[0] as HTMLInputElement;
+      Object.defineProperty(input, 'files', { configurable: true, value: [new File(['wrong'], file.name)] });
+      await act(async () => { input.dispatchEvent(new Event('change')); });
+      expect(h.message.warning).toHaveBeenCalledWith('fileOperations.resumeFileMismatch');
+      expect(h.apiFetch).toHaveBeenCalledTimes(3);
+
+      h.apiFetch.mockResolvedValueOnce(active(chunk * 2)).mockResolvedValueOnce(active(file.size))
+        .mockResolvedValueOnce(jsonResponse({ status: 'uploaded', filename: file.name }));
+      Object.defineProperty(input, 'files', { value: [file] });
+      await act(async () => { input.dispatchEvent(new Event('change')); });
+      await waitFor(() => expect(useTransferCenterStore.getState().transfers[0]).toMatchObject({ status: 'completed', spaceId: 1 }));
+      const [, patch] = h.apiFetch.mock.calls[4];
+      expect(h.apiFetch.mock.calls[4][0]).toBe('/api/spaces/1/files/upload-sessions?id=session-1');
+      expect(patch.headers['Upload-Offset']).toBe(String(chunk * 2));
+      expect(patch.body.size).toBe(7);
+    } finally {
+      click.mockRestore();
+    }
+  });
+
   it('tracks upload progress and keeps canceled uploads visible', async () => {
     h.apiUpload.mockImplementation(async (_url: string, _init: RequestInit, options?: { onUploadProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) => {
       options?.onUploadProgress?.(32, 64);

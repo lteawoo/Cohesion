@@ -36,6 +36,8 @@ func (h *Handler) handleSpaceFiles(w http.ResponseWriter, r *http.Request, space
 		webErr = h.handleTrashEmpty(w, r, spaceID)
 	case "create-folder":
 		webErr = h.handleFileCreateFolder(w, r, spaceID)
+	case "upload-sessions":
+		webErr = h.handleUploadSessions(w, r, spaceID)
 	case "upload":
 		webErr = h.handleFileUpload(w, r, spaceID)
 	case "move":

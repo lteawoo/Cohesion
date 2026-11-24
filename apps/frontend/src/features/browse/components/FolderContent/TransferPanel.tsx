@@ -162,13 +162,14 @@ function TransferRow({
   const { t } = useTranslation();
   const label = getTransferLabel(transfer, t);
   const statusText = getTransferStatusText(transfer, t);
-  const canCancel = (
+  const canResume = transfer.kind === 'upload' && Boolean(transfer.resume) && transfer.status === 'failed';
+  const canCancel = canResume || (
     (transfer.kind === 'upload' && (transfer.status === 'queued' || transfer.status === 'uploading'))
     || (transfer.kind === 'archive' && (transfer.status === 'queued' || transfer.status === 'running'))
     || (transfer.kind === 'download' && transfer.status === 'running')
   );
-  const canDismiss = !isActiveTransferStatus(transfer.status);
-  const canRetry = Boolean(
+  const canDismiss = !canResume && !isActiveTransferStatus(transfer.status);
+  const canRetry = (canResume && Boolean(onRetryTransfer)) || Boolean(
     onRetryTransfer
     && transfer.kind === 'archive'
     && (transfer.status === 'failed' || transfer.status === 'expired' || transfer.status === 'canceled')
@@ -222,7 +223,7 @@ function TransferRow({
               size="small"
               onClick={() => onRetryTransfer?.(transfer.id)}
             >
-              {t('fileOperations.retryTransfer')}
+              {t(canResume ? 'fileOperations.resumeUpload' : 'fileOperations.retryTransfer')}
             </Button>
           ) : null}
           {canDismiss ? (

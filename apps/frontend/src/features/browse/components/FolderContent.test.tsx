@@ -386,6 +386,16 @@ describe('FolderContent activation behavior', () => {
     setTouchSupport(false);
   });
 
+  it('keeps the transfer center available in an empty destination', () => {
+    h.storeState.content = [];
+    useTransferCenterStore.getState().upsertTransfer({
+      kind: 'upload', id: 'resumable', name: 'large.bin', status: 'failed', loaded: 4, total: 9, progressPercent: 44,
+      resume: { sessionId: 'existing', targetPath: '', lastModified: 123 },
+    });
+    const { getByTestId } = render(<FolderContent />);
+    expect(getByTestId('transfer-center-trigger')).toBeTruthy();
+  });
+
   it('opens folder path on desktop double click', async () => {
     const user = userEvent.setup();
     const { getByRole } = render(<FolderContent />);

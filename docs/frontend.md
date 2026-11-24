@@ -85,7 +85,9 @@ apps/frontend/src/
   - `FolderContent`와 브라우즈 화면이 사용하는 façade다.
   - move/copy/rename/trash 같은 파일 작업 API와 transfer hooks 조합만 담당한다.
 - `features/browse/hooks/useUploadTransfers.ts`
-  - upload queue, progress, cancel, conflict prompt 이후 재시도 흐름을 담당한다.
+  - 파일별 큐, 취소, 이름 충돌 선택 및 원본 재선택을 담당한다.
+- `features/browse/hooks/resumableUpload.ts`
+  - 8 MiB 초과 파일을 4 MiB 단위로 보낸다. 같은 탭의 전송 센터에서 원본 이름·크기·수정 시각을 확인하고 원래 스페이스의 서버 수신 위치부터 재개한다. 작은 파일은 기존 multipart 경로를 사용한다.
 - `features/browse/hooks/useArchiveTransfers.ts`
   - archive prepare queue, polling, cancel, retry, browser handoff를 담당한다.
 - `features/browse/hooks/useDirectDownloadTransfers.ts`

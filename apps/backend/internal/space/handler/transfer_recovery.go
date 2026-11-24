@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -19,10 +20,12 @@ const uploadStagePrefix = ".cohesion-upload-"
 
 // TransferRuntime is shared by HTTP handlers in the same server process.
 type TransferRuntime struct {
-	store   *spaceStore.TransferStore
-	archive *archiveDownloadManager
-	quota   *space.QuotaService
-	uploads string
+	store        *spaceStore.TransferStore
+	archive      *archiveDownloadManager
+	quota        *space.QuotaService
+	uploads      string
+	sessionLocks [64]sync.Mutex
+	publishMu    sync.Mutex
 }
 
 func NewTransferRuntime(ctx context.Context, db *sql.DB, spaceService *space.Service, root string) (*TransferRuntime, error) {
@@ -51,6 +54,9 @@ func NewTransferRuntime(ctx context.Context, db *sql.DB, spaceService *space.Ser
 	quota := space.NewQuotaService(spaceService)
 	quota.SetUploadReservationStore(transferStore)
 	runtime := &TransferRuntime{store: transferStore, archive: archive, quota: quota, uploads: uploadPath}
+	if err := runtime.restoreUploadSessions(ctx); err != nil {
+		return nil, err
+	}
 	if err := runtime.cleanUploadStages(ctx); err != nil {
 		return nil, err
 	}
@@ -73,6 +79,9 @@ func (h *Handler) RunTransferCleanup(ctx context.Context) {
 			return
 		case <-ticker.C:
 			h.cleanupArchiveDownloadJobs()
+			if err := h.transferRuntime.expireUploadSessions(ctx); err != nil {
+				log.Warn().Err(err).Msg("failed to expire upload sessions")
+			}
 			if err := h.transferRuntime.cleanUploadStages(ctx); err != nil {
 				log.Warn().Err(err).Msg("failed to clean up abandoned upload stages")
 			}
