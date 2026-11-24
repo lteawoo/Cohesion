@@ -85,6 +85,9 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 		}
 	}
 
+	if action, ok := extractSpaceFileAction(path); ok && action == "upload-sessions" {
+		return PermissionFileWrite, true
+	}
 	if strings.HasPrefix(path, "/api/spaces/") && method == http.MethodDelete {
 		return PermissionSpaceWrite, true
 	}
@@ -384,7 +387,7 @@ func DeniedAuditActionForSpaceFileAction(action string) (string, bool) {
 		return "file.delete-multiple", true
 	case "create-folder":
 		return "file.mkdir", true
-	case "upload":
+	case "upload", "upload-sessions":
 		return "file.upload", true
 	case "move":
 		return "file.move", true

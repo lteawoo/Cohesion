@@ -44,7 +44,7 @@ export function useTransferHydration({
         upsertTransfer({
           ...uploadTransfer,
           status: 'failed',
-          message: t('fileOperations.transferInterruptedOnReload'),
+          message: t(uploadTransfer.resume ? 'fileOperations.reselectUploadFile' : 'fileOperations.transferInterruptedOnReload'),
         });
         return;
       }

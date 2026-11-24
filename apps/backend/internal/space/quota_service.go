@@ -161,8 +161,7 @@ func (s *QuotaService) AcquireWriteReservation(ctx context.Context, spaceID int6
 	if alreadyReserved && existing.spaceID == spaceID {
 		reservedBytes -= existing.deltaBytes
 	}
-	projected := usage.UsedBytes + reservedBytes + deltaBytes
-	if projected > quota {
+	if deltaBytes > quota-usage.UsedBytes-reservedBytes {
 		return nil, &QuotaExceededError{
 			SpaceID:    usage.SpaceID,
 			SpaceName:  usage.SpaceName,
@@ -214,6 +213,12 @@ func (s *QuotaService) releaseReservationLocked(reservationID string, reservatio
 		return
 	}
 	delete(s.reservedBySpace, reservation.spaceID)
+}
+
+// RestoreWriteReservation restores a persisted reservation before the HTTP server starts.
+func (s *QuotaService) RestoreWriteReservation(id string, spaceID, delta int64) {
+	s.reservations[id] = quotaReservation{spaceID: spaceID, deltaBytes: delta}
+	s.reservedBySpace[spaceID] += delta
 }
 
 func (s *QuotaService) ReservedBytes(spaceID int64) int64 {

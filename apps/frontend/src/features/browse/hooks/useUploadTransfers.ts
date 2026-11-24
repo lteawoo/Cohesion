@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import { cancelSession, findUpload, RESUMABLE_UPLOAD_THRESHOLD, sendResumableUpload } from './resumableUpload';
 import { apiUpload } from '@/api/client';
 import type { Space } from '@/features/space/types';
 import { useTransferCenterStore } from '@/stores/transferCenterStore';
@@ -30,7 +31,7 @@ interface UseUploadTransfersParams {
   setUploadTransferStatus: (
     transferId: string,
     name: string,
-    status: 'queued' | 'uploading' | 'completed' | 'failed' | 'canceled',
+    status: 'queued' | 'uploading' | 'completed' | 'failed' | 'canceled' | 'expired',
     options?: { loaded?: number; total?: number; message?: string }
   ) => void;
 }
@@ -39,6 +40,7 @@ interface UseUploadTransfersResult {
   handleFileUpload: (files: UploadSource, targetPath: string) => Promise<void>;
   cancelUploadTransfer: (transferId: string) => boolean;
   dismissUploadTransfer: (transferId: string) => void;
+  retryUploadTransfer: (transferId: string) => boolean;
 }
 
 export function useUploadTransfers({
@@ -63,6 +65,12 @@ export function useUploadTransfers({
       signal: AbortSignal,
       conflictPolicy?: UploadConflictPolicy
     ): Promise<UploadResult> => {
+      const item = findUpload(transferId);
+      if (item?.resume && item.spaceId) {
+        return sendResumableUpload(item, file, signal, (loaded) => {
+          setUploadTransferStatus(transferId, file.name, 'uploading', { loaded, total: file.size });
+        }, conflictPolicy);
+      }
       if (!selectedSpace) {
         throw new Error(t('fileOperations.selectedSpaceRequired'));
       }
@@ -102,17 +110,26 @@ export function useUploadTransfers({
     [readErrorMessage, selectedSpace, setUploadTransferStatus, t]
   );
 
+  const settleCancellation = useCallback(async (transferId: string, name: string, total: number) => {
+    const item = findUpload(transferId);
+    try {
+      const completed = item?.resume ? await cancelSession(item) : undefined;
+      setUploadTransferStatus(transferId, name, completed ? 'completed' : 'canceled', {
+        total, loaded: completed ? total : 0,
+        message: completed ? undefined : t('fileOperations.transferCanceled'),
+      });
+    } catch {
+      setUploadTransferStatus(transferId, name, 'failed', { total, message: t('fileOperations.cancelSessionFailed') });
+    }
+  }, [setUploadTransferStatus, t]);
+
   const runUploadBatch = useCallback(async (batch: UploadBatchQueueEntry): Promise<UploadExecutionResult[]> => {
     let batchConflictPolicy: UploadConflictPolicy | null = null;
     const results: UploadExecutionResult[] = [...batch.settledResults];
 
     for (const task of batch.tasks) {
       if (canceledQueuedUploadTransferIdsRef.current.delete(task.transferId)) {
-        setUploadTransferStatus(task.transferId, task.file.name, 'canceled', {
-          loaded: 0,
-          total: task.file.size,
-          message: t('fileOperations.transferCanceled'),
-        });
+        await settleCancellation(task.transferId, task.file.name, task.file.size);
         results.push({
           transferId: task.transferId,
           file: task.file,
@@ -124,7 +141,7 @@ export function useUploadTransfers({
 
       const abortController = new AbortController();
       uploadAbortControllersRef.current.set(task.transferId, abortController);
-      setUploadTransferStatus(task.transferId, task.file.name, 'uploading', { loaded: 0, total: task.file.size });
+      setUploadTransferStatus(task.transferId, task.file.name, 'uploading', { loaded: findUpload(task.transferId)?.loaded ?? 0, total: task.file.size });
 
       try {
         const result = await performUpload(
@@ -151,17 +168,14 @@ export function useUploadTransfers({
         const status = error && typeof error === 'object' && 'status' in error
           ? Number(error.status)
           : 0;
-        const errorMessage = error && typeof error === 'object' && 'message' in error
+        const interrupted = error instanceof TypeError && findUpload(task.transferId)?.resume;
+        const errorMessage = interrupted ? t('fileOperations.reselectUploadFile') : error && typeof error === 'object' && 'message' in error
           ? String(error.message)
           : t('fileOperations.uploadFailed');
 
         if (isAbortError(error)) {
           uploadAbortControllersRef.current.delete(task.transferId);
-          setUploadTransferStatus(task.transferId, task.file.name, 'canceled', {
-            loaded: 0,
-            total: task.file.size,
-            message: t('fileOperations.transferCanceled'),
-          });
+          await settleCancellation(task.transferId, task.file.name, task.file.size);
           results.push({
             transferId: task.transferId,
             file: task.file,
@@ -175,11 +189,7 @@ export function useUploadTransfers({
           const selectedPolicy = await promptConflictPolicy(task.file.name);
           if (!selectedPolicy) {
             uploadAbortControllersRef.current.delete(task.transferId);
-            setUploadTransferStatus(task.transferId, task.file.name, 'canceled', {
-              loaded: 0,
-              total: task.file.size,
-              message: t('fileOperations.transferCanceled'),
-            });
+            await settleCancellation(task.transferId, task.file.name, task.file.size);
             results.push({
               transferId: task.transferId,
               file: task.file,
@@ -212,6 +222,11 @@ export function useUploadTransfers({
             });
           } catch (retryError: unknown) {
             uploadAbortControllersRef.current.delete(task.transferId);
+            if (isAbortError(retryError)) {
+              await settleCancellation(task.transferId, task.file.name, task.file.size);
+              results.push({ transferId: task.transferId, file: task.file, outcome: 'canceled' });
+              continue;
+            }
             const retryMessage = retryError && typeof retryError === 'object' && 'message' in retryError
               ? String(retryError.message)
               : t('fileOperations.uploadFailed');
@@ -231,10 +246,11 @@ export function useUploadTransfers({
         }
 
         uploadAbortControllersRef.current.delete(task.transferId);
-        setUploadTransferStatus(task.transferId, task.file.name, 'failed', {
+        const expired = status === 404 && Boolean(findUpload(task.transferId)?.resume?.sessionId);
+        setUploadTransferStatus(task.transferId, task.file.name, expired ? 'expired' : 'failed', {
           loaded: 0,
           total: task.file.size,
-          message: errorMessage,
+          message: expired ? t('fileOperations.resumeSessionExpired') : errorMessage,
         });
         results.push({
           transferId: task.transferId,
@@ -246,7 +262,7 @@ export function useUploadTransfers({
     }
 
     return results;
-  }, [performUpload, promptConflictPolicy, setUploadTransferStatus, t]);
+  }, [performUpload, promptConflictPolicy, setUploadTransferStatus, settleCancellation, t]);
 
   const pumpUploadQueue = useCallback(function pumpUploadQueue() {
     while (activeUploadBatchCountRef.current < MAX_ACTIVE_UPLOAD_BATCHES && uploadBatchQueueRef.current.length > 0) {
@@ -296,6 +312,12 @@ export function useUploadTransfers({
     const queuedTasks = uploadFiles.map((file) => {
       const transferId = createTransferId();
       setUploadTransferStatus(transferId, file.name, 'queued', { loaded: 0, total: file.size });
+      const item = findUpload(transferId);
+      if (item && file.size > RESUMABLE_UPLOAD_THRESHOLD) {
+        useTransferCenterStore.getState().upsertTransfer({
+          ...item, resume: { sessionId: '', lastModified: file.lastModified, targetPath: normalizeRelativePath(targetPath) },
+        });
+      }
       return {
         transferId,
         file,
@@ -370,10 +392,36 @@ export function useUploadTransfers({
     message.success(summaryMessage);
   }, [enqueueUploadBatch, message, refreshContents, setUploadTransferStatus, t]);
 
+  const retryUploadTransfer = useCallback((transferId: string): boolean => {
+    const item = findUpload(transferId);
+    if (!item?.resume || item.status !== 'failed') return false;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file || findUpload(transferId)?.status !== 'failed') return;
+      if (file.name !== item.name || file.size !== item.total || file.lastModified !== item.resume!.lastModified) {
+        message.warning(t('fileOperations.resumeFileMismatch'));
+        return;
+      }
+      setUploadTransferStatus(transferId, file.name, 'queued', { total: file.size });
+      const [result] = await enqueueUploadBatch([{ transferId, file }], item.resume!.targetPath);
+      if (result?.outcome === 'uploaded') await refreshContents();
+    };
+    input.click();
+    return true;
+  }, [enqueueUploadBatch, message, refreshContents, setUploadTransferStatus, t]);
+
   const cancelUploadTransfer = useCallback((transferId: string): boolean => {
     const activeUploadController = uploadAbortControllersRef.current.get(transferId);
     if (activeUploadController) {
       activeUploadController.abort();
+      return true;
+    }
+
+    const paused = findUpload(transferId);
+    if (paused?.resume && paused.status === 'failed') {
+      void settleCancellation(transferId, paused.name, paused.total);
       return true;
     }
 
@@ -390,11 +438,7 @@ export function useUploadTransfers({
           outcome: 'canceled',
           message: t('fileOperations.transferCanceled'),
         });
-        setUploadTransferStatus(queuedTask.transferId, queuedTask.file.name, 'canceled', {
-          loaded: 0,
-          total: queuedTask.file.size,
-          message: t('fileOperations.transferCanceled'),
-        });
+        void settleCancellation(queuedTask.transferId, queuedTask.file.name, queuedTask.file.size);
       }
       if (queuedUploadBatch.tasks.length === 0) {
         uploadBatchQueueRef.current = uploadBatchQueueRef.current.filter((batch) => batch !== queuedUploadBatch);
@@ -408,16 +452,12 @@ export function useUploadTransfers({
     ));
     if (queuedUploadTransfer?.kind === 'upload') {
       canceledQueuedUploadTransferIdsRef.current.add(transferId);
-      setUploadTransferStatus(transferId, queuedUploadTransfer.name, 'canceled', {
-        loaded: 0,
-        total: queuedUploadTransfer.total,
-        message: t('fileOperations.transferCanceled'),
-      });
+      void settleCancellation(transferId, queuedUploadTransfer.name, queuedUploadTransfer.total);
       return true;
     }
 
     return false;
-  }, [setUploadTransferStatus, t]);
+  }, [settleCancellation, t]);
 
   const dismissUploadTransfer = useCallback((transferId: string) => {
     uploadAbortControllersRef.current.delete(transferId);
@@ -428,5 +468,6 @@ export function useUploadTransfers({
     handleFileUpload,
     cancelUploadTransfer,
     dismissUploadTransfer,
+    retryUploadTransfer,
   };
 }

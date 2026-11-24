@@ -8,6 +8,17 @@ import (
 	"taeu.kr/cohesion/internal/account"
 )
 
+func TestResumableUploadRequiresFileAndSpaceWrite(t *testing.T) {
+	for _, method := range []string{"GET", "POST", "PATCH", "DELETE"} {
+		req := &http.Request{Method: method, URL: &url.URL{Path: "/api/spaces/37/files/upload-sessions"}}
+		perm, ok := requiredPermissionForRequest(req)
+		space, scoped := requiredSpacePermissionForRequest(req)
+		if !ok || perm != PermissionFileWrite || !scoped || space.spaceID != 37 || space.required != account.PermissionWrite {
+			t.Fatalf("%s permissions: %s, %+v", method, perm, space)
+		}
+	}
+}
+
 func TestRequiredPermissionForRequest_RoleEndpoints(t *testing.T) {
 	tests := []struct {
 		name     string

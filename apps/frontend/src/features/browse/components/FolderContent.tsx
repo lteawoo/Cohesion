@@ -792,11 +792,16 @@ const FolderContent: React.FC = () => {
     }
   };
 
+  const transferPanel = (
+    <TransferPanel isMobile={isMobileLayout} onCancelUpload={cancelUpload} onRetryTransfer={retryTransfer} />
+  );
+
   // Browse 모드에서만 Space 선택 필수
   if (!selectedSpace && !isSearchMode) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Empty description={t('folderContent.selectFolderFromTree')} />
+        {transferPanel}
       </div>
     );
   }
@@ -812,6 +817,7 @@ const FolderContent: React.FC = () => {
       onContextMenu={handleContainerContextMenu}
       onClick={handleContainerClick}
     >
+      {transferPanel}
       <input
         ref={fileInputRef}
         type="file"
@@ -1064,11 +1070,6 @@ const FolderContent: React.FC = () => {
                 />
               </div>
             )}
-            <TransferPanel
-              isMobile={isMobileLayout}
-              onCancelUpload={cancelUpload}
-              onRetryTransfer={retryTransfer}
-            />
             {showSearchSummary && (
               <div
                 style={{

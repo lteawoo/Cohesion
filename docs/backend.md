@@ -119,7 +119,10 @@ pnpm release:check
 - 서버 전송 상태:
   - ZIP 작업 상태와 업로드 용량 예약, 임시 파일 경로는 SQLite에 기록한다.
   - ZIP 파일은 프로덕션 `<state-root>/data/transfers/archives`, 개발 `dist/data/transfers/archives`에 보관한다. 프로세스 재기동 뒤에도 보존 기간이 남은 ZIP은 새 다운로드 요청으로 받을 수 있다.
-  - 생성 중이던 ZIP 작업은 실패로 표시되며 전송 센터에서 재시도할 수 있다. 중단된 업로드의 용량 예약과 기록된 임시 파일도 정리한다. 접근할 수 없는 임시 경로는 다음 정리 주기에 다시 확인한다.
+  - 생성 중이던 ZIP 작업은 실패로 표시되며 전송 센터에서 재시도할 수 있다. 중단된 multipart 업로드의 용량 예약과 기록된 임시 파일도 정리한다. 접근할 수 없는 임시 경로는 다음 정리 주기에 다시 확인한다.
+  - 이어올리기 원본은 전송 상태 디렉터리의 `uploads/`에 보존한다. 대상 폴더에 완료용 임시 파일을 복사한 뒤 이름을 바꾸므로 게시 시 파일 한 개 분량의 추가 공간이 필요하다. 서버가 재시작되면 세션과 용량 예약을 복원한다.
+  - 마지막 성공 청크로부터 24시간이 지나면 세션이 만료된다. 정리 주기는 1분이다. 완료 결과는 24시간 동안 소유자가 다시 조회할 수 있다.
+
 - 필수 secret bootstrap:
   - JWT secret은 `COHESION_JWT_SECRET` 또는 `COHESION_JWT_SECRET_FILE`로 공급한다.
   - 개발 환경은 secret file이 없으면 자동 생성할 수 있다.
@@ -131,6 +134,18 @@ pnpm release:check
   - FTP on/off 및 포트
   - SFTP on/off 및 포트
   - 감사 로그 보존 일수
+
+## 브라우저 업로드 세션 API
+
+모든 요청은 스페이스 파일 쓰기 권한이 필요하다. 세션 ID는 생성 계정과 스페이스에 귀속된다.
+
+| 요청 | 동작 |
+| --- | --- |
+| `POST /api/spaces/{spaceId}/files/upload-sessions` | JSON으로 `path`, `filename`, `size`, 선택적 `conflictPolicy`를 보내면 세션 ID와 수신 위치를 반환한다. |
+| `GET …/upload-sessions?id={id}` | 수신 위치 또는 완료 결과를 조회한다. |
+| `PATCH …/upload-sessions?id={id}` | `Upload-Offset` 헤더와 길이가 정해진 바이너리 본문을 보낸다. 최대 4 MiB이며 위치가 다르면 409를 반환한다. |
+| `POST …/upload-sessions?id={id}` | 전체 수신을 확인하고 파일을 게시한다. 대상 이름 충돌 시 같은 세션에 `conflictPolicy=rename\|overwrite\|skip`을 지정해 재시도할 수 있다. |
+| `DELETE …/upload-sessions?id={id}` | 수신을 취소하고 임시 파일과 예약을 회수한다. |
 
 ## Browse API 경계
 

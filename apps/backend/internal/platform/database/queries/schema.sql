@@ -63,6 +63,22 @@ CREATE TABLE IF NOT EXISTS upload_staging_files (
     abandoned INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS upload_sessions (
+    id TEXT PRIMARY KEY,
+    stage_path TEXT NOT NULL,
+    expires INTEGER NOT NULL,
+    snapshot BLOB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS upload_sessions_expiry ON upload_sessions(expires);
+CREATE TABLE IF NOT EXISTS upload_receipts (
+    id TEXT PRIMARY KEY,
+    owner INTEGER NOT NULL,
+    space_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    status TEXT NOT NULL,
+    expires INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT NOT NULL UNIQUE,

@@ -24,7 +24,14 @@ interface BaseTransferItem {
   spaceId?: number;
 }
 
+export interface UploadResumeInfo {
+  sessionId: string;
+  targetPath: string;
+  lastModified: number;
+}
+
 export interface UploadTransferItem extends BaseTransferItem {
+  resume?: UploadResumeInfo;
   kind: 'upload';
   loaded: number;
   total: number;
