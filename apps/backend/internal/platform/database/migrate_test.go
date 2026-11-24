@@ -127,6 +127,11 @@ func TestMigrate_RemovesSpaceDescriptionColumnAndPreservesData(t *testing.T) {
 		t.Fatalf("query user_space_permissions: %v", err)
 	}
 
+	var parent string
+	if err := db.QueryRowContext(ctx, `SELECT "table" FROM pragma_foreign_key_list('file_requests') WHERE "from"='space_id'`).Scan(&parent); err != nil || parent != "space" {
+		t.Fatalf("file request space foreign key after migration: %s, %v", parent, err)
+	}
+
 	if trashCount != 1 || auditCount != 1 || accessCount != 1 {
 		t.Fatalf("expected migrated related rows to be preserved, got trash=%d audit=%d permissions=%d", trashCount, auditCount, accessCount)
 	}

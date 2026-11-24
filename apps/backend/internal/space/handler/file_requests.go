@@ -116,6 +116,17 @@ func (h *Handler) activeFileRequest(r *http.Request) (*store.FileRequest, *web.E
 	return f, nil
 }
 
+func readSubmissionInput(w http.ResponseWriter, r *http.Request) (uploadSessionInput, *web.Error) {
+	var input struct {
+		Filename string
+		Size     *int64
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&input); err != nil || input.Size == nil {
+		return uploadSessionInput{}, &web.Error{Code: 400, Message: "Invalid submission"}
+	}
+	return uploadSessionInput{Filename: input.Filename, Size: input.Size, ConflictPolicy: "rename"}, nil
+}
+
 // The upload ID is never accepted as a credential. Each submission requires its own random key.
 func submissionID(token, key string) string {
 	digest := sha256.Sum256([]byte(token + "." + key))
@@ -141,6 +152,13 @@ func (h *Handler) handleFileDrop(w http.ResponseWriter, r *http.Request) *web.Er
 	defer unlock()
 	ctx := r.Context()
 	u, err := rt.store.Session(ctx, id)
+	if err == nil && u.Expires <= time.Now().Unix() && r.Method == http.MethodPost {
+		// The janitor may not have reclaimed this expired submission yet.
+		if err := rt.closeUploadSession(ctx, u, ""); err != nil {
+			return uploadIOError(err)
+		}
+		err = sql.ErrNoRows
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		status, _, err := rt.store.UploadReceipt(ctx, id, 0, f.SpaceID, time.Now().Unix())
 		if err == nil {
@@ -152,14 +170,11 @@ func (h *Handler) handleFileDrop(w http.ResponseWriter, r *http.Request) *web.Er
 		if r.Method != http.MethodPost {
 			return fileRequestUnavailable()
 		}
-		var input struct {
-			Filename string
-			Size     *int64
+		req, e := readSubmissionInput(w, r)
+		if e != nil {
+			return e
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&input); err != nil {
-			return &web.Error{Code: 400, Message: "Invalid submission"}
-		}
-		req := uploadSessionInput{Path: f.Folder, Filename: input.Filename, Size: input.Size, ConflictPolicy: "rename"}
+		req.Path = f.Folder
 		return h.beginUploadSession(w, r, f.SpaceID, 0, req, f, id)
 	}
 	if err != nil {
@@ -169,7 +184,15 @@ func (h *Handler) handleFileDrop(w http.ResponseWriter, r *http.Request) *web.Er
 		return fileRequestUnavailable()
 	}
 	switch r.Method {
-	case http.MethodGet, http.MethodPost:
+	case http.MethodGet:
+	case http.MethodPost:
+		req, e := readSubmissionInput(w, r)
+		if e != nil {
+			return e
+		}
+		if req.Filename != u.Name || *req.Size != u.Size {
+			return &web.Error{Code: 409, Message: "Submission metadata changed"}
+		}
 	case http.MethodPatch:
 		if e := h.appendUploadChunk(r, u); e != nil {
 			return e

@@ -147,6 +147,14 @@ pnpm release:check
 | `POST …/upload-sessions?id={id}` | 전체 수신을 확인하고 파일을 게시한다. 대상 이름 충돌 시 같은 세션에 `conflictPolicy=rename\|overwrite\|skip`을 지정해 재시도할 수 있다. |
 | `DELETE …/upload-sessions?id={id}` | 수신을 취소하고 임시 파일과 예약을 회수한다. |
 
+## 비로그인 파일 요청
+
+쓰기 권한이 있는 계정은 `/api/spaces/{spaceId}/files/file-requests?folder={path}`에서 자신이 만든 활성 링크를 조회하거나 생성한다. 생성 본문은 `days`(1~365일)와 `byteLimit`(바이트)이다. 같은 경로에 `DELETE`와 `id`를 보내면 링크가 닫힌다.
+
+공개 요청은 `/api/file-drop`에 `X-File-Request`를 보낸다. GET은 제목과 만료 시각을 반환한다. 제출자는 독립적인 24바이트 난수를 base64url로 인코딩해 `X-Submission-Key`에 추가한다. POST는 `filename`과 `size`로 제출을 시작하거나 복구한다. GET은 수신 위치, PATCH는 4 MiB 이하의 청크와 `Upload-Offset`, PUT은 완료, DELETE는 취소에 사용한다.
+
+링크마다 수신한 바이트와 진행 중인 예약량을 합산한다. 동시 제출은 최대 32개, 완료 파일은 링크당 최대 10,000개다. 스페이스 할당량도 적용한다. 완료 시 생성자의 쓰기 권한과 만료·폐쇄 상태를 재확인한다. 최종 파일은 대상 폴더 안의 준비 파일에 하드 링크를 만들어 게시하므로 하드 링크를 지원하는 볼륨이 필요하다.
+
 ## Browse API 경계
 
 - `/api/browse/base-directories`, `/api/browse?path=...`
