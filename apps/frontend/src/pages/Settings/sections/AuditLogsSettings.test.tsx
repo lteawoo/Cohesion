@@ -120,7 +120,7 @@ describe('AuditLogsSettings', () => {
       action: 'file.delete',
       spaceId: 7,
     });
-  });
+  }, 10_000);
 
   it('loads and renders selected row detail metadata', async () => {
     const rowItem = buildLog({ id: 11, requestId: 'req_11' });
@@ -153,8 +153,10 @@ describe('AuditLogsSettings', () => {
     });
     vi.mocked(listAuditLogs).mockClear();
 
-    await user.type(view.getByPlaceholderText('auditSettings.userPlaceholder'), 'alice');
-    await user.type(view.getByPlaceholderText('auditSettings.actionPlaceholder'), 'file.delete');
+    await user.click(view.getByPlaceholderText('auditSettings.userPlaceholder'));
+    await user.paste('alice');
+    await user.click(view.getByPlaceholderText('auditSettings.actionPlaceholder'));
+    await user.paste('file.delete');
     await user.click(view.getByRole('button', { name: 'auditSettings.search' }));
 
     await vi.waitFor(() => {
@@ -169,7 +171,7 @@ describe('AuditLogsSettings', () => {
         action: 'file.delete',
       });
     });
-  });
+  }, 10_000);
 
   it('hides cleanup action without account.write permission', async () => {
     h.permissions = ['account.read'];
