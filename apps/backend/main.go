@@ -260,6 +260,7 @@ func createServer(db *sql.DB, restartChan chan system.RestartRequest, shutdownCh
 	browseService := browse.NewService()
 	spaceHandler := spaceHandler.NewHandler(spaceService, browseService, accountService, trashService)
 	spaceHandler.SetTransferRuntime(transfers)
+	spaceHandler.SetFileRequestAccess(authService.CanReceiveFiles)
 	spaceHandler.SetSearchIndexer(searchIndexManager)
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	auditHandler := audit.NewHandler(auditService)

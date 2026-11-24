@@ -2,6 +2,7 @@ import React from 'react';
 import { Space as AntSpace, Button, Select, theme } from 'antd';
 import {
   UploadOutlined,
+  LinkOutlined,
   UnorderedListOutlined,
   AppstoreOutlined,
   LeftOutlined,
@@ -21,6 +22,7 @@ interface FolderContentToolbarProps {
   onGoBack?: () => void;
   onGoForward?: () => void;
   onUpload: () => void;
+  onFileRequest?: () => void;
   onViewModeChange: (mode: ViewMode) => void;
   onSortChange: (config: SortConfig) => void;
 }
@@ -35,6 +37,7 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
   onGoBack,
   onGoForward,
   onUpload,
+  onFileRequest,
   onViewModeChange,
   onSortChange,
 }) => {
@@ -94,6 +97,7 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
               title={t('folderContentToolbar.upload')}
             />
           )}
+          {canUpload && onFileRequest && <Button icon={<LinkOutlined />} onClick={onFileRequest} title={t('fileRequest.manage')} aria-label={t('fileRequest.manage')} />}
           <Select
             popupMatchSelectWidth={false}
             style={{ width: 'fit-content' }}

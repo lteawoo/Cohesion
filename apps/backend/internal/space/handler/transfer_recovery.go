@@ -20,12 +20,13 @@ const uploadStagePrefix = ".cohesion-upload-"
 
 // TransferRuntime is shared by HTTP handlers in the same server process.
 type TransferRuntime struct {
-	store        *spaceStore.TransferStore
-	archive      *archiveDownloadManager
-	quota        *space.QuotaService
-	uploads      string
-	sessionLocks [64]sync.Mutex
-	publishMu    sync.Mutex
+	store            *spaceStore.TransferStore
+	archive          *archiveDownloadManager
+	quota            *space.QuotaService
+	uploads          string
+	sessionLocks     [64]sync.Mutex
+	publishMu        sync.Mutex
+	requestPublishMu sync.Mutex
 }
 
 func NewTransferRuntime(ctx context.Context, db *sql.DB, spaceService *space.Service, root string) (*TransferRuntime, error) {

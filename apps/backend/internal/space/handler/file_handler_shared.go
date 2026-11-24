@@ -67,20 +67,19 @@ func resolveUploadConflictPolicy(raw string, overwriteLegacy bool) (uploadConfli
 	}
 }
 
+func numberedUploadName(base string, index int) string {
+	ext := filepath.Ext(base)
+	if ext == base {
+		ext = ""
+	}
+	return fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(base, ext), index, ext)
+}
+
 func resolveUploadRenamePath(destPath string) (string, string, error) {
 	dir := filepath.Dir(destPath)
 	base := filepath.Base(destPath)
-	nameWithoutExt := base
-	ext := ""
-	if strings.HasPrefix(base, ".") && strings.Count(base, ".") == 1 {
-		nameWithoutExt = base
-	} else {
-		ext = filepath.Ext(base)
-		nameWithoutExt = strings.TrimSuffix(base, ext)
-	}
-
 	for i := 1; ; i++ {
-		candidateName := fmt.Sprintf("%s (%d)%s", nameWithoutExt, i, ext)
+		candidateName := numberedUploadName(base, i)
 		candidatePath := filepath.Join(dir, candidateName)
 		if _, err := os.Stat(candidatePath); err == nil {
 			continue

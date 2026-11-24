@@ -9,6 +9,7 @@ import (
 )
 
 var publicAPIPaths = map[string]struct{}{
+	"/api/file-drop":      {},
 	"/api/health":         {},
 	"/api/system/version": {},
 	"/api/auth/login":     {},

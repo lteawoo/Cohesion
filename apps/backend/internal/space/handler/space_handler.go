@@ -43,6 +43,7 @@ type SearchIndexService interface {
 }
 
 type Handler struct {
+	canReceiveFiles   func(context.Context, int64, int64) (bool, error)
 	spaceService      *space.Service
 	quotaService      *space.QuotaService
 	trashService      *space.TrashService
@@ -89,6 +90,10 @@ func NewHandler(spaceService *space.Service, browseService BrowseService, accoun
 	}
 }
 
+func (h *Handler) SetFileRequestAccess(check func(context.Context, int64, int64) (bool, error)) {
+	h.canReceiveFiles = check
+}
+
 func (h *Handler) SetAuditRecorder(recorder audit.Recorder) {
 	h.auditRecorder = recorder
 }
@@ -128,6 +133,7 @@ func spaceRootValidationStatusCode(result space.SpaceRootValidationResult) int {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.Handle("/api/file-drop", web.Handler(h.handleFileDrop))
 	mux.Handle("/api/spaces", web.Handler(h.handleSpaces))
 	mux.Handle("/api/spaces/validate-root", web.Handler(h.handleValidateSpaceRoot))
 	mux.Handle("/api/spaces/", web.Handler(h.handleSpaceByID))
