@@ -1,4 +1,23 @@
 export const koTranslations = {
+  fileRequest: {
+    manage: "파일 요청",
+    days: "유효 기간(일)",
+    limit: "총 수신 한도(MiB)",
+    create: "요청 링크 만들기",
+    link: "요청 링크",
+    copy: "링크 복사",
+    copied: "링크를 복사했습니다.",
+    copyHint: "주소를 선택해 복사하세요.",
+    close: "요청 닫기",
+    details: "{{date}} 만료 · {{used}} / {{limit}} MiB 수신",
+    manageError: "링크를 관리할 수 없습니다. 폴더 쓰기 권한과 연결을 확인하세요.",
+    unavailable: "요청이 닫혔거나 링크를 열 수 없습니다.",
+    instructions: "이 폴더에 보낼 파일을 선택하세요.",
+    select: "파일 선택 및 제출",
+    done: "제출을 완료했습니다.",
+    capacity: "요청의 남은 용량이나 동시 제출 한도를 확인하세요.",
+    submitError: "제출을 완료하지 못했습니다.",
+  },
   mainLayout: {
     searchPlaceholder: "검색",
     searchLoading: "검색 중...",
@@ -685,6 +704,25 @@ export const koTranslations = {
 } as const;
 
 export const enTranslations = {
+  fileRequest: {
+    manage: "File request",
+    days: "Valid for (days)",
+    limit: "Total limit (MiB)",
+    create: "Create request link",
+    link: "Request link",
+    copy: "Copy link",
+    copied: "Link copied.",
+    copyHint: "Select the address and copy it.",
+    close: "Close request",
+    details: "Expires {{date}} · {{used}} / {{limit}} MiB received",
+    manageError: "Could not manage links. Check your folder write access and connection.",
+    unavailable: "This request is closed or unavailable.",
+    instructions: "Choose a file to send to this folder.",
+    select: "Select and submit a file",
+    done: "File submitted.",
+    capacity: "Check the request capacity or concurrent submission limit.",
+    submitError: "Could not complete the submission.",
+  },
   mainLayout: {
     searchPlaceholder: "Search",
     searchLoading: "Searching...",

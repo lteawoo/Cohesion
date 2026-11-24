@@ -108,13 +108,22 @@ func (h *Handler) handleUploadSessions(w http.ResponseWriter, r *http.Request, s
 	return sendUploadResponse(w, uploadSessionResponse{ID: id, Offset: u.Offset, Status: "active"})
 }
 
+type uploadSessionInput struct {
+	Path, Filename, ConflictPolicy string
+	Size                           *int64
+}
+
 func (h *Handler) createUploadSession(w http.ResponseWriter, r *http.Request, spaceID, owner int64) *web.Error {
-	var req struct {
-		Path, Filename, ConflictPolicy string
-		Size                           *int64
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&req); err != nil || req.Size == nil || *req.Size < 0 || *req.Size > 1<<53-1 {
+	var req uploadSessionInput
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&req); err != nil {
 		return &web.Error{Code: 400, Message: "Invalid upload request"}
+	}
+	return h.beginUploadSession(w, r, spaceID, owner, req, nil, "")
+}
+
+func (h *Handler) beginUploadSession(w http.ResponseWriter, r *http.Request, spaceID, owner int64, req uploadSessionInput, link *store.FileRequest, id string) *web.Error {
+	if req.Size == nil || *req.Size < 0 || *req.Size > 1<<53-1 {
+		return &web.Error{Code: 400, Message: "Invalid upload size"}
 	}
 	if !filepath.IsLocal(req.Filename) || strings.ContainsAny(req.Filename, "/\\\x00") || req.Filename == "." || strings.TrimSpace(req.Filename) == "" || ensureNameIsNotTrashDirectory(req.Filename) != nil || strings.HasPrefix(req.Filename, uploadStagePrefix) {
 		return &web.Error{Code: 400, Message: "Invalid filename"}
@@ -128,6 +137,12 @@ func (h *Handler) createUploadSession(w http.ResponseWriter, r *http.Request, sp
 		return uploadIOError(err)
 	}
 	u := &store.UploadSession{Owner: owner, SpaceID: spaceID, Root: root, Path: filepath.Clean(req.Path), Name: req.Filename, Policy: req.ConflictPolicy, Size: *req.Size, Expires: sessionExpiry()}
+	if link != nil {
+		if root != link.Root {
+			return fileRequestUnavailable()
+		}
+		u.RequestID = link.ID
+	}
 	dir, err := openUploadDir(u)
 	if err != nil {
 		return &web.Error{Code: 400, Message: "Invalid upload directory", Err: err}
@@ -141,7 +156,10 @@ func (h *Handler) createUploadSession(w http.ResponseWriter, r *http.Request, sp
 		h.recordSpaceAudit(r, audit.Event{Action: "file.upload", Result: audit.ResultPartial, Target: filepath.ToSlash(filepath.Join(u.Path, u.Name)), Metadata: map[string]any{"status": "skipped"}}, spaceID)
 		return sendUploadResponse(w, uploadSessionResponse{Status: "skipped", Filename: u.Name})
 	}
-	u.ID, err = generateDownloadTicketToken()
+	u.ID = id
+	if u.ID == "" {
+		u.ID, err = generateDownloadTicketToken()
+	}
 	if err != nil {
 		return uploadIOError(err)
 	}
@@ -156,12 +174,22 @@ func (h *Handler) createUploadSession(w http.ResponseWriter, r *http.Request, sp
 	}
 	u.Stage = stage
 	if err = file.Close(); err == nil {
-		err = rt.store.SaveSession(r.Context(), u)
+		if link != nil {
+			err = rt.store.StartFileRequestUpload(r.Context(), u)
+		} else {
+			err = rt.store.SaveSession(r.Context(), u)
+		}
 	}
 	if err != nil {
 		h.discardUploadStage(stage)
 		rt.quota.ReleaseWriteReservation(u.ID)
+		if errors.Is(err, store.ErrFileRequestFull) {
+			return &web.Error{Code: 409, Message: "Request capacity unavailable"}
+		}
 		return uploadIOError(err)
+	}
+	if link != nil {
+		return sendUploadResponse(w, uploadSessionResponse{Status: "active"})
 	}
 	return sendUploadResponse(w, uploadSessionResponse{ID: u.ID, Status: "active"})
 }
@@ -179,6 +207,23 @@ func openUploadDir(u *store.UploadSession) (*os.Root, error) {
 }
 
 func (h *Handler) sessionUploadPlan(ctx context.Context, u *store.UploadSession, dir *os.Root) (*uploadPlan, *web.Error) {
+	if u.RequestID != 0 {
+		window, e := h.calculateUploadQuotaWindow(ctx, u.SpaceID, 0, u.Size)
+		if e != nil {
+			return nil, e
+		}
+		name := u.Name
+		for i := 1; ; i++ {
+			_, err := dir.Lstat(name)
+			if errors.Is(err, os.ErrNotExist) {
+				return &uploadPlan{resultFileName: name, quotaWindow: window}, nil
+			}
+			if err != nil {
+				return nil, uploadIOError(err)
+			}
+			name = numberedUploadName(u.Name, i)
+		}
+	}
 	info, err := dir.Lstat(u.Name)
 	if err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return nil, &web.Error{Code: 409, Message: "Destination is a symbolic link"}

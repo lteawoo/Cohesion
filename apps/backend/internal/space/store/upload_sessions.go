@@ -9,6 +9,7 @@ import (
 type UploadSession struct {
 	ID, Stage, Root, Path, Name, Policy   string
 	Owner, SpaceID, Size, Offset, Expires int64
+	RequestID                             int64
 	Destination                           string
 	PublishReady                          bool
 }
@@ -75,6 +76,16 @@ func (s *TransferStore) CloseSession(ctx context.Context, u *UploadSession, stat
 	defer tx.Rollback()
 	if status != "" {
 		if _, err = tx.ExecContext(ctx, "INSERT INTO upload_receipts(id,owner,space_id,filename,status,expires) VALUES(?,?,?,?,?,?)", u.ID, u.Owner, u.SpaceID, u.Destination, status, expires); err != nil {
+			return err
+		}
+	}
+	if u.RequestID != 0 {
+		if status == "uploaded" {
+			if _, err = tx.ExecContext(ctx, "UPDATE file_requests SET received=received+?, received_files=received_files+1 WHERE id=?", u.Size, u.RequestID); err != nil {
+				return err
+			}
+		}
+		if _, err = tx.ExecContext(ctx, "DELETE FROM file_request_uploads WHERE upload_id=?", u.ID); err != nil {
 			return err
 		}
 	}

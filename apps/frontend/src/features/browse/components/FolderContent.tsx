@@ -16,6 +16,7 @@ import { useBrowseHistoryNavigation } from '../hooks/useBrowseHistoryNavigation'
 import { useSearchModeContent } from '../hooks/useSearchModeContent';
 import { useTrashModalManager } from '../hooks/useTrashModalManager';
 import DestinationPickerModal from './DestinationPickerModal';
+import FileRequestManager from '@/features/fileRequests/FileRequestManager';
 import FolderContentToolbar from './FolderContent/FolderContentToolbar';
 import FolderContentTable from './FolderContent/FolderContentTable';
 import FolderContentGrid from './FolderContent/FolderContentGrid';
@@ -69,6 +70,7 @@ const FolderContent: React.FC = () => {
   const trashOpenRequest = useBrowseStore((state) => state.trashOpenRequest);
   const clearTrashOpenRequest = useBrowseStore((state) => state.clearTrashOpenRequest);
 
+  const [fileRequestOpen, setFileRequestOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rootContainerRef = useRef<HTMLDivElement>(null);
   const selectionContainerRef = useRef<HTMLDivElement>(null);
@@ -818,6 +820,7 @@ const FolderContent: React.FC = () => {
       onClick={handleContainerClick}
     >
       {transferPanel}
+      {fileRequestOpen && selectedSpace && <FileRequestManager key={selectedSpace.id + selectedPath} spaceId={selectedSpace.id} folder={selectedPath} onClose={() => setFileRequestOpen(false)} />}
       <input
         ref={fileInputRef}
         type="file"
@@ -1005,6 +1008,7 @@ const FolderContent: React.FC = () => {
                 onGoBack={handleGoBack}
                 onGoForward={handleGoForward}
                 onUpload={handleUploadClick}
+                onFileRequest={() => setFileRequestOpen(true)}
                 onViewModeChange={setViewMode}
                 onSortChange={setSortConfig}
               />

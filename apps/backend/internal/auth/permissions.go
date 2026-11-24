@@ -53,6 +53,19 @@ func (s *Service) HasPermission(ctx context.Context, role account.Role, permissi
 	return false, nil
 }
 
+// CanReceiveFiles checks the link creator's current role and space membership.
+func (s *Service) CanReceiveFiles(ctx context.Context, owner, spaceID int64) (bool, error) {
+	user, err := s.accountService.GetUserByID(ctx, owner)
+	if err != nil {
+		return false, err
+	}
+	allowed, err := s.HasPermission(ctx, user.Role, PermissionFileWrite)
+	if err != nil || !allowed {
+		return false, err
+	}
+	return s.accountService.CanAccessSpaceByID(ctx, user.Username, spaceID, account.PermissionWrite)
+}
+
 func requiredPermissionForRequest(r *http.Request) (string, bool) {
 	method := r.Method
 	path := r.URL.Path
@@ -85,7 +98,7 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 		}
 	}
 
-	if action, ok := extractSpaceFileAction(path); ok && action == "upload-sessions" {
+	if action, ok := extractSpaceFileAction(path); ok && (action == "upload-sessions" || action == "file-requests") {
 		return PermissionFileWrite, true
 	}
 	if strings.HasPrefix(path, "/api/spaces/") && method == http.MethodDelete {

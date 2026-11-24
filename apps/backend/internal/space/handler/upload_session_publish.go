@@ -48,7 +48,7 @@ func (h *Handler) completeUploadSession(w http.ResponseWriter, r *http.Request, 
 	ctx := r.Context()
 	h.invalidateQuotaForSpaces(u.SpaceID)
 	if u.Destination == "" {
-		if policy := r.URL.Query().Get("conflictPolicy"); policy != "" {
+		if policy := r.URL.Query().Get("conflictPolicy"); u.RequestID == 0 && policy != "" {
 			u.Policy = policy
 		}
 		plan, e := h.sessionUploadPlan(ctx, u, dir)
@@ -76,6 +76,45 @@ func (h *Handler) completeUploadSession(w http.ResponseWriter, r *http.Request, 
 		if err := rt.store.SaveSession(ctx, u); err != nil {
 			return uploadIOError(err)
 		}
+	}
+	if u.RequestID != 0 {
+		// Copying can be slow. Serialize only the final authorization and publish with closure.
+		rt.requestPublishMu.Lock()
+		defer rt.requestPublishMu.Unlock()
+		if _, e := h.activeFileRequest(r); e != nil {
+			return e
+		}
+		existing, err := dir.Lstat(u.Destination)
+		staged, stageErr := dir.Lstat(temp)
+		if errors.Is(stageErr, os.ErrNotExist) && matchesPublishedFile(dir, u) {
+			return h.finishUploadResponse(w, r, u, "uploaded")
+		}
+		if stageErr != nil {
+			return uploadIOError(stageErr)
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return uploadIOError(err)
+		}
+		if existing == nil || !os.SameFile(existing, staged) {
+			// Linking in the destination directory atomically refuses to replace another writer's file.
+			err = dir.Link(temp, u.Destination)
+			if errors.Is(err, os.ErrExist) {
+				u.Destination = ""
+				u.PublishReady = false
+				if err := rt.store.SaveSession(ctx, u); err != nil {
+					return uploadIOError(err)
+				}
+				if err := dir.Remove(temp); err != nil {
+					return uploadIOError(err)
+				}
+				rt.quota.ForgetUploadStage(filepath.Join(u.Root, u.Path, temp))
+				return &web.Error{Code: 409, Message: "Retry submission"}
+			}
+			if err != nil {
+				return storageOperationWebError(err, "Destination cannot publish this submission")
+			}
+		}
+		return h.finishUploadResponse(w, r, u, "uploaded")
 	}
 	if _, err := dir.Lstat(temp); errors.Is(err, os.ErrNotExist) {
 		// The process may have stopped after rename and before the completion receipt.
@@ -172,6 +211,9 @@ func (h *Handler) finishUploadResponse(w http.ResponseWriter, r *http.Request, u
 		h.markSearchIndexDirty(r.Context(), u.SpaceID, "upload")
 	}
 	h.recordSpaceAudit(r, audit.Event{Action: "file.upload", Result: result, Target: filepath.ToSlash(filepath.Join(u.Path, u.Destination)), Metadata: map[string]any{"status": status, "size": u.Size}}, u.SpaceID)
+	if u.RequestID != 0 {
+		return sendUploadResponse(w, uploadSessionResponse{Status: status, Offset: u.Offset})
+	}
 	return sendUploadResponse(w, uploadSessionResponse{ID: u.ID, Status: status, Filename: u.Destination, Offset: u.Offset})
 }
 
@@ -194,6 +236,13 @@ func (rt *TransferRuntime) closeUploadSession(ctx context.Context, u *store.Uplo
 		}
 		defer dir.Close()
 		temp := uploadStagePrefix + u.ID
+		if u.RequestID != 0 && u.PublishReady {
+			staged, stageErr := dir.Lstat(temp)
+			dest, destErr := dir.Lstat(u.Destination)
+			if stageErr == nil && destErr == nil && os.SameFile(staged, dest) {
+				status = "uploaded"
+			}
+		}
 		if err = dir.Remove(temp); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
@@ -239,10 +288,18 @@ func (rt *TransferRuntime) expireUploadSessions(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, id := range ids {
+	inactive, err := rt.store.InactiveRequestUploads(ctx, now)
+	if err != nil {
+		return err
+	}
+	retired := make(map[string]bool, len(inactive))
+	for _, id := range inactive {
+		retired[id] = true
+	}
+	for _, id := range append(ids, inactive...) {
 		unlock := rt.lockSession(id)
 		u, err := rt.store.Session(ctx, id)
-		if err == nil && u.Expires <= now {
+		if err == nil && (u.Expires <= now || retired[id]) {
 			err = rt.closeUploadSession(ctx, u, "")
 		}
 		unlock()
