@@ -99,9 +99,12 @@ describe('AuditLogsSettings', () => {
     });
     vi.mocked(listAuditLogs).mockClear();
 
-    await user.type(view.getByPlaceholderText('auditSettings.userPlaceholder'), 'alice');
-    await user.type(view.getByPlaceholderText('auditSettings.actionPlaceholder'), 'file.delete');
-    await user.type(view.getByPlaceholderText('auditSettings.spacePlaceholder'), '7');
+    await user.click(view.getByPlaceholderText('auditSettings.userPlaceholder'));
+    await user.paste('alice');
+    await user.click(view.getByPlaceholderText('auditSettings.actionPlaceholder'));
+    await user.paste('file.delete');
+    await user.click(view.getByPlaceholderText('auditSettings.spacePlaceholder'));
+    await user.paste('7');
 
     await user.click(view.getByRole('button', { name: 'auditSettings.search' }));
 
