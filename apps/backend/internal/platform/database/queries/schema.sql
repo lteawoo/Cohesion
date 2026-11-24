@@ -47,6 +47,22 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_occurred_id
 CREATE INDEX IF NOT EXISTS idx_audit_logs_filters
     ON audit_logs(actor, action, result, space_id);
 
+CREATE TABLE IF NOT EXISTS archive_download_jobs (
+    id       TEXT PRIMARY KEY,
+    snapshot BLOB NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS upload_quota_reservations (
+    id          TEXT PRIMARY KEY,
+    space_id    INTEGER NOT NULL,
+    delta_bytes INTEGER NOT NULL CHECK (delta_bytes > 0)
+);
+
+CREATE TABLE IF NOT EXISTS upload_staging_files (
+    path      TEXT PRIMARY KEY,
+    abandoned INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT NOT NULL UNIQUE,

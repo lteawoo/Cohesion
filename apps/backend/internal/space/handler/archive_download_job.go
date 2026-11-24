@@ -46,7 +46,7 @@ type archiveDownloadJob struct {
 	FileName             string
 	State                archiveDownloadState
 	FailureReason        string
-	ArtifactPath         string
+	ArtifactPath         string `json:"-"`
 	ArtifactSize         int64
 	SourceCount          int
 	TotalItems           int
@@ -58,6 +58,8 @@ type archiveDownloadJob struct {
 	ExpiresAt            time.Time
 	ctx                  context.Context
 	cancel               context.CancelFunc
+	needsSave            bool
+	artifactCleaned      bool
 }
 
 type archiveDownloadManager struct {
@@ -65,6 +67,8 @@ type archiveDownloadManager struct {
 	ttl     time.Duration
 	workers chan struct{}
 	jobs    map[string]*archiveDownloadJob
+	store   archiveJobStore
+	dir     string
 }
 
 type archiveDownloadSource struct {
@@ -133,6 +137,10 @@ func (m *archiveDownloadManager) createJob(owner string, spaceID int64, requestI
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := m.saveJob(job); err != nil {
+		cancel()
+		return nil, err
+	}
 	m.jobs[jobID] = job
 	return job.copy(), nil
 }
@@ -155,14 +163,14 @@ func (m *archiveDownloadManager) cancelJob(jobID string, owner string) (*archive
 		return nil, nil, "", &web.Error{Code: http.StatusConflict, Message: "Archive job can no longer be canceled"}
 	}
 
-	artifactPath := job.ArtifactPath
-	job.ArtifactPath = ""
-	job.ArtifactSize = 0
-	job.State = archiveDownloadStateCanceled
-	job.FailureReason = "archive canceled"
-	job.ExpiresAt = time.Now().Add(m.ttl)
-	job.UpdatedAt = time.Now()
-	return job.copy(), job.cancel, artifactPath, nil
+	next := job.copy()
+	now := time.Now()
+	next.setTerminalState(archiveDownloadStateCanceled, "archive canceled", now, now.Add(m.ttl))
+	if err := m.saveJob(next); err != nil {
+		return nil, nil, "", &web.Error{Code: http.StatusInternalServerError, Message: "Failed to persist archive cancellation", Err: err}
+	}
+	m.jobs[jobID] = next
+	return next.copy(), next.cancel, job.ArtifactPath, nil
 }
 
 func (m *archiveDownloadManager) getJob(jobID string, owner string) (*archiveDownloadJob, *web.Error) {
@@ -188,8 +196,17 @@ func (m *archiveDownloadManager) updateJob(jobID string, update func(job *archiv
 	if !ok {
 		return nil
 	}
-	update(job)
-	job.UpdatedAt = time.Now()
+	next := *job
+	update(&next)
+	next.UpdatedAt = time.Now()
+	if next.State != job.State {
+		if err := m.saveJob(&next); err != nil {
+			log.Error().Err(err).Str("job_id", jobID).Msg("failed to persist archive state")
+			next.setTerminalState(archiveDownloadStateFailed, "Failed to persist archive state", next.UpdatedAt, next.UpdatedAt.Add(m.ttl))
+			next.needsSave = true
+		}
+	}
+	*job = next
 	return job.copy()
 }
 
@@ -203,18 +220,29 @@ func (m *archiveDownloadManager) cleanupExpiredJobsLocked(now time.Time) []*arch
 	expiredJobs := make([]*archiveDownloadJob, 0)
 	for jobID, job := range m.jobs {
 		if !job.ExpiresAt.IsZero() && now.After(job.ExpiresAt) && job.State != archiveDownloadStateExpired {
-			if job.ArtifactPath != "" {
-				_ = os.Remove(job.ArtifactPath)
-				job.ArtifactPath = ""
+			path := job.ArtifactPath
+			job.setTerminalState(archiveDownloadStateExpired, "archive expired", now, job.ExpiresAt)
+			job.needsSave = true
+			if m.dir == "" && path != "" {
+				_ = os.Remove(path)
 			}
-			job.ArtifactSize = 0
-			job.FailureReason = "archive expired"
-			job.State = archiveDownloadStateExpired
-			job.UpdatedAt = now
 			expiredJobs = append(expiredJobs, job.copy())
+		}
+		if job.needsSave {
+			if err := m.saveJob(job); err != nil {
+				log.Error().Err(err).Str("job_id", jobID).Msg("failed to persist archive state")
+			}
+		}
+		if !m.cleanTerminalArtifact(job) {
 			continue
 		}
 		if job.State == archiveDownloadStateExpired && !job.ExpiresAt.IsZero() && now.After(job.ExpiresAt.Add(m.ttl)) {
+			if m.store != nil {
+				if err := m.store.DeleteArchiveJob(context.Background(), jobID); err != nil {
+					log.Error().Err(err).Str("job_id", jobID).Msg("failed to delete expired archive state")
+					continue
+				}
+			}
 			delete(m.jobs, jobID)
 		}
 	}
@@ -568,7 +596,7 @@ func (h *Handler) runArchiveDownloadJob(
 		job.State = archiveDownloadStateRunning
 		job.FailureReason = ""
 	})
-	if job == nil || job.State == archiveDownloadStateCanceled {
+	if job == nil || job.State != archiveDownloadStateRunning {
 		return
 	}
 	if err := jobCtx.Err(); err != nil {
@@ -588,7 +616,7 @@ func (h *Handler) runArchiveDownloadJob(
 		job.ProcessedSourceBytes = 0
 	})
 
-	zipTempPath, zipSize, webErr := h.buildZipTempArchive(func(zipWriter *zip.Writer) *web.Error {
+	zipTempPath, zipSize, webErr := h.buildArchiveJobZIP(jobID, func(zipWriter *zip.Writer) *web.Error {
 		for _, entry := range entries {
 			if err := jobCtx.Err(); err != nil {
 				return &web.Error{Code: http.StatusConflict, Message: "Archive download canceled", Err: err}
@@ -620,10 +648,8 @@ func (h *Handler) runArchiveDownloadJob(
 	}
 
 	expiresAt := time.Now().Add(h.archiveDownloads.ttlDuration())
-	publishCanceled := false
 	job = h.archiveDownloads.updateJob(jobID, func(job *archiveDownloadJob) {
 		if job.State == archiveDownloadStateCanceled {
-			publishCanceled = true
 			return
 		}
 		job.State = archiveDownloadStateReady
@@ -633,15 +659,10 @@ func (h *Handler) runArchiveDownloadJob(
 		job.FileName = fileName
 		job.ExpiresAt = expiresAt
 	})
-	if job == nil {
+	if job == nil || job.State != archiveDownloadStateReady {
 		_ = os.Remove(zipTempPath)
 		return
 	}
-	if publishCanceled {
-		_ = os.Remove(zipTempPath)
-		return
-	}
-
 	h.logArchiveJobEvent("info.archive.job_ready", job, nil)
 	h.recordSpaceAuditBackground(owner, requestID, audit.Event{
 		Action:    "file.archive-download",
