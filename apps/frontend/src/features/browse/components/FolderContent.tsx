@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useLayoutEffect, useMemo } from 'react';
 import { Empty, App, Grid, Button, Menu, theme, Breadcrumb, Spin, Alert } from 'antd';
-import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined } from '@ant-design/icons';
+import { DownloadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, CloseOutlined, MoreOutlined, ShareAltOutlined } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router';
 import { useBrowseStore } from '@/stores/browseStore';
 import type { FileNode, ViewMode, SortConfig } from '../types';
@@ -16,6 +16,8 @@ import { useBrowseHistoryNavigation } from '../hooks/useBrowseHistoryNavigation'
 import { useSearchModeContent } from '../hooks/useSearchModeContent';
 import { useTrashModalManager } from '../hooks/useTrashModalManager';
 import DestinationPickerModal from './DestinationPickerModal';
+import DownloadLinkManager from '@/features/downloadLinks/DownloadLinkManager';
+import { normalizeRelativePath } from '../hooks/transferOperationsShared';
 import FileRequestManager from '@/features/fileRequests/FileRequestManager';
 import FolderContentToolbar from './FolderContent/FolderContentToolbar';
 import FolderContentTable from './FolderContent/FolderContentTable';
@@ -70,6 +72,11 @@ const FolderContent: React.FC = () => {
   const trashOpenRequest = useBrowseStore((state) => state.trashOpenRequest);
   const clearTrashOpenRequest = useBrowseStore((state) => state.clearTrashOpenRequest);
 
+  const [downloadLinks, setDownloadLinks] = useState<{ spaceId: number; path?: string } | null>(null);
+  const canManageLinks = !isSearchMode && selectedSpace?.can_manage_download_links === true;
+  const openFileLinks = canManageLinks && !isLoading && !browseError && selectedSpace
+    ? (path: string) => setDownloadLinks({ spaceId: selectedSpace.id, path: normalizeRelativePath(path) })
+    : undefined;
   const [fileRequestOpen, setFileRequestOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rootContainerRef = useRef<HTMLDivElement>(null);
@@ -225,6 +232,8 @@ const FolderContent: React.FC = () => {
     });
     return next;
   }, [sortedContent]);
+  const selectedFile = selectedItems.size === 1 ? contentByPath.get(Array.from(selectedItems)[0]) : undefined;
+  const shareSelected = selectedFile && !selectedFile.isDir && openFileLinks ? () => openFileLinks(selectedFile.path) : undefined;
   const effectiveViewMode: ViewMode = viewMode;
 
   const { handleContextMenu, handleEmptyAreaContextMenu } = useContextMenu({
@@ -233,6 +242,7 @@ const FolderContent: React.FC = () => {
     canWriteFiles,
     onSetSelection: setSelection,
     callbacks: {
+      onShare: openFileLinks,
       onDownload: (path: string) => {
         void handleBulkDownload([path]);
       },
@@ -261,6 +271,7 @@ const FolderContent: React.FC = () => {
     if (hasNavigated && !modals.destination.visible) {
       // Effect 내부의 동기 setState 호출을 피하고 다음 프레임에 반영
       requestAnimationFrame(() => {
+        setDownloadLinks(null);
         handleClearSelection();
       });
     }
@@ -317,7 +328,7 @@ const FolderContent: React.FC = () => {
   });
 
   const isAnyModalOpen =
-    modals.destination.visible || modals.rename.visible || modals.createFolder.visible || isTrashModalOpen;
+    modals.destination.visible || modals.rename.visible || modals.createFolder.visible || isTrashModalOpen || (canManageLinks && downloadLinks?.spaceId === selectedSpace?.id);
 
   // Box selection (Grid 뷰 전용)
   const { isSelecting, selectionBox, wasRecentlySelecting } = useBoxSelection({
@@ -820,6 +831,9 @@ const FolderContent: React.FC = () => {
       onClick={handleContainerClick}
     >
       {transferPanel}
+      {canManageLinks && downloadLinks && downloadLinks.spaceId === selectedSpace?.id && (
+        <DownloadLinkManager key={JSON.stringify(downloadLinks)} {...downloadLinks} onClose={() => setDownloadLinks(null)} />
+      )}
       {fileRequestOpen && selectedSpace && <FileRequestManager key={selectedSpace.id + selectedPath} spaceId={selectedSpace.id} folder={selectedPath} onClose={() => setFileRequestOpen(false)} />}
       <input
         ref={fileInputRef}
@@ -919,9 +933,10 @@ const FolderContent: React.FC = () => {
                 }}
               />
             )}
-            {canWriteFiles && (
+            {(canWriteFiles || shareSelected) && (
               <Button
                 size="small"
+                aria-label={t('browseMenu.more')}
                 icon={<MoreOutlined />}
                 style={{ marginLeft: 'auto' }}
                 onClick={() => {
@@ -965,6 +980,7 @@ const FolderContent: React.FC = () => {
             <Button size="small" icon={<DownloadOutlined />} onClick={() => handleBulkDownload(Array.from(selectedItems))}>
               {t('folderContent.download')}
             </Button>
+            {shareSelected && <Button size="small" icon={<ShareAltOutlined aria-hidden />} onClick={shareSelected}>{t('downloadLink.create')}</Button>}
             {canWriteFiles && (
               <Button size="small" icon={<CopyOutlined />} onClick={() => openModal('destination', { mode: 'copy', sources: Array.from(selectedItems) })}>
                 {t('folderContent.copy')}
@@ -1008,6 +1024,7 @@ const FolderContent: React.FC = () => {
                 onGoBack={handleGoBack}
                 onGoForward={handleGoForward}
                 onUpload={handleUploadClick}
+                onManageLinks={canManageLinks && selectedSpace ? () => setDownloadLinks({ spaceId: selectedSpace.id }) : undefined}
                 onFileRequest={() => setFileRequestOpen(true)}
                 onViewModeChange={setViewMode}
                 onSortChange={setSortConfig}
@@ -1116,6 +1133,7 @@ const FolderContent: React.FC = () => {
                 onFolderDrop={handleFolderDrop}
                 disableDrag
                 canWriteFiles={canWriteFiles}
+                onItemShare={openFileLinks}
                 onItemDownload={isSearchMode ? undefined : (record) => handleBulkDownload([record.path])}
                 onItemCopy={isSearchMode ? undefined : (record) => openModal('destination', { mode: 'copy', sources: [record.path] })}
                 onItemMove={isSearchMode ? undefined : (record) => openModal('destination', { mode: 'move', sources: [record.path] })}
@@ -1306,6 +1324,16 @@ const FolderContent: React.FC = () => {
                   handleBulkDownload(Array.from(selectedItems));
                 },
               },
+              ...(shareSelected ? [{
+                key: 'share',
+                icon: <ShareAltOutlined aria-hidden />,
+                label: t('downloadLink.create'),
+                onClick: () => {
+                  armToolbarInteractionGuard();
+                  setIsMobileActionsOpen(false);
+                  shareSelected();
+                },
+              }] : []),
               ...(canWriteFiles
                 ? [{
                     key: 'copy',

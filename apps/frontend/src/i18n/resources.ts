@@ -1,4 +1,22 @@
 export const koTranslations = {
+  downloadLink: {
+    create: "다운로드 링크 만들기",
+    manage: "다운로드 링크 관리",
+    address: "다운로드 링크 주소",
+    snapshotHint: "링크마다 현재 파일의 사본을 서버에 보관합니다. 만료되거나 링크를 닫을 때까지 파일 크기만큼 저장 공간을 사용합니다.",
+    expires: "{{date}} 만료",
+    empty: "이 스페이스에 활성 다운로드 링크가 없습니다.",
+    close: "링크 닫기",
+    confirmClose: "이 링크의 새 다운로드를 차단할까요?",
+    sharedFile: "공유 파일",
+    loading: "공유 정보를 불러오는 중",
+    unavailable: "사용할 수 없는 다운로드 링크입니다.",
+    loadError: "파일 정보를 불러올 수 없습니다. 연결을 확인하세요.",
+    forbidden: "이 스페이스의 관리 권한과 파일 읽기 권한을 확인하세요.",
+    conflict: "링크를 만들 수 없습니다. 원본 파일이 변경됐는지, 스페이스 경로가 서버의 사본 저장소와 겹치는지 확인하세요.",
+    noStorage: "사본을 저장할 공간이 부족합니다. 사용하지 않는 링크를 닫거나 서버의 여유 공간을 확보하세요.",
+    manageError: "다운로드 링크를 관리할 수 없습니다. 연결을 확인한 뒤 목록을 다시 불러오세요.",
+  },
   fileRequest: {
     manage: "파일 요청",
     days: "유효 기간(일)",
@@ -711,6 +729,24 @@ export const koTranslations = {
 } as const;
 
 export const enTranslations = {
+  downloadLink: {
+    create: "Create download link",
+    manage: "Manage download links",
+    address: "Download link address",
+    snapshotHint: "Each link stores a copy of the current file on the server. It uses the file’s size in storage until expiry or closure.",
+    expires: "Expires {{date}}",
+    empty: "This space has no active download links.",
+    close: "Close link",
+    confirmClose: "Block new downloads from this link?",
+    sharedFile: "Shared file",
+    loading: "Loading share details",
+    unavailable: "This download link is unavailable.",
+    loadError: "Could not load file details. Check your connection.",
+    forbidden: "Check your space management and file read permissions.",
+    conflict: "Could not create the link. Check whether the file changed or the space overlaps the server’s copy storage.",
+    noStorage: "Not enough storage for the copy. Close unused links or free up space on the server.",
+    manageError: "Could not manage download links. Check your connection and reload the list.",
+  },
   fileRequest: {
     manage: "File request",
     days: "Valid for (days)",

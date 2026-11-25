@@ -1,7 +1,7 @@
 import React from 'react';
 import { Table, Dropdown, Button } from 'antd';
 import type { MenuProps } from 'antd';
-import { FolderFilled, MoreOutlined, EditOutlined, DeleteOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/icons';
+import { FolderFilled, MoreOutlined, EditOutlined, DeleteOutlined, CopyOutlined, DownloadOutlined, ShareAltOutlined } from '@ant-design/icons';
 import type { FileNode } from '../../types';
 import { formatDate, formatSize } from '../../constants';
 import { FileTypeIcon } from '../FileTypeIcon';
@@ -25,6 +25,7 @@ interface FolderContentTableProps {
   onFolderDrop: (e: React.DragEvent<HTMLElement>, record: FileNode) => void;
   disableDrag?: boolean;
   canWriteFiles: boolean;
+  onItemShare?: (path: string) => void;
   onItemDownload?: (record: FileNode) => void;
   onItemCopy?: (record: FileNode) => void;
   onItemMove?: (record: FileNode) => void;
@@ -55,6 +56,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
   onFolderDrop,
   disableDrag = false,
   canWriteFiles,
+  onItemShare,
   onItemDownload,
   onItemCopy,
   onItemMove,
@@ -80,6 +82,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
             icon: <DownloadOutlined />,
             label: record.isDir ? t('browseMenu.folderDownloadZip') : t('browseMenu.download'),
           },
+          ...(!record.isDir && onItemShare ? [{ key: 'share', icon: <ShareAltOutlined aria-hidden />, label: t('downloadLink.create') }] : []),
           ...(canWriteFiles
             ? [
                 {
@@ -140,6 +143,7 @@ const FolderContentTable: React.FC<FolderContentTableProps> = ({
                   onClick: (info: Parameters<NonNullable<MenuProps['onClick']>>[0]) => {
                     const { key, domEvent } = info;
                     domEvent.stopPropagation();
+                    if (key === 'share') onItemShare?.(record.path);
                     if (key === 'download') onItemDownload?.(record);
                     if (key === 'copy') onItemCopy?.(record);
                     if (key === 'move') onItemMove?.(record);

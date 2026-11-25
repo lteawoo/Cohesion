@@ -4,6 +4,7 @@ import {
   FolderFilled,
   FileOutlined,
   DownloadOutlined,
+  ShareAltOutlined,
   DeleteOutlined,
   EditOutlined,
   CopyOutlined,
@@ -84,6 +85,7 @@ export function buildTableColumns(
 
 // Context menu builders
 export interface ContextMenuCallbacks {
+  onShare?: (path: string) => void;
   onDownload: (path: string) => void;
   onCopy: () => void;
   onMove: () => void;
@@ -108,6 +110,12 @@ export function buildSingleItemMenu(
       label: record.isDir ? t('browseMenu.folderDownloadZip') : t('browseMenu.download'),
       onClick: () => callbacks.onDownload(record.path),
     },
+    ...(!record.isDir && callbacks.onShare ? [{
+      key: 'share',
+      icon: <ShareAltOutlined aria-hidden />,
+      label: t('downloadLink.create'),
+      onClick: () => callbacks.onShare?.(record.path),
+    }] : []),
     ...(canWriteFiles
       ? [
           {

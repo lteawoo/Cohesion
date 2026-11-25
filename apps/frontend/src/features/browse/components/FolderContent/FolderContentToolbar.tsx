@@ -3,6 +3,7 @@ import { Space as AntSpace, Button, Select, theme } from 'antd';
 import {
   UploadOutlined,
   LinkOutlined,
+  ShareAltOutlined,
   UnorderedListOutlined,
   AppstoreOutlined,
   LeftOutlined,
@@ -22,6 +23,7 @@ interface FolderContentToolbarProps {
   onGoBack?: () => void;
   onGoForward?: () => void;
   onUpload: () => void;
+  onManageLinks?: () => void;
   onFileRequest?: () => void;
   onViewModeChange: (mode: ViewMode) => void;
   onSortChange: (config: SortConfig) => void;
@@ -37,6 +39,7 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
   onGoBack,
   onGoForward,
   onUpload,
+  onManageLinks,
   onFileRequest,
   onViewModeChange,
   onSortChange,
@@ -65,7 +68,7 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
         justifyContent: 'flex-start',
         alignItems: 'center',
         height: compact ? '100%' : undefined,
-        overflowX: compact ? 'hidden' : undefined,
+        overflowX: compact ? 'auto' : undefined,
         overflowY: compact ? 'hidden' : undefined,
         flexWrap: compact ? 'nowrap' : 'wrap',
         gap: compact ? '8px' : '8px 16px',
@@ -98,6 +101,7 @@ const FolderContentToolbar: React.FC<FolderContentToolbarProps> = ({
             />
           )}
           {canUpload && onFileRequest && <Button icon={<LinkOutlined />} onClick={onFileRequest} title={t('fileRequest.manage')} aria-label={t('fileRequest.manage')} />}
+          {onManageLinks && <Button icon={<ShareAltOutlined aria-hidden />} onClick={onManageLinks} title={t('downloadLink.manage')} aria-label={t('downloadLink.manage')} />}
           <Select
             popupMatchSelectWidth={false}
             style={{ width: 'fit-content' }}
