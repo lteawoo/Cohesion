@@ -87,6 +87,15 @@ Files larger than 8 MiB upload in 4 MiB chunks. If your connection drops or you 
 
 The destination filesystem must support hard links (for example APFS, ext4 or NTFS).
 
+## Share a file for download
+
+1. Sign in as a space manager with file read access. Open the file's menu, choose **Create download link**, and set an expiry (1–365 days).
+2. Create the link and copy the full address, including the part after `#`. Use the HTTPS address your recipient can reach. Anyone with the link can download the shared copy until access ends.
+3. The recipient opens the link on their phone or computer, checks the filename and size, and chooses **Download**. No account is required.
+4. Choose **Manage download links** in the space's toolbar to close a link. You can still close it after moving or deleting the original. Expiry and closure stop new downloads. Removing the issuer's sharing permission also blocks access.
+
+Each link stores a private copy on the server. Editing or replacing the source file leaves that copy at the version you shared. Create a new link to send an updated version.
+
 ## Good Fit For
 
 - Personal file hubs at home
