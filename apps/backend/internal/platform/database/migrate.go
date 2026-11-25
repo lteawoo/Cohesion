@@ -13,6 +13,9 @@ var schemaDDL string
 //go:embed queries/file_requests.sql
 var fileRequestsDDL string
 
+//go:embed queries/download_links.sql
+var downloadLinksDDL string
+
 func Migrate(ctx context.Context, db *sql.DB) error {
 	if err := migrateUsersRoleConstraint(ctx, db); err != nil {
 		return err
@@ -27,7 +30,7 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	// Install the foreign keys after legacy migrations that replace the space table.
-	_, err := db.ExecContext(ctx, fileRequestsDDL)
+	_, err := db.ExecContext(ctx, fileRequestsDDL+"\n"+downloadLinksDDL)
 	return err
 }
 

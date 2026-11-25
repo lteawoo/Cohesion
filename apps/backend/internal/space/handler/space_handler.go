@@ -43,6 +43,7 @@ type SearchIndexService interface {
 }
 
 type Handler struct {
+	canShareFiles     func(context.Context, int64, int64) (bool, error)
 	canReceiveFiles   func(context.Context, int64, int64) (bool, error)
 	spaceService      *space.Service
 	quotaService      *space.QuotaService
@@ -59,11 +60,12 @@ type Handler struct {
 }
 
 type spaceResponse struct {
-	ID            int64   `json:"id"`
-	SpaceName     string  `json:"space_name"`
-	Icon          *string `json:"icon,omitempty"`
-	SpaceCategory *string `json:"space_category,omitempty"`
-	QuotaBytes    *int64  `json:"quota_bytes,omitempty"`
+	CanManageDownloadLinks bool    `json:"can_manage_download_links"`
+	ID                     int64   `json:"id"`
+	SpaceName              string  `json:"space_name"`
+	Icon                   *string `json:"icon,omitempty"`
+	SpaceCategory          *string `json:"space_category,omitempty"`
+	QuotaBytes             *int64  `json:"quota_bytes,omitempty"`
 }
 
 type spaceRootValidationErrorResponse struct {
@@ -88,6 +90,10 @@ func NewHandler(spaceService *space.Service, browseService BrowseService, accoun
 		downloadTicketTTL: 5 * time.Minute,
 		archiveDownloads:  newArchiveDownloadManager(defaultArchiveDownloadWorkerLimit, defaultArchiveDownloadTTL),
 	}
+}
+
+func (h *Handler) SetDownloadLinkAccess(check func(context.Context, int64, int64) (bool, error)) {
+	h.canShareFiles = check
 }
 
 func (h *Handler) SetFileRequestAccess(check func(context.Context, int64, int64) (bool, error)) {
@@ -133,6 +139,7 @@ func spaceRootValidationStatusCode(result space.SpaceRootValidationResult) int {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.Handle("/api/shared-file", web.Handler(h.handleSharedFile))
 	mux.Handle("/api/file-drop", web.Handler(h.handleFileDrop))
 	mux.Handle("/api/spaces", web.Handler(h.handleSpaces))
 	mux.Handle("/api/spaces/validate-root", web.Handler(h.handleValidateSpaceRoot))
@@ -194,7 +201,14 @@ func (h *Handler) handleGetSpaces(w http.ResponseWriter, r *http.Request) *web.E
 
 	response := make([]spaceResponse, 0, len(filteredSpaces))
 	for _, item := range filteredSpaces {
-		response = append(response, newSpaceResponse(item))
+		row := newSpaceResponse(item)
+		if h.canShareFiles != nil {
+			row.CanManageDownloadLinks, err = h.canShareFiles(r.Context(), claims.UserID, item.ID)
+			if err != nil {
+				return &web.Error{Code: 500, Message: "Failed to evaluate space access", Err: err}
+			}
+		}
+		response = append(response, row)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

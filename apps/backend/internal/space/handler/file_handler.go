@@ -14,6 +14,8 @@ func (h *Handler) handleSpaceFiles(w http.ResponseWriter, r *http.Request, space
 	switch action {
 	case "download":
 		webErr = h.handleFileDownload(w, r, spaceID)
+	case "download-links":
+		webErr = h.handleDownloadLinks(w, r, spaceID)
 	case "download-ticket":
 		webErr = h.handleFileDownloadTicket(w, r, spaceID)
 	case "archive-downloads":

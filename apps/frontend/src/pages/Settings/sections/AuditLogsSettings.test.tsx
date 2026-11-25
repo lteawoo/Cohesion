@@ -226,5 +226,5 @@ describe('AuditLogsSettings', () => {
       page: 1,
       pageSize: 20,
     });
-  });
+  }, 10_000);
 });

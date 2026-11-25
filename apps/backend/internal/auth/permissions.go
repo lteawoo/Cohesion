@@ -55,15 +55,23 @@ func (s *Service) HasPermission(ctx context.Context, role account.Role, permissi
 
 // CanReceiveFiles checks the link creator's current role and space membership.
 func (s *Service) CanReceiveFiles(ctx context.Context, owner, spaceID int64) (bool, error) {
+	return s.canManageFileLink(ctx, owner, spaceID, PermissionFileWrite, account.PermissionWrite)
+}
+
+func (s *Service) CanShareFiles(ctx context.Context, owner, spaceID int64) (bool, error) {
+	return s.canManageFileLink(ctx, owner, spaceID, PermissionFileRead, account.PermissionManage)
+}
+
+func (s *Service) canManageFileLink(ctx context.Context, owner, spaceID int64, rolePermission string, spacePermission account.Permission) (bool, error) {
 	user, err := s.accountService.GetUserByID(ctx, owner)
 	if err != nil {
 		return false, err
 	}
-	allowed, err := s.HasPermission(ctx, user.Role, PermissionFileWrite)
+	allowed, err := s.HasPermission(ctx, user.Role, rolePermission)
 	if err != nil || !allowed {
 		return false, err
 	}
-	return s.accountService.CanAccessSpaceByID(ctx, user.Username, spaceID, account.PermissionWrite)
+	return s.accountService.CanAccessSpaceByID(ctx, user.Username, spaceID, spacePermission)
 }
 
 func requiredPermissionForRequest(r *http.Request) (string, bool) {
@@ -98,6 +106,9 @@ func requiredPermissionForRequest(r *http.Request) (string, bool) {
 		}
 	}
 
+	if action, ok := extractSpaceFileAction(path); ok && action == "download-links" {
+		return PermissionFileRead, true
+	}
 	if action, ok := extractSpaceFileAction(path); ok && (action == "upload-sessions" || action == "file-requests") {
 		return PermissionFileWrite, true
 	}
@@ -218,6 +229,9 @@ func requiredSpacePermissionForRequest(r *http.Request) (*spacePermissionRequire
 
 	action, hasAction := extractSpaceFileAction(path)
 	if hasAction {
+		if action == "download-links" {
+			return &spacePermissionRequirement{spaceID: spaceID, required: account.PermissionManage}, true
+		}
 		required := account.PermissionWrite
 		if action == "download" || action == "download-ticket" || action == "download-multiple" || action == "download-multiple-ticket" || action == "archive-downloads" || action == "archive-download-ticket" {
 			required = account.PermissionRead

@@ -526,3 +526,17 @@ func TestDeniedAuditRuleForRequest_ExcludedEndpoints(t *testing.T) {
 		})
 	}
 }
+
+func TestDownloadLinksRequireFileReadAndSpaceManagement(t *testing.T) {
+	for _, method := range []string{"GET", "POST", "DELETE"} {
+		r := &http.Request{Method: method, URL: &url.URL{Path: "/api/spaces/42/files/download-links"}}
+		permission, ok := requiredPermissionForRequest(r)
+		if !ok || permission != PermissionFileRead {
+			t.Fatalf("role permission %s", permission)
+		}
+		access, ok := requiredSpacePermissionForRequest(r)
+		if !ok || access.spaceID != 42 || access.required != account.PermissionManage {
+			t.Fatalf("space permission %v", access)
+		}
+	}
+}

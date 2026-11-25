@@ -11,6 +11,7 @@ export interface Space {
   space_path?: string;
   icon?: string;
   space_category?: string;
+  can_manage_download_links?: boolean;
   quota_bytes?: number | null;
   created_at?: string;
   created_user_id?: string;
