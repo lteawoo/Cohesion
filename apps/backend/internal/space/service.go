@@ -23,7 +23,8 @@ type metadataUpdatable interface {
 }
 
 type Service struct {
-	store Storer
+	downloadStorage string
+	store           Storer
 }
 
 func NewService(store Storer) *Service {
@@ -91,6 +92,15 @@ func (s *Service) ValidateSpaceRoot(_ context.Context, path string) (*SpaceRootV
 		return nil, fmt.Errorf("failed to validate space root: %w", err)
 	}
 
+	if result.Valid {
+		overlap, err := s.OverlapsDownloadStorage(path)
+		if err != nil {
+			return nil, err
+		}
+		if overlap {
+			return &SpaceRootValidationResult{Valid: false, Code: SpaceRootValidationCodePermissionDenied, Message: "Space root overlaps private download link storage"}, nil
+		}
+	}
 	return &result, nil
 }
 

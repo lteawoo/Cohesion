@@ -186,7 +186,7 @@ func emitAccessLog(r *http.Request, status, size int, duration time.Duration) {
 		Str("method", r.Method).
 		Str("path", r.URL.Path)
 
-	if rawQuery := strings.TrimSpace(r.URL.RawQuery); rawQuery != "" {
+	if rawQuery := strings.TrimSpace(r.URL.RawQuery); rawQuery != "" && r.URL.Path != "/api/shared-file" {
 		event = event.Str("query", rawQuery)
 	}
 
@@ -261,6 +261,7 @@ func createServer(db *sql.DB, restartChan chan system.RestartRequest, shutdownCh
 	spaceHandler := spaceHandler.NewHandler(spaceService, browseService, accountService, trashService)
 	spaceHandler.SetTransferRuntime(transfers)
 	spaceHandler.SetFileRequestAccess(authService.CanReceiveFiles)
+	spaceHandler.SetDownloadLinkAccess(authService.CanShareFiles)
 	spaceHandler.SetSearchIndexer(searchIndexManager)
 	browseHandler := browseHandler.NewHandler(browseService, spaceService)
 	auditHandler := audit.NewHandler(auditService)

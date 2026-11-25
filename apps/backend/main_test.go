@@ -223,3 +223,15 @@ func setGoEnvForTest(t *testing.T, env string) {
 		goEnv = previous
 	})
 }
+
+func TestAccessLogOmitsSharedFileQuery(t *testing.T) {
+	previous := accessLogger
+	defer func() { accessLogger = previous }()
+	var buffer bytes.Buffer
+	accessLogger = newAccessLogger(&buffer)
+	req := httptest.NewRequest(http.MethodGet, "/api/shared-file?token=placeholder", nil)
+	emitAccessLog(req, 404, 0, 0)
+	if strings.Contains(buffer.String(), "placeholder") {
+		t.Fatal("shared file query entered access logs")
+	}
+}

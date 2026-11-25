@@ -20,6 +20,7 @@ const uploadStagePrefix = ".cohesion-upload-"
 
 // TransferRuntime is shared by HTTP handlers in the same server process.
 type TransferRuntime struct {
+	shared           *downloadSnapshots
 	store            *spaceStore.TransferStore
 	archive          *archiveDownloadManager
 	quota            *space.QuotaService
@@ -42,6 +43,13 @@ func NewTransferRuntime(ctx context.Context, db *sql.DB, spaceService *space.Ser
 		}
 	}
 
+	snapshots, err := newDownloadSnapshots(filepath.Join(root, "download-links"))
+	if err != nil {
+		return nil, err
+	}
+	if spaceService != nil {
+		spaceService.SetDownloadStorage(snapshots.dir)
+	}
 	transferStore := spaceStore.NewTransferStore(db)
 	if err := transferStore.RecoverUploadTransfers(ctx); err != nil {
 		return nil, err
@@ -54,7 +62,10 @@ func NewTransferRuntime(ctx context.Context, db *sql.DB, spaceService *space.Ser
 	}
 	quota := space.NewQuotaService(spaceService)
 	quota.SetUploadReservationStore(transferStore)
-	runtime := &TransferRuntime{store: transferStore, archive: archive, quota: quota, uploads: uploadPath}
+	runtime := &TransferRuntime{shared: snapshots, store: transferStore, archive: archive, quota: quota, uploads: uploadPath}
+	if err := snapshots.cleanup(ctx, transferStore); err != nil {
+		return nil, err
+	}
 	if err := runtime.restoreUploadSessions(ctx); err != nil {
 		return nil, err
 	}
@@ -80,6 +91,9 @@ func (h *Handler) RunTransferCleanup(ctx context.Context) {
 			return
 		case <-ticker.C:
 			h.cleanupArchiveDownloadJobs()
+			if err := h.transferRuntime.shared.cleanup(ctx, h.transferRuntime.store); err != nil {
+				log.Warn().Err(err).Msg("failed to clean download link snapshots")
+			}
 			if err := h.transferRuntime.expireUploadSessions(ctx); err != nil {
 				log.Warn().Err(err).Msg("failed to expire upload sessions")
 			}
