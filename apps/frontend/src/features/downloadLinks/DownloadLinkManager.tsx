@@ -16,6 +16,7 @@ function errorMessage(error: unknown) {
     switch (error.status) {
       case 403: return 'downloadLink.forbidden';
       case 409: return 'downloadLink.conflict';
+      case 429: return 'downloadLink.busy';
       case 507: return 'downloadLink.noStorage';
     }
   }
