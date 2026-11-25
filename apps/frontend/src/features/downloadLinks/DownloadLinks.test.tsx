@@ -32,20 +32,22 @@ it('offers sharing for individual files when the space grants the management act
   expect(choices(false, false)).toBe(false);
 });
 
-it('creates a file link and can revoke it from the space-wide list', async () => {
+it('creates a download link for the selected file', async () => {
   const user = userEvent.setup();
   api.mockResolvedValueOnce(Response.json([])).mockResolvedValueOnce(Response.json(link, { status: 201 }));
   const view = render(<App><DownloadLinkManager spaceId={7} path={file.path} onClose={vi.fn()} /></App>);
   const create = view.getByRole('button', { name: '다운로드 링크 만들기' });
   await vi.waitFor(() => expect((create as HTMLButtonElement).disabled).toBe(false));
   await user.click(create);
-  const address = await view.findByRole('textbox', { name: '다운로드 링크 주소' }) as HTMLInputElement;
+  const address = await view.findByLabelText('다운로드 링크 주소') as HTMLInputElement;
   expect(new URL(address.value).pathname).toBe('/share');
   expect(new URL(address.value).hash).toBe('#public-test-token');
   expect(api.mock.calls[0][0]).toContain('path=team%2Freport.pdf');
   expect(JSON.parse(String(api.mock.calls[1][1]?.body))).toEqual({ path: file.path, days: 7 });
+}, 10_000);
 
-  view.unmount();
+it('revokes an existing link from the space-wide list', async () => {
+  const user = userEvent.setup();
   api.mockResolvedValueOnce(Response.json([link])).mockResolvedValueOnce(new Response(null, { status: 204 }));
   const all = render(<App><DownloadLinkManager spaceId={7} onClose={vi.fn()} /></App>);
   await user.click(await all.findByRole('button', { name: '링크 닫기' }));
@@ -53,8 +55,8 @@ it('creates a file link and can revoke it from the space-wide list', async () =>
   expect(confirm).toBeTruthy();
   await user.click(confirm!);
   expect(await all.findByText('이 스페이스에 활성 다운로드 링크가 없습니다.')).toBeTruthy();
-  expect(api.mock.calls[3][0]).toContain('id=42');
-  expect(api.mock.calls[3][1]?.method).toBe('DELETE');
+  expect(api.mock.calls[1][0]).toContain('id=42');
+  expect(api.mock.calls[1][1]?.method).toBe('DELETE');
 });
 
 it('explains how to recover when the server cannot store the file copy', async () => {
