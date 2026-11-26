@@ -18,15 +18,10 @@ import (
 	"taeu.kr/cohesion/internal/platform/web"
 )
 
-var configFileName string
 var configFilePath string
 
 func SetConfig(goEnv string) {
 	log.Info().Msgf("Loading configuration for environment: %s", goEnv)
-
-	viper.Reset()
-	viper.SetConfigType("yaml")
-
 	if goEnv == "production" {
 		if productionHomeDir, err := EnsureProductionHomeDir(); err != nil {
 			log.Warn().Err(err).Msg("Failed to prepare production home directory metadata")
@@ -35,43 +30,52 @@ func SetConfig(goEnv string) {
 		}
 	}
 
-	configSearchPaths := resolveConfigSearchPaths(goEnv)
-	for _, path := range configSearchPaths {
-		viper.AddConfigPath(path)
-	}
-
-	if goEnv == "production" {
-		configFileName = "config.prod"
-	} else {
-		configFileName = "config.dev"
-	}
-	viper.SetConfigName(configFileName)
-
-	err := viper.ReadInConfig()
+	var err error
+	Conf, configFilePath, err = readConfig(goEnv, true)
 	if err != nil {
-		var notFound viper.ConfigFileNotFoundError
-		if errors.As(err, &notFound) {
-			createdPath, createErr := createDefaultConfigFile(configSearchPaths, configFileName, goEnv)
-			if createErr != nil {
-				log.Fatal().Err(createErr).Strs("search_paths", configSearchPaths).Msg("Failed to create default config file")
-			}
-			log.Info().Str("path", createdPath).Msg("Config file not found. Created default config file")
-			if err = viper.ReadInConfig(); err != nil {
-				log.Fatal().Err(err).Strs("search_paths", configSearchPaths).Msg("Failed to read config file")
-			}
-		} else {
-			log.Fatal().Err(err).Strs("search_paths", configSearchPaths).Msg("Failed to read config file")
-		}
+		log.Fatal().Err(err).Msg("Failed to load config")
 	}
-
-	configFilePath = viper.ConfigFileUsed()
 	log.Info().Msgf("Config file loaded: %s", configFilePath)
+}
 
-	err = viper.Unmarshal(&Conf)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to unmarshal config")
+// ReadExistingConfig loads the same configuration as the server without creating files.
+func ReadExistingConfig(goEnv string) (Config, string, error) {
+	return readConfig(goEnv, false)
+}
+
+func readConfig(goEnv string, createIfMissing bool) (Config, string, error) {
+	reader := viper.New()
+	reader.SetConfigType("yaml")
+	searchPaths := resolveConfigSearchPaths(goEnv)
+	for _, path := range searchPaths {
+		reader.AddConfigPath(path)
 	}
-	applyServerDefaults(&Conf.Server)
+	name := "config.dev"
+	if goEnv == "production" {
+		name = "config.prod"
+	}
+	reader.SetConfigName(name)
+
+	err := reader.ReadInConfig()
+	var notFound viper.ConfigFileNotFoundError
+	if createIfMissing && errors.As(err, &notFound) {
+		createdPath, createErr := createDefaultConfigFile(searchPaths, name, goEnv)
+		if createErr != nil {
+			return Config{}, "", createErr
+		}
+		log.Info().Str("path", createdPath).Msg("Config file not found. Created default config file")
+		err = reader.ReadInConfig()
+	}
+	if err != nil {
+		return Config{}, "", fmt.Errorf("read %s from %v: %w", name, searchPaths, err)
+	}
+
+	var result Config
+	if err := reader.Unmarshal(&result); err != nil {
+		return Config{}, "", fmt.Errorf("unmarshal config: %w", err)
+	}
+	applyServerDefaults(&result.Server)
+	return result, reader.ConfigFileUsed(), nil
 }
 
 func createDefaultConfigFile(searchPaths []string, fileName, goEnv string) (string, error) {

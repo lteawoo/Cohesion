@@ -32,7 +32,7 @@ func TestResolveSQLiteDBPath_ExpandsHomeShortcut(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	actual := resolveSQLiteDBPath("~/db/cohesion.db")
+	actual := resolveSQLiteDBPath("~/db/cohesion.db", "")
 	expected := filepath.Join(homeDir, "db", "cohesion.db")
 	if actual != expected {
 		t.Fatalf("expected %q, got %q", expected, actual)

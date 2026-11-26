@@ -73,6 +73,18 @@ In the app, update guidance appears in `Settings > About`.
 3. Create a space for your files.
 4. Upload files or connect your WebDAV or SFTP client.
 
+## Reset an administrator password
+
+Open a terminal on the computer running Cohesion and use the account and data directory of that installation.
+
+```bash
+cohesion admin reset-password
+```
+
+For a downloaded binary, run `./cohesion admin reset-password` on macOS or Linux, or `.\cohesion.exe admin reset-password` in Windows PowerShell, from the directory containing the executable. For the standard Linux package service, use `sudo -u cohesion cohesion admin reset-password`. If the service sets a custom `COHESION_STATE_ROOT`, use the same value for the recovery command.
+
+Check the displayed database path. Press Enter to select the only administrator, or type the username from the list. Enter the new password twice. The terminal hides both password entries. Press Ctrl+C to cancel. After the confirmation message, sign in with the new password.
+
 ## Resume a browser upload
 
 Files larger than 8 MiB upload in 4 MiB chunks. If your connection drops or you reload the page, reconnect and open the transfer center in the same browser tab. Choose **Resume upload** and select the original file. Cohesion checks its name, size and modification time, then continues from the last chunk the server confirmed. A session expires after 24 hours without a successful chunk. Choose **Cancel** to release it sooner.

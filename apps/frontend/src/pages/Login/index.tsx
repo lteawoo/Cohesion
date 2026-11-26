@@ -183,6 +183,12 @@ const Login = () => {
               </Space>
             </form>
           )}
+          {!requiresSetup && (
+            <Space orientation="vertical" size={8}>
+              <Text type="secondary">{t('login.adminPasswordRecovery')}</Text>
+              <Text code>cohesion admin reset-password</Text>
+            </Space>
+          )}
         </Space>
       </Card>
     </div>

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -22,7 +23,7 @@ const (
 )
 
 func NewDB() (*sql.DB, error) {
-	dbPath := resolveSQLiteDBPath(strings.TrimSpace(config.Conf.Datasource.URL))
+	dbPath := resolveSQLiteDBPath(config.Conf.Datasource.URL, config.ConfigDir())
 	if dbPath == "" {
 		return nil, errors.New("database url is required")
 	}
@@ -61,6 +62,62 @@ func NewDB() (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+// OpenExisting opens only the installation database. It skips migrations and
+// leaves directory and file permissions as the server operator configured them.
+func OpenExisting(ctx context.Context, datasourceURL, configDir string) (*sql.DB, string, error) {
+	dbPath := resolveSQLiteDBPath(datasourceURL, configDir)
+	if dbPath == "" || isInMemorySQLiteDB(dbPath) {
+		return nil, "", errors.New("an existing on-disk database is required")
+	}
+
+	var uri *url.URL
+	if strings.HasPrefix(dbPath, "file:") {
+		parsed, err := url.Parse(dbPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid SQLite file URL: %w", err)
+		}
+		uri = parsed
+	} else {
+		absPath, err := filepath.Abs(dbPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("resolve database path: %w", err)
+		}
+		dbPath = absPath
+		info, err := os.Stat(dbPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("inspect database: %w", err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, "", fmt.Errorf("database %q is not a regular file", dbPath)
+		}
+		uriPath := filepath.ToSlash(dbPath)
+		if filepath.VolumeName(dbPath) != "" {
+			uriPath = "/" + uriPath
+		}
+		uri = &url.URL{Scheme: "file", Path: uriPath}
+	}
+
+	options, err := url.ParseQuery(uri.RawQuery)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid SQLite file URL options: %w", err)
+	}
+	if (uri.Opaque == "" && uri.Path == "") || options.Get("mode") == "memory" || options.Get("mode") == "ro" || options.Get("immutable") == "1" {
+		return nil, "", errors.New("an existing writable on-disk database is required")
+	}
+	options.Set("mode", "rw")
+	uri.RawQuery = options.Encode()
+
+	db, err := sql.Open("sqlite3", uri.String())
+	if err != nil {
+		return nil, "", fmt.Errorf("open existing database %q: %w", dbPath, err)
+	}
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, "", fmt.Errorf("open existing database %q: %w", dbPath, err)
+	}
+	return db, dbPath, nil
 }
 
 func ensureDatabasePath(dbPath string) error {
@@ -103,7 +160,8 @@ func isInMemorySQLiteDB(dbPath string) bool {
 	return dbPath == ":memory:" || strings.HasPrefix(dbPath, "file::memory:")
 }
 
-func resolveSQLiteDBPath(dbPath string) string {
+func resolveSQLiteDBPath(dbPath, configDir string) string {
+	dbPath = strings.TrimSpace(dbPath)
 	if dbPath == "" || isInMemorySQLiteDB(dbPath) {
 		return dbPath
 	}
@@ -114,7 +172,7 @@ func resolveSQLiteDBPath(dbPath string) string {
 		return dbPath
 	}
 
-	if configDir := strings.TrimSpace(config.ConfigDir()); configDir != "" {
+	if configDir = strings.TrimSpace(configDir); configDir != "" {
 		if config.IsDefaultProductionConfigDir(configDir) && config.IsLegacyProductionDatabaseURL(dbPath) {
 			if productionDBPath, err := config.ResolveProductionDatabasePath(); err == nil && strings.TrimSpace(productionDBPath) != "" {
 				return productionDBPath

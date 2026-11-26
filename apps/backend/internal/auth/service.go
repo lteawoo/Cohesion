@@ -147,8 +147,8 @@ func (s *Service) UpdateCurrentUser(ctx context.Context, claims *Claims, req *Up
 			return nil, errors.New("current password is incorrect")
 		}
 
-		if len(strings.TrimSpace(*req.NewPassword)) < 8 {
-			return nil, errors.New("password must be at least 8 characters")
+		if err := account.ValidateNewPassword(*req.NewPassword); err != nil {
+			return nil, err
 		}
 
 		newPassword := *req.NewPassword

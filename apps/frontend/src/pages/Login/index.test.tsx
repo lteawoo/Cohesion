@@ -158,12 +158,20 @@ describe('Login', () => {
     });
   });
 
+  it('shows local password recovery instructions on the sign-in form', async () => {
+    const view = render(<Login />);
+
+    expect(await view.findByText('login.adminPasswordRecovery')).toBeTruthy();
+    expect(view.getByText('cohesion admin reset-password')).toBeTruthy();
+  });
+
   it('renders the setup flow and bootstraps the first admin', async () => {
     h.getSetupStatus.mockResolvedValue({ requiresSetup: true });
     const user = userEvent.setup();
     const view = render(<Login />);
 
     await user.type(await view.findByPlaceholderText('login.adminUsernamePlaceholder'), 'admin');
+    expect(view.queryByText('cohesion admin reset-password')).toBeNull();
     await user.type(view.getByPlaceholderText('login.nicknameOptionalPlaceholder'), 'Administrator');
     await user.type(view.getByPlaceholderText('login.passwordMinPlaceholder'), 'admin1234');
     await user.type(view.getByPlaceholderText('login.passwordConfirmPlaceholder'), 'admin1234');
