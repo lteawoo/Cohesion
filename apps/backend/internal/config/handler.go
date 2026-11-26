@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -19,6 +20,13 @@ import (
 )
 
 var configFilePath string
+var configMu sync.RWMutex
+
+func PublicShareOrigin() string {
+	configMu.RLock()
+	defer configMu.RUnlock()
+	return Conf.PublicOrigin
+}
 
 func SetConfig(goEnv string) {
 	log.Info().Msgf("Loading configuration for environment: %s", goEnv)
@@ -30,12 +38,14 @@ func SetConfig(goEnv string) {
 		}
 	}
 
-	var err error
-	Conf, configFilePath, err = readConfig(goEnv, true)
+	next, file, err := readConfig(goEnv, true)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to load config")
 	}
-	log.Info().Msgf("Config file loaded: %s", configFilePath)
+	configMu.Lock()
+	Conf, configFilePath = next, file
+	configMu.Unlock()
+	log.Info().Msgf("Config file loaded: %s", file)
 }
 
 // ReadExistingConfig loads the same configuration as the server without creating files.
@@ -73,6 +83,10 @@ func readConfig(goEnv string, createIfMissing bool) (Config, string, error) {
 	var result Config
 	if err := reader.Unmarshal(&result); err != nil {
 		return Config{}, "", fmt.Errorf("unmarshal config: %w", err)
+	}
+	result.PublicOrigin, err = normalizePublicOrigin(result.PublicOrigin)
+	if err != nil {
+		return Config{}, "", err
 	}
 	applyServerDefaults(&result.Server)
 	return result, reader.ConfigFileUsed(), nil
@@ -176,7 +190,11 @@ func ConfigDir() string {
 
 // SaveConfig는 설정을 YAML 파일에 저장합니다
 func SaveConfig() error {
-	data, err := yaml.Marshal(&Conf)
+	return saveConfig(Conf)
+}
+
+func saveConfig(next Config) error {
+	data, err := yaml.Marshal(&next)
 	if err != nil {
 		return err
 	}
@@ -196,13 +214,15 @@ type Handler struct {
 }
 
 type PublicConfigResponse struct {
+	PublicOrigin          string `json:"publicOrigin"`
 	Server                Server `json:"server"`
 	AuditLogRetentionDays int    `json:"auditLogRetentionDays"`
 }
 
 type UpdateConfigRequest struct {
-	Server                Server `json:"server"`
-	AuditLogRetentionDays *int   `json:"auditLogRetentionDays"`
+	PublicOrigin          *string `json:"publicOrigin"`
+	Server                Server  `json:"server"`
+	AuditLogRetentionDays *int    `json:"auditLogRetentionDays"`
 }
 
 func applyServerDefaults(server *Server) {
@@ -272,7 +292,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 // GetConfig는 현재 설정을 반환합니다
 func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) *web.Error {
 	w.Header().Set("Content-Type", "application/json")
+	configMu.RLock()
+	defer configMu.RUnlock()
 	response := PublicConfigResponse{
+		PublicOrigin:          Conf.PublicOrigin,
 		Server:                Conf.Server,
 		AuditLogRetentionDays: Conf.AuditLogRetentionDays,
 	}
@@ -303,6 +326,16 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 		return validationErr
 	}
 
+	configMu.Lock()
+	defer configMu.Unlock()
+	nextOrigin := Conf.PublicOrigin
+	if req.PublicOrigin != nil {
+		var err error
+		nextOrigin, err = normalizePublicOrigin(*req.PublicOrigin)
+		if err != nil {
+			return &web.Error{Code: http.StatusBadRequest, Message: err.Error()}
+		}
+	}
 	nextAuditLogRetentionDays := Conf.AuditLogRetentionDays
 	if req.AuditLogRetentionDays != nil {
 		if validationErr := validateAuditLogRetentionDays(*req.AuditLogRetentionDays); validationErr != nil {
@@ -321,6 +354,7 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 
 	// 설정 업데이트 (민감정보를 포함하는 datasource는 API로 변경하지 않음)
 	before := map[string]any{
+		"publicOrigin":          Conf.PublicOrigin,
 		"port":                  Conf.Server.Port,
 		"webdavEnabled":         Conf.Server.WebdavEnabled,
 		"ftpEnabled":            Conf.Server.FtpEnabled,
@@ -329,11 +363,13 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 		"sftpPort":              Conf.Server.SftpPort,
 		"auditLogRetentionDays": Conf.AuditLogRetentionDays,
 	}
-	Conf.Server = req.Server
-	Conf.AuditLogRetentionDays = nextAuditLogRetentionDays
+	next := Conf
+	next.PublicOrigin = nextOrigin
+	next.Server = req.Server
+	next.AuditLogRetentionDays = nextAuditLogRetentionDays
 
 	// 파일에 저장
-	if err := SaveConfig(); err != nil {
+	if err := saveConfig(next); err != nil {
 		h.recordAudit(r, audit.Event{
 			Action: "config.update",
 			Result: audit.ResultFailure,
@@ -344,7 +380,11 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) *web.Erro
 		})
 		return &web.Error{Err: err, Code: http.StatusInternalServerError, Message: "Failed to save config"}
 	}
+	Conf.Server = next.Server
+	Conf.AuditLogRetentionDays = next.AuditLogRetentionDays
+	Conf.PublicOrigin = next.PublicOrigin
 	after := map[string]any{
+		"publicOrigin":          Conf.PublicOrigin,
 		"port":                  Conf.Server.Port,
 		"webdavEnabled":         Conf.Server.WebdavEnabled,
 		"ftpEnabled":            Conf.Server.FtpEnabled,

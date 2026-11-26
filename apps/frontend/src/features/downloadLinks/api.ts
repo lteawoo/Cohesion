@@ -1,15 +1,19 @@
+import { publicLinkAddress } from '@/api/publicLink';
 import { apiFetch } from '@/api/client';
 
 export interface SharedFile {
   name: string;
   size: number;
   expires: number;
+  items?: Array<{ id: number; name: string; size: number }>;
 }
 
 export interface DownloadLink extends SharedFile {
+  publicOrigin?: string;
   id: number;
   path: string;
   token: string;
+  itemCount?: number;
 }
 
 export const sharedFileEndpoint = '/api/shared-file';
@@ -30,8 +34,6 @@ export async function manageDownloadLinks(spaceId: number, params: URLSearchPara
   return response;
 }
 
-export function shareAddress(token: string) {
-  const url = new URL('/share', window.location.origin);
-  url.hash = token;
-  return url.href;
+export function shareAddress(token: string, publicOrigin?: string) {
+  return publicLinkAddress('/share', token, publicOrigin);
 }

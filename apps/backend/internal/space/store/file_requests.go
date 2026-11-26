@@ -9,17 +9,18 @@ import (
 )
 
 type FileRequest struct {
-	ID        int64  `json:"id"`
-	Owner     int64  `json:"-"`
-	SpaceID   int64  `json:"-"`
-	Root      string `json:"-"`
-	Folder    string `json:"-"`
-	Token     string `json:"token"`
-	Title     string `json:"title"`
-	Expires   int64  `json:"expires"`
-	ByteLimit int64  `json:"byteLimit"`
-	Received  int64  `json:"received"`
-	Closed    bool   `json:"closed"`
+	PublicOrigin string `json:"publicOrigin,omitempty"`
+	ID           int64  `json:"id"`
+	Owner        int64  `json:"-"`
+	SpaceID      int64  `json:"-"`
+	Root         string `json:"-"`
+	Folder       string `json:"-"`
+	Token        string `json:"token"`
+	Title        string `json:"title"`
+	Expires      int64  `json:"expires"`
+	ByteLimit    int64  `json:"byteLimit"`
+	Received     int64  `json:"received"`
+	Closed       bool   `json:"closed"`
 }
 
 const requestColumns = "id,owner,space_id,root,folder,token,title,expires,byte_limit,received,closed"

@@ -72,7 +72,7 @@ const FolderContent: React.FC = () => {
   const trashOpenRequest = useBrowseStore((state) => state.trashOpenRequest);
   const clearTrashOpenRequest = useBrowseStore((state) => state.clearTrashOpenRequest);
 
-  const [downloadLinks, setDownloadLinks] = useState<{ spaceId: number; path?: string } | null>(null);
+  const [downloadLinks, setDownloadLinks] = useState<{ spaceId: number; path?: string; files?: Pick<FileNode, 'path' | 'size'>[] } | null>(null);
   const canManageLinks = !isSearchMode && selectedSpace?.can_manage_download_links === true;
   const openFileLinks = canManageLinks && !isLoading && !browseError && selectedSpace
     ? (path: string) => setDownloadLinks({ spaceId: selectedSpace.id, path: normalizeRelativePath(path) })
@@ -232,8 +232,17 @@ const FolderContent: React.FC = () => {
     });
     return next;
   }, [sortedContent]);
-  const selectedFile = selectedItems.size === 1 ? contentByPath.get(Array.from(selectedItems)[0]) : undefined;
-  const shareSelected = selectedFile && !selectedFile.isDir && openFileLinks ? () => openFileLinks(selectedFile.path) : undefined;
+  const selectedFiles = Array.from(selectedItems, path => contentByPath.get(path))
+    .filter((item): item is FileNode => !!item && !item.isDir);
+  const shareSelected = selectedSpace && openFileLinks && selectedFiles.length > 0 && selectedFiles.length === selectedItems.size
+    ? () => {
+      if (selectedFiles.length === 1) {
+        openFileLinks(selectedFiles[0].path);
+        return;
+      }
+      const files = selectedFiles.map(file => ({ path: normalizeRelativePath(file.path), size: file.size }));
+      setDownloadLinks({ spaceId: selectedSpace.id, files });
+    } : undefined;
   const effectiveViewMode: ViewMode = viewMode;
 
   const { handleContextMenu, handleEmptyAreaContextMenu } = useContextMenu({
@@ -243,6 +252,7 @@ const FolderContent: React.FC = () => {
     onSetSelection: setSelection,
     callbacks: {
       onShare: openFileLinks,
+      onBulkShare: shareSelected,
       onDownload: (path: string) => {
         void handleBulkDownload([path]);
       },

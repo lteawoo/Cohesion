@@ -1,4 +1,6 @@
-import { App, Popover, theme } from 'antd';
+import { useState } from 'react';
+import MobileAccess from './MobileAccess';
+import { App, Button, Popover, theme } from 'antd';
 import { useServerStatus } from '@/features/status/hooks/useServerStatus';
 import { useUpdateCheck } from '@/features/status/hooks/useUpdateCheck';
 import type { ProtocolStatus, UpdateCheckResponse } from '@/features/status/types';
@@ -95,10 +97,12 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
 function PopoverContent({
   protocols,
   hosts,
+  onOpenPhone,
   updateInfo,
 }: {
   protocols: Record<string, ProtocolStatus>;
   hosts?: string[];
+  onOpenPhone: () => void;
   updateInfo: UpdateCheckResponse | null;
 }) {
   const { t } = useTranslation();
@@ -138,6 +142,7 @@ function PopoverContent({
 
   return (
     <div style={{ minWidth: 180 }}>
+      <Button size="small" onClick={onOpenPhone} style={{ marginBottom: 8 }}>{t('serverStatus.openOnPhone')}</Button>
       <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8 }}>
         {t('serverStatus.hosts')}
       </div>
@@ -220,25 +225,28 @@ export default function ServerStatus() {
   const { status, isServerUp } = useServerStatus();
   const { updateInfo } = useUpdateCheck();
 
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const dotColor = isServerUp ? token.colorSuccess : token.colorError;
 
   return (
+    <>
     <Popover
       content={
         status?.protocols ? (
-          <PopoverContent protocols={status.protocols} hosts={status.hosts} updateInfo={updateInfo} />
+          <PopoverContent protocols={status.protocols} hosts={status.hosts} onOpenPhone={() => setPhoneOpen(true)} updateInfo={updateInfo} />
         ) : (
           <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
             {t('serverStatus.connectionUnavailable')}
           </div>
         )
       }
-      trigger="hover"
+      trigger={['hover', 'click']}
       placement="bottom"
       arrow={{ pointAtCenter: true }}
     >
-      <div
+      <button type="button"
         style={{
+          background: 'transparent', border: 0, color: 'inherit', font: 'inherit',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -267,7 +275,9 @@ export default function ServerStatus() {
             {t('serverStatus.updateBadge')}
           </span>
         )}
-      </div>
+      </button>
     </Popover>
+    {phoneOpen && <MobileAccess hosts={status?.hosts ?? []} onClose={() => setPhoneOpen(false)} />}
+    </>
   );
 }

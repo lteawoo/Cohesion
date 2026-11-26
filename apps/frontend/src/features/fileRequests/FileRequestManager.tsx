@@ -1,3 +1,4 @@
+import { publicLinkAddress } from '@/api/publicLink';
 import { useEffect, useState } from 'react';
 import { Alert, App, Button, Form, Input, InputNumber, Modal, Space, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -54,14 +55,13 @@ export default function FileRequestManager({ spaceId, folder, onClose }: { space
     </Form>
     {failed && <Alert type="error" showIcon title={t('fileRequest.manageError')} />}
     {list.map(link => {
-      const url = new URL('/request', location.origin);
-      url.hash = link.token;
+      const url = publicLinkAddress('/request', link.token, link.publicOrigin);
       return <section key={link.id} style={{ marginTop: 16 }}>
         <Typography.Text>{t('fileRequest.details', { date: new Date(link.expires * 1000).toLocaleDateString(), used: (link.received / 1048576).toFixed(1), limit: link.byteLimit / 1048576 })}</Typography.Text>
-        <Input aria-label={t('fileRequest.link')} value={url.href} readOnly onFocus={(event: React.FocusEvent<HTMLInputElement>) => event.currentTarget.select()} />
+        <Input aria-label={t('fileRequest.link')} value={url} readOnly onFocus={(event: React.FocusEvent<HTMLInputElement>) => event.currentTarget.select()} />
         <Space style={{ marginTop: 8 }}>
           <Button onClick={async () => {
-            try { await navigator.clipboard.writeText(url.href); void message.success(t('fileRequest.copied')); }
+            try { await navigator.clipboard.writeText(url); void message.success(t('fileRequest.copied')); }
             catch { void message.info(t('fileRequest.copyHint')); }
           }}>{t('fileRequest.copy')}</Button>
           <Button danger disabled={busy} onClick={() => void update(link.id)}>{t('fileRequest.close')}</Button>

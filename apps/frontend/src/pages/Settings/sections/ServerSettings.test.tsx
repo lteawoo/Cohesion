@@ -126,6 +126,7 @@ vi.mock('antd', () => ({
     </section>
   ),
   Divider: () => <hr />,
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input aria-label={props['aria-label']} type={props.type} value={props.value} disabled={props.disabled} onChange={props.onChange} />,
   InputNumber: ({
     value,
     onChange,
