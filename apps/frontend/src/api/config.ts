@@ -11,6 +11,7 @@ export interface ServerConfig {
 }
 
 export interface Config {
+  publicOrigin?: string;
   server: ServerConfig;
   auditLogRetentionDays: number;
 }

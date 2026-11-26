@@ -267,6 +267,12 @@ func TestRequiredPermissionForRequest_SystemUpdateEndpoints(t *testing.T) {
 		expected string
 	}{
 		{
+			name:     "change external sharing origin via server settings",
+			method:   http.MethodPut,
+			path:     "/api/config",
+			expected: PermissionServerWrite,
+		},
+		{
 			name:     "get update status",
 			method:   http.MethodGet,
 			path:     "/api/system/update/status",

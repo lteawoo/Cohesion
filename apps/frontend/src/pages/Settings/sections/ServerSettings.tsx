@@ -1,4 +1,4 @@
-import { Card, Switch, InputNumber, Typography, Space, Alert, Divider, Button, App } from 'antd';
+import { Card, Switch, Input, InputNumber, Typography, Space, Alert, Divider, Button, App } from 'antd';
 import { ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -34,6 +34,16 @@ function getServerConfigValidationError(
   t: (key: string, options?: Record<string, unknown>) => string
 ): string | null {
   const server = config.server;
+  if (config.publicOrigin?.trim()) {
+    try {
+      const value = config.publicOrigin.trim();
+      const url = new URL(value);
+      if (!/^https:\/\/[^/\\?#@%]+\/?$/i.test(value) || url.username || url.password || url.port === '0' ||
+        /(^|\.)localhost\.?$|^127\.|^0\.0\.0\.0$|^\[::1?\]$/i.test(url.hostname)) {
+        return t('serverSettings.invalidOrigin');
+      }
+    } catch { return t('serverSettings.invalidOrigin'); }
+  }
   const webPort = parsePortValue(server.port);
   if (webPort === null) {
     return t('serverSettings.validationWebPort');
@@ -327,6 +337,18 @@ const ServerSettings = () => {
               />
             )}
           />
+        </Space>
+      </Card>
+
+      <Card title={t('serverSettings.publicOrigin')} size="small">
+        <Space vertical size="small" style={{ width: '100%' }}>
+          <Input type="url" allowClear aria-label={t('serverSettings.publicOrigin')} value={config.publicOrigin ?? ''}
+            placeholder="https://files.example.com" disabled={!canWriteServerSettings}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setConfig({ ...config, publicOrigin: event.target.value });
+              setHasChanges(true);
+            }} />
+          <Text type="secondary">{t('serverSettings.originHint')}</Text>
         </Space>
       </Card>
 

@@ -105,7 +105,7 @@ function LinkActions({ link, busy, onRevoke }: { link: DownloadLink; busy: boole
   const { t } = useTranslation();
   const { message } = App.useApp();
   const input = useRef<InputRef>(null);
-  const address = shareAddress(link.token);
+  const address = shareAddress(link.token, link.publicOrigin);
   async function copy() {
     try {
       await navigator.clipboard.writeText(address);

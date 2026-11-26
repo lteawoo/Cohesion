@@ -1,6 +1,7 @@
 import { apiFetch } from '@/api/client';
 
 export interface FileRequestLink {
+  publicOrigin?: string;
   id: number;
   title: string;
   token: string;

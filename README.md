@@ -73,6 +73,12 @@ In the app, update guidance appears in `Settings > About`.
 3. Create a space for your files.
 4. Upload files or connect your WebDAV or SFTP client.
 
+## Connect a phone
+
+On the computer running Cohesion, open **Status → Open on phone**. Connect your phone to the same local network and scan the QR code with its camera. If the server has multiple addresses, select the interface connected to your phone’s network. Guest Wi-Fi with client isolation can block the connection. The QR code contains the local server address and opens the normal sign-in flow.
+
+For recipients outside your network, configure a reachable HTTPS endpoint for Cohesion, then enter its origin (for example `https://files.example.com`) in **Settings → Server → External HTTPS sharing address** and save. This setting applies immediately to newly copied download and file request links, including links you copy from localhost. Clear and save the field to use the browser’s current address again. Keep the server running and open a newly copied link on a phone with Wi-Fi turned off to check access. Existing messages retain the address originally sent.
+
 ## Reset an administrator password
 
 Open a terminal on the computer running Cohesion and use the account and data directory of that installation.
@@ -92,17 +98,17 @@ Files larger than 8 MiB upload in 4 MiB chunks. If your connection drops or you 
 ## Collect files with a request link
 
 1. Open the destination folder with a space account that can upload files. Choose **File request** (the link icon).
-2. Set the expiry in days and total size limit in MiB. Create the link and copy the entire address, including the part after `#`. For people outside your network, open Cohesion at the HTTPS address they can reach before copying.
+2. Set the expiry in days and total size limit in MiB. Create the link and copy the entire address, including the part after `#`. For external recipients, set the external HTTPS sharing address or open Cohesion at a reachable HTTPS address before copying.
 3. The recipient opens the link and selects a file on their phone or computer. They can submit without an account and see only their own transfer. Files with the same name get a numbered suffix.
 4. After an interruption or reload, select **Resume upload** in the same tab and choose the original file. The server retains partial uploads for 24 hours after the last accepted chunk, up to the expiry or closure of the link.
 5. Reopen **File request** in the folder to see received bytes or close the link. Closing stops pending submissions and keeps previously received files.
 
 The destination filesystem must support hard links (for example APFS, ext4 or NTFS).
 
-## Share a file for download
+## Share files for download
 
 1. Sign in as a space manager with file read access. Open the file's menu, or select 2–100 files in the same folder and choose **Create download link** from the selection actions. Check the selection count and total size, then set an expiry (1–365 days).
-2. Create the link and copy the full address, including the part after `#`. Use the HTTPS address your recipient can reach. Anyone with the link can download the shared copy until access ends.
+2. Create the link and copy the full address, including the part after `#`. Use the configured external sharing address or open Cohesion at the HTTPS address your recipient can reach. Anyone with the link can download the shared copy until access ends.
 3. The recipient opens the link on their phone or computer, checks the filenames and sizes, and downloads a file. A multi-file link also offers **Download all as ZIP**. No account is required.
 4. Choose **Manage download links** in the space's toolbar to close a link. You can still close it after moving or deleting the original. Expiry and closure stop new downloads. Removing the issuer's sharing permission also blocks access.
 

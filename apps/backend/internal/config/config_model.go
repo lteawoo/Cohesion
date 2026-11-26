@@ -3,6 +3,7 @@ package config
 var Conf Config
 
 type Config struct {
+	PublicOrigin          string     `mapstructure:"public_origin" json:"publicOrigin" yaml:"public_origin,omitempty"`
 	Server                Server     `mapstructure:"server" json:"server" yaml:"server"`
 	AuditLogRetentionDays int        `mapstructure:"audit_log_retention_days" json:"auditLogRetentionDays" yaml:"audit_log_retention_days"`
 	Datasource            Datasource `mapstructure:"database" json:"database" yaml:"database"`

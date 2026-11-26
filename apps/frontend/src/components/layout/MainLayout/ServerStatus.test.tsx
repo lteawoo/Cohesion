@@ -31,6 +31,7 @@ vi.mock('@/features/status/hooks/useServerStatus', () => ({
 }));
 
 vi.mock('antd', () => ({
+  Button: ({ children, onClick }: { children: ReactNode; onClick: () => void }) => <button onClick={onClick}>{children}</button>,
   Popover: ({ content, children }: { content: ReactNode; children: ReactNode }) => (
     <div>
       <div data-testid="popover-content">{content}</div>

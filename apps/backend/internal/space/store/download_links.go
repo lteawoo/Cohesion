@@ -15,17 +15,18 @@ type DownloadLinkItem struct {
 const BundleDownloadName = "cohesion-files.zip"
 
 type DownloadLink struct {
-	Items     []DownloadLinkItem `json:"-"`
-	ItemCount int                `json:"itemCount,omitempty"`
-	ID        int64              `json:"id"`
-	Token     string             `json:"token"`
-	Snapshot  string             `json:"-"`
-	Owner     int64              `json:"-"`
-	SpaceID   int64              `json:"-"`
-	Path      string             `json:"path"`
-	Name      string             `json:"name"`
-	Size      int64              `json:"size"`
-	Expires   int64              `json:"expires"`
+	PublicOrigin string             `json:"publicOrigin,omitempty"`
+	Items        []DownloadLinkItem `json:"-"`
+	ItemCount    int                `json:"itemCount,omitempty"`
+	ID           int64              `json:"id"`
+	Token        string             `json:"token"`
+	Snapshot     string             `json:"-"`
+	Owner        int64              `json:"-"`
+	SpaceID      int64              `json:"-"`
+	Path         string             `json:"path"`
+	Name         string             `json:"name"`
+	Size         int64              `json:"size"`
+	Expires      int64              `json:"expires"`
 }
 
 const linkColumns = "id, token, snapshot, owner, space_id, path, size, expires, manifest"

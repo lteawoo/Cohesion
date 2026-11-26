@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"taeu.kr/cohesion/internal/auth"
+	"taeu.kr/cohesion/internal/config"
 	"taeu.kr/cohesion/internal/platform/web"
 	store "taeu.kr/cohesion/internal/space/store"
 )
@@ -50,6 +51,10 @@ func (h *Handler) handleDownloadLinks(w http.ResponseWriter, r *http.Request, sp
 		list, err := rt.store.DownloadLinks(r.Context(), spaceID, r.URL.Query().Get("path"), time.Now().Unix())
 		if err != nil {
 			return uploadIOError(err)
+		}
+		origin := config.PublicShareOrigin()
+		for i := range list {
+			list[i].PublicOrigin = origin
 		}
 		return writeJSON(w, 200, list)
 	case http.MethodPost:
@@ -184,6 +189,7 @@ func (h *Handler) createDownloadLink(w http.ResponseWriter, r *http.Request, own
 	if err != nil {
 		return uploadIOError(err)
 	}
+	link.PublicOrigin = config.PublicShareOrigin()
 	return writeJSON(w, 201, link)
 }
 

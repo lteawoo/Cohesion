@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"taeu.kr/cohesion/internal/config"
 	"time"
 
 	"taeu.kr/cohesion/internal/auth"
@@ -40,6 +41,10 @@ func (h *Handler) handleFileRequests(w http.ResponseWriter, r *http.Request, spa
 		list, err := rt.store.FileRequests(ctx, claims.UserID, spaceID, folder)
 		if err != nil {
 			return uploadIOError(err)
+		}
+		origin := config.PublicShareOrigin()
+		for i := range list {
+			list[i].PublicOrigin = origin
 		}
 		return writeJSON(w, 200, list)
 	case http.MethodPost:
@@ -75,6 +80,7 @@ func (h *Handler) handleFileRequests(w http.ResponseWriter, r *http.Request, spa
 		if err := rt.store.CreateFileRequest(ctx, link); err != nil {
 			return uploadIOError(err)
 		}
+		link.PublicOrigin = config.PublicShareOrigin()
 		return writeJSON(w, 201, link)
 	case http.MethodDelete:
 		id, err := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
