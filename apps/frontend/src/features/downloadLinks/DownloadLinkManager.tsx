@@ -8,6 +8,7 @@ import { DownloadLinkRequestError, manageDownloadLinks, shareAddress, type Downl
 interface ManagerProps {
   spaceId: number;
   path?: string;
+  files?: Array<{ path: string; size: number }>;
   onClose: () => void;
 }
 
@@ -23,17 +24,18 @@ function errorMessage(error: unknown) {
   return 'downloadLink.manageError';
 }
 
-export default function DownloadLinkManager({ spaceId, path, onClose }: ManagerProps) {
+export default function DownloadLinkManager({ spaceId, path, files, onClose }: ManagerProps) {
   const { t, i18n } = useTranslation();
   const [days, setDays] = useState<number | null>(7);
   const [links, setLinks] = useState<DownloadLink[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!files);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const mutation = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    if (files) return () => mutation.current?.abort();
     const controller = new AbortController();
     const params = new URLSearchParams();
     if (path) params.set('path', path);
@@ -43,7 +45,7 @@ export default function DownloadLinkManager({ spaceId, path, onClose }: ManagerP
       .catch(err => { if (!controller.signal.aborted) setError(errorMessage(err)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => { controller.abort(); mutation.current?.abort(); };
-  }, [spaceId, path, attempt]);
+  }, [spaceId, path, files, attempt]);
 
   async function update(id?: number) {
     if (mutation.current || loading) return;
@@ -55,9 +57,9 @@ export default function DownloadLinkManager({ spaceId, path, onClose }: ManagerP
       if (id !== undefined) {
         await manageDownloadLinks(spaceId, new URLSearchParams({ id: String(id) }), { method: 'DELETE', signal: controller.signal });
         if (!controller.signal.aborted) setLinks(previous => previous.filter(link => link.id !== id));
-      } else if (path && days && days >= 1 && days <= 365 && Number.isInteger(days)) {
+      } else if ((path || files) && days && days >= 1 && days <= 365 && Number.isInteger(days)) {
         const response = await manageDownloadLinks(spaceId, new URLSearchParams(), {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, days }), signal: controller.signal,
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(files ? { paths: files.map(file => file.path), days } : { path, days }), signal: controller.signal,
         });
         const link: DownloadLink = await response.json();
         if (!controller.signal.aborted) setLinks(previous => [link, ...previous.filter(item => item.id !== link.id)]);
@@ -70,23 +72,26 @@ export default function DownloadLinkManager({ spaceId, path, onClose }: ManagerP
     }
   }
 
-  return <Modal open onCancel={onClose} footer={null} title={t(path ? 'downloadLink.create' : 'downloadLink.manage')}>
-    {path && <Form layout="vertical" onFinish={() => void update()}>
-      <Typography.Paragraph strong style={{ overflowWrap: 'anywhere' }}>{path}</Typography.Paragraph>
-      <Typography.Paragraph type="secondary">{t('downloadLink.snapshotHint')}</Typography.Paragraph>
+  return <Modal open onCancel={onClose} footer={null} title={t(path || files ? 'downloadLink.create' : 'downloadLink.manage')}>
+    {(path || files) && <Form layout="vertical" onFinish={() => void update()}>
+      <Typography.Paragraph strong style={{ overflowWrap: 'anywhere' }}>
+        {files ? t('downloadLink.selection', { count: files.length, size: formatSize(files.reduce((total, file) => total + file.size, 0)) }) : path}
+      </Typography.Paragraph>
+      {files && files.length > 100 && <Alert type="warning" showIcon title={t('downloadLink.selectionLimit')} />}
+      <Typography.Paragraph type="secondary">{t(files ? 'downloadLink.bundleSnapshotHint' : 'downloadLink.snapshotHint')}</Typography.Paragraph>
       <Form.Item label={t('fileRequest.days')} htmlFor="download-link-days">
         <InputNumber id="download-link-days" min={1} max={365} precision={0} value={days} onChange={setDays} />
       </Form.Item>
-      <Button htmlType="submit" type="primary" loading={busy} disabled={loading || !!error || !days || days < 1 || days > 365}>{t('downloadLink.create')}</Button>
+      <Button htmlType="submit" type="primary" loading={busy} disabled={loading || !!error || (files?.length ?? 0) > 100 || !days || days < 1 || days > 365}>{t('downloadLink.create')}</Button>
     </Form>}
     {loading && <Spin aria-label={t('downloadLink.loading')} />}
     {error && <Alert type="error" showIcon title={t(error)}
-      action={<Button disabled={busy} onClick={() => { setError(null); setLoading(true); setAttempt(n => n + 1); }}>{t('fileRequest.retry')}</Button>} />}
-    {!path && !loading && !error && links.length === 0 && <Typography.Text type="secondary">{t('downloadLink.empty')}</Typography.Text>}
+      action={<Button disabled={busy} onClick={() => { setError(null); setLoading(!files); setAttempt(n => n + 1); }}>{t('fileRequest.retry')}</Button>} />}
+    {!path && !files && !loading && !error && links.length === 0 && <Typography.Text type="secondary">{t('downloadLink.empty')}</Typography.Text>}
     {links.map(link => <section key={link.id} aria-label={link.name}>
       <Divider style={{ marginBlock: 16 }} />
       <Flex vertical gap={8}>
-        {!path && <Typography.Text strong style={{ overflowWrap: 'anywhere' }}>{link.path}</Typography.Text>}
+        {!path && !files && <Typography.Text strong style={{ overflowWrap: 'anywhere' }}>{link.itemCount ? t('downloadLink.sharedCount', { count: link.itemCount }) : link.path}</Typography.Text>}
         <Typography.Text type="secondary">
           {formatSize(link.size)} · {t('downloadLink.expires', { date: new Date(link.expires * 1000).toLocaleString(i18n.language) })}
         </Typography.Text>

@@ -101,9 +101,9 @@ The destination filesystem must support hard links (for example APFS, ext4 or NT
 
 ## Share a file for download
 
-1. Sign in as a space manager with file read access. Open the file's menu, choose **Create download link**, and set an expiry (1–365 days).
+1. Sign in as a space manager with file read access. Open the file's menu, or select 2–100 files in the same folder and choose **Create download link** from the selection actions. Check the selection count and total size, then set an expiry (1–365 days).
 2. Create the link and copy the full address, including the part after `#`. Use the HTTPS address your recipient can reach. Anyone with the link can download the shared copy until access ends.
-3. The recipient opens the link on their phone or computer, checks the filename and size, and chooses **Download**. No account is required.
+3. The recipient opens the link on their phone or computer, checks the filenames and sizes, and downloads a file. A multi-file link also offers **Download all as ZIP**. No account is required.
 4. Choose **Manage download links** in the space's toolbar to close a link. You can still close it after moving or deleting the original. Expiry and closure stop new downloads. Removing the issuer's sharing permission also blocks access.
 
 Each link stores a private copy on the server. Editing or replacing the source file leaves that copy at the version you shared. Create a new link to send an updated version.

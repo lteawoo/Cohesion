@@ -91,6 +91,7 @@ export interface ContextMenuCallbacks {
   onMove: () => void;
   onRename: (record: FileNode) => void;
   onDelete: (record: FileNode) => void;
+  onBulkShare?: () => void;
   onBulkDownload: () => void;
   onBulkDelete: () => void;
   onCreateFolder: () => void;
@@ -151,7 +152,7 @@ export function buildSingleItemMenu(
 
 export function buildMultiItemMenu(
   count: number,
-  callbacks: Pick<ContextMenuCallbacks, 'onBulkDownload' | 'onCopy' | 'onMove' | 'onBulkDelete'>,
+  callbacks: Pick<ContextMenuCallbacks, 'onBulkShare' | 'onBulkDownload' | 'onCopy' | 'onMove' | 'onBulkDelete'>,
   t: TranslateFn,
   options?: { canWriteFiles?: boolean }
 ): MenuProps['items'] {
@@ -169,6 +170,12 @@ export function buildMultiItemMenu(
       label: t('browseMenu.download'),
       onClick: callbacks.onBulkDownload,
     },
+    ...(callbacks.onBulkShare ? [{
+      key: 'share',
+      icon: <ShareAltOutlined />,
+      label: t('downloadLink.create'),
+      onClick: callbacks.onBulkShare,
+    }] : []),
     ...(canWriteFiles
       ? [
           {

@@ -43,6 +43,7 @@ export function useContextMenu({
         // 다중 선택 메뉴
         const menuItems = buildMultiItemMenu(selectedItems.size, {
           onBulkDownload: callbacks.onBulkDownload,
+          onBulkShare: callbacks.onBulkShare,
           onCopy: callbacks.onCopy,
           onMove: callbacks.onMove,
           onBulkDelete: callbacks.onBulkDelete,

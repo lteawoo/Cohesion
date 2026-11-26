@@ -44,7 +44,7 @@ function DownloadPage({ token }: { token: string }) {
   return <main style={{ minHeight: '100dvh', background: colors.colorBgLayout, padding: 'clamp(24px, 9vh, 96px) 16px', boxSizing: 'border-box' }}>
     <Card style={{ maxWidth: 520, margin: '0 auto' }}>
       <Typography.Title level={1} style={{ fontSize: 28, marginTop: 0, overflowWrap: 'anywhere' }}>
-        {state.status === 'ready' ? state.file.name : t('downloadLink.sharedFile')}
+        {state.status === 'ready' ? (state.file.items ? t('downloadLink.sharedCount', { count: state.file.items.length }) : state.file.name) : t('downloadLink.sharedFile')}
       </Typography.Title>
       {state.status === 'loading' && <Spin aria-label={t('downloadLink.loading')} />}
       {state.status === 'unavailable' && <Alert type="warning" showIcon title={t('downloadLink.unavailable')} />}
@@ -56,8 +56,23 @@ function DownloadPage({ token }: { token: string }) {
         </Typography.Text>
         <form method="post" action={sharedFileEndpoint} rel="noreferrer">
           <input type="hidden" name="token" value={token} />
-          <Button icon={<DownloadOutlined />} aria-label={t('folderContent.download')} type="primary" size="large" htmlType="submit">{t('folderContent.download')}</Button>
+          <Button icon={<DownloadOutlined aria-hidden />} type="primary" size="large" htmlType="submit">{t(state.file.items ? 'downloadLink.downloadAll' : 'folderContent.download')}</Button>
         </form>
+        {state.file.items && <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {state.file.items.map(item => <li key={item.id} style={{ paddingBlock: 8, borderBottom: `1px solid ${colors.colorBorderSecondary}` }}>
+            <Flex gap={12} align="center" justify="space-between">
+              <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                <Typography.Text>{item.name}</Typography.Text><br />
+                <Typography.Text type="secondary">{formatSize(item.size)}</Typography.Text>
+              </div>
+              <form method="post" action={sharedFileEndpoint} rel="noreferrer">
+                <input type="hidden" name="token" value={token} />
+                <input type="hidden" name="item" value={item.id} />
+                <Button htmlType="submit" size="large" icon={<DownloadOutlined aria-hidden />} aria-label={t('downloadLink.downloadItem', { name: item.name })} />
+              </form>
+            </Flex>
+          </li>)}
+        </ul>}
       </Flex>}
     </Card>
   </main>;

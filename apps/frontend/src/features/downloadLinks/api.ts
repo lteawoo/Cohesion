@@ -4,12 +4,14 @@ export interface SharedFile {
   name: string;
   size: number;
   expires: number;
+  items?: Array<{ id: number; name: string; size: number }>;
 }
 
 export interface DownloadLink extends SharedFile {
   id: number;
   path: string;
   token: string;
+  itemCount?: number;
 }
 
 export const sharedFileEndpoint = '/api/shared-file';

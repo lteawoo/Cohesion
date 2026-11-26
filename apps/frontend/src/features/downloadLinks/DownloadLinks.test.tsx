@@ -90,3 +90,30 @@ it('keeps an unavailable link on the public page without a download action', asy
   expect(await view.findByText('사용할 수 없는 다운로드 링크입니다.')).toBeTruthy();
   expect(view.queryByRole('button', { name: '다운로드' })).toBeNull();
 });
+
+it('shares the selected paths together and shows their total before creation', async () => {
+  const user = userEvent.setup();
+  const files = [{ path: file.path, size: 21 }, { path: 'team/notes.txt', size: 9 }];
+  api.mockResolvedValueOnce(Response.json({ ...link, path: '', itemCount: 2 }));
+  const view = render(<App><DownloadLinkManager spaceId={7} files={files} onClose={vi.fn()} /></App>);
+  expect(view.getByText('선택한 파일 2개 · 30 B')).toBeTruthy();
+  await user.click(view.getByRole('button', { name: '다운로드 링크 만들기' }));
+  expect(await view.findByLabelText('다운로드 링크 주소')).toBeTruthy();
+  expect(JSON.parse(String(api.mock.calls[0][1]?.body))).toEqual({ paths: files.map(item => item.path), days: 7 });
+});
+
+it('offers a native POST per item and a separate complete ZIP', async () => {
+  const items = [{ id: 1, name: '보고서.pdf', size: 12 }, { id: 2, name: 'notes.txt', size: 9 }];
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ...file, items })));
+  const view = render(<MemoryRouter initialEntries={['/share#bundle-token']}><SharedDownload /></MemoryRouter>);
+  expect(await view.findByRole('heading', { name: '공유 파일 2개' })).toBeTruthy();
+  for (const item of items) {
+    const form = view.getByRole('button', { name: item.name + ' 다운로드' }).closest('form')!;
+    expect(form.method).toBe('post');
+    expect(new FormData(form).get('item')).toBe(String(item.id));
+    expect(new FormData(form).get('token')).toBe('bundle-token');
+  }
+  const zip = view.getByRole('button', { name: '전체 ZIP 다운로드' }).closest('form')!;
+  expect(new FormData(zip).has('item')).toBe(false);
+  expect(new FormData(zip).get('token')).toBe('bundle-token');
+});
