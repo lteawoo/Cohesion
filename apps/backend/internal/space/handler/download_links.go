@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"mime"
 	"net/http"
 	"os"
-	"path"
 
 	"runtime"
 	"strconv"
@@ -80,10 +80,11 @@ func (h *Handler) handleDownloadLinks(w http.ResponseWriter, r *http.Request, sp
 
 func (h *Handler) createDownloadLink(w http.ResponseWriter, r *http.Request, owner, spaceID int64) *web.Error {
 	var input struct {
-		Path string
-		Days int
+		Path  string
+		Paths []string
+		Days  int
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&input); err != nil || input.Days < 1 || input.Days > 365 {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 512<<10)).Decode(&input); err != nil || input.Days < 1 || input.Days > 365 {
 		return &web.Error{Code: 400, Message: "Invalid path or expiry"}
 	}
 	ctx := r.Context()
@@ -112,11 +113,17 @@ func (h *Handler) createDownloadLink(w http.ResponseWriter, r *http.Request, own
 	if e != nil {
 		return e
 	}
-	source, info, err := openShareSource(spaceInfo.SpacePath, input.Path)
-	if err != nil {
-		return &web.Error{Code: 400, Message: "Select a regular file inside the space"}
+	paths := input.Paths
+	if paths == nil {
+		paths = []string{input.Path}
+	} else if input.Path != "" || len(paths) < 2 || len(paths) > 100 {
+		return &web.Error{Code: 400, Message: "Select between 2 and 100 files"}
 	}
-	defer source.Close()
+	selection, err := openDownloadSelection(spaceInfo.SpacePath, paths)
+	if err != nil {
+		return &web.Error{Code: 400, Message: "Select distinct regular files inside the space"}
+	}
+	defer selection.close()
 	token, err := generateDownloadTicketToken()
 	if err != nil {
 		return uploadIOError(err)
@@ -125,7 +132,14 @@ func (h *Handler) createDownloadLink(w http.ResponseWriter, r *http.Request, own
 	if err != nil {
 		return uploadIOError(err)
 	}
-	link := store.DownloadLink{Owner: owner, SpaceID: spaceID, Path: input.Path, Name: path.Base(input.Path), Size: info.Size(), Token: token, Snapshot: snapshot}
+	link := store.DownloadLink{Owner: owner, SpaceID: spaceID, Path: input.Path, Name: selection.files[0].item.Name, Size: selection.size, Token: token, Snapshot: snapshot}
+	if len(selection.files) > 1 {
+		link.Name = store.BundleDownloadName
+		link.ItemCount = len(selection.files)
+		for _, file := range selection.files {
+			link.Items = append(link.Items, file.item)
+		}
+	}
 	if err := shared.reserve(ctx, rt.store, link, spaceInfo.QuotaBytes); err != nil {
 		if errors.Is(err, errSnapshotQuota) {
 			return &web.Error{Code: 507, Message: "Space snapshot quota exceeded"}
@@ -144,7 +158,7 @@ func (h *Handler) createDownloadLink(w http.ResponseWriter, r *http.Request, own
 			_ = os.Remove(filename)
 		}
 	}()
-	err = copyDownloadSnapshot(ctx, source, dest, info)
+	err = selection.copy(ctx, dest)
 	closeErr := dest.Close()
 	if err != nil {
 		return snapshotCopyError(err)
@@ -221,14 +235,35 @@ func (h *Handler) handleSharedFile(w http.ResponseWriter, r *http.Request) *web.
 	defer file.Close()
 	if r.Method == http.MethodGet {
 		return writeJSON(w, 200, struct {
-			Name    string `json:"name"`
-			Size    int64  `json:"size"`
-			Expires int64  `json:"expires"`
-		}{link.Name, link.Size, link.Expires})
+			Name    string                   `json:"name"`
+			Size    int64                    `json:"size"`
+			Expires int64                    `json:"expires"`
+			Items   []store.DownloadLinkItem `json:"items,omitempty"`
+		}{link.Name, link.Size, link.Expires, link.Items})
 	}
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": link.Name}))
+	name := link.Name
+	var content io.ReadSeeker = file
+	if ids, exists := r.PostForm["item"]; exists {
+		if len(ids) != 1 {
+			return unavailableDownload()
+		}
+		id, err := strconv.Atoi(ids[0])
+		if err != nil || id < 1 || id > len(link.Items) {
+			return unavailableDownload()
+		}
+		var offset int64
+		for _, item := range link.Items[:id-1] {
+			offset += item.Size
+		}
+		item := link.Items[id-1]
+		name = item.Name
+		content = io.NewSectionReader(file, offset, item.Size)
+	} else if len(link.Items) > 0 {
+		return streamDownloadBundle(w, r, file, link.Items)
+	}
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
 	w.Header().Set("Content-Type", "application/octet-stream")
-	http.ServeContent(w, r, link.Name, time.Time{}, file)
+	http.ServeContent(w, r, name, time.Time{}, content)
 	return nil
 }
 

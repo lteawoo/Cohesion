@@ -2,33 +2,59 @@ package space
 
 import (
 	"context"
+	"encoding/json"
 	"path"
 )
 
-type DownloadLink struct {
-	ID       int64  `json:"id"`
-	Token    string `json:"token"`
-	Snapshot string `json:"-"`
-	Owner    int64  `json:"-"`
-	SpaceID  int64  `json:"-"`
-	Path     string `json:"path"`
-	Name     string `json:"name"`
-	Size     int64  `json:"size"`
-	Expires  int64  `json:"expires"`
+type DownloadLinkItem struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Size int64  `json:"size"`
 }
 
-const linkColumns = "id, token, snapshot, owner, space_id, path, size, expires"
+const BundleDownloadName = "cohesion-files.zip"
+
+type DownloadLink struct {
+	Items     []DownloadLinkItem `json:"-"`
+	ItemCount int                `json:"itemCount,omitempty"`
+	ID        int64              `json:"id"`
+	Token     string             `json:"token"`
+	Snapshot  string             `json:"-"`
+	Owner     int64              `json:"-"`
+	SpaceID   int64              `json:"-"`
+	Path      string             `json:"path"`
+	Name      string             `json:"name"`
+	Size      int64              `json:"size"`
+	Expires   int64              `json:"expires"`
+}
+
+const linkColumns = "id, token, snapshot, owner, space_id, path, size, expires, manifest"
 
 func scanDownloadLink(row interface{ Scan(...any) error }) (DownloadLink, error) {
 	var l DownloadLink
-	err := row.Scan(&l.ID, &l.Token, &l.Snapshot, &l.Owner, &l.SpaceID, &l.Path, &l.Size, &l.Expires)
-	l.Name = path.Base(l.Path)
+	var manifest string
+	err := row.Scan(&l.ID, &l.Token, &l.Snapshot, &l.Owner, &l.SpaceID, &l.Path, &l.Size, &l.Expires, &manifest)
+	if err == nil && manifest != "" {
+		err = json.Unmarshal([]byte(manifest), &l.Items)
+		l.ItemCount = len(l.Items)
+		l.Name = BundleDownloadName
+	} else {
+		l.Name = path.Base(l.Path)
+	}
 	return l, err
 }
 
 func (s *TransferStore) CreateDownloadLink(ctx context.Context, l *DownloadLink) error {
-	return s.db.QueryRowContext(ctx, `INSERT INTO download_links(token,snapshot,owner,space_id,path,size,expires)
- VALUES(?,?,?,?,?,?,?) RETURNING id`, l.Token, l.Snapshot, l.Owner, l.SpaceID, l.Path, l.Size, l.Expires).Scan(&l.ID)
+	var manifest string
+	if len(l.Items) != 0 {
+		data, err := json.Marshal(l.Items)
+		if err != nil {
+			return err
+		}
+		manifest = string(data)
+	}
+	return s.db.QueryRowContext(ctx, `INSERT INTO download_links(token,snapshot,owner,space_id,path,size,expires,manifest)
+ VALUES(?,?,?,?,?,?,?,?) RETURNING id`, l.Token, l.Snapshot, l.Owner, l.SpaceID, l.Path, l.Size, l.Expires, manifest).Scan(&l.ID)
 }
 
 func (s *TransferStore) DownloadLinks(ctx context.Context, spaceID int64, filePath string, now int64) ([]DownloadLink, error) {

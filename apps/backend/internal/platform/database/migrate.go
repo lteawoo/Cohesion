@@ -30,7 +30,14 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	// Install the foreign keys after legacy migrations that replace the space table.
-	_, err := db.ExecContext(ctx, fileRequestsDDL+"\n"+downloadLinksDDL)
+	if _, err := db.ExecContext(ctx, fileRequestsDDL+"\n"+downloadLinksDDL); err != nil {
+		return err
+	}
+	hasManifest, err := tableHasColumn(ctx, db, "download_links", "manifest")
+	if err != nil || hasManifest {
+		return err
+	}
+	_, err = db.ExecContext(ctx, "ALTER TABLE download_links ADD COLUMN manifest TEXT NOT NULL DEFAULT ''")
 	return err
 }
 

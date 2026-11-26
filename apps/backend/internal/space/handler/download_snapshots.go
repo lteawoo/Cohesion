@@ -172,5 +172,5 @@ func copyDownloadSnapshot(ctx context.Context, src, dst *os.File, before os.File
 	if after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
 		return errSnapshotChanged
 	}
-	return dst.Sync()
+	return nil
 }

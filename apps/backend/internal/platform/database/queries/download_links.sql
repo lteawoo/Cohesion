@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS download_links (
     space_id INTEGER NOT NULL REFERENCES space(id) ON DELETE CASCADE,
     path TEXT NOT NULL,
     size INTEGER NOT NULL CHECK(size >= 0),
+    manifest TEXT NOT NULL DEFAULT '',
     expires INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS download_links_space_path ON download_links(space_id, path);
