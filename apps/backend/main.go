@@ -358,6 +358,14 @@ func createServer(db *sql.DB, restartChan chan system.RestartRequest, shutdownCh
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "admin" {
+		if err := runAdminCommand(os.Args[2:], os.Stdin, os.Stderr); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	appLogFile, accessLogFile, appLogPath, accessLogPath, loggerErr := configureRootLoggers()
 	if loggerErr != nil {
 		configureFallbackLoggers()

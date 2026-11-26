@@ -154,6 +154,24 @@ func (s *Store) UpdateUser(ctx context.Context, id int64, req *account.UpdateUse
 	return s.GetUserByID(ctx, id)
 }
 
+func (s *Store) UpdateAdminPassword(ctx context.Context, target *account.User, passwordHash string) error {
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE users SET password_hash = ?, updated_at = ?
+		WHERE id = ? AND username = ? AND role = ? AND password_hash = ?
+	`, passwordHash, time.Now(), target.ID, target.Username, account.RoleAdmin, target.PasswordHash)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return fmt.Errorf("administrator %q changed during recovery; run the command again", target.Username)
+	}
+	return nil
+}
+
 func (s *Store) DeleteUser(ctx context.Context, id int64) error {
 	query, args, err := s.qb.Delete("users").Where(sq.Eq{"id": id}).ToSql()
 	if err != nil {
@@ -171,6 +189,25 @@ func (s *Store) DeleteUser(ctx context.Context, id int64) error {
 		return fmt.Errorf("user with id %d not found", id)
 	}
 	return nil
+}
+
+// ListAdministratorUsernames exposes account discovery to the local recovery command.
+func (s *Store) ListAdministratorUsernames(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT username FROM users WHERE role = ? ORDER BY username", account.RoleAdmin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var usernames []string
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			return nil, err
+		}
+		usernames = append(usernames, username)
+	}
+	return usernames, rows.Err()
 }
 
 func (s *Store) CountAdmins(ctx context.Context) (int, error) {

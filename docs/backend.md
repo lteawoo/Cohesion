@@ -135,6 +135,12 @@ pnpm release:check
   - SFTP on/off 및 포트
   - 감사 로그 보존 일수
 
+## 관리자 비밀번호 복구
+
+Cohesion을 실행하는 컴퓨터의 터미널에서 서버와 같은 운영체제 계정으로 `cohesion admin reset-password`를 실행한다. 서비스가 `COHESION_STATE_ROOT`를 지정했다면 같은 값으로 실행한다. 기본 Linux 패키지 서비스에는 `sudo -u cohesion cohesion admin reset-password`를 사용한다.
+
+표시된 데이터베이스 경로를 확인한다. 관리자가 한 명이면 Enter로 선택하고, 여러 명이면 목록에서 대상 아이디를 입력한다. 새 비밀번호를 두 번 입력한다. 입력은 화면에 표시되지 않으며 Ctrl+C로 취소할 수 있다. 완료 메시지가 표시되면 브라우저에서 새 비밀번호로 로그인한다.
+
 ## 브라우저 업로드 세션 API
 
 모든 요청은 스페이스 파일 쓰기 권한이 필요하다. 세션 ID는 생성 계정과 스페이스에 귀속된다.

@@ -17,6 +17,7 @@ type Storer interface {
 	CreateUser(ctx context.Context, req *CreateUserRequest, passwordHash string) (*User, error)
 	UpdateUser(ctx context.Context, id int64, req *UpdateUserRequest, passwordHash *string) (*User, error)
 	DeleteUser(ctx context.Context, id int64) error
+	UpdateAdminPassword(ctx context.Context, target *User, passwordHash string) error
 	CountAdmins(ctx context.Context) (int, error)
 	GetUserPermissions(ctx context.Context, userID int64) ([]*UserSpacePermission, error)
 	ReplaceUserPermissions(ctx context.Context, userID int64, permissions []*UserSpacePermission) error
@@ -197,6 +198,29 @@ func (s *Service) UpdateUser(ctx context.Context, id int64, req *UpdateUserReque
 	}
 
 	return s.store.UpdateUser(ctx, id, req, passwordHash)
+}
+
+// ResetAdminPassword changes credentials for the administrator confirmed by a local operator.
+func (s *Service) ResetAdminPassword(ctx context.Context, target *User, password string) error {
+	if target.Role != RoleAdmin {
+		return errors.New("password recovery requires an administrator account")
+	}
+	if err := ValidateNewPassword(password); err != nil {
+		return err
+	}
+	hash, err := hashPassword(password)
+	if err != nil {
+		return err
+	}
+	return s.store.UpdateAdminPassword(ctx, target, hash)
+}
+
+// ValidateNewPassword checks the minimum length for an account's own new password.
+func ValidateNewPassword(password string) error {
+	if len(strings.TrimSpace(password)) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	return nil
 }
 
 func (s *Service) DeleteUser(ctx context.Context, id int64) error {
